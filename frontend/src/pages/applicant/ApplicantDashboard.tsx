@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { applicantApi } from "../../lib/api/applicant.api";
@@ -9,6 +9,7 @@ import {
   EmptyState,
   ErrorState,
 } from "../../components/common";
+import { Button } from "../../components/ui";
 import { formatDate, getTimeBasedGreeting, formatSalaryRange } from "../../lib/utils";
 import { ApplicationStatus } from "../../lib/types/enums";
 import {
@@ -33,22 +34,32 @@ function SectionData<T>({
   query,
   subject,
   skeleton,
+  errorClassName,
   children,
 }: {
   query: UseQueryResult<T>;
   /** What this section shows, for the error title ("Couldn't load <subject>"). */
   subject: string;
   skeleton: React.ReactNode;
+  /** Spacing for the error banner when the section sits inside a card. */
+  errorClassName?: string;
   children: (data: T) => React.ReactNode;
 }) {
-  // Offline: TanStack pauses the fetch, so the query stays pending. Say so instead of showing a skeleton forever.
-  if (query.fetchStatus === "paused" && query.data === undefined) {
-    return <ErrorState compact subject={subject} onRetry={() => { void query.refetch(); }} />;
+  const retry = () => { void query.refetch(); };
+  // A refetch of a failed query that never had data goes back to "pending" and clears `error`. Remember the last one.
+  const lastError = React.useRef<Error | null>(null);
+  if (query.error) lastError.current = query.error;
+  if (query.data === undefined) {
+    // Offline: TanStack pauses the fetch, so the query stays pending. Say so instead of showing a skeleton forever.
+    if (query.fetchStatus === "paused") {
+      return <ErrorState compact subject={subject} className={errorClassName} onRetry={retry} />;
+    }
+    // Keep the error up until data arrives, including while a background retry runs.
+    if (query.isError || query.errorUpdatedAt > 0) {
+      return <ErrorState compact subject={subject} className={errorClassName} error={query.error ?? lastError.current} onRetry={retry} />;
+    }
   }
-  if (query.isError && !query.isFetching) {
-    return <ErrorState className="my-0 border-0" subject={subject} error={query.error} onRetry={() => { void query.refetch(); }} />;
-  }
-  if (query.isPending || query.isError) {
+  if (query.isPending) {
     return (
       <div role="status" aria-label="Loading section" className="motion-safe:animate-pulse">
         {skeleton}
@@ -56,8 +67,35 @@ function SectionData<T>({
       </div>
     );
   }
-  return <>{children(query.data)}</>;
+  // Success, or an error that still has earlier data to show.
+  return <>{children(query.data as T)}</>;
 }
+
+function SectionHeader({
+  title,
+  description,
+  action,
+}: {
+  title: string;
+  description: string;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="p-5 border-b border-slate-200 flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className="text-base font-bold text-slate-900">{title}</h2>
+        <p className="text-sm text-slate-600 mt-0.5">{description}</p>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+const SECTION_LINK_CLASS =
+  "inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-md text-sm font-medium text-slate-900 hover:text-slate-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 md:min-h-0 applicant-touch:min-h-11";
+
+const RECENT_DESCRIPTION = "Track progress from submission to job placement.";
+const JOBS_DESCRIPTION = "Verified vacancies matching recruitment demands nationwide.";
 
 function listSkeleton(rows: number, rowClass = "h-[193px] sm:h-[137px] lg:h-[85px]") {
   return (
@@ -148,10 +186,19 @@ export const ApplicantDashboard: React.FC = () => {
   const openJobs = Array.isArray(jobsQuery.data) ? jobsQuery.data : jobsQuery.data?.items ?? [];
   const openJobsTotal = Array.isArray(jobsQuery.data) ? jobsQuery.data.length : jobsQuery.data?.total ?? openJobs.length;
 
+  const applicationTotal = applicationsQuery.data ? summarizeApplications(applicationsQuery.data).totalApps : undefined;
+
   const allInvitations = Array.isArray(invitationsQuery.data) ? invitationsQuery.data : [];
   const pendingInvitations = allInvitations.filter((inv) => inv.status === "PENDING");
+  // Hold the body for at most 2 s so a slow invitations request cannot block the rest of the page.
+  const [invitationsWaitOver, setInvitationsWaitOver] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setInvitationsWaitOver(true), 2000);
+    return () => clearTimeout(timer);
+  }, []);
   // Offline queries are paused, not pending: let the sections show their own connection message.
-  const invitationsPending = invitationsQuery.isPending && invitationsQuery.fetchStatus !== "paused";
+  const invitationsPending =
+    invitationsQuery.isPending && invitationsQuery.fetchStatus !== "paused" && !invitationsWaitOver;
 
   return (
     <div className="space-y-6">
@@ -161,18 +208,13 @@ export const ApplicantDashboard: React.FC = () => {
         breadcrumbs={[{ label: "Candidate Portal" }]}
         actions={
           <div className="flex items-center gap-2">
-            <Link
-              to="/app/jobs"
-              className="inline-flex min-h-10 items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-xs sm:text-sm font-medium text-slate-900 hover:bg-slate-100 hover:text-slate-950 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
-            >
-              Browse Jobs
-            </Link>
-            <Link
-              to="/app/profile"
-              className="inline-flex min-h-10 items-center justify-center rounded-md border border-slate-900 bg-slate-900 px-4 text-xs sm:text-sm font-medium text-white hover:bg-slate-950 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
-            >
-              Update Profile
-            </Link>
+            <Button asChild variant="outline">
+              <Link to="/app/jobs">Browse Jobs</Link>
+            </Button>
+            {/* One primary action per area: the invitation banner owns it while it shows. */}
+            <Button asChild variant={pendingInvitations.length > 0 ? "outline" : "primary"}>
+              <Link to="/app/profile">Update Profile</Link>
+            </Button>
           </div>
         }
       />
@@ -180,12 +222,10 @@ export const ApplicantDashboard: React.FC = () => {
       {/* Hold the page body until invitations are known: the banner then arrives with the content and nothing is pushed down. */}
       {invitationsPending ? (
         <div role="status" aria-label="Loading dashboard" className="space-y-6 motion-safe:animate-pulse">
-          <div className="min-h-[216px] sm:min-h-[148px] rounded-md border border-slate-200 bg-white p-5">{readinessSkeleton}</div>
+          <div className="min-h-[244px] sm:min-h-[148px] rounded-md border border-slate-200 bg-white p-5">{readinessSkeleton}</div>
           {metricsSkeleton}
-          <div className="rounded-md border border-slate-200 bg-white">
-            <div className="h-[81px] border-b border-slate-200 p-5">
-              <div className="h-4 w-1/3 bg-slate-200" />
-            </div>
+          <div className="rounded-md border border-slate-200 bg-white overflow-hidden">
+            <SectionHeader title="Recent Applications" description={RECENT_DESCRIPTION} />
             {listSkeleton(3)}
           </div>
           <span className="sr-only">Loading dashboard</span>
@@ -199,32 +239,31 @@ export const ApplicantDashboard: React.FC = () => {
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <Mail className="w-5 h-5 text-slate-900 shrink-0" />
-                  <h3 className="text-base font-bold text-slate-900">
+                  <h2 className="text-base font-bold text-slate-900">
                     {pendingInvitations.length === 1
                       ? `You received an invitation for ${pendingInvitations[0].title}!`
                       : `You have ${pendingInvitations.length} pending job invitations!`}
-                  </h3>
+                  </h2>
                 </div>
-                <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+                <p className="text-sm text-slate-600 leading-relaxed">
                   Talent Acquisition matched your qualifications to open positions. Review position details and submit your application with one click.
                 </p>
               </div>
-              <Link
-                to="/app/applications"
-                search={{ tab: "invitations" }}
-                className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-md bg-slate-900 hover:bg-slate-950 px-4 text-xs sm:text-sm font-medium text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
-              >
-                Review Invitations ({pendingInvitations.length})
-              </Link>
+              <Button asChild className="shrink-0">
+                <Link to="/app/applications" search={{ tab: "invitations" }}>
+                  Review Invitations ({pendingInvitations.length})
+                </Link>
+              </Button>
             </div>
           </div>
         )}
 
         {/* Digital Resume Readiness Card */}
-        <div className="bg-white border border-slate-200 p-5 rounded-md min-h-[216px] sm:min-h-[148px]">
+        <div className="bg-white border border-slate-200 p-5 rounded-md min-h-[244px] sm:min-h-[148px]">
           <SectionData
             query={profileQuery}
             subject="your profile"
+            errorClassName="border-0 bg-transparent p-0"
             skeleton={readinessSkeleton}
           >
             {(profileData) => {
@@ -238,24 +277,23 @@ export const ApplicantDashboard: React.FC = () => {
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
                       Digital Resume Readiness:
                     </span>
-                    <span className="text-sm font-black font-mono text-slate-900">
+                    <span className="text-sm font-bold tabular-nums text-slate-900">
                       {readinessPercent}%
                     </span>
-                    <span className="inline-flex items-center px-2 py-0.5 bg-slate-100 text-slate-900 border border-slate-200 text-[10px] font-mono font-bold uppercase rounded-md">
+                    <span className="inline-flex items-center px-2 py-0.5 bg-slate-100 text-slate-900 border border-slate-200 text-xs font-medium rounded-md">
                       {profileHealth.tier}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-sm text-slate-600">
                     Complete your profile to increase visibility to recruiters and partner employers.
                   </p>
                 </div>
-                <Link
-                  to="/app/profile"
-                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-900 hover:text-slate-950 hover:bg-slate-100 rounded-md transition-colors shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
-                >
-                  <span>{readinessPercent >= 100 ? "View Profile" : "Complete Profile"}</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </Link>
+                <Button asChild variant="ghost" size="sm" className="shrink-0">
+                  <Link to="/app/profile">
+                    <span>{readinessPercent >= 100 ? "View Profile" : "Complete Profile"}</span>
+                    <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                  </Link>
+                </Button>
               </div>
 
               <div className="w-full bg-slate-100 h-2 border border-slate-200 overflow-hidden rounded-full my-3">
@@ -263,13 +301,14 @@ export const ApplicantDashboard: React.FC = () => {
                   className="h-full bg-slate-900 transition-all duration-300 rounded-full"
                   style={{ width: `${readinessPercent}%` }}
                   role="progressbar"
+                  aria-label="Resume readiness"
                   aria-valuenow={readinessPercent}
                   aria-valuemin={0}
                   aria-valuemax={100}
                 />
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-slate-500">
+              <div className="flex items-center gap-2 text-sm text-slate-600">
                 {readinessPercent >= 100 ? (
                   <CheckCircle2 className="w-4 h-4 text-emerald-700 shrink-0" />
                 ) : (
@@ -286,7 +325,7 @@ export const ApplicantDashboard: React.FC = () => {
         {/* 4-Segment Operational Metrics Cards */}
         <SectionData
           query={applicationsQuery}
-          subject="your applications"
+          subject="your application counts"
           skeleton={metricsSkeleton}
         >
           {(applicationData) => {
@@ -297,7 +336,7 @@ export const ApplicantDashboard: React.FC = () => {
                 <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
                   Applications
                 </div>
-                <div className="text-2xl sm:text-3xl font-black font-mono text-slate-900 mt-1 tabular-nums">
+                <div className="text-2xl sm:text-3xl font-black text-slate-900 mt-1 tabular-nums">
                   {totalApps}
                 </div>
                 <div className="text-xs text-slate-500 mt-1">
@@ -308,7 +347,7 @@ export const ApplicantDashboard: React.FC = () => {
                 <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
                   In Progress
                 </div>
-                <div className="text-2xl sm:text-3xl font-black font-mono text-slate-900 mt-1 tabular-nums">
+                <div className="text-2xl sm:text-3xl font-black text-slate-900 mt-1 tabular-nums">
                   {activeApps}
                 </div>
                 <div className="text-xs text-slate-500 mt-1">
@@ -319,7 +358,7 @@ export const ApplicantDashboard: React.FC = () => {
                 <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
                   Interviews
                 </div>
-                <div className="text-2xl sm:text-3xl font-black font-mono text-purple-700 mt-1 tabular-nums">
+                <div className="text-2xl sm:text-3xl font-black text-navy mt-1 tabular-nums">
                   {interviewApps}
                 </div>
                 <div className="text-xs text-slate-500 mt-1">
@@ -330,7 +369,7 @@ export const ApplicantDashboard: React.FC = () => {
                 <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
                   Placed
                 </div>
-                <div className="text-2xl sm:text-3xl font-black font-mono text-emerald-700 mt-1 tabular-nums">
+                <div className="text-2xl sm:text-3xl font-black text-emerald-700 mt-1 tabular-nums">
                   {placedApps}
                 </div>
                 <div className="text-xs text-slate-500 mt-1">
@@ -344,43 +383,40 @@ export const ApplicantDashboard: React.FC = () => {
 
         {/* Recent Applications Section */}
         <div className="bg-white rounded-md border border-slate-200 overflow-hidden">
-          <div className="p-5 border-b border-slate-200 flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-bold text-slate-900">
-                Recent Applications
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Track progress from submission to job placement.
-              </p>
-            </div>
-            <Link
-              to="/app/applications"
-              className="text-xs font-medium text-slate-900 hover:text-slate-950 hover:underline"
-            >
-              {applicationsQuery.data ? `View All (${summarizeApplications(applicationsQuery.data).applications.length})` : "View All"}
-            </Link>
-          </div>
+          <SectionHeader
+            title="Recent Applications"
+            description={RECENT_DESCRIPTION}
+            action={
+              // Hidden for an empty list: the empty state below already offers the next step.
+              applicationTotal === 0 ? null : (
+                <Link to="/app/applications" className={SECTION_LINK_CLASS}>
+                  {applicationTotal === undefined ? "View All" : `View All (${applicationTotal})`}
+                </Link>
+              )
+            }
+          />
 
-          <SectionData query={applicationsQuery} subject="your applications" skeleton={listSkeleton(3)}>
+          <SectionData
+            query={applicationsQuery}
+            subject="your applications"
+            errorClassName="m-4"
+            skeleton={listSkeleton(3)}
+          >
             {(applicationData) => {
               const { applications } = summarizeApplications(applicationData);
               return (
               applications.length === 0 ? (
-                <div className="p-8">
-                  <EmptyState
-                    icon={<Briefcase className="w-6 h-6 text-slate-400" />}
-                    title="No applications yet"
-                    description="Explore current verified job requisitions and submit your application with one click."
-                    action={
-                      <Link
-                        to="/app/jobs"
-                        className="inline-flex min-h-10 items-center justify-center rounded-md bg-slate-900 hover:bg-slate-950 px-4 text-xs sm:text-sm font-medium text-white transition-colors"
-                      >
-                        Browse Open Jobs
-                      </Link>
-                    }
-                  />
-                </div>
+                <EmptyState
+                  bare
+                  icon={<Briefcase className="w-6 h-6 text-slate-400" />}
+                  title="No applications yet"
+                  description="Explore current verified job requisitions and submit your application with one click."
+                  action={
+                    <Button asChild>
+                      <Link to="/app/jobs">Browse Open Jobs</Link>
+                    </Button>
+                  }
+                />
               ) : (
                 <div className="divide-y divide-slate-200">
                   {applications.slice(0, 5).map((app) => {
@@ -416,13 +452,12 @@ export const ApplicantDashboard: React.FC = () => {
                         </div>
 
                         <div className="flex items-center gap-3 shrink-0">
-                          <Link
-                            to="/app/applications"
-                            className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-100 hover:text-slate-950 px-3.5 text-xs font-medium text-slate-900 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2"
-                          >
-                            <span>Track Status</span>
-                            <ArrowRight className="w-3.5 h-3.5" />
-                          </Link>
+                          <Button asChild variant="outline" size="sm">
+                            <Link to="/app/applications">
+                              <span>Track Status</span>
+                              <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                            </Link>
+                          </Button>
                         </div>
                       </div>
                     );
@@ -437,24 +472,17 @@ export const ApplicantDashboard: React.FC = () => {
         {/* Recommended Open Jobs Preview */}
         {(jobsQuery.isPending || jobsQuery.isError || openJobs.length > 0) && (
           <div className="bg-white rounded-md border border-slate-200 overflow-hidden">
-            <div className="p-5 border-b border-slate-200 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">
-                  Recommended Positions for You
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Verified vacancies matching recruitment demands nationwide.
-                </p>
-              </div>
-              <Link
-                to="/app/jobs"
-                className="text-xs font-medium text-slate-900 hover:text-slate-950 hover:underline"
-              >
-                {jobsQuery.data ? `Browse All (${openJobsTotal})` : "Browse All"}
-              </Link>
-            </div>
+            <SectionHeader
+              title="Recommended Positions for You"
+              description={JOBS_DESCRIPTION}
+              action={
+                <Link to="/app/jobs" className={SECTION_LINK_CLASS}>
+                  {jobsQuery.data ? `Browse All (${openJobsTotal})` : "Browse All"}
+                </Link>
+              }
+            />
 
-            <SectionData query={jobsQuery} subject="open jobs" skeleton={listSkeleton(2, "h-[120px]")}>
+            <SectionData query={jobsQuery} subject="open jobs" errorClassName="m-4" skeleton={listSkeleton(2, "h-[120px]")}>
               {() => (
                 <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200">
                   {openJobs.slice(0, 4).map((job) => {
@@ -466,10 +494,10 @@ export const ApplicantDashboard: React.FC = () => {
                       >
                         <div className="space-y-1.5">
                           <div className="flex items-start justify-between gap-2">
-                            <h4 className="text-sm sm:text-base font-bold text-slate-900 hover:text-slate-700 transition-colors leading-snug">
+                            <h3 className="text-sm sm:text-base font-bold text-slate-900 hover:text-slate-700 transition-colors leading-snug">
                               {job.title}
-                            </h4>
-                            <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                            </h3>
+                            <span className="text-xs font-medium px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                               Open
                             </span>
                           </div>
@@ -481,7 +509,7 @@ export const ApplicantDashboard: React.FC = () => {
                             {((job as any)?.mrf?.salaryRangeMin || (job as any)?.mrf?.salaryRangeMax) ? (
                               <>
                                 <span className="text-slate-300">•</span>
-                                <span className="font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md text-[11px] border border-emerald-200">
+                                <span className="font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md text-xs border border-emerald-200">
                                   {formatSalaryRange((job as any).mrf.salaryRangeMin, (job as any).mrf.salaryRangeMax)}
                                 </span>
                               </>
@@ -489,20 +517,20 @@ export const ApplicantDashboard: React.FC = () => {
                           </div>
 
                           {job.description && (
-                            <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                            <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed">
                               {job.description}
                             </p>
                           )}
                         </div>
 
                         <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
-                          <span className="text-[11px] text-slate-500">
+                          <span className="text-xs text-slate-500">
                             Posted {formatDate(job.createdAt)}
                           </span>
                           <Link
                             to="/app/jobs/$jobId"
                             params={{ jobId: String(job.id) }}
-                            className="inline-flex items-center gap-1 text-xs font-medium text-slate-900 hover:text-slate-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 rounded-md"
+                            className={`${SECTION_LINK_CLASS} gap-1`}
                           >
                             <span>View Details</span>
                             <ArrowRight className="w-3.5 h-3.5" />
