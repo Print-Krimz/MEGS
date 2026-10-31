@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Button, Dialog } from "../ui";
+import { formatDate } from "../../lib/utils";
 import type { ResumeAccept, ResumeProposal } from "../../lib/types/applicant.types";
 import {
   actionablePersonal,
@@ -27,11 +28,15 @@ const checkboxClass = "mt-0.5 shrink-0 rounded text-[#0B315D] focus:ring-[#0B315
 const rowClass = "flex cursor-pointer items-start gap-3 py-2 in-[.applicant-portal]:min-h-11 in-[.applicant-portal]:items-center";
 
 const range = (start?: string, end?: string, isCurrent?: boolean) => {
-  const from = start?.substring(0, 10);
-  const to = isCurrent ? "Present" : end?.substring(0, 10);
+  const from = start ? formatDate(start) : undefined;
+  const to = isCurrent ? "Present" : end ? formatDate(end) : undefined;
   if (!from && !to) return "";
   return [from, to].filter(Boolean).join(" to ");
 };
+
+// Dates read as "Apr 12, 1995", like the rest of the app; other values are shown as they are.
+const resumeValue = (field: string, value: string | number | null | undefined) =>
+  field === "dateOfBirth" && typeof value === "string" && value ? formatDate(value) : formatResumeValue(value);
 
 const joinParts = (...parts: Array<string | undefined | null | false>) =>
   parts.filter(Boolean).join(" · ");
@@ -56,7 +61,7 @@ const ItemRow: React.FC<ItemRowProps> = ({ id, title, detail, checked, onChange 
       />
       <span className="min-w-0 text-sm text-[#102A43]">
         <span className="font-medium">{title}</span>
-        {detail ? <span className="block text-xs text-[#627D98]">{detail}</span> : null}
+        {detail ? <span className="block text-xs text-[#486581]">{detail}</span> : null}
       </span>
     </label>
   </li>
@@ -133,7 +138,7 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
                       key={row.field}
                       id={id}
                       title={label}
-                      detail={`${source}: ${formatResumeValue(row.proposed)}`}
+                      detail={`${source}: ${resumeValue(row.field, row.proposed)}`}
                       checked={selection.personal.has(row.field)}
                       onChange={(on) => update({ personal: toggle(selection.personal, row.field, on) })}
                     />
@@ -142,10 +147,10 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
                 return (
                   <li key={row.field} className="py-2">
                     <p className="text-sm font-medium text-[#102A43]">{label}</p>
-                    <p className="text-xs text-[#627D98]">Saved: {formatResumeValue(row.current)}</p>
-                    <p className="text-xs text-[#627D98]">{source}: {formatResumeValue(row.proposed)}</p>
+                    <p className="text-xs text-[#486581]">Saved: {resumeValue(row.field, row.current)}</p>
+                    <p className="text-xs text-[#486581]">{source}: {resumeValue(row.field, row.proposed)}</p>
                     {row.locked && !staff ? (
-                      <p className="mt-1 text-xs text-[#627D98]">Verified by MEGS staff. This value can't be changed here.</p>
+                      <p className="mt-1 text-xs text-[#486581]">Verified by MEGS staff. This value can't be changed here.</p>
                     ) : (
                       <label htmlFor={id} className={`${rowClass} mt-1 items-center py-0 text-xs text-[#102A43] in-[.applicant-portal]:text-sm`}>
                         <input
@@ -174,7 +179,7 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
                   return (
                     <li key={row.index} className="py-2">
                       <p className="text-sm font-medium text-[#102A43]">{title}</p>
-                      <p className="text-xs text-[#627D98]">Not added: no start date found. Add it manually.</p>
+                      <p className="text-xs text-[#486581]">Not added: no start date found. Add it manually.</p>
                     </li>
                   );
                 }
@@ -213,10 +218,10 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
         {skills.length > 0 && (
           <Section title="Skills">
             <ul className="divide-y divide-[#D9E2EC]">
-              {skills.map((row) => (
+              {skills.map((row, index) => (
                 <ItemRow
                   key={row.name}
-                  id={`resume-skill-${row.name}`}
+                  id={`resume-skill-${index}`}
                   title={row.name}
                   checked={selection.skills.has(row.name)}
                   onChange={(on) => update({ skills: toggle(selection.skills, row.name, on) })}
@@ -234,7 +239,7 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
                   key={row.index}
                   id={`resume-training-${row.index}`}
                   title={row.item.title}
-                  detail={joinParts(row.item.provider, row.item.completionDate?.substring(0, 10))}
+                  detail={joinParts(row.item.provider, row.item.completionDate ? formatDate(row.item.completionDate) : undefined)}
                   checked={selection.trainings.has(row.index)}
                   onChange={(on) => update({ trainings: toggle(selection.trainings, row.index, on) })}
                 />

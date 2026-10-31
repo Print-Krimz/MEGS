@@ -19,7 +19,7 @@ export const ProfileApplications: React.FC = () => {
       <div className="flex flex-col gap-1 border-b border-[#D9E2EC] pb-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h2 id="profile-applications-heading" className="text-lg font-semibold text-[#102A43]">Applications</h2>
-          <p className="text-sm text-[#627D98]">Review your recent applications and current progress.</p>
+          <p className="text-sm text-[#486581]">Review your recent applications and current progress.</p>
         </div>
         <Link
           to="/app/applications"
@@ -44,7 +44,7 @@ export const ProfileApplications: React.FC = () => {
               <li key={application.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   <h3 className="truncate text-sm font-semibold text-[#102A43]">{jobTitle}</h3>
-                  <p className="mt-1 text-xs text-[#627D98]">Applied {formatDate(application.createdAt)}</p>
+                  <p className="mt-1 text-xs text-[#486581]">Applied {formatDate(application.createdAt)}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3 sm:justify-end">
                   <StatusBadge status={application.status} audience="applicant" size="sm" />

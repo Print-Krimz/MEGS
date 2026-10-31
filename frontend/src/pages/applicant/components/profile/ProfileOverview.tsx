@@ -91,12 +91,12 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
             <h2 className="truncate text-xl font-semibold text-[#102A43]" title={fullName}>
               {fullName}
             </h2>
-            <p className="mt-1 text-sm text-[#627D98] [overflow-wrap:anywhere]">{user?.email || "Applicant account"}</p>
-            <p className="mt-1 text-sm text-[#627D98]">{profile?.mobileNumber || "Add a contact number"}{profile?.city ? ` · ${profile.city}` : ""}</p>
+            <p className="mt-1 text-sm text-[#486581] [overflow-wrap:anywhere]">{user?.email || "Applicant account"}</p>
+            <p className="mt-1 text-sm text-[#486581]">{profile?.mobileNumber || "Add a contact number"}{profile?.city ? ` · ${profile.city}` : ""}</p>
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2">
-          <div className="w-full text-right text-xs text-[#627D98] sm:w-auto sm:text-left">
+          <div className="w-full text-right text-xs text-[#486581] sm:w-auto sm:text-left">
             <span className="block font-semibold text-[#102A43]">Candidate photo</span>
             <span>PNG or JPG up to 5 MB</span>
           </div>
@@ -126,7 +126,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`border border-l-4 border-l-[#0B315D] rounded-lg p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] transition-colors ${
+        className={`border rounded-lg p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] transition-colors ${
           isDragging
             ? "border-[#0B315D] bg-[#D8E6F5] ring-2 ring-[#0B315D]/30"
             : "border-[#D9E2EC] bg-[#EAF0F7]/60"
@@ -144,7 +144,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
         <div className="mt-4 flex flex-col gap-3 border-t border-[#D9E2EC] pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 text-sm text-[#102A43]">
             <p className="font-semibold">{profile?.resumeUrl ? "Resume on file" : "No resume uploaded yet"}</p>
-            <p className="mt-1 text-xs text-[#627D98]">PDF, DOCX, or Image (PNG, JPG, WEBP) up to 5 MB. Existing profile details stay unchanged when MEGS fills empty fields.</p>
+            <p className="mt-1 text-xs text-[#486581]">PDF, DOCX, or Image (PNG, JPG, WEBP) up to 5 MB. Existing profile details stay unchanged when MEGS fills empty fields.</p>
           </div>
           <label className="inline-flex min-h-11 applicant-touch:min-h-11 md:min-h-9 shrink-0 cursor-pointer items-center justify-center rounded-md bg-[#0B315D] px-4 text-xs sm:text-sm font-medium text-white hover:bg-[#082747] focus-within:ring-2 focus-within:ring-[#0B315D] focus-within:ring-offset-2 transition-colors">
             <input
@@ -210,16 +210,16 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
       <div className="flex items-center justify-between gap-3 border-b border-[#D9E2EC] pb-3">
         <div>
           <h2 id="overview-qualifications-heading" className="text-base font-semibold text-[#102A43]">Profile highlights</h2>
-          <p className="mt-1 text-sm text-[#627D98]">The details recruiters use first when reviewing your profile.</p>
+          <p className="mt-1 text-sm text-[#486581]">The details recruiters use first when reviewing your profile.</p>
         </div>
         <Button type="button" variant="ghost" size="sm" onClick={() => onNavigate("qualifications")}>Manage details</Button>
       </div>
       <dl className="grid grid-cols-1 divide-y divide-[#D9E2EC] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-        <div className="py-3 sm:pr-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#627D98]">Current experience</dt><dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">{profile?.workExperiences?.find((item) => item.isCurrent)?.roleTitle || profile?.workExperiences?.[0]?.roleTitle || "Add your work history"}</dd></div>
-        <div className="py-3 sm:pl-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#627D98]">Education</dt><dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">{profile?.educations?.[0]?.degree || "Add your education"}</dd></div>
-        <div className="border-t border-[#D9E2EC] py-3 sm:pr-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#627D98]">Skills</dt><dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">{skills.length ? `${skills.slice(0, 6).join(", ")}${skills.length > 6 ? ` +${skills.length - 6} more` : ""}` : "Add skills"}</dd></div>
+        <div className="py-3 sm:pr-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#486581]">Current experience</dt><dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">{profile?.workExperiences?.find((item) => item.isCurrent)?.roleTitle || profile?.workExperiences?.[0]?.roleTitle || "Add your work history"}</dd></div>
+        <div className="py-3 sm:pl-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#486581]">Education</dt><dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">{profile?.educations?.[0]?.degree || "Add your education"}</dd></div>
+        <div className="border-t border-[#D9E2EC] py-3 sm:pr-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#486581]">Skills</dt><dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">{skills.length ? `${skills.slice(0, 6).join(", ")}${skills.length > 6 ? ` +${skills.length - 6} more` : ""}` : "Add skills"}</dd></div>
         <div className="border-t border-[#D9E2EC] py-3 sm:pl-5">
-          <dt className="text-xs font-semibold uppercase tracking-wide text-[#627D98]">Supporting details</dt>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-[#486581]">Supporting details</dt>
           <dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">
             {(() => {
               const trainCount = profile?.trainings?.length || 0;

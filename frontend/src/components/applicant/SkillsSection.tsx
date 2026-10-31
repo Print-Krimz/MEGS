@@ -59,7 +59,7 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
       {showHeader && (
         <div className="border-b border-[#D9E2EC] pb-4">
           <h3 className="text-base font-bold text-[#102A43]">Technical & Practical Skills</h3>
-          <p className="text-xs text-[#627D98]">
+          <p className="text-xs text-[#486581]">
             List competencies and credentials used for automated candidate matching and requisition placement.
           </p>
         </div>
@@ -93,7 +93,7 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
       {/* Suggested Skills Carousel */}
       {availableSuggestions.length > 0 && (
         <div className="space-y-2 pt-1">
-          <div className="text-xs font-medium text-[#627D98]">
+          <div className="text-xs font-medium text-[#486581]">
             Suggested Skills (click to add instantly):
           </div>
           <div className="flex flex-wrap gap-1.5">
@@ -113,11 +113,11 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
 
       {/* Active Skills List */}
       <div className="pt-2">
-        <div className="text-xs font-mono font-bold uppercase tracking-wider text-[#627D98] pb-2">
+        <div className="text-xs font-medium text-[#486581] pb-2">
           Current Skills ({skills.length})
         </div>
         {skills.length === 0 ? (
-          <div className="py-8 text-center text-xs text-[#627D98] bg-[#F7F9FC] border border-dashed border-[#D9E2EC]">
+          <div className="py-8 text-center text-xs text-[#486581] bg-[#F7F9FC] border border-dashed border-[#D9E2EC]">
             No skills recorded yet. Add your core technical, vocational, or soft skills above.
           </div>
         ) : (
@@ -134,7 +134,7 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
                     type="button"
                     onClick={() => onRemoveSkill(rawSkill)}
                     aria-label={`Remove ${formatted}`}
-                    className="inline-flex size-11 shrink-0 items-center justify-center rounded md:size-8 applicant-touch:size-11 text-[#627D98] hover:text-[#DC2626] hover:bg-[#FEF2F2] transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DC2626]"
+                    className="inline-flex size-11 shrink-0 items-center justify-center rounded md:size-8 applicant-touch:size-11 text-[#486581] hover:text-[#DC2626] hover:bg-[#FEF2F2] transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#DC2626]"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>

@@ -58,7 +58,7 @@ export const ProfileSectionNav: React.FC<ProfileSectionNavProps> = ({ activeSect
               className={`inline-flex min-h-[44px] items-center justify-center gap-2 border-b-2 px-3.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 ${
                 isActive
                   ? "border-[#0B315D] text-[#0B315D] font-semibold"
-                  : "border-transparent text-[#627D98] hover:border-[#D9E2EC] hover:text-[#102A43]"
+                  : "border-transparent text-[#486581] hover:border-[#D9E2EC] hover:text-[#102A43]"
               }`}
             >
               <Icon aria-hidden="true" className="h-4 w-4" />

@@ -15,17 +15,17 @@ export const ProfileHealthMeter: React.FC<ProfileHealthMeterProps> = ({
   const health = computeProfileHealth(profile);
 
   return (
-    <div className="bg-white border border-[#D9E2EC] p-4 shadow-2xs">
+    <div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#D9E2EC]">
         <div>
           <div className="flex items-center gap-2">
-            <span className="text-xs font-mono font-bold uppercase tracking-wider text-[#102A43]">
+            <span className="text-sm font-semibold text-[#102A43]">
               Profile Strength:
             </span>
-            <span className="text-xs font-bold font-sans text-[#0B315D]">
+            <span className="text-sm font-bold font-sans text-[#0B315D]">
               {health.score}%
             </span>
-            <span className="inline-flex items-center px-1.5 py-0.5 bg-[#EAF0F7] border border-[#D9E2EC] text-[10px] font-mono font-bold uppercase text-[#102A43]">
+            <span className="inline-flex items-center rounded-md border border-[#0B315D]/20 bg-[#EAF0F7] px-2 py-0.5 text-xs font-medium text-[#0B315D]">
               {health.tier}
             </span>
           </div>
@@ -67,7 +67,7 @@ export const ProfileHealthMeter: React.FC<ProfileHealthMeterProps> = ({
           />
         </div>
 
-        <div className="flex items-center justify-between text-[11px] text-[#627D98]">
+        <div className="flex items-center justify-between text-xs text-[#486581]">
           <div className="flex items-center gap-1.5">
             {health.score >= 85 ? (
               <CheckCircle2 className="w-3.5 h-3.5 text-[#047857] shrink-0" />
@@ -76,7 +76,7 @@ export const ProfileHealthMeter: React.FC<ProfileHealthMeterProps> = ({
             )}
             <span>{health.nextActionTip}</span>
           </div>
-          <span className="font-mono text-[#627D98] hidden md:inline">
+          <span className="text-[#486581] hidden md:inline">
             {health.score >= 100 ? "100% Complete" : `${100 - health.score}% to 100%`}
           </span>
         </div>

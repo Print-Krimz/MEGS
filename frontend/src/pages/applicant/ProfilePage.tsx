@@ -38,7 +38,7 @@ import type { ProfileSection } from "./components/profile/profile-navigation";
 import { parseProfileSection } from "./components/profile/profile-navigation";
 import { FIELD_LIMITS, getManilaToday, isValidDateOnly } from "../../lib/field-limits";
 import { toast } from "sonner";
-import { fieldErrorsFrom } from "../../lib/feedback";
+import { fieldErrorsFrom, formatErrorMessage } from "../../lib/feedback";
 import { validatePhilippineMobile } from "../../lib/phone-utils";
 import {
   validateDateOfBirth,
@@ -367,7 +367,7 @@ export const ProfilePage: React.FC = () => {
         return;
       }
       field.focus({ preventScroll: true });
-      field.scrollIntoView({ block: "center" });
+      field.scrollIntoView?.({ block: "center" });
     });
   };
   const profileProgress = computeProfileProgress(personalForm, personalFieldErrors, personalSectionOf);
@@ -493,10 +493,8 @@ export const ProfilePage: React.FC = () => {
     }
   }, [profile]);
 
-  const [feedback, setFeedbackState] = useState<{ type: "success" | "error"; message: string } | null>(null);
-  // The banner sits at the top of the page, so also toast, centred where the eye is: the result stays visible wherever the applicant scrolled.
+  // Results are announced by a toast only, centred where the eye is, so they stay visible wherever the applicant scrolled.
   const setFeedback = (next: { type: "success" | "error"; message: string } | null) => {
-    setFeedbackState(next);
     if (next) (next.type === "success" ? toast.success : toast.error)(next.message, { position: "top-center" });
   };
 
@@ -520,7 +518,7 @@ export const ProfilePage: React.FC = () => {
         setOpenPersonalSection(errorSection);
         focusFirstInvalidField();
       }
-      setFeedback({ type: "error", message: "Failed to save personal information: " + (firstMessage ?? err.message) });
+      setFeedback({ type: "error", message: "Failed to save personal information: " + (firstMessage ?? formatErrorMessage(err)) });
     },
   });
 
@@ -554,7 +552,7 @@ export const ProfilePage: React.FC = () => {
       }
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Failed to upload resume: " + err.message });
+      setFeedback({ type: "error", message: "Failed to upload resume: " + formatErrorMessage(err) });
     },
   });
 
@@ -600,7 +598,7 @@ export const ProfilePage: React.FC = () => {
       setFeedback({ type: "success", message: "Photo uploaded successfully." });
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Failed to upload photo: " + err.message });
+      setFeedback({ type: "error", message: "Failed to upload photo: " + formatErrorMessage(err) });
     },
   });
 
@@ -783,10 +781,22 @@ export const ProfilePage: React.FC = () => {
     withResolver: true,
   });
 
+  // One header for the loading, error and loaded views, so the page does not shift when the profile arrives.
+  const pageHeader = (
+    <PageHeader
+      title="Candidate Profile"
+      description="Keep your profile ready for the next opportunity"
+      breadcrumbs={[
+        { label: "Applicant Portal", href: "/app" },
+        { label: "Profile" },
+      ]}
+    />
+  );
+
   if (profileQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Candidate Profile" description="Loading profile..." />
+        {pageHeader}
         <LoadingState variant="detail" />
       </div>
     );
@@ -795,8 +805,8 @@ export const ProfilePage: React.FC = () => {
   if (profileQuery.isError && !isNotFoundError) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Candidate Profile" description="Manage your qualifications" />
-        <ErrorState error={profileQuery.error} onRetry={() => profileQuery.refetch()} />
+        {pageHeader}
+        <ErrorState subject="your profile" error={profileQuery.error} onRetry={() => profileQuery.refetch()} />
       </div>
     );
   }
@@ -1033,36 +1043,7 @@ export const ProfilePage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Candidate Profile"
-        description="Keep your profile ready for the next opportunity"
-        breadcrumbs={[
-          { label: "Applicant Portal", href: "/app" },
-          { label: "Profile" },
-        ]}
-      />
-
-      {feedback && (
-        <div
-          className={`p-3.5 rounded-md border text-sm font-sans flex items-center justify-between ${
-            feedback.type === "success"
-              ? "bg-[#EAF0F7] border-[#0B315D]/30 text-[#0B315D]"
-              : "bg-[#FEF2F2] border-[#DC2626]/30 text-[#DC2626]"
-          }`}
-          role="alert"
-        >
-          <div className="flex items-center gap-2">
-            <span>{feedback.message}</span>
-          </div>
-          <button
-            onClick={() => setFeedback(null)}
-            className="text-[#627D98] hover:text-[#102A43] font-bold ml-4 cursor-pointer text-base"
-            aria-label="Dismiss notification"
-          >
-            ×
-          </button>
-        </div>
-      )}
+      {pageHeader}
 
       <ProfileSectionNav activeSection={activeSection} onChange={handleSectionChange} />
 
@@ -1567,7 +1548,7 @@ export const ProfilePage: React.FC = () => {
                 >
                 <div className="space-y-5">
                   <div className="flex items-center justify-between gap-3 border-b border-[#D9E2EC] pb-3">
-                    <p className="text-xs text-[#627D98]">People who can speak to your work, such as a former supervisor.</p>
+                    <p className="text-xs text-[#486581]">People who can speak to your work, such as a former supervisor.</p>
                     <Button
                       variant="primary"
                       size="sm"
@@ -1583,7 +1564,7 @@ export const ProfilePage: React.FC = () => {
                   </div>
 
                   {!profile?.characterReferences || profile.characterReferences.length === 0 ? (
-                    <div className="py-8 text-center text-xs text-[#627D98] bg-[#F7F9FC] border border-dashed border-[#D9E2EC]">
+                    <div className="py-8 text-center text-xs text-[#486581] bg-[#F7F9FC] border border-dashed border-[#D9E2EC]">
                       No references listed. Click "Add Reference" to record contacts.
                     </div>
                   ) : (
@@ -1595,7 +1576,7 @@ export const ProfilePage: React.FC = () => {
                             <div className="text-xs text-[#102A43] font-medium">
                               {[r.relationship, r.company].filter(Boolean).join(" at ")}
                             </div>
-                            <div className="text-[11px] text-[#627D98] font-mono">
+                            <div className="text-xs text-[#486581]">
                               <span>Phone: {r.phone}</span>
                               {r.email && <span> • Email: {r.email}</span>}
                             </div>
@@ -1611,7 +1592,7 @@ export const ProfilePage: React.FC = () => {
                                 setRefPhone(r.phone || "");
                                 setRefModalOpen(true);
                               }}
-                              className="min-w-11 text-[#627D98] hover:text-[#0B315D] hover:bg-[#EAF0F7] md:min-w-9 applicant-touch:min-w-11"
+                              className="min-w-11 text-[#486581] hover:text-[#0B315D] hover:bg-[#EAF0F7] md:min-w-9 applicant-touch:min-w-11"
                             >
                               <Pencil className="w-4 h-4" />
                             </Button>
@@ -1712,7 +1693,7 @@ export const ProfilePage: React.FC = () => {
                 </div>
 
               {!profile?.workExperiences || profile.workExperiences.length === 0 ? (
-                <div className="py-8 text-center text-xs text-[#627D98] bg-[#F7F9FC] border border-dashed border-[#D9E2EC]">
+                <div className="py-8 text-center text-xs text-[#486581] bg-[#F7F9FC] border border-dashed border-[#D9E2EC]">
                   No work experience entries recorded. Click "Add Experience" to begin.
                 </div>
               ) : (
@@ -1720,23 +1701,16 @@ export const ProfilePage: React.FC = () => {
                   {profile.workExperiences.map((exp: any) => (
                     <div key={exp.id} className="py-4 flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1 space-y-1.5 [overflow-wrap:anywhere]">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-[#102A43]">{exp.roleTitle}</span>
-                          {exp.isCurrent && (
-                            <span className="px-1.5 py-0.5 bg-[#EAF0F7] border border-[#D9E2EC] text-[#0B315D] text-[10px] font-mono font-bold uppercase rounded">
-                              Present
-                            </span>
-                          )}
-                        </div>
+                        <div className="text-sm font-bold text-[#102A43]">{exp.roleTitle}</div>
                         <div className="text-xs text-[#102A43] font-medium">
                           {exp.company}
                         </div>
-                        <div className="text-[11px] text-[#627D98] font-mono">
+                        <div className="text-xs text-[#486581]">
                           {formatDate(exp.startDate)} —{" "}
                           {exp.isCurrent ? "Present" : exp.endDate ? formatDate(exp.endDate) : "N/A"}
                         </div>
                         {exp.summary && (
-                          <p className="text-xs text-[#627D98] mt-2 leading-relaxed">
+                          <p className="text-xs text-[#486581] mt-2 leading-relaxed">
                             {exp.summary}
                           </p>
                         )}
@@ -1751,7 +1725,7 @@ export const ProfilePage: React.FC = () => {
                             setEditingExp(exp);
                             setExpModalOpen(true);
                           }}
-                          className="min-w-11 text-[#627D98] hover:text-[#0B315D] hover:bg-[#EAF0F7] md:min-w-9 applicant-touch:min-w-11"
+                          className="min-w-11 text-[#486581] hover:text-[#0B315D] hover:bg-[#EAF0F7] md:min-w-9 applicant-touch:min-w-11"
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
@@ -1804,7 +1778,7 @@ export const ProfilePage: React.FC = () => {
                 </div>
 
               {!profile?.educations || profile.educations.length === 0 ? (
-                <div className="py-8 text-center text-xs text-[#627D98] bg-[#F7F9FC] border border-dashed border-[#D9E2EC]">
+                <div className="py-8 text-center text-xs text-[#486581] bg-[#F7F9FC] border border-dashed border-[#D9E2EC]">
                   No education entries recorded. Click "Add Education" to begin.
                 </div>
               ) : (
@@ -1812,11 +1786,13 @@ export const ProfilePage: React.FC = () => {
                   {profile.educations.map((edu: any) => (
                     <div key={edu.id} className="py-4 flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1 space-y-1 [overflow-wrap:anywhere]">
-                        <div className="text-sm font-bold text-[#102A43]">{edu.degree}</div>
-                        <div className="text-xs text-[#102A43] font-medium">
-                          {edu.school}
-                        </div>
-                        <div className="text-[11px] text-[#627D98] font-mono">
+                        <div className="text-sm font-bold text-[#102A43]">{edu.degree || edu.school}</div>
+                        {edu.degree && (
+                          <div className="text-xs text-[#102A43] font-medium">
+                            {edu.school}
+                          </div>
+                        )}
+                        <div className="text-xs text-[#486581]">
                           {edu.fieldOfStudy && <span>{edu.fieldOfStudy} • </span>}
                           {edu.startDate && <span>From {formatDate(edu.startDate)} </span>}
                           {edu.endDate && <span>to {formatDate(edu.endDate)}</span>}
@@ -1827,24 +1803,24 @@ export const ProfilePage: React.FC = () => {
                         <Button
                           variant="ghost"
                           size="sm"
-                          aria-label={`Edit ${edu.degree}`}
+                          aria-label={`Edit ${edu.degree || edu.school}`}
                           onClick={() => {
                             setEditingEdu(edu);
                             setEduModalOpen(true);
                           }}
-                          className="min-w-11 text-[#627D98] hover:text-[#0B315D] hover:bg-[#EAF0F7] md:min-w-9 applicant-touch:min-w-11"
+                          className="min-w-11 text-[#486581] hover:text-[#0B315D] hover:bg-[#EAF0F7] md:min-w-9 applicant-touch:min-w-11"
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          aria-label={`Delete ${edu.degree}`}
+                          aria-label={`Delete ${edu.degree || edu.school}`}
                           onClick={() =>
                             setDeleteTarget({
                               type: "education",
                               id: edu.id,
-                              label: `${edu.degree} from ${edu.school}`,
+                              label: edu.degree ? `${edu.degree} from ${edu.school}` : edu.school,
                             })
                           }
                           className="min-w-11 text-[#DC2626] hover:text-[#DC2626] hover:bg-[#FEF2F2] md:min-w-9 applicant-touch:min-w-11"
@@ -1904,7 +1880,7 @@ export const ProfilePage: React.FC = () => {
                 </div>
 
               {!profile?.trainings || profile.trainings.length === 0 ? (
-                <div className="py-8 text-center text-xs text-[#627D98] bg-[#F7F9FC] border border-dashed border-[#D9E2EC]">
+                <div className="py-8 text-center text-xs text-[#486581] bg-[#F7F9FC] border border-dashed border-[#D9E2EC]">
                   No training records added. Click "Add Training" to record credentials.
                 </div>
               ) : (
@@ -1914,7 +1890,7 @@ export const ProfilePage: React.FC = () => {
                       <div className="min-w-0 flex-1 space-y-1 [overflow-wrap:anywhere]">
                         <div className="text-sm font-bold text-[#102A43]">{t.title}</div>
                         <div className="text-xs text-[#102A43] font-medium">{t.provider}</div>
-                        <div className="text-[11px] text-[#627D98] font-mono">
+                        <div className="text-xs text-[#486581]">
                           {t.completionDate && <span>Completed: {formatDate(t.completionDate)}</span>}
                         </div>
                       </div>
@@ -1928,7 +1904,7 @@ export const ProfilePage: React.FC = () => {
                             setEditingTraining(t);
                             setTrainingModalOpen(true);
                           }}
-                          className="min-w-11 text-[#627D98] hover:text-[#0B315D] hover:bg-[#EAF0F7] md:min-w-9 applicant-touch:min-w-11"
+                          className="min-w-11 text-[#486581] hover:text-[#0B315D] hover:bg-[#EAF0F7] md:min-w-9 applicant-touch:min-w-11"
                         >
                           <Pencil className="w-4 h-4" />
                         </Button>
