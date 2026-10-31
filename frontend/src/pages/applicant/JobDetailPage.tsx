@@ -208,11 +208,27 @@ export const JobDetailPage: React.FC = () => {
     }
   };
 
+  const jobBreadcrumbs = (last: string) => [
+    { label: "My career", href: "/app" },
+    { label: "Explore jobs", href: "/app/jobs" },
+    { label: last },
+  ];
+
   if (jobQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Job details" description="Loading position…" />
-        <LoadingState variant="detail" />
+        <PageHeader
+          title="Job details"
+          description="Loading position…"
+          breadcrumbs={jobBreadcrumbs("Job details")}
+          actions={
+            <div className="flex flex-wrap items-center gap-2" aria-hidden="true">
+              <div className="h-11 w-40 animate-pulse rounded-md bg-slate-200" />
+              <div className="h-11 w-44 animate-pulse rounded-md bg-slate-200" />
+            </div>
+          }
+        />
+        <LoadingState variant="detail" className="min-h-[100dvh]" message="Loading job details…" />
       </div>
     );
   }

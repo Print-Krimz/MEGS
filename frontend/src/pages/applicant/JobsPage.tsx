@@ -169,6 +169,11 @@ export const JobsPage: React.FC = () => {
     }
   };
 
+  // Old results stay on screen while a new search loads; dim them so they are not mistaken for the answer.
+  const resultsAreStale = jobsQuery.isFetching && jobsQuery.isPlaceholderData;
+  // Offline: the request is queued, not failed, so there is no error to show. Say so instead of an empty list.
+  const waitingForNetwork = jobsQuery.fetchStatus === "paused" && (jobsQuery.isPending || jobsQuery.isPlaceholderData);
+
   const jobData = jobsQuery.data;
   const isServerPaginated = Boolean(jobData && !Array.isArray(jobData));
   const rawJobs = Array.isArray(jobData) ? jobData : jobData?.items ?? [];
@@ -254,7 +259,7 @@ export const JobsPage: React.FC = () => {
               )}
             >
               <Briefcase className="size-4" aria-hidden="true" />
-              <span>All Openings ({allOpeningsCount || totalItems})</span>
+              <span>{jobsQuery.isLoading ? "All Openings" : `All Openings (${allOpeningsCount || totalItems})`}</span>
             </button>
             <button
               type="button"
@@ -269,7 +274,7 @@ export const JobsPage: React.FC = () => {
               )}
             >
               <Bookmark className="size-4" aria-hidden="true" />
-              <span>Saved Jobs ({savedCount}/{MAX_SAVED_JOBS})</span>
+              <span>{savedJobIdsQuery.isLoading ? "Saved Jobs" : `Saved Jobs (${savedCount}/${MAX_SAVED_JOBS})`}</span>
             </button>
           </div>
         }
@@ -306,9 +311,11 @@ export const JobsPage: React.FC = () => {
 
       {/* Results */}
       {jobsQuery.isLoading ? (
-        <LoadingState variant="cards" />
+        <LoadingState variant="cards" rows={4} className="my-0! min-h-[100dvh] content-start gap-4! lg:grid-cols-2!" />
       ) : jobsQuery.isError ? (
-        <ErrorState error={jobsQuery.error} onRetry={() => jobsQuery.refetch()} />
+        <ErrorState subject="jobs" error={jobsQuery.error} onRetry={() => jobsQuery.refetch()} />
+      ) : waitingForNetwork ? (
+        <ErrorState subject="jobs" onRetry={() => jobsQuery.refetch()} />
       ) : displayedJobs.length === 0 ? (
         <div className="rounded-lg border border-slate-300 bg-white p-8">
           {hasActiveFilters ? (
@@ -342,7 +349,7 @@ export const JobsPage: React.FC = () => {
           )}
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className={cn("space-y-4 transition-opacity", resultsAreStale && "opacity-60")} aria-busy={resultsAreStale}>
           <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1" role="status">
             <p className="text-sm text-slate-700">
               <span className="font-semibold text-slate-950">
