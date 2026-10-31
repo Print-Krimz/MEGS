@@ -270,7 +270,7 @@ export const JobsPage: React.FC = () => {
               )}
             >
               <Briefcase className="size-4" aria-hidden="true" />
-              <span>{jobsQuery.isLoading ? "All Openings" : `All Openings (${allOpeningsCount || totalItems})`}</span>
+              <span>{jobsQuery.isLoading || jobsQuery.isError || waitingForNetwork ? "All Openings" : `All Openings (${allOpeningsCount || totalItems})`}</span>
             </button>
             <button
               type="button"
@@ -316,6 +316,13 @@ export const JobsPage: React.FC = () => {
       )}
 
       <JobFilters values={filters} onChange={handleFilterChange} salaryError={salaryError} />
+
+      {/* Always mounted so screen readers announce the count when it appears; only the text changes. */}
+      <p role="status" className="sr-only">
+        {hasActiveFilters && !jobsQuery.isLoading && !jobsQuery.isError && !waitingForNetwork
+          ? `${totalItems} ${totalItems === 1 ? "job" : "jobs"} found`
+          : ""}
+      </p>
 
       {/* Results */}
       {jobsQuery.isLoading ? (
@@ -368,10 +375,7 @@ export const JobsPage: React.FC = () => {
 
           {hasActiveFilters && (
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-              <p role="status" className="text-sm text-slate-700">
-                <span className="sr-only">{totalItems} {totalItems === 1 ? "job" : "jobs"} found. </span>
-                {activeSummary}
-              </p>
+              <p className="text-sm text-slate-700">{activeSummary}</p>
               <button
                 type="button"
                 onClick={handleReset}
