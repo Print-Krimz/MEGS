@@ -26,28 +26,30 @@ export const JobFilters: React.FC<JobFiltersProps> = ({ values, onChange, salary
 
   return (
     <div role="search" aria-label="Search and filter jobs" className="rounded-lg border border-slate-300 bg-white p-4">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,0.7fr)]">
-        <Input
-          id={searchId}
-          label="Search"
-          type="text"
-          placeholder="Job title, skill or keyword"
-          value={values.search}
-          onChange={(event) => onChange({ search: event.target.value })}
-          leftIcon={<Search className="size-4" aria-hidden="true" />}
-          rightIcon={
-            values.search ? (
-              <button
-                type="button"
-                onClick={() => onChange({ search: "" })}
-                aria-label="Clear search"
-                className="p-1 text-slate-600 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-              >
-                <X className="size-4" aria-hidden="true" />
-              </button>
-            ) : undefined
-          }
-        />
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,0.7fr)_minmax(0,0.7fr)]">
+        <div className="max-md:col-span-2">
+          <Input
+            id={searchId}
+            label="Search"
+            type="text"
+            placeholder="Job title, skill or keyword"
+            value={values.search}
+            onChange={(event) => onChange({ search: event.target.value })}
+            leftIcon={<Search className="size-4" aria-hidden="true" />}
+            rightIcon={
+              values.search ? (
+                <button
+                  type="button"
+                  onClick={() => onChange({ search: "" })}
+                  aria-label="Clear search"
+                  className="p-1 text-slate-600 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                >
+                  <X className="size-4" aria-hidden="true" />
+                </button>
+              ) : undefined
+            }
+          />
+        </div>
 
         <ComboBox
           id={locationId}
@@ -58,6 +60,7 @@ export const JobFilters: React.FC<JobFiltersProps> = ({ values, onChange, salary
           onChange={(location) => onChange({ location })}
           clearable={Boolean(values.location)}
           emptyText="No matching location"
+          className="max-md:col-span-2"
         />
 
         <Input
