@@ -348,9 +348,9 @@ export const NotificationsPage: React.FC = () => {
                     <div className="p-2 rounded-lg bg-[#F7F9FC] border border-[#D9E2EC] shrink-0 mt-0.5">
                       {getIconForType(n.type)}
                     </div>
-                    <div className="space-y-1 flex-1">
+                    <div className="space-y-1 flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-[#102A43]">{formatNotificationTitle(n.title, user?.role)}</span>
+                        <span className="text-sm font-semibold text-[#102A43] break-words min-w-0">{formatNotificationTitle(n.title, user?.role)}</span>
                         {!n.isRead && (
                           <span className="inline-flex items-center gap-1 text-xs font-medium text-[#0B315D]">
                             <span className="w-2 h-2 rounded-full bg-[#0B315D] shrink-0" aria-hidden="true" />
@@ -358,7 +358,7 @@ export const NotificationsPage: React.FC = () => {
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-[#627D98] leading-relaxed max-w-2xl">
+                      <p className="text-xs text-[#627D98] leading-relaxed max-w-2xl break-words">
                         {formatNotificationMessage(n.message, user?.role)}
                       </p>
                       <div className="text-xs text-[#627D98]">{formatRelativeTime(n.createdAt)}</div>
