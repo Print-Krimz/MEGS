@@ -1,4 +1,4 @@
-import React, { useId, useRef, useState } from "react";
+import React, { useContext, useId, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   X,
@@ -15,6 +15,7 @@ import { documentsApi } from "../../lib/api/documents.api";
 import { Button } from "../ui/Button";
 import { Textarea } from "../ui/Textarea";
 import { useModalBehavior } from "../ui/Dialog";
+import { AuthContext } from "../../context/AuthContext";
 import { RequirementStatusBadge } from "../applicant/RequirementStatusBadge";
 import { cn, formatDate } from "../../lib/utils";
 import { DocumentViewer } from "../ta/InlineResumeViewer";
@@ -44,8 +45,8 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
 }) => {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
-  // Recruiters (who can reject) get the review wording; everyone else gets plain wording.
-  const isStaff = Boolean(onReject);
+  // Applicants get plain wording; any other signed-in role (or no provider) keeps the staff review wording.
+  const isStaff = useContext(AuthContext)?.user?.role !== "APPLICANT";
   const [rejectMode, setRejectMode] = useState(false);
   const [rejectNotes, setRejectNotes] = useState("");
 

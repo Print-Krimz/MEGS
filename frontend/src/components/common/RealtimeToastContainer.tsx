@@ -27,20 +27,20 @@ export const RealtimeToastContainer: React.FC<RealtimeToastContainerProps> = ({
         const isClickable = Boolean(onToastClick);
         const content = (
           <>
-            <div className="w-7 h-7 bg-navy border border-navy-lift text-navy-bar flex items-center justify-center shrink-0 mt-0.5">
+            <span className="w-7 h-7 bg-navy border border-navy-lift text-navy-bar flex items-center justify-center shrink-0 mt-0.5">
               <Bell className="w-3.5 h-3.5" aria-hidden="true" />
-            </div>
-            <div className="space-y-0.5 min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
+            </span>
+            <span className="block space-y-0.5 min-w-0 flex-1">
+              <span className="flex items-center gap-1.5">
                 <span className="text-xs font-semibold text-slate-100 truncate">
                   {toast.title}
                 </span>
                 {toast.link && <ArrowUpRight className="w-3 h-3 text-navy-bar shrink-0" aria-hidden="true" />}
-              </div>
-              <p className="text-xs text-slate-300 leading-normal font-sans line-clamp-3">
+              </span>
+              <span className="block text-xs text-slate-300 leading-normal font-sans line-clamp-3">
                 {toast.message}
-              </p>
-            </div>
+              </span>
+            </span>
           </>
         );
 

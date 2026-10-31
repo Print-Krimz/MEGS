@@ -309,6 +309,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
 
   const handleSelectOption = (opt: ComboBoxOption) => {
     if (opt.disabled) return;
+    userNavigated.current = false;
     setSearchQuery(opt.label);
     onChange(opt.value, opt);
     setIsOpen(false);
@@ -496,6 +497,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
         if (allowCustom && searchQuery.trim()) {
           handleCommitCustom(searchQuery);
         } else {
+          userNavigated.current = false;
           setIsOpen(true);
         }
       }
@@ -546,6 +548,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
 
   const handleInputClick = () => {
     if (!disabled && !isOpen) {
+      userNavigated.current = false;
       setIsOpen(true);
       const selectedIdx = valueIndices.get(value)?.[0] ?? -1;
       setHighlightedIndex(selectedIdx >= 0 ? selectedIdx : 0);
@@ -635,6 +638,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
                     setIsOpen(false);
                   } else {
                     inputRef.current?.focus();
+                    userNavigated.current = false;
                     setIsOpen(true);
                     const selectedIdx = valueIndices.get(value)?.[0] ?? -1;
                     setHighlightedIndex(selectedIdx >= 0 ? selectedIdx : 0);
