@@ -216,6 +216,7 @@ export const PhilippineAddressFields: React.FC<PhilippineAddressFieldsProps> = (
         {inNcr ? (
           <ComboBox
             label={fieldLabel("Postal code")}
+            autoComplete="postal-code"
             placeholder={locality ? "Search postal locality or code..." : "Select an NCR city first"}
             value={postalCode}
             onChange={(value, option) => handlePostalCodeChange(value, option)}
@@ -232,6 +233,7 @@ export const PhilippineAddressFields: React.FC<PhilippineAddressFieldsProps> = (
         ) : (
           <ComboBox
             label={fieldLabel("Postal code")}
+            autoComplete="postal-code"
             placeholder={cityPostalCodes.length ? "Select postal code..." : "4 digits"}
             value={postalCode}
             maxLength={4}
