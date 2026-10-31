@@ -36,8 +36,12 @@ const isHeadingLine = (line: string) =>
 
 /** The opening paragraph of a posting, without its section heading, bullets or "Label: value" lines. */
 export const firstParagraph = (description?: string | null): string => {
+  const lines = (description ?? "").split(/\r?\n/);
+  // A one-line description is the whole summary, even if it looks like a heading.
+  const nonEmpty = lines.map((line) => line.trim()).filter(Boolean);
+  if (nonEmpty.length === 1) return nonEmpty[0];
   const paragraph: string[] = [];
-  for (const raw of (description ?? "").split(/\r?\n/)) {
+  for (const raw of lines) {
     const line = raw.trim();
     const isProse = line !== "" && !BULLET.test(line) && !LABEL_VALUE.test(line) && !isHeadingLine(line);
     if (isProse) paragraph.push(line);
