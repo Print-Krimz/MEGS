@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Check, X } from "lucide-react";
+import { Check, Minus, X } from "lucide-react";
 import type { DimensionExplanation, DimensionStatus } from "../../lib/types/ta.types";
 
 interface ScoreReasonsProps {
@@ -20,15 +20,18 @@ const LABELS: Record<string, string> = {
 
 const formatYears = (years: number) => `${years} ${years === 1 ? "year" : "years"}`;
 
-const TermList: React.FC<{ found: boolean; terms: string[] }> = ({ found, terms }) => (
+const TermList: React.FC<{ found: boolean; terms: string[]; preferred?: boolean }> = ({ found, terms, preferred }) => (
   <p className="flex items-start gap-1.5">
     {found ? (
       <Check className="w-3.5 h-3.5 mt-0.5 shrink-0 text-emerald-700" aria-hidden="true" />
+    ) : preferred ? (
+      <Minus className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-500" aria-hidden="true" />
     ) : (
       <X className="w-3.5 h-3.5 mt-0.5 shrink-0 text-rose-700" aria-hidden="true" />
     )}
     <span>
-      <span className="font-medium text-slate-800">{found ? "Found:" : "Not found:"}</span> {terms.join(", ")}
+      <span className="font-medium text-slate-800">{found ? "Found:" : preferred ? "Preferred, not found:" : "Not found:"}</span>{" "}
+      {terms.join(", ")}
     </span>
   </p>
 );
@@ -50,6 +53,7 @@ export const ScoreReasons: React.FC<ScoreReasonsProps> = ({ statuses, explanatio
     const lines: React.ReactNode[] = [];
     if (detail.matched?.length) lines.push(<TermList key="found" found terms={detail.matched} />);
     if (detail.missing?.length) lines.push(<TermList key="missing" found={false} terms={detail.missing} />);
+    if (detail.preferredMissing?.length) lines.push(<TermList key="preferred" found={false} preferred terms={detail.preferredMissing} />);
     if (key === "EXPERIENCE" && typeof detail.requiredYears === "number" && typeof detail.candidateYears === "number") {
       lines.push(
         <p key="years">

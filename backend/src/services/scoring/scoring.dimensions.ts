@@ -738,7 +738,14 @@ const CREDENTIAL_FILLER = new Set([
   ...REQUIREMENT_FILLER,
   "graduate", "graduates", "grad", "graduated", "holder", "completed", "passed", "diploma", "course", "courses",
   "cert", "certificate", "certificates", "certification", "certifications", "certified", "any",
+  // Qualifiers that say how a credential is shown, not which one it is ("Documented machine-safety training").
+  "documented", "valid", "proof", "relevant", "completion", "accredited",
 ]);
+// A bare "training" names no subject: it only counts when nothing more specific is left to check.
+const GENERIC_CREDENTIAL_NOUNS = new Set(["training", "trainings", "seminar", "seminars", "workshop", "workshops"]);
+
+/** A credential the job marks as nice to have: meeting it helps, missing it costs nothing. */
+const isPreferredItem = (item: string) => /\b(preferred|optional|an? advantage|an asset|nice to have)\b/i.test(item);
 
 const hasCredentialToken = (token: string, credentials: Set<string>) =>
   credentials.has(token) || (token.startsWith("licen") && credentials.has("license"));
@@ -755,7 +762,8 @@ const credentialItemMet = (item: string, credentials: Set<string>, candidateLeve
       (token) => !CREDENTIAL_FILLER.has(token) && !(requiredLevel !== null && EDUCATION_LEVEL_WORDS.has(token)),
     );
     if (!words.length) return requiredLevel !== null;
-    return words.every((token) => hasCredentialToken(token, credentials));
+    const specific = words.filter((token) => !GENERIC_CREDENTIAL_NOUNS.has(token));
+    return (specific.length ? specific : words).every((token) => hasCredentialToken(token, credentials));
   });
 
 const calculateEducationCertificationsDimension: DimensionCalculator = (candidate, job) => {
@@ -793,8 +801,32 @@ const calculateEducationCertificationsDimension: DimensionCalculator = (candidat
   // differently worded word in the education line.
   const matched: string[] = [];
   const missing: string[] = [];
-  for (const item of educationItems) (credentialItemMet(item, credentials, candidateLevel, true) ? matched : missing).push(item.trim());
-  for (const item of certificationItems) (credentialItemMet(item, credentials, candidateLevel, false) ? matched : missing).push(item.trim());
+  const preferredMissing: string[] = [];
+  const check = (item: string, isEducation: boolean) => {
+    const met = credentialItemMet(item, credentials, candidateLevel, isEducation);
+    if (met) matched.push(item.trim());
+    else (isPreferredItem(item) ? preferredMissing : missing).push(item.trim());
+  };
+  for (const item of educationItems) check(item, true);
+  for (const item of certificationItems) check(item, false);
+  const requiredCount = [...educationItems, ...certificationItems].filter((item) => !isPreferredItem(item)).length;
+  // Only nice-to-have credentials were asked for and none was found: nothing to hold against the candidate.
+  if (requiredCount === 0 && matched.length === 0) {
+    return {
+      dimension: "EDUCATION_CERTIFICATIONS",
+      score: 0,
+      dimensionStatus: "NOT_REQUIRED",
+      isApplicable: false,
+      explanation: {
+        basis: "only preferred credentials requested; not counted against the candidate",
+        missingMandatory: false,
+        dimensionStatus: "NOT_REQUIRED",
+        isApplicable: false,
+        preferredMissing: limitList(preferredMissing),
+      },
+    };
+  }
+  // A met preferred item counts as met; a missed one is left out of the score.
   const score = clampScore((matched.length / (matched.length + missing.length)) * 100);
   const missingMandatory = credentials.size === 0;
 
@@ -810,6 +842,7 @@ const calculateEducationCertificationsDimension: DimensionCalculator = (candidat
       isApplicable: true,
       matched: limitList(matched),
       missing: limitList(missing),
+      ...(preferredMissing.length ? { preferredMissing: limitList(preferredMissing) } : {}),
     },
   };
 };

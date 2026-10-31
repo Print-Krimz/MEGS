@@ -27,6 +27,8 @@ export type DimensionExplanation = {
   matched?: string[];
   /** Job requirements (original wording) not found in the profile. Explanation only. */
   missing?: string[];
+  /** Preferred (nice to have) requirements not found. Not counted in the score. */
+  preferredMissing?: string[];
   requiredYears?: number | null;
   candidateYears?: number | null;
   /** The job place the candidate's location matched. */

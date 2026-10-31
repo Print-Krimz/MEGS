@@ -41,6 +41,7 @@ export interface DimensionExplanation {
   basis?: string;
   matched?: string[];
   missing?: string[];
+  preferredMissing?: string[];
   requiredYears?: number | null;
   candidateYears?: number | null;
   locationMatchedOn?: string | null;
