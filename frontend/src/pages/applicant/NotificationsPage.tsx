@@ -116,13 +116,13 @@ export const NotificationsPage: React.FC = () => {
     switch (type) {
       case "INTERVIEW_SCHEDULED":
       case "INTERVIEW_SLA":
-        return <Calendar className={cn("w-4 h-4", color("text-[#5B3FD6]"))} />;
+        return <Calendar className={cn("w-4 h-4", color("text-navy"))} />;
       case "APPLICATION_STATUS":
-        return <Briefcase className={cn("w-4 h-4", color("text-[#0B315D]"))} />;
+        return <Briefcase className={cn("w-4 h-4", color("text-navy"))} />;
       case "COMPLIANCE_REQUIRED":
-        return <ShieldCheck className={cn("w-4 h-4", staff ? "text-amber-700" : "text-[#B45309]")} />;
+        return <ShieldCheck className={cn("w-4 h-4", "text-amber-700")} />;
       default:
-        return <Bell className={cn("w-4 h-4", staff ? "text-slate-500" : "text-[#627D98]")} />;
+        return <Bell className={cn("w-4 h-4", staff ? "text-slate-500" : "text-slate-600")} />;
     }
   };
 
@@ -149,10 +149,12 @@ export const NotificationsPage: React.FC = () => {
       totalItems={totalItems}
       pageSize={pageSize}
       onPageChange={setPage}
-      variant={staff ? "inset" : "default"}
+      variant="inset"
       itemLabel={staff ? "notifications" : undefined}
     />
   );
+
+  const allRead = notificationsQuery.data !== undefined && unreadCount === 0;
 
   const markAllButton = (
     <Button
@@ -161,10 +163,10 @@ export const NotificationsPage: React.FC = () => {
       leftIcon={<CheckCheck className="w-3.5 h-3.5" />}
       loading={markAllReadMutation.isPending}
       disabled={unreadCount === 0}
-      title={unreadCount === 0 ? "Everything is already read" : undefined}
+      aria-describedby={!staff && allRead ? "mark-all-hint" : undefined}
       onClick={() => markAllReadMutation.mutate()}
     >
-      {staff ? "Mark all as read" : "Mark All as Read"}
+      Mark all as read
     </Button>
   );
 
@@ -275,138 +277,137 @@ export const NotificationsPage: React.FC = () => {
         title={headerConfig.title}
         description={headerConfig.description}
         breadcrumbs={headerConfig.breadcrumbs}
-        actions={<div className="flex gap-2">{markAllButton}</div>}
+        actions={
+          <div className="flex flex-col items-start gap-1 sm:items-end">
+            {markAllButton}
+            {allRead && (
+              <span id="mark-all-hint" className="text-sm text-slate-600">
+                Everything is already read
+              </span>
+            )}
+          </div>
+        }
       />
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-2 border-b border-[#D9E2EC] pb-3">
-        <button
-          type="button"
-          aria-pressed={!filterUnread}
-          onClick={() => changeFilter(false)}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors min-h-[44px] md:min-h-0 ${
-            !filterUnread
-              ? "bg-[#0B315D] text-white shadow-xs"
-              : "text-[#627D98] hover:text-[#102A43] hover:bg-[#EAF0F7]"
-          }`}
-        >
-          {initialLoading
-            ? "All notifications"
-            : !filterUnread
-            ? `All notifications (${totalItems})`
-            : "All notifications"}
-        </button>
-        <button
-          type="button"
-          aria-pressed={filterUnread}
-          onClick={() => changeFilter(true)}
-          className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-colors min-h-[44px] md:min-h-0 ${
-            filterUnread
-              ? "bg-[#0B315D] text-white shadow-xs"
-              : "text-[#627D98] hover:text-[#102A43] hover:bg-[#EAF0F7]"
-          }`}
-        >
-          {initialLoading ? "Unread Only" : `Unread Only (${unreadCount})`}
-        </button>
-      </div>
-
-      {/* List Container */}
-      {initialLoading ? (
-        <LoadingState variant="table" rows={4} />
-      ) : offline || notificationsQuery.isError ? (
-        <ErrorState
-          compact
-          subject="notifications"
-          error={offline ? undefined : notificationsQuery.error}
-          onRetry={() => notificationsQuery.refetch()}
+      <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
+        <Tabs
+          ariaLabel="Notification filter"
+          value={filterUnread ? "unread" : "all"}
+          onChange={(id) => changeFilter(id === "unread")}
+          items={[
+            {
+              id: "all",
+              label: "All notifications",
+              badge: notificationsQuery.data && !filterUnread ? { text: String(totalItems), variant: "info" } : undefined,
+            },
+            {
+              id: "unread",
+              label: "Unread Only",
+              badge: notificationsQuery.data ? { text: String(unreadCount), variant: "info" } : undefined,
+            },
+          ]}
         />
-      ) : notifications.length === 0 ? (
-        <div className="bg-white rounded-xl border border-[#D9E2EC] p-8 shadow-xs">
-          <EmptyState
-            icon={<Bell className="w-6 h-6 text-[#627D98]" />}
-            title="No notifications to show"
-            description={
-              filterUnread
-                ? "You have read all received notices."
-                : "You have no notifications in your inbox."
-            }
+
+        {initialLoading ? (
+          <LoadingState variant="table" rows={4} />
+        ) : offline || notificationsQuery.isError ? (
+          <ErrorState
+            compact
+            subject="notifications"
+            className="m-3"
+            error={offline ? undefined : notificationsQuery.error}
+            onRetry={() => notificationsQuery.refetch()}
           />
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <div className="bg-white rounded-xl border border-[#D9E2EC] shadow-xs divide-y divide-[#D9E2EC] overflow-hidden">
-            {notifications.map((n) => {
-              const notificationLink = resolveNotificationLink(n.link, user?.role);
-              return (
-                <div
-                  key={n.id}
-                  className={`p-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 transition-colors ${
-                    !n.isRead ? "bg-[#EAF0F7]/50" : "hover:bg-[#F7F9FC]"
-                  }`}
-                >
-                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <div className="p-2 rounded-lg bg-[#F7F9FC] border border-[#D9E2EC] shrink-0 mt-0.5">
-                      {getIconForType(n.type)}
-                    </div>
-                    <div className="space-y-1 flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-[#102A43] break-words min-w-0">{formatNotificationTitle(n.title, user?.role)}</span>
-                        {!n.isRead && (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-[#0B315D]">
-                            <span className="w-2 h-2 rounded-full bg-[#0B315D] shrink-0" aria-hidden="true" />
-                            <span className="sr-only">Unread</span>
+        ) : notifications.length === 0 ? (
+          <div className="p-8">
+            <EmptyState
+              bare
+              icon={<Bell className="w-6 h-6 text-slate-600" />}
+              title="No notifications to show"
+              description={
+                filterUnread
+                  ? "You have read all received notices."
+                  : "You have no notifications in your inbox."
+              }
+            />
+          </div>
+        ) : (
+          <>
+            <ul className="divide-y divide-slate-200">
+              {notifications.map((n) => {
+                const notificationLink = resolveNotificationLink(n.link, user?.role);
+                return (
+                  <li
+                    key={n.id}
+                    className={cn(
+                      "flex flex-col gap-4 p-4 transition-colors sm:flex-row sm:items-start sm:justify-between",
+                      !n.isRead ? "bg-navy-soft/60" : "hover:bg-slate-50"
+                    )}
+                  >
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                      <div className="mt-0.5 shrink-0 rounded-md border border-slate-200 bg-slate-50 p-2">
+                        {getIconForType(n.type)}
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="min-w-0 break-words text-sm font-semibold text-slate-950">
+                            {formatNotificationTitle(n.title, user?.role)}
                           </span>
+                          {!n.isRead && (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-navy">
+                              <span className="h-2 w-2 shrink-0 rounded-full bg-navy" aria-hidden="true" />
+                              <span className="sr-only">Unread</span>
+                            </span>
+                          )}
+                        </div>
+                        <p className="max-w-2xl break-words text-sm leading-relaxed text-slate-600">
+                          {formatNotificationMessage(n.message, user?.role)}
+                        </p>
+                        <div className="text-xs text-slate-600">{formatRelativeTime(n.createdAt)}</div>
+                      </div>
+                    </div>
+
+                    <div className="flex shrink-0 flex-wrap items-center gap-2 pl-11 sm:pl-0">
+                      {notificationLink && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          rightIcon={<ExternalLink className="w-3.5 h-3.5" />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openRecord(n, notificationLink);
+                          }}
+                        >
+                          View details
+                        </Button>
+                      )}
+                      {/* Fixed-width slot so "View details" stays in the same column on read and unread rows. */}
+                      <div className="sm:w-[7.5rem]">
+                        {!n.isRead && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            leftIcon={<Check className="w-3.5 h-3.5" />}
+                            loading={pendingId === n.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              markReadMutation.mutate(n.id);
+                            }}
+                            className="w-full"
+                          >
+                            Mark read
+                          </Button>
                         )}
                       </div>
-                      <p className="text-xs text-[#627D98] leading-relaxed max-w-2xl break-words">
-                        {formatNotificationMessage(n.message, user?.role)}
-                      </p>
-                      <div className="text-xs text-[#627D98]">{formatRelativeTime(n.createdAt)}</div>
                     </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2 shrink-0 pl-11 sm:pl-0">
-                    {notificationLink && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        rightIcon={<ExternalLink className="w-3.5 h-3.5" />}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openRecord(n, notificationLink);
-                        }}
-                        title="View linked record"
-                        className="text-[#102A43] text-sm"
-                      >
-                        View details
-                      </Button>
-                    )}
-                    {!n.isRead && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        leftIcon={<Check className="w-3.5 h-3.5" />}
-                        loading={pendingId === n.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          markReadMutation.mutate(n.id);
-                        }}
-                        title="Mark as read"
-                        className="text-[#0B315D] hover:text-[#082747] hover:bg-[#EAF0F7] shrink-0"
-                      >
-                        Mark read
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Pagination */}
-          <div className="bg-white border border-[#D9E2EC] p-2">{pagination}</div>
-        </div>
-      )}
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="border-t border-slate-200">{pagination}</div>
+          </>
+        )}
+      </div>
     </div>
   );
 };
