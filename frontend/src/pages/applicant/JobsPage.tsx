@@ -245,7 +245,7 @@ export const JobsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        title={scope === "all" ? "Explore jobs" : "Saved jobs"}
+        title={scope === "all" ? "Browse jobs" : "Saved jobs"}
         description={
           scope === "all"
             ? "Browse current openings and apply when a role suits you. Locations are the worksite, not the MEGS office in Valenzuela City."
@@ -253,7 +253,7 @@ export const JobsPage: React.FC = () => {
         }
         breadcrumbs={[
           { label: "My career", href: "/app" },
-          { label: scope === "all" ? "Explore jobs" : "Saved jobs" },
+          { label: scope === "all" ? "Browse jobs" : "Saved jobs" },
         ]}
         actions={
           <div className="flex items-center rounded-lg border border-slate-300 bg-white p-1 text-sm">
@@ -353,7 +353,7 @@ export const JobsPage: React.FC = () => {
               description="Bookmark job openings while exploring careers so you can review and apply when ready."
               action={
                 <Button variant="primary" size="md" onClick={() => setScope("all")}>
-                  Explore all openings
+                  Browse all openings
                 </Button>
               }
             />

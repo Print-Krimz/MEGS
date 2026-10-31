@@ -278,7 +278,7 @@ export async function openSession(browser: Browser, options: SessionOptions = {}
 const ROUTE_READY: Array<{ path: string; heading: RegExp }> = [
   { path: "/", heading: /Better people/i },
   { path: "/app", heading: /^Good (morning|afternoon|evening)/i },
-  { path: "/app/jobs", heading: /^Explore jobs$/i },
+  { path: "/app/jobs", heading: /^Browse jobs$/i },
   { path: "/app/profile", heading: /^Candidate Profile$/i },
   { path: "/ta", heading: /^Overview$/i },
   { path: "/ta/applications", heading: /^Applications$/i },

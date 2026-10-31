@@ -200,7 +200,7 @@ export const JobInvitationsPage: React.FC = () => {
             action={
               <Link to="/app/jobs">
                 <Button variant="primary" size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
-                  Explore Open Jobs
+                  Browse Open Jobs
                 </Button>
               </Link>
             }

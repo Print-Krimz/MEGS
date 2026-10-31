@@ -404,7 +404,7 @@ export const ApplicantDashboard: React.FC = () => {
                   bare
                   icon={<Briefcase className="w-6 h-6 text-slate-400" />}
                   title="No applications yet"
-                  description="Explore current verified job requisitions and submit your application with one click."
+                  description="Browse current verified job requisitions and submit your application with one click."
                   action={
                     <Button asChild>
                       <Link to="/app/jobs">Browse Open Jobs</Link>

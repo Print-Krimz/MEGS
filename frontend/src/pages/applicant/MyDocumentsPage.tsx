@@ -78,7 +78,7 @@ export const MyDocumentsPage: React.FC = () => {
       <EmptyState
         title="No documents uploaded yet"
         description="Documents you submit for an application will appear here so you can reuse them on new applications."
-        action={<Link to="/app/jobs" className={linkButtonClass}>Explore jobs</Link>}
+        action={<Link to="/app/jobs" className={linkButtonClass}>Browse jobs</Link>}
       />
     </div>;
   }

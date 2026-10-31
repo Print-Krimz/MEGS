@@ -284,7 +284,7 @@ export const MyApplicationsPage: React.FC = () => {
             to="/app/jobs"
             className="inline-flex min-h-[44px] items-center rounded-md border border-slate-900 bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-2 transition-colors"
           >
-            Explore jobs
+            Browse jobs
           </Link>
         }
       />
@@ -465,7 +465,7 @@ export const MyApplicationsPage: React.FC = () => {
               bare
               icon={<Briefcase className="w-5 h-5 text-slate-400" />}
               title="No applications yet"
-              description="Explore current jobs and apply when a role suits you."
+              description="Browse current jobs and apply when a role suits you."
             />
           </div>
         ) : filteredApplications.length === 0 ? (

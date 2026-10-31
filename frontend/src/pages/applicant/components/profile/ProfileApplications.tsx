@@ -72,7 +72,7 @@ export const ProfileApplications: React.FC = () => {
               to="/app/jobs"
               className="inline-flex min-h-[44px] items-center rounded-md bg-[#0B315D] px-4 text-sm font-semibold text-white hover:bg-[#082747] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 transition-colors"
             >
-              Explore jobs
+              Browse jobs
             </Link>
           )}
         />

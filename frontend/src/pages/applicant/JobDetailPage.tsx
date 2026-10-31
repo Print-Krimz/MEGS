@@ -206,7 +206,7 @@ export const JobDetailPage: React.FC = () => {
 
   const jobBreadcrumbs = (last: string) => [
     { label: "My career", href: "/app" },
-    { label: "Explore jobs", href: "/app/jobs" },
+    { label: "Browse jobs", href: "/app/jobs" },
     { label: last },
   ];
 
@@ -264,7 +264,7 @@ export const JobDetailPage: React.FC = () => {
         }
         breadcrumbs={[
           { label: "My career", href: "/app" },
-          { label: "Explore jobs", href: "/app/jobs" },
+          { label: "Browse jobs", href: "/app/jobs" },
           { label: job.title },
         ]}
         actions={

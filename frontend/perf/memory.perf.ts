@@ -1,5 +1,5 @@
 /**
- * P12 memory investigation: applicant dashboard <-> Explore Jobs SPA navigation, N cycles.
+ * P12 memory investigation: applicant dashboard <-> Browse Jobs SPA navigation, N cycles.
  *
  * Run from frontend/ against a built dist (never rebuilds):
  *   PERF_MEMORY=1 PERF_DIST=<dist> PERF_LABEL=<label> npx playwright test -c perf/perf.config.ts
@@ -200,7 +200,7 @@ function pct(from: number | undefined, to: number | undefined) {
 }
 
 test.describe("P12 memory investigation", () => {
-  test(`applicant dashboard <-> Explore Jobs, ${CYCLES} cycles`, async ({ browser }) => {
+  test(`applicant dashboard <-> Browse Jobs, ${CYCLES} cycles`, async ({ browser }) => {
     test.setTimeout(40 * 60_000);
     mkdirSync(MEM_DIR, { recursive: true });
     const session = await openSession(browser, { identity: "APPLICANT", scale: SMALL_SCALE, observers: false });
@@ -212,7 +212,7 @@ test.describe("P12 memory investigation", () => {
       await gotoAndSettle(session.page, "/app", 1000);
       for (let cycle = 0; cycle <= CYCLES; cycle += 1) {
         if (cycle > 0) {
-          await navigate(session.page, "Explore Jobs", "/app/jobs");
+          await navigate(session.page, "Browse Jobs", "/app/jobs");
           await navigate(session.page, "Dashboard", "/app");
         }
         if (CHECKPOINTS.includes(cycle)) {
@@ -245,7 +245,7 @@ test.describe("P12 memory investigation", () => {
         liveTimersDelta: a && b ? (b.internals?.timers?.liveTimeouts ?? NaN) + (b.internals?.timers?.liveIntervals ?? NaN) - ((a.internals?.timers?.liveTimeouts ?? NaN) + (a.internals?.timers?.liveIntervals ?? NaN)) : null,
       };
       const result = {
-        scenario: "applicant dashboard <-> Explore Jobs via nav links; forced GC x2 at each checkpoint; SMALL fixtures; CPU 4x",
+        scenario: "applicant dashboard <-> Browse Jobs via nav links; forced GC x2 at each checkpoint; SMALL fixtures; CPU 4x",
         label: LABEL,
         dist: DIST,
         cycles: CYCLES,
