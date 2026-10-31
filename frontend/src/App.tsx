@@ -3,6 +3,7 @@ import { RouterProvider } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { router } from "./routes";
 import { useAuth } from "./hooks/useAuth";
+import { landingRedirectPending, markLandingRedirected } from "./lib/home-path";
 import { ErrorBoundary } from "./components/common/ErrorBoundary";
 import { FeedbackToaster } from "./components/common/FeedbackToaster";
 import { Loader2 } from "lucide-react";
@@ -12,9 +13,17 @@ export const AppContent: React.FC = () => {
   const queryClient = useQueryClient();
 
   // Public pages (landing, auth, tracking slip, offer link) never need the session, so skip the staff loader.
+  // A stored session opening "/" waits for it too, so the landing page does not flash before the redirect home.
+  const path = window.location.pathname;
   const isPublicPath =
-    /^\/($|t\/|offer\/|check-in(\/|$)|(login|register|forgot-password|reset-password)(\/|$))/.test(window.location.pathname);
+    /^\/($|t\/|offer\/|check-in(\/|$)|(login|register|forgot-password|reset-password)(\/|$))/.test(path) &&
+    !(path === "/" && landingRedirectPending());
   const showLoader = auth.isLoading && !isPublicPath;
+
+  // Opening the app directly counts as the once-per-session landing visit, so the logo link does not bounce the user back.
+  useEffect(() => {
+    if (auth.user && window.location.pathname !== "/") markLandingRedirected();
+  }, [auth.user]);
 
   // Public pages mount the router while the session loads, so re-run the login/register guards with the real one.
   useEffect(() => {

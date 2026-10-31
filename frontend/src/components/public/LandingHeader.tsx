@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowRight, Menu, X } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
-import { Role } from "../../lib/types/enums";
+import { getHomePath } from "../../lib/home-path";
 import { scrollToSection } from "../../lib/scrollToSection";
 import { Button } from "@/components/shadcn/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle, SheetTrigger, SheetClose } from "@/components/shadcn/sheet";
@@ -17,15 +17,10 @@ export const LandingHeader: React.FC = () => {
   const [activeNav, setActiveNav] = useState<string>("");
   const [scrolled, setScrolled] = useState(false);
   const [hasWhySection, setHasWhySection] = useState(false);
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const reduceMotion = useReducedMotion();
 
-  const getPortalDestination = () => {
-    if (!isAuthenticated || !user) return "/app";
-    if (user.role === Role.ADMINISTRATOR) return "/admin";
-    if (user.role === Role.TALENT_ACQUISITION) return "/ta";
-    return "/app";
-  };
+  const dashboardPath = user ? getHomePath(user) : "/app";
 
   // "Why MEGS" only appears once a section with that id is on the page, so the link is never dead.
   const navLinks = useMemo(
@@ -172,10 +167,12 @@ export const LandingHeader: React.FC = () => {
           </nav>
 
           <div className="hidden shrink-0 items-center gap-2 sm:flex">
-            {isAuthenticated ? (
+            {isLoading ? (
+              <div aria-hidden="true" className="h-11 w-40" />
+            ) : isAuthenticated ? (
               <Button asChild className={`group hover:shadow-md ${buttonMotion}`}>
-                <Link to={getPortalDestination()}>
-                  Go to Portal
+                <Link to={dashboardPath}>
+                  My dashboard
                   <ArrowRight
                     aria-hidden="true"
                     className="transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none"
@@ -195,7 +192,7 @@ export const LandingHeader: React.FC = () => {
           </div>
 
           <div className="flex shrink-0 items-center gap-1 sm:gap-2 min-[1140px]:hidden">
-            {!isAuthenticated && (
+            {!isAuthenticated && !isLoading && (
               <Button asChild variant="ghost" className={`px-3 sm:hidden ${buttonMotion}`}>
                 <Link to="/login" {...warmAuth}>Log in</Link>
               </Button>
@@ -249,9 +246,9 @@ export const LandingHeader: React.FC = () => {
                   transition={{ duration: 0.4, ease: EASE_OUT, delay: 0.1 + navLinks.length * 0.045 }}
                   className="mt-auto flex flex-col gap-2 border-t border-border p-4"
                 >
-                  {isAuthenticated ? (
+                  {isLoading ? null : isAuthenticated ? (
                     <Button asChild size="lg" className={buttonMotion}>
-                      <Link to={getPortalDestination()} onClick={() => setIsMobileMenuOpen(false)}>Go to Portal</Link>
+                      <Link to={dashboardPath} onClick={() => setIsMobileMenuOpen(false)}>My dashboard</Link>
                     </Button>
                   ) : (
                     <>

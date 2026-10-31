@@ -9,6 +9,7 @@ import {
 import type { QueryClient } from "@tanstack/react-query";
 import type { AuthContextType } from "./context/AuthContext";
 import { parseAdminReportSearch, type AdminReportSearch } from "./lib/admin-report-search";
+import { getHomePath, landingRedirectPending, markLandingRedirected } from "./lib/home-path";
 import { ApplicationStatus, PIPELINE_FILTER_STAGES, Role } from "./lib/types/enums";
 
 // TanStack preloads every matched route component after synchronous guards run.
@@ -101,6 +102,11 @@ export const rootRoute = createRootRouteWithContext<RouterContext>()({
 export const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
+  beforeLoad: ({ context }) => {
+    if (!context.auth.isAuthenticated || !context.auth.user || !landingRedirectPending()) return;
+    markLandingRedirected();
+    throw redirect({ to: context.auth.mustChangePassword ? "/change-password" : getHomePath(context.auth.user) });
+  },
   component: LandingPage,
 });
 

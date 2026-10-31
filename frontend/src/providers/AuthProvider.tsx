@@ -4,7 +4,7 @@ import { authApi } from "../lib/api/auth.api";
 import { ApiError } from "../lib/api/client";
 import { bumpSessionGeneration, getSessionGeneration, onSessionGenerationChange, tokenSubject } from "../lib/auth/session-generation";
 import { AuthContext, type AuthContextType } from "../context/AuthContext";
-import { canOpenPath, getHomePath } from "../lib/home-path";
+import { canOpenPath, getHomePath, markLandingRedirected } from "../lib/home-path";
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -91,6 +91,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (data.access_token) {
       window.dispatchEvent(new Event("auth-token-changed"));
     }
+    // Just signed in: the landing page is not a detour on the way back from the app.
+    markLandingRedirected();
     setUser(data.user);
     setIsLoading(false);
   }, []);

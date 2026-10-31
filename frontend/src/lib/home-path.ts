@@ -20,3 +20,22 @@ export function getHomePath(user: { role: string } | null | undefined): string {
   if (user.role === Role.TALENT_ACQUISITION) return "/ta";
   return "/app";
 }
+
+const LANDING_REDIRECTED_KEY = "megs.landingRedirected";
+
+/** A signed-in visitor opening "/" goes to their home once per browser session; after that the landing page stays reachable. */
+export function landingRedirectPending(): boolean {
+  try {
+    return Boolean(localStorage.getItem("access_token")) && !sessionStorage.getItem(LANDING_REDIRECTED_KEY);
+  } catch {
+    return false;
+  }
+}
+
+export function markLandingRedirected(): void {
+  try {
+    sessionStorage.setItem(LANDING_REDIRECTED_KEY, "1");
+  } catch {
+    // Storage blocked: the landing page then simply never redirects.
+  }
+}
