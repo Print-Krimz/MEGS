@@ -750,35 +750,9 @@ export const ProfilePage: React.FC = () => {
       profileQuery.error?.message?.includes("404") ||
       Boolean((profileQuery.error as any)?.status === 404));
 
-  const profileFormSnapshot = profile
-    ? {
-        firstName: profile.firstName || "",
-        lastName: profile.lastName || "",
-        middleName: profile.middleName || "",
-        dateOfBirth: profile.dateOfBirth ? profile.dateOfBirth.substring(0, 10) : "",
-        mobileNumber: profile.mobileNumber || "",
-        gender: profile.gender || "",
-        civilStatus: profile.civilStatus || "",
-        nationality: profile.nationality || "",
-        birthPlace: profile.birthPlace || "",
-        religion: profile.religion || "",
-        height: profile.height !== null && profile.height !== undefined ? String(profile.height) : "",
-        weight: profile.weight !== null && profile.weight !== undefined ? String(profile.weight) : "",
-        address: profile.address || "",
-        province: profile.province || "",
-        city: profile.city || "",
-        barangay: profile.barangay || "",
-        postalCode: profile.postalCode || "",
-        preferredWorkLocations: profile.preferredWorkLocations || "",
-        professionalSummary: profile.professionalSummary || "",
-        sss: profile.sss ? formatSSSNumber(profile.sss) : "",
-        philhealth: profile.philhealth ? formatPhilHealthNumber(profile.philhealth) : "",
-        pagibig: profile.pagibig ? formatPagIbigNumber(profile.pagibig) : "",
-        tin: profile.tin ? formatTINNumber(profile.tin) : "",
-        additionalNotes: profile.additionalNotes || "",
-      }
-    : null;
-  const personalFormDirty = Boolean(profileFormSnapshot && JSON.stringify(personalForm) !== JSON.stringify(profileFormSnapshot));
+  // Dirty means "differs from the form as last loaded", which already has case and postal code normalised.
+  const syncedForm = lastSyncedFormRef.current;
+  const personalFormDirty = Boolean(profile && syncedForm && JSON.stringify(personalForm) !== JSON.stringify(syncedForm));
   const blocker = useBlocker({
     shouldBlockFn: ({ current, next }) => personalFormDirty && current.pathname !== next.pathname,
     enableBeforeUnload: personalFormDirty,
