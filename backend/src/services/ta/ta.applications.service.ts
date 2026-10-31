@@ -1114,7 +1114,7 @@ export const updateTAApplicationStatus = async (
           hireDate: new Date(),
           originatingApplicationId: id,
           notes: reason || "Hired via TA recruitment pipeline",
-          status: "ACTIVE",
+          status: "AWAITING_START",
         },
       });
 

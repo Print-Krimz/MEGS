@@ -5,6 +5,7 @@ import { purgeExpiredAuthTokens } from "./auth-token-purge.js";
 import { REMINDER_JOBS } from "./reminders/index.js";
 import { sendSmsOutbox } from "./sms-outbox.js";
 import { generateComplianceRequirementsFromMRF } from "../services/ta/ta.compliance.service.js";
+import { activateDueDeployments } from "../services/ta/ta.deployments.service.js";
 
 export interface ScheduledJob {
   name: string;
@@ -78,6 +79,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     },
   },
   { name: "stale-resume-analysis", run: () => reconcileStaleResumeAnalysis() },
+  { name: "activate-due-deployments", run: () => activateDueDeployments() },
   { name: "compliance-checklists", run: () => ensureComplianceChecklists() },
   { name: "auth-token-purge", run: () => purgeExpiredAuthTokens() },
   ...REMINDER_JOBS,

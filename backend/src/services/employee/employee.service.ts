@@ -1063,11 +1063,11 @@ export const createEmployeeDeployment = async (
       },
     });
 
-    // If employee was in redeployment pool, move back to ACTIVE
+    // A redeployed worker waits for the new start date, like a first-time hire.
     if (employee.status === "AVAILABLE_FOR_REDEPLOYMENT") {
       await tx.employee.update({
         where: { id: data.employeeId },
-        data: { status: "ACTIVE" },
+        data: { status: "AWAITING_START" },
       });
     }
 

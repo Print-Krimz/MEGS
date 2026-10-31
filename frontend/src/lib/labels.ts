@@ -53,6 +53,7 @@ export function employmentEventLabel(eventType?: string | null): string {
 export function employmentStatusLabel(status?: string | null): string {
   return lookup(
     {
+      AWAITING_START: "Awaiting start",
       ACTIVE: "Active employee",
       INACTIVE: "Inactive",
       SEPARATED: "Separated",

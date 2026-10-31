@@ -44,8 +44,8 @@ export const BulkDeploymentDialog: React.FC<BulkDeploymentDialogProps> = ({ open
     <Dialog
       open
       onClose={onClose}
-      title="Confirm site start"
-      description={`${plural(count)} will be marked as started. Each employee is notified.`}
+      title="Confirm start date"
+      description={`${plural(count)} will start on the date below. Anyone with a future date stays Ready to start and becomes Active on site that day. Each employee is notified.`}
     >
       <div className="space-y-4">
         <Select

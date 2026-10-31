@@ -248,6 +248,8 @@ export function getEmploymentStatusMeta(status?: string | null): {
   badgeClass: string;
 } {
   switch (status) {
+    case EmploymentStatus.AWAITING_START:
+      return { label: "Awaiting start", badgeClass: "bg-blue-50 text-blue-800 border-blue-200" };
     case EmploymentStatus.ACTIVE:
       return { label: "Active employee", badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300" };
     case EmploymentStatus.INACTIVE:

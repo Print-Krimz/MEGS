@@ -163,6 +163,7 @@ export const ALLOWED_DEPLOYMENT_TRANSITIONS: Record<DeploymentStatus, Deployment
 };
 
 export const EmploymentStatus = {
+  AWAITING_START: "AWAITING_START",
   ACTIVE: "ACTIVE",
   INACTIVE: "INACTIVE",
   SEPARATED: "SEPARATED",

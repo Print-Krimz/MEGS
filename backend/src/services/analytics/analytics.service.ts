@@ -93,8 +93,8 @@ const pendingActionScope = (taUserId: string, filters: AnalyticsFilterDto) => {
   if (filters.clientId) jobScope.mrf = { clientId: filters.clientId };
   const application = { jobPosting: jobScope, isArchived: false, status: { notIn: ["BACKOUT", "REJECTED", "ARCHIVED", "TALENT_POOL", "HIRED"] } };
 
-  // A placement waiting for its start to be confirmed: the same deployment ownership rule as everywhere else.
-  const deployment: any = { status: "READY_FOR_DEPLOYMENT", ...ownedWhere.deployment({ id: taUserId, role: "TALENT_ACQUISITION" }) };
+  // A placement waiting for its start to be confirmed (no confirmed date yet): the same deployment ownership rule as everywhere else.
+  const deployment: any = { status: "READY_FOR_DEPLOYMENT", actualStart: null, ...ownedWhere.deployment({ id: taUserId, role: "TALENT_ACQUISITION" }) };
   if (filters.mrfId) deployment.mrfId = filters.mrfId;
   if (filters.clientId) deployment.clientId = filters.clientId;
   if (filters.jobPostingId) deployment.application = { jobPostingId: filters.jobPostingId };

@@ -4,6 +4,7 @@
 // ─────────────────────────────────────────────
 
 enum EmploymentStatus {
+  AWAITING_START
   ACTIVE
   INACTIVE
   SEPARATED

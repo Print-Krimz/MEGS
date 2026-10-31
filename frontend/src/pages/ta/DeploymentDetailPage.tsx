@@ -74,7 +74,11 @@ export const DeploymentDetailPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "deployments"] });
       setStatusModalOpen(false);
       setStatusNotes("");
-      notify.success("Deployment status updated", `The assignment is now ${getDeploymentStatusMeta(vars.status).label}.`);
+      if (vars.status === DeploymentStatus.ACTIVE && vars.actualStart && vars.actualStart > getManilaToday()) {
+        notify.success("Start date confirmed", `${formatDate(vars.actualStart)}. They become Active on site on that day.`);
+      } else {
+        notify.success("Deployment status updated", `The assignment is now ${getDeploymentStatusMeta(vars.status).label}.`);
+      }
     },
     onError: (err: any) => {
       notify.error("Unable to update deployment status", err);
@@ -202,7 +206,9 @@ export const DeploymentDetailPage: React.FC = () => {
               {dep.contractStart ? formatDate(dep.contractStart) : "Not set"} to {dep.contractEnd ? formatDate(dep.contractEnd) : "open"}
             </Field>
             <Field label="Actual assignment">
-              {dep.actualStart ? formatDate(dep.actualStart) : dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT ? "Not started" : "Start date not recorded"} to {dep.actualEnd ? formatDate(dep.actualEnd) : isActive ? "ongoing" : dep.status === DeploymentStatus.ENDED ? "end date not recorded" : "—"}
+              {dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT
+                ? dep.actualStart ? `Starts ${formatDate(dep.actualStart)}` : "Not started"
+                : `${dep.actualStart ? formatDate(dep.actualStart) : "Start date not recorded"} to ${dep.actualEnd ? formatDate(dep.actualEnd) : isActive ? "ongoing" : dep.status === DeploymentStatus.ENDED ? "end date not recorded" : "—"}`}
             </Field>
             <Field label="Employee number"><span className="font-mono tabular-nums">{emp?.employeeNumber || "Not recorded"}</span></Field>
             <Field label="Phone">{profile?.mobileNumber || "Not recorded"}</Field>
@@ -222,8 +228,8 @@ export const DeploymentDetailPage: React.FC = () => {
       <Dialog
         open={statusModalOpen}
         onClose={() => setStatusModalOpen(false)}
-        title={newStatus === DeploymentStatus.ACTIVE ? "Confirm site start" : "Update deployment status"}
-        description={newStatus === DeploymentStatus.ACTIVE ? "Record the date the employee actually started at the client site." : "Update the scheduled placement status."}
+        title={newStatus === DeploymentStatus.ACTIVE ? "Confirm start date" : "Update deployment status"}
+        description={newStatus === DeploymentStatus.ACTIVE ? "Record the date the employee starts at the client site. They stay Ready to start until then." : "Update the scheduled placement status."}
       >
         <div className="space-y-4">
           <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
@@ -233,11 +239,11 @@ export const DeploymentDetailPage: React.FC = () => {
 
           {newStatus === DeploymentStatus.ACTIVE ? (
             <DateField
-              label="Actual first working date"
+              label="First working date"
               value={actualStart}
               min={getManilaToday()}
               onChange={(event) => setActualStart(event.target.value)}
-              help="Must be today or a future date."
+              help="Today or a future date. A future date becomes Active on site automatically on that day."
               required
             />
           ) : <Select

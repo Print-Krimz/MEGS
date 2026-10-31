@@ -73,7 +73,11 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
       queryClient.invalidateQueries({ queryKey: ["employees"] });
       setStatusModalDeployment(null);
       setStatusNotes("");
-      notify.success("Deployment Status Updated", `Deployment moved to ${getDeploymentStatusMeta(vars.status).label}.`);
+      if (vars.status === DeploymentStatus.ACTIVE && vars.actualStart && vars.actualStart > getManilaToday()) {
+        notify.success("Start date confirmed", `${formatDate(vars.actualStart)}. They become Active on site on that day.`);
+      } else {
+        notify.success("Deployment Status Updated", `Deployment moved to ${getDeploymentStatusMeta(vars.status).label}.`);
+      }
     },
     onError: (err: any) => {
       notify.error("Unable to update deployment status", err);
@@ -120,7 +124,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
       queryClient.invalidateQueries({ queryKey: ["employees"] });
       selection.remove(summary.results.filter((row) => row.ok).map((row) => String(row.id)));
       setBulkStartOpen(false);
-      const title = "Confirm site start";
+      const title = "Confirm start date";
       if (summary.failed > 0) {
         setBulkResult({ title, summary, names: Object.fromEntries(vars.rows.map((dep) => [dep.id, employeeNameOf(dep)])) });
       } else {
@@ -258,7 +262,8 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
       return dep.contractEnd ? { text: `Ends ${formatDate(dep.contractEnd)}`, tone: "normal" } : null;
     }
     if (dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT) {
-      return { text: dep.contractStart ? `Starts ${formatDate(dep.contractStart)}` : "Start date not set", tone: "normal" };
+      const startsOn = dep.actualStart ?? dep.contractStart;
+      return { text: startsOn ? `Starts ${formatDate(startsOn)}` : "Start date not set", tone: "normal" };
     }
     if (dep.status === DeploymentStatus.ENDED && dep.actualEnd) {
       return { text: `Ended ${formatDate(dep.actualEnd)}`, tone: "normal" };
@@ -454,8 +459,8 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
       <Dialog
         open={Boolean(statusModalDeployment)}
         onClose={() => setStatusModalDeployment(null)}
-        title={newStatus === DeploymentStatus.ACTIVE ? "Confirm site start" : "Update deployment status"}
-        description={newStatus === DeploymentStatus.ACTIVE ? "Record the date the employee actually started at the client site." : "Update the scheduled placement status."}
+        title={newStatus === DeploymentStatus.ACTIVE ? "Confirm start date" : "Update deployment status"}
+        description={newStatus === DeploymentStatus.ACTIVE ? "Record the date the employee starts at the client site. They stay Ready to start until then." : "Update the scheduled placement status."}
       >
         <div className="space-y-4">
           {statusModalDeployment && (
@@ -466,12 +471,12 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
           )}
           {newStatus === DeploymentStatus.ACTIVE ? (
             <Input
-              label="Actual first working date"
+              label="First working date"
               type="date"
               value={actualStart}
               min={getManilaToday()}
               onChange={(event) => setActualStart(event.target.value)}
-              helperText={actualStart ? `${formatDate(actualStart)}. Must be today or a future date.` : "Must be today or a future date."}
+              helperText={actualStart ? `${formatDate(actualStart)}. Today or a future date; a future date becomes Active on site automatically.` : "Today or a future date."}
               required
             />
           ) : <Select

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   findUnique: vi.fn(),
+  findMany: vi.fn(),
   updateMany: vi.fn(),
   applicationUpdate: vi.fn(),
   decisionCreate: vi.fn(),
@@ -17,7 +18,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../../utils/prisma.js", () => {
   const tx = {
-    deployment: { updateMany: mocks.updateMany, findUnique: mocks.findUnique },
+    deployment: { updateMany: mocks.updateMany, findUnique: mocks.findUnique, findMany: mocks.findMany },
     application: { update: mocks.applicationUpdate },
     recruiterDecision: { create: mocks.decisionCreate, updateMany: vi.fn() },
     employee: { update: mocks.employeeUpdate },
@@ -43,7 +44,7 @@ vi.mock("../../utils/notification.js", () => ({
   sendNotification: mocks.sendNotification,
 }));
 
-import { DeploymentConflictError, updateDeploymentStatus } from "./ta.deployments.service.js";
+import { activateDueDeployments, DeploymentConflictError, updateDeploymentStatus } from "./ta.deployments.service.js";
 import { manilaDateString, toManilaDateOnly } from "../../schemas/field-limits.js";
 
 const ACTIVE_ROW = {
@@ -87,7 +88,7 @@ describe("Confirm site start", () => {
     expect(mocks.updateMany).not.toHaveBeenCalled();
   });
 
-  it.each([manilaDateString(), "2099-12-31"])("accepts %s and stores it as the Manila date", async (day) => {
+  it.each([manilaDateString()])("accepts %s and stores it as the Manila date", async (day) => {
     const updated = await updateDeploymentStatus(42, "ACTIVE", "Started on site", "actor-1", day);
     expect(updated).toBeDefined();
     const call = mocks.updateMany.mock.calls[0][0];
@@ -98,7 +99,7 @@ describe("Confirm site start", () => {
   });
 
   it("writes every record and notifies only after commit", async () => {
-    await updateDeploymentStatus(42, "ACTIVE", "ok", "actor-1", "2099-12-31");
+    await updateDeploymentStatus(42, "ACTIVE", "ok", "actor-1", manilaDateString());
     expect(mocks.applicationUpdate).toHaveBeenCalledWith({ where: { id: 7 }, data: { status: "DEPLOYED" } });
     expect(mocks.decisionCreate).toHaveBeenCalledTimes(1);
     expect(mocks.deploymentStatusHistoryCreate).toHaveBeenCalledTimes(1);
@@ -107,6 +108,40 @@ describe("Confirm site start", () => {
     expect(mocks.talentPoolUpdateMany).toHaveBeenCalledTimes(1);
     expect(mocks.sendNotification).toHaveBeenCalledTimes(1);
     expect(mocks.notifyOwner).toHaveBeenCalledTimes(1);
+  });
+
+  it("a future start date only schedules the start: status, employee and application stay as they are", async () => {
+    const updated = await updateDeploymentStatus(42, "ACTIVE", "Starts later", "actor-1", "2099-12-31");
+    expect(updated).toBeDefined();
+    const call = mocks.updateMany.mock.calls[0][0];
+    expect(call.where).toEqual({ id: 42, status: "READY_FOR_DEPLOYMENT" });
+    expect(call.data.status).toBeUndefined();
+    expect(toManilaDateOnly(call.data.actualStart)).toBe("2099-12-31");
+    expect(mocks.employeeUpdate).not.toHaveBeenCalled();
+    expect(mocks.applicationUpdate).not.toHaveBeenCalled();
+    expect(mocks.employmentEventCreate).not.toHaveBeenCalled();
+    expect(mocks.deploymentStatusHistoryCreate).toHaveBeenCalledTimes(1);
+    expect(mocks.sendNotification).toHaveBeenCalledTimes(1);
+  });
+
+  it("the scheduled job may activate a start date that has already arrived", async () => {
+    await updateDeploymentStatus(42, "ACTIVE", "Start date reached.", "actor-1", "2020-01-01", { allowPastStart: true });
+    const call = mocks.updateMany.mock.calls[0][0];
+    expect(call.data.status).toBe("ACTIVE");
+    expect(toManilaDateOnly(call.data.actualStart)).toBe("2020-01-01");
+    expect(mocks.employeeUpdate).toHaveBeenCalledWith({ where: { id: 10 }, data: { status: "ACTIVE" } });
+  });
+
+  it("the hourly job activates every due deployment and counts a failure without stopping", async () => {
+    mocks.findMany.mockResolvedValueOnce([
+      { id: 42, createdById: "creator", actualStart: new Date("2026-10-01T00:00:00+08:00") },
+      { id: 43, createdById: "creator", actualStart: new Date("2026-10-02T00:00:00+08:00") },
+    ]);
+    mocks.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    await expect(activateDueDeployments()).resolves.toEqual({ activated: 1, failures: 1 });
+    expect(mocks.findMany.mock.calls[0][0].where).toMatchObject({ status: "READY_FOR_DEPLOYMENT" });
+    errors.mockRestore();
   });
 
   const writes: Array<[string, () => ReturnType<typeof vi.fn>]> = [
@@ -121,7 +156,7 @@ describe("Confirm site start", () => {
 
   it.each(writes)("a failure at %s rejects and sends no notification", async (_name, getMock) => {
     getMock().mockRejectedValueOnce(new Error("db down"));
-    await expect(updateDeploymentStatus(42, "ACTIVE", "ok", "actor-1", "2099-12-31")).rejects.toThrow("db down");
+    await expect(updateDeploymentStatus(42, "ACTIVE", "ok", "actor-1", manilaDateString())).rejects.toThrow("db down");
     expect(mocks.sendNotification).not.toHaveBeenCalled();
     expect(mocks.notifyOwner).not.toHaveBeenCalled();
     expect(mocks.logAudit).not.toHaveBeenCalled();
@@ -129,7 +164,7 @@ describe("Confirm site start", () => {
 
   it("returns a 409 conflict when the status already changed and writes nothing else", async () => {
     mocks.updateMany.mockResolvedValueOnce({ count: 0 });
-    const error = await updateDeploymentStatus(42, "ACTIVE", "ok", "actor-1", "2099-12-31").catch((e) => e);
+    const error = await updateDeploymentStatus(42, "ACTIVE", "ok", "actor-1", manilaDateString()).catch((e) => e);
     expect(error).toBeInstanceOf(DeploymentConflictError);
     expect(error.status).toBe(409);
     expect(mocks.applicationUpdate).not.toHaveBeenCalled();
@@ -141,8 +176,8 @@ describe("Confirm site start", () => {
   it("only one of two concurrent confirmations transitions", async () => {
     mocks.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 });
     const results = await Promise.allSettled([
-      updateDeploymentStatus(42, "ACTIVE", "a", "actor-1", "2099-12-31"),
-      updateDeploymentStatus(42, "ACTIVE", "b", "actor-2", "2099-12-31"),
+      updateDeploymentStatus(42, "ACTIVE", "a", "actor-1", manilaDateString()),
+      updateDeploymentStatus(42, "ACTIVE", "b", "actor-2", manilaDateString()),
     ]);
     expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     expect(mocks.employmentEventCreate).toHaveBeenCalledTimes(1);

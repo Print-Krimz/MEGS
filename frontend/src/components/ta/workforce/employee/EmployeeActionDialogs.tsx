@@ -49,6 +49,7 @@ export const ChangeStatusDialog: React.FC<{
           value={newStatus}
           onChange={(e) => setNewStatus(e.target.value as EmploymentStatus)}
           options={[
+            { value: EmploymentStatus.AWAITING_START, label: "Awaiting start" },
             { value: EmploymentStatus.ACTIVE, label: "Active" },
             { value: EmploymentStatus.AVAILABLE_FOR_REDEPLOYMENT, label: "Available for redeployment" },
             { value: EmploymentStatus.INACTIVE, label: "Inactive" },

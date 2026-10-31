@@ -115,7 +115,7 @@ export const createDeployment = async (
               userId: application.userId,
               employeeNumber: `EMP-${new Date().getFullYear()}-${String(application.id).padStart(4, "0")}`,
               originatingApplicationId: application.id,
-              status: "ACTIVE",
+              status: "AWAITING_START",
             },
           });
         }
@@ -274,7 +274,9 @@ export const updateDeploymentStatus = async (
   status: DeploymentStatus,
   notes?: string,
   actorId?: string,
-  actualStart?: string | Date
+  actualStart?: string | Date,
+  /** The scheduled job activates a start date that has arrived, which is "in the past" by a day or more. */
+  options: { allowPastStart?: boolean } = {}
 ) => {
   const deployment = await prisma.deployment.findUnique({
     where: { id },
@@ -308,8 +310,14 @@ export const updateDeploymentStatus = async (
     // Stored as a Manila calendar date (like actualEnd) so same-day start/end compare correctly.
     ? parseManilaDateOnly(actualStart ? toManilaDateOnly(actualStart) : manilaDateString())
     : undefined;
-  if (startDate && toManilaDateOnly(startDate) < manilaDateString()) {
+  if (startDate && !options.allowPastStart && toManilaDateOnly(startDate) < manilaDateString()) {
     throw new Error("Actual start date cannot be in the past. Please select today or a future date.");
+  }
+
+  // A start date that is still ahead only schedules the start. The worker stays Ready to start, and the
+  // scheduled job makes them Active on site when that day arrives.
+  if (status === "ACTIVE" && startDate && toManilaDateOnly(startDate) > manilaDateString()) {
+    return scheduleDeploymentStart(deployment, startDate, notes, actorId);
   }
 
   // The worker never started, so the application goes back to contract signing instead of staying DEPLOYED.
@@ -466,9 +474,92 @@ export const updateDeploymentStatus = async (
   return updated;
 };
 
+/** Records a confirmed future start date without changing the deployment or employee status. */
+const scheduleDeploymentStart = async (
+  deployment: NonNullable<Awaited<ReturnType<typeof prisma.deployment.findUnique>>> & {
+    client: { name: string } | null;
+    employee: { userId: string | null } | null;
+    applicationId: number | null;
+    application: { id: number } | null;
+  },
+  startDate: Date,
+  notes: string | undefined,
+  actorId: string | undefined
+) => {
+  const updated = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.deployment.updateMany({
+      where: { id: deployment.id, status: deployment.status },
+      data: { actualStart: startDate, ...(notes ? { notes } : {}) },
+    });
+    if (claimed.count === 0) {
+      throw new DeploymentConflictError("This deployment was already updated by someone else. Refresh and try again.");
+    }
+    if (actorId) {
+      await tx.deploymentStatusHistory.create({
+        data: {
+          deploymentId: deployment.id,
+          fromStatus: deployment.status,
+          toStatus: deployment.status,
+          changedById: actorId,
+          reason: notes || `Start confirmed for ${toManilaDateOnly(startDate)}`,
+        },
+      });
+    }
+    return tx.deployment.findUnique({
+      where: { id: deployment.id },
+      include: {
+        employee: { select: { id: true, userId: true, employeeNumber: true, status: true } },
+        client: { select: { id: true, name: true } },
+      },
+    });
+  });
+
+  const startDay = toManilaDateOnly(startDate);
+  void logAudit(actorId || null, "DEPLOYMENT_START_SCHEDULED", "Deployment", deployment.id, {
+    deploymentId: deployment.id,
+    startDate: startDay,
+    clientName: deployment.client?.name,
+  });
+  if (deployment.employee?.userId) {
+    void sendNotification(
+      deployment.employee.userId,
+      "Start Date Confirmed",
+      `Your start date is confirmed for ${startDay}.`,
+      "INFO",
+      deployment.applicationId || deployment.application?.id ? `/app/applications/${deployment.applicationId || deployment.application?.id}` : "/app/profile",
+      { sms: { text: `Your start date is confirmed for ${startDay}. Log in to MEGS for details.` } }
+    );
+  }
+  return updated;
+};
+
+/**
+ * Makes workers Active on site once their confirmed start date has arrived. Runs from the hourly job.
+ * One failing deployment is logged and counted so it cannot stop the rest.
+ */
+export const activateDueDeployments = async (): Promise<Record<string, unknown>> => {
+  const due = await prisma.deployment.findMany({
+    where: { status: "READY_FOR_DEPLOYMENT", actualStart: { lte: parseManilaDateOnly(manilaDateString()) } },
+    select: { id: true, createdById: true, actualStart: true },
+    orderBy: { id: "asc" },
+    take: 100,
+  });
+  let activated = 0;
+  let failures = 0;
+  for (const row of due) {
+    try {
+      await updateDeploymentStatus(row.id, "ACTIVE", "Start date reached.", row.createdById, row.actualStart ?? undefined, { allowPastStart: true });
+      activated += 1;
+    } catch (error) {
+      failures += 1;
+      console.error(`[Deployments] could not activate deployment ${row.id}`, error);
+    }
+  }
+  return { activated, failures };
+};
+
 export const autoPromoteDeployments = async () => {
-  // Kept for existing list callers. Scheduled dates alone no longer change
-  // deployment or employment status.
+  // Kept for existing list callers. Activation runs from the scheduled job (activateDueDeployments).
 };
 
 export interface DeploymentListOptions extends PageRequest {
