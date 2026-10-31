@@ -159,7 +159,7 @@ export const Dialog: React.FC<DialogProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 flex items-center justify-center p-3 sm:p-4 md:p-6"
+      className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 flex items-start justify-center p-3 sm:p-4 md:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby={title ? titleId : ariaLabelledBy}
@@ -169,7 +169,7 @@ export const Dialog: React.FC<DialogProps> = ({
         ref={dialogRef}
         tabIndex={-1}
         className={cn(
-          "relative w-full bg-white border border-slate-400 rounded-md transform transition-all shadow-modal mx-auto focus:outline-none",
+          "relative w-full bg-white border border-slate-400 rounded-md transform transition-all shadow-modal mx-auto my-auto focus:outline-none",
           overflowVisible ? "overflow-visible" : "overflow-hidden",
           sizeStyles[size],
           className
@@ -216,7 +216,7 @@ export const Dialog: React.FC<DialogProps> = ({
         <div
           className={cn(
             "px-4 py-3 sm:px-5 sm:py-4",
-            overflowVisible ? "overflow-visible" : "max-h-[85vh] overflow-y-auto",
+            overflowVisible ? "overflow-visible" : "max-h-[calc(100dvh-8rem)] overflow-y-auto",
             bodyClassName
           )}
         >
