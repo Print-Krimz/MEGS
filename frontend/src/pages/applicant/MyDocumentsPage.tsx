@@ -2,25 +2,20 @@ import React, { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader, LoadingState, ErrorState, EmptyState, DocumentPreviewModal } from "../../components/common";
-import { Badge, Button, type BadgeProps } from "../../components/ui";
+import { Button } from "../../components/ui";
+import { RequirementStatusBadge } from "../../components/applicant/RequirementStatusBadge";
 import {
   applicantJobsApi,
-  type MyDocumentLibraryItem,
   type MyDocumentRequirement,
 } from "../../lib/api/applicant-jobs.api";
 import { formatDate, manilaDaysUntil } from "../../lib/utils";
 
-const reviewBadges: Record<MyDocumentLibraryItem["reviewStatus"], { label: string; variant: BadgeProps["variant"] }> = {
-  APPROVED: { label: "Verified", variant: "success" },
-  SUBMITTED: { label: "Pending review", variant: "info" },
-  REJECTED: { label: "Rejected", variant: "danger" },
-  EXPIRED: { label: "Expired", variant: "danger" },
-  PENDING: { label: "Not submitted", variant: "neutral" },
-  TO_FOLLOW: { label: "To follow", variant: "neutral" },
-};
+// Same shape and amber as the shared document badge, for states that have no review status of their own.
+const amberBadgeClass =
+  "inline-flex items-center whitespace-nowrap rounded-md border border-[#FED7AA] bg-[#FFF7ED] px-2 py-0.5 text-xs font-medium text-[#B45309]";
 
 const linkButtonClass =
-  "inline-flex min-h-11 md:min-h-9 items-center justify-center rounded-md border border-[#D9E2EC] bg-white px-4 text-sm font-medium text-[#0B315D] hover:bg-[#EAF0F7] hover:text-[#082747] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 transition-colors";
+  "inline-flex min-h-11 md:min-h-9 applicant-touch:min-h-11 items-center justify-center rounded-md border border-[#D9E2EC] bg-white px-4 text-sm font-medium text-[#0B315D] hover:bg-[#EAF0F7] hover:text-[#082747] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 transition-colors";
 
 const isPastDate = (value?: string | null) => (manilaDaysUntil(value) ?? 0) < 0;
 
@@ -33,12 +28,11 @@ const needsAction = (item: MyDocumentRequirement) =>
   Boolean(item.updateRequestedAt && !item.updateRequestCompletedAt) ||
   isPastDate(item.expiresAt);
 
-const actionLabel = (item: MyDocumentRequirement) => {
-  if (item.reviewStatus === "REJECTED") return "Rejected by recruiter";
-  if (item.updateRequestedAt && !item.updateRequestCompletedAt) return "Update requested";
-  if (item.reviewStatus === "PENDING") return "Not submitted yet";
-  if (item.reviewStatus === "TO_FOLLOW") return "To follow";
-  return "Expired";
+const ActionBadge: React.FC<{ item: MyDocumentRequirement }> = ({ item }) => {
+  if (item.reviewStatus === "REJECTED") return <RequirementStatusBadge status="REJECTED" />;
+  if (item.updateRequestedAt && !item.updateRequestCompletedAt) return <span className={amberBadgeClass}>Update requested</span>;
+  if (item.reviewStatus === "PENDING" || item.reviewStatus === "TO_FOLLOW") return <RequirementStatusBadge status={item.reviewStatus} />;
+  return <RequirementStatusBadge status="EXPIRED" />;
 };
 
 export const MyDocumentsPage: React.FC = () => {
@@ -60,17 +54,29 @@ export const MyDocumentsPage: React.FC = () => {
   );
 
   if (requirementsQuery.isLoading || libraryQuery.isLoading) {
-    return <div className="space-y-5">{header}<LoadingState variant="table" rows={4} /></div>;
+    // The page is a single column of rows, so the skeleton is too.
+    return <div className="space-y-5">{header}<LoadingState variant="cards" rows={4} className="md:grid-cols-1! lg:grid-cols-1!" message="Loading your documents…" /></div>;
   }
   if (requirementsQuery.isError) {
-    return <div className="space-y-5">{header}<ErrorState error={requirementsQuery.error} onRetry={() => requirementsQuery.refetch()} /></div>;
+    return <div className="space-y-5">{header}<ErrorState subject="your documents" error={requirementsQuery.error} onRetry={() => requirementsQuery.refetch()} /></div>;
   }
   if (libraryQuery.isError) {
-    return <div className="space-y-5">{header}<ErrorState error={libraryQuery.error} onRetry={() => libraryQuery.refetch()} /></div>;
+    return <div className="space-y-5">{header}<ErrorState subject="your documents" error={libraryQuery.error} onRetry={() => libraryQuery.refetch()} /></div>;
   }
 
   const actionItems = (requirementsQuery.data || []).filter(needsAction);
   const library = [...(libraryQuery.data || [])].sort((a, b) => a.label.localeCompare(b.label));
+
+  if (actionItems.length === 0 && library.length === 0) {
+    return <div className="space-y-6">
+      {header}
+      <EmptyState
+        title="No documents uploaded yet"
+        description="Documents you submit for an application will appear here so you can reuse them on new applications."
+        action={<Link to="/app/jobs" className={linkButtonClass}>Explore jobs</Link>}
+      />
+    </div>;
+  }
 
   return <div className="space-y-6">
     {header}
@@ -78,7 +84,7 @@ export const MyDocumentsPage: React.FC = () => {
     <section aria-labelledby="action-needed-heading" className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 id="action-needed-heading" className="text-sm font-semibold text-slate-900">Action needed</h2>
-        <span className="text-sm text-slate-500">{actionItems.length}</span>
+        <span className="text-sm text-[#486581]">{actionItems.length}</span>
       </div>
       {actionItems.length === 0 ? (
         <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">No documents need action right now.</p>
@@ -86,20 +92,20 @@ export const MyDocumentsPage: React.FC = () => {
         <div className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
           {actionItems.map((item) => (
             <article key={item.id} className="space-y-3 p-4">
-              <div className="flex flex-wrap justify-between gap-3">
-                <div className="min-w-0 [overflow-wrap:anywhere]">
+              <div className="min-w-0 space-y-2 [overflow-wrap:anywhere]">
+                <div>
                   <h3 className="font-semibold text-slate-900">{item.documentLabel}</h3>
-                  <p className="text-sm text-slate-500">{item.clientName || "Client not recorded"} · {item.jobTitle}</p>
+                  <p className="text-sm text-[#486581]">{item.clientName || "Client not recorded"} · {item.jobTitle}</p>
                 </div>
-                <span className="text-sm text-slate-700">{actionLabel(item)}</span>
+                <ActionBadge item={item} />
               </div>
               {item.updateRequestedAt && !item.updateRequestCompletedAt && (
                 <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                   <p>{item.updateRequestReason}</p>
-                  <p className="mt-1">Due {item.updateRequestDeadline ? formatDate(item.updateRequestDeadline) : "Date not set"}{isPastDate(item.updateRequestDeadline) ? " · Overdue" : ""}</p>
+                  <p className="mt-1">Due {item.updateRequestDeadline ? formatDate(item.updateRequestDeadline) : "Date not set"}{isPastDate(item.updateRequestDeadline) && <> · <span className="font-medium text-[#B91C1C]">Overdue</span></>}</p>
                 </div>
               )}
-              {item.reviewStatus === "REJECTED" && item.reviewNotes && <p className="text-sm text-rose-700">{item.reviewNotes}</p>}
+              {item.reviewStatus === "REJECTED" && item.reviewNotes && <p className="text-sm text-[#B91C1C]">{item.reviewNotes}</p>}
               <Link to="/app/applications/$applicationId" params={{ applicationId: String(item.applicationId) }} className={linkButtonClass}>
                 Open application to upload
               </Link>
@@ -112,7 +118,7 @@ export const MyDocumentsPage: React.FC = () => {
     <section aria-labelledby="library-heading" className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 id="library-heading" className="text-sm font-semibold text-slate-900">Your documents</h2>
-        <span className="text-sm text-slate-500">{library.length}</span>
+        <span className="text-sm text-[#486581]">{library.length}</span>
       </div>
       {library.length === 0 ? (
         <EmptyState
@@ -122,18 +128,17 @@ export const MyDocumentsPage: React.FC = () => {
       ) : (
         <div className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
           {library.map((item) => {
-            const review = reviewBadges[item.reviewStatus];
             return (
               <article key={`${item.label}-${item.documentId}`} className="space-y-3 p-4">
-                <div className="flex flex-wrap justify-between gap-3">
-                  <div className="min-w-0 [overflow-wrap:anywhere]">
+                <div className="min-w-0 space-y-2 [overflow-wrap:anywhere]">
+                  <div>
                     <h3 className="font-semibold text-slate-900">{item.label}</h3>
                     <p className="truncate text-sm text-slate-600" title={item.originalName}>{item.originalName}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Badge variant={review.variant}>{review.label}</Badge>
-                    {item.isExpired && item.reviewStatus !== "EXPIRED" && <Badge variant="danger">Expired</Badge>}
-                    {!item.isExpired && item.isExpiringSoon && <Badge variant="warning">Expiring soon</Badge>}
+                    <RequirementStatusBadge status={item.reviewStatus} />
+                    {item.isExpired && item.reviewStatus !== "EXPIRED" && <RequirementStatusBadge status="EXPIRED" />}
+                    {!item.isExpired && item.isExpiringSoon && <span className={amberBadgeClass}>Expiring soon</span>}
                   </div>
                 </div>
                 <div className="space-y-1 text-sm text-slate-600 [overflow-wrap:anywhere]">
