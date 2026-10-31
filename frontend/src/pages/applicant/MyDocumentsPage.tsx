@@ -57,6 +57,11 @@ export const MyDocumentsPage: React.FC = () => {
     // The page is a single column of rows, so the skeleton is too.
     return <div className="space-y-5">{header}<LoadingState variant="cards" rows={4} className="md:grid-cols-1! lg:grid-cols-1!" message="Loading your documents…" /></div>;
   }
+  // Offline, TanStack pauses the first fetch and the data stays undefined: say so instead of showing an empty library.
+  const pausedQuery = [requirementsQuery, libraryQuery].find((q) => q.fetchStatus === "paused" && q.data === undefined);
+  if (pausedQuery) {
+    return <div className="space-y-5">{header}<ErrorState subject="your documents" onRetry={() => pausedQuery.refetch()} /></div>;
+  }
   if (requirementsQuery.isError) {
     return <div className="space-y-5">{header}<ErrorState subject="your documents" error={requirementsQuery.error} onRetry={() => requirementsQuery.refetch()} /></div>;
   }

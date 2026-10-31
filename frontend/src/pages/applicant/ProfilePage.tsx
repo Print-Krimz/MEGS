@@ -818,6 +818,16 @@ export const ProfilePage: React.FC = () => {
     );
   }
 
+  // Offline, TanStack pauses the first fetch and the data stays undefined: say so instead of showing a blank profile.
+  if (profileQuery.fetchStatus === "paused" && profileQuery.data === undefined) {
+    return (
+      <div className="space-y-6">
+        {pageHeader}
+        <ErrorState subject="your profile" onRetry={() => profileQuery.refetch()} />
+      </div>
+    );
+  }
+
   if (profileQuery.isError && !isNotFoundError) {
     return (
       <div className="space-y-6">
