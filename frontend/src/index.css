@@ -157,6 +157,24 @@
   font-weight: 700;
   letter-spacing: -0.02em;
 }
+/* Applicant portal: darker secondary text (6.08:1 on white) and a readable placeholder. */
+.applicant-portal {
+  --color-text-secondary: #486581;
+  --color-text-muted: #486581;
+}
+.applicant-portal :is(input, textarea)::placeholder {
+  color: #64748b;
+}
+
+/* Touch devices inside the applicant portal: use `applicant-touch:` for 44 px targets. */
+@custom-variant applicant-touch {
+  @media (pointer: coarse) {
+    .applicant-portal & {
+      @slot;
+    }
+  }
+}
+
 .ta-portal .border-slate-300:not(input):not(select):not(textarea):not(button),
 .admin-portal .border-slate-300:not(input):not(select):not(textarea):not(button),
 .applicant-portal .border-slate-300:not(input):not(select):not(textarea):not(button) {
@@ -228,6 +246,14 @@ body {
   .ta-portal input,
   .ta-portal select,
   .ta-portal textarea,
+  .applicant-portal input,
+  .applicant-portal select,
+  .applicant-portal textarea {
+    font-size: 16px;
+  }
+}
+/* Touch screens at any width: applicant fields stay 16 px so iOS does not zoom. */
+@media (pointer: coarse) {
   .applicant-portal input,
   .applicant-portal select,
   .applicant-portal textarea {
