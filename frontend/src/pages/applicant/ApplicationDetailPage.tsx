@@ -206,12 +206,33 @@ export const ApplicationDetailPage: React.FC = () => {
         size="sm"
         disabled={uploadMutation.isPending || reuseMutation.isPending}
         leftIcon={<Library className="w-3.5 h-3.5" />}
+        className="col-span-2 sm:col-span-1"
         onClick={() => setReuseTarget(req)}
       >
         Use a document from my library
       </Button>
     );
   };
+
+  const renderViewButton = (req: RequirementRef) =>
+    req.documentId ? (
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label={`View ${req.documentLabel}`}
+        leftIcon={<ExternalLink className="w-3.5 h-3.5" />}
+        onClick={() =>
+          setPreviewDocState({
+            open: true,
+            documentId: req.documentId,
+            title: req.documentLabel,
+            requirementStatus: req.reviewStatus,
+          })
+        }
+      >
+        View
+      </Button>
+    ) : null;
 
   const renderCameraAction = (req: RequirementRef, allowApproved = false) => {
     if (!isTouchDevice() || (!allowApproved && req.reviewStatus === "APPROVED")) return null;
@@ -309,7 +330,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 Withdraw application
               </Button>
             )}
-          <Link to="/app/applications" className="inline-flex min-h-10 items-center rounded-md border border-[#D9E2EC] bg-white px-4 text-sm font-medium text-[#0B315D] hover:bg-[#EAF0F7] hover:text-[#082747] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 transition-colors">
+          <Link to="/app/applications" className="inline-flex min-h-11 items-center rounded-md border border-[#D9E2EC] md:min-h-10 applicant-touch:min-h-11 bg-white px-4 text-sm font-medium text-[#0B315D] hover:bg-[#EAF0F7] hover:text-[#082747] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 transition-colors">
             Back to applications
           </Link>
           </div>
@@ -579,58 +600,41 @@ export const ApplicationDetailPage: React.FC = () => {
 
                       return (
                         <div key={req.id} className="p-4 space-y-2 hover:bg-[#F7F9FC] transition-colors">
-                          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-bold text-[#102A43] font-mono uppercase">
-                                  {req.documentLabel}
-                                </span>
-                              </div>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 space-y-1">
+                              <span className="block break-words text-xs font-bold text-[#102A43] font-mono uppercase">
+                                {req.documentLabel}
+                              </span>
                               {targetDate && (
                                 <div className="text-[10px] text-[#627D98] font-mono">
                                   Target date: {formatDate(targetDate)}
                                 </div>
                               )}
                             </div>
-
-                            <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+                            <div className="shrink-0">
                               <RequirementStatusBadge status={req.reviewStatus} />
-
-                              {req.documentId && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setPreviewDocState({
-                                      open: true,
-                                      documentId: req.documentId,
-                                      title: req.documentLabel,
-                                      requirementStatus: req.reviewStatus,
-                                    })
-                                  }
-                                  className="inline-flex items-center gap-1 text-[11px] font-mono text-[#0B315D] hover:underline ml-1 cursor-pointer"
-                                >
-                                  <ExternalLink className="w-3 h-3" />
-                                  View
-                                </button>
-                              )}
-
-                              <Button
-                                variant={isRejected ? "primary" : "outline"}
-                                size="sm"
-                                disabled={uploadMutation.isPending}
-                                loading={uploadMutation.isPending && activeUploadReqId === req.id}
-                                leftIcon={<Upload className="w-3.5 h-3.5" />}
-                                onClick={() => {
-                                  setActiveUploadReqId(req.id);
-                                  fileInputRef.current?.click();
-                                }}
-                              >
-                                {req.documentId ? "Replace File" : "Upload File"}
-                              </Button>
-
-                              {renderCameraAction(req)}
-{renderLibraryAction(req)}
                             </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 empty:hidden sm:flex sm:flex-wrap sm:items-center">
+                            {renderViewButton(req)}
+
+                            <Button
+                              variant={isRejected ? "primary" : "outline"}
+                              size="sm"
+                              disabled={uploadMutation.isPending}
+                              loading={uploadMutation.isPending && activeUploadReqId === req.id}
+                              leftIcon={<Upload className="w-3.5 h-3.5" />}
+                              onClick={() => {
+                                setActiveUploadReqId(req.id);
+                                fileInputRef.current?.click();
+                              }}
+                            >
+                              {req.documentId ? "Replace File" : "Upload File"}
+                            </Button>
+
+                            {renderCameraAction(req)}
+                            {renderLibraryAction(req)}
                           </div>
 
                           {isRejected && req.reviewNotes && (
@@ -669,38 +673,21 @@ export const ApplicationDetailPage: React.FC = () => {
                   <div className="divide-y divide-[#D9E2EC]">
                     {approvedClearances.map((req) => (
                       <div key={req.id} className="p-4 space-y-2 hover:bg-[#F7F9FC] transition-colors">
-                        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-[#102A43] font-mono uppercase">
-                                {req.documentLabel}
-                              </span>
-                            </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <span className="block break-words text-xs font-bold text-[#102A43] font-mono uppercase">
+                              {req.documentLabel}
+                            </span>
                           </div>
-
-                          <div className="flex flex-wrap items-center gap-2 shrink-0">
+                          <div className="shrink-0">
                             <RequirementStatusBadge status="APPROVED" />
+                          </div>
+                        </div>
 
-                            <button
-                              type="button"
-                              disabled={!req.documentId}
-                              onClick={() => {
-                                if (req.documentId) {
-                                  setPreviewDocState({
-                                    open: true,
-                                    documentId: req.documentId,
-                                    title: req.documentLabel,
-                                    requirementStatus: req.reviewStatus,
-                                  });
-                                }
-                              }}
-                              className="inline-flex items-center gap-1 text-[11px] font-mono text-[#0B315D] hover:underline ml-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                              View
-                            </button>
-                            {req.expiresAt && toManilaDateInput(req.expiresAt) <= addManilaCalendarDays(getManilaToday(), 30) && (
-                              <>
+                        <div className="grid grid-cols-2 gap-2 empty:hidden sm:flex sm:flex-wrap sm:items-center">
+                          {renderViewButton(req)}
+                          {req.expiresAt && toManilaDateInput(req.expiresAt) <= addManilaCalendarDays(getManilaToday(), 30) && (
+                            <>
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -715,9 +702,8 @@ export const ApplicationDetailPage: React.FC = () => {
                                 Upload updated copy
                               </Button>
                               {renderCameraAction(req, true)}
-                              </>
-                            )}
-                          </div>
+                            </>
+                          )}
                         </div>
 
                         {req.expiresAt && (
@@ -763,13 +749,11 @@ export const ApplicationDetailPage: React.FC = () => {
 
                     return (
                       <div key={req.id} className="p-4 space-y-2 hover:bg-[#F7F9FC] transition-colors">
-                        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-[#102A43] font-mono uppercase">
-                                {req.documentLabel}
-                              </span>
-                            </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 space-y-1">
+                            <span className="block break-words text-xs font-bold text-[#102A43] font-mono uppercase">
+                              {req.documentLabel}
+                            </span>
                             {req.deadline && (
                               <div className="text-[10px] text-[#627D98] font-mono">
                                 Deadline: {formatDate(req.deadline)}
@@ -781,47 +765,32 @@ export const ApplicationDetailPage: React.FC = () => {
                               </div>
                             )}
                           </div>
-
-                          <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+                          <div className="shrink-0">
                             <RequirementStatusBadge status={req.reviewStatus} />
-
-                            {req.documentId && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setPreviewDocState({
-                                    open: true,
-                                    documentId: req.documentId,
-                                    title: req.documentLabel,
-                                    requirementStatus: req.reviewStatus,
-                                  })
-                                }
-                                className="inline-flex items-center gap-1 text-[11px] font-mono text-[#0B315D] hover:underline ml-1 cursor-pointer"
-                              >
-                                <ExternalLink className="w-3 h-3" />
-                                View
-                              </button>
-                            )}
-
-                            {!isApproved && (
-                              <Button
-                                variant={isRejected ? "primary" : "outline"}
-                                size="sm"
-                                disabled={uploadMutation.isPending}
-                                loading={uploadMutation.isPending && activeUploadReqId === req.id}
-                                leftIcon={<Upload className="w-3.5 h-3.5" />}
-                                onClick={() => {
-                                  setActiveUploadReqId(req.id);
-                                  fileInputRef.current?.click();
-                                }}
-                              >
-                                {req.documentId ? "Replace File" : "Upload File"}
-                              </Button>
-                            )}
-
-                            {renderCameraAction(req)}
-{renderLibraryAction(req)}
                           </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 empty:hidden sm:flex sm:flex-wrap sm:items-center">
+                          {renderViewButton(req)}
+
+                          {!isApproved && (
+                            <Button
+                              variant={isRejected ? "primary" : "outline"}
+                              size="sm"
+                              disabled={uploadMutation.isPending}
+                              loading={uploadMutation.isPending && activeUploadReqId === req.id}
+                              leftIcon={<Upload className="w-3.5 h-3.5" />}
+                              onClick={() => {
+                                setActiveUploadReqId(req.id);
+                                fileInputRef.current?.click();
+                              }}
+                            >
+                              {req.documentId ? "Replace File" : "Upload File"}
+                            </Button>
+                          )}
+
+                          {renderCameraAction(req)}
+                          {renderLibraryAction(req)}
                         </div>
 
                         {/* Rejection / Review Feedback */}

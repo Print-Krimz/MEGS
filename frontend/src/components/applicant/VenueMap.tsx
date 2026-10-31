@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { COMPANY_ADDRESS, COMPANY_LAT_LNG } from "../../lib/business-hours";
 
 interface VenueMapProps {
@@ -60,12 +61,15 @@ export function VenueMap({ location }: VenueMapProps) {
 
   return (
     <details
-      className="pt-1 text-xs sm:text-sm"
+      className="group pt-1 text-sm"
       onToggle={(e) => {
         if ((e.currentTarget as HTMLDetailsElement).open) setOpened(true);
       }}
     >
-      <summary className="cursor-pointer font-medium text-[#0B315D] hover:underline">View location map</summary>
+      <summary className="flex min-h-11 w-fit cursor-pointer list-none items-center gap-1.5 font-medium text-[#0B315D] hover:underline [&::-webkit-details-marker]:hidden">
+        View location map
+        <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" aria-hidden="true" />
+      </summary>
       <div className="mt-2 space-y-2">
         {showMap && !failed && (
           <div
@@ -79,7 +83,7 @@ export function VenueMap({ location }: VenueMapProps) {
           href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue)}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-block font-medium text-[#0B315D] underline"
+          className="inline-flex min-h-11 items-center font-medium text-[#0B315D] underline"
         >
           Open in Google Maps
         </a>
