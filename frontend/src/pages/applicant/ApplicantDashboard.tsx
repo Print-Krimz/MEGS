@@ -502,17 +502,13 @@ export const ApplicantDashboard: React.FC = () => {
                             </span>
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
                             <span className="font-medium text-slate-900">{clientName}</span>
-                            <span className="text-slate-300">•</span>
                             <span>{job.location || "Philippines"}</span>
                             {((job as any)?.mrf?.salaryRangeMin || (job as any)?.mrf?.salaryRangeMax) ? (
-                              <>
-                                <span className="text-slate-300">•</span>
-                                <span className="font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md text-xs border border-emerald-200">
-                                  {formatSalaryRange((job as any).mrf.salaryRangeMin, (job as any).mrf.salaryRangeMax)}
-                                </span>
-                              </>
+                              <span className="font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md text-xs border border-emerald-200">
+                                {formatSalaryRange((job as any).mrf.salaryRangeMin, (job as any).mrf.salaryRangeMax)}
+                              </span>
                             ) : null}
                           </div>
 
