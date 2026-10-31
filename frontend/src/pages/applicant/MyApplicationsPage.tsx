@@ -12,7 +12,8 @@ import {
   Pagination,
 } from "../../components/common";
 import { Button, Dialog, Select, Textarea } from "../../components/ui";
-import { formatDate } from "../../lib/utils";
+import { formatDate, getApplicationStatusPresentation } from "../../lib/utils";
+import { getPipelineStageIndex } from "../../lib/pipeline-stages";
 import { notify } from "../../lib/feedback";
 import { ApplicationStatus } from "../../lib/types/enums";
 import { ApplicantJobInvitation } from "../../lib/types/applicant.types";
@@ -587,15 +588,18 @@ export const MyApplicationsPage: React.FC = () => {
                   </Link>
                 </div>
 
-                {/* Pipeline Stepper */}
-                <div className="pt-2 border-t border-slate-200">
+                {/* One line, "Step N of 7: <stage>". The stepper itself lives on the detail page. */}
+                {getPipelineStageIndex(app.status) >= 0 && (
                   <PipelineIndicator
+                    variant="compact"
                     currentStatus={app.status}
+                    currentLabel={getApplicationStatusPresentation(app.status, "applicant").label}
                     audience="applicant"
                     hideTerminalAlert
                     skipClientReview={app.jobPosting?.mrf?.requiresClientReview === false}
+                    className="border-t border-slate-200 pt-3 [&>div]:block! [&>ol]:hidden"
                   />
-                </div>
+                )}
 
                 {/* Contextual Status Alerts */}
                 {app.status === ApplicationStatus.INITIAL_SCREENING && (

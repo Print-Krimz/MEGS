@@ -14,7 +14,7 @@ import {
 import { Button, Dialog } from "../../components/ui";
 import { BackoutDialog } from "../../components/ta/BackoutDialog";
 import { canApplicantWithdraw } from "../../lib/backout";
-import { formatDate, formatDateTime } from "../../lib/utils";
+import { formatDate, formatDateTime, getApplicationStatusPresentation } from "../../lib/utils";
 import {
   Briefcase,
   Building2,
@@ -427,8 +427,19 @@ export const ApplicationDetailPage: React.FC = () => {
           )
         )}
 
-        {/* Pipeline Stepper */}
-        <div className="py-1">
+        {/* Narrow screens get "Step N of 7: <stage>" plus a bar. The full stepper starts at md: at 640 px "Requirements" no longer fits its column and breaks. */}
+        <div className="py-1 md:hidden">
+          <PipelineIndicator
+            variant="compact"
+            currentStatus={application.status}
+            currentLabel={getApplicationStatusPresentation(application.status, "applicant").label}
+            audience="applicant"
+            hideTerminalAlert
+            skipClientReview={application.jobPosting?.mrf?.requiresClientReview === false}
+            className="[&>div]:block! [&>ol]:hidden"
+          />
+        </div>
+        <div className="hidden py-1 md:block">
           <PipelineIndicator
             currentStatus={application.status}
             audience="applicant"
