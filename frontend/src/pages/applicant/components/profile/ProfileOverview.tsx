@@ -42,6 +42,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
   skills,
 }) => {
   const [isDragging, setIsDragging] = React.useState(false);
+  const fullName = [profile?.firstName, profile?.middleName, profile?.lastName].filter(Boolean).join(" ") || "Your candidate profile";
 
   const handleDragOver = (e: React.DragEvent<HTMLElement>) => {
     e.preventDefault();
@@ -87,10 +88,10 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
             </div>
           )}
           <div className="min-w-0">
-            <h2 className="truncate text-xl font-semibold text-[#102A43]">
-              {[profile?.firstName, profile?.middleName, profile?.lastName].filter(Boolean).join(" ") || "Your candidate profile"}
+            <h2 className="truncate text-xl font-semibold text-[#102A43]" title={fullName}>
+              {fullName}
             </h2>
-            <p className="mt-1 text-sm text-[#627D98]">{user?.email || "Applicant account"}</p>
+            <p className="mt-1 text-sm text-[#627D98] [overflow-wrap:anywhere]">{user?.email || "Applicant account"}</p>
             <p className="mt-1 text-sm text-[#627D98]">{profile?.mobileNumber || "Add a contact number"}{profile?.city ? ` · ${profile.city}` : ""}</p>
           </div>
         </div>
@@ -214,12 +215,12 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
         <Button type="button" variant="ghost" size="sm" onClick={() => onNavigate("qualifications")}>Manage details</Button>
       </div>
       <dl className="grid grid-cols-1 divide-y divide-[#D9E2EC] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-        <div className="py-3 sm:pr-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#627D98]">Current experience</dt><dd className="mt-1 text-sm text-[#102A43]">{profile?.workExperiences?.find((item) => item.isCurrent)?.roleTitle || profile?.workExperiences?.[0]?.roleTitle || "Add your work history"}</dd></div>
-        <div className="py-3 sm:pl-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#627D98]">Education</dt><dd className="mt-1 text-sm text-[#102A43]">{profile?.educations?.[0]?.degree || "Add your education"}</dd></div>
-        <div className="border-t border-[#D9E2EC] py-3 sm:pr-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#627D98]">Skills</dt><dd className="mt-1 text-sm text-[#102A43]">{skills.length ? `${skills.slice(0, 6).join(", ")}${skills.length > 6 ? ` +${skills.length - 6} more` : ""}` : "Add skills"}</dd></div>
+        <div className="py-3 sm:pr-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#627D98]">Current experience</dt><dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">{profile?.workExperiences?.find((item) => item.isCurrent)?.roleTitle || profile?.workExperiences?.[0]?.roleTitle || "Add your work history"}</dd></div>
+        <div className="py-3 sm:pl-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#627D98]">Education</dt><dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">{profile?.educations?.[0]?.degree || "Add your education"}</dd></div>
+        <div className="border-t border-[#D9E2EC] py-3 sm:pr-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#627D98]">Skills</dt><dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">{skills.length ? `${skills.slice(0, 6).join(", ")}${skills.length > 6 ? ` +${skills.length - 6} more` : ""}` : "Add skills"}</dd></div>
         <div className="border-t border-[#D9E2EC] py-3 sm:pl-5">
           <dt className="text-xs font-semibold uppercase tracking-wide text-[#627D98]">Supporting details</dt>
-          <dd className="mt-1 text-sm text-[#102A43]">
+          <dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">
             {(() => {
               const trainCount = profile?.trainings?.length || 0;
               const refCount = profile?.characterReferences?.length || 0;

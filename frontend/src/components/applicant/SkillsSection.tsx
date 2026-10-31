@@ -127,9 +127,9 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
               return (
                 <span
                   key={rawSkill}
-                  className="inline-flex items-center gap-2 px-2.5 py-1 bg-white border border-[#D9E2EC] text-[#102A43] text-xs font-medium shadow-2xs hover:border-[#0B315D]/40 transition-colors"
+                  className="inline-flex max-w-full items-center gap-2 px-2.5 py-1 bg-white border border-[#D9E2EC] text-[#102A43] text-xs font-medium shadow-2xs hover:border-[#0B315D]/40 transition-colors"
                 >
-                  <span>{formatted}</span>
+                  <span className="min-w-0 break-all">{formatted}</span>
                   <button
                     type="button"
                     onClick={() => onRemoveSkill(rawSkill)}

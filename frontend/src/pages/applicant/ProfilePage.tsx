@@ -1552,7 +1552,7 @@ export const ProfilePage: React.FC = () => {
                     <div className="divide-y divide-[#D9E2EC]">
                       {profile.characterReferences.map((r: any) => (
                         <div key={r.id} className="py-4 flex items-start justify-between gap-4">
-                          <div className="space-y-1 flex-1">
+                          <div className="min-w-0 flex-1 space-y-1 [overflow-wrap:anywhere]">
                             <div className="text-sm font-bold text-[#102A43]">{r.name}</div>
                             <div className="text-xs text-[#102A43] font-medium">
                               {[r.relationship, r.company].filter(Boolean).join(" at ")}
@@ -1681,7 +1681,7 @@ export const ProfilePage: React.FC = () => {
                 <div className="divide-y divide-[#D9E2EC]">
                   {profile.workExperiences.map((exp: any) => (
                     <div key={exp.id} className="py-4 flex items-start justify-between gap-4">
-                      <div className="space-y-1.5 flex-1">
+                      <div className="min-w-0 flex-1 space-y-1.5 [overflow-wrap:anywhere]">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-bold text-[#102A43]">{exp.roleTitle}</span>
                           {exp.isCurrent && (
@@ -1773,7 +1773,7 @@ export const ProfilePage: React.FC = () => {
                 <div className="divide-y divide-[#D9E2EC]">
                   {profile.educations.map((edu: any) => (
                     <div key={edu.id} className="py-4 flex items-start justify-between gap-4">
-                      <div className="space-y-1 flex-1">
+                      <div className="min-w-0 flex-1 space-y-1 [overflow-wrap:anywhere]">
                         <div className="text-sm font-bold text-[#102A43]">{edu.degree}</div>
                         <div className="text-xs text-[#102A43] font-medium">
                           {edu.school}
@@ -1873,7 +1873,7 @@ export const ProfilePage: React.FC = () => {
                 <div className="divide-y divide-[#D9E2EC]">
                   {profile.trainings.map((t: any) => (
                     <div key={t.id} className="py-4 flex items-start justify-between gap-4">
-                      <div className="space-y-1 flex-1">
+                      <div className="min-w-0 flex-1 space-y-1 [overflow-wrap:anywhere]">
                         <div className="text-sm font-bold text-[#102A43]">{t.title}</div>
                         <div className="text-xs text-[#102A43] font-medium">{t.provider}</div>
                         <div className="text-[11px] text-[#627D98] font-mono">

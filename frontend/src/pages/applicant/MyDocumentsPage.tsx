@@ -87,7 +87,7 @@ export const MyDocumentsPage: React.FC = () => {
           {actionItems.map((item) => (
             <article key={item.id} className="space-y-3 p-4">
               <div className="flex flex-wrap justify-between gap-3">
-                <div>
+                <div className="min-w-0 [overflow-wrap:anywhere]">
                   <h3 className="font-semibold text-slate-900">{item.documentLabel}</h3>
                   <p className="text-sm text-slate-500">{item.clientName || "Client not recorded"} · {item.jobTitle}</p>
                 </div>
@@ -126,7 +126,7 @@ export const MyDocumentsPage: React.FC = () => {
             return (
               <article key={`${item.label}-${item.documentId}`} className="space-y-3 p-4">
                 <div className="flex flex-wrap justify-between gap-3">
-                  <div className="min-w-0">
+                  <div className="min-w-0 [overflow-wrap:anywhere]">
                     <h3 className="font-semibold text-slate-900">{item.label}</h3>
                     <p className="truncate text-sm text-slate-600" title={item.originalName}>{item.originalName}</p>
                   </div>
@@ -136,7 +136,7 @@ export const MyDocumentsPage: React.FC = () => {
                     {!item.isExpired && item.isExpiringSoon && <Badge variant="warning">Expiring soon</Badge>}
                   </div>
                 </div>
-                <div className="space-y-1 text-sm text-slate-600">
+                <div className="space-y-1 text-sm text-slate-600 [overflow-wrap:anywhere]">
                   <p>{item.expiresAt ? `Expires ${formatDate(item.expiresAt)}` : item.validityStatus === "NO_EXPIRY" ? "No expiry" : "Expiry not recorded"}</p>
                   <p>Source: {item.jobTitle} · Uploaded {formatDate(item.uploadedAt)}</p>
                 </div>
