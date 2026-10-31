@@ -10,6 +10,7 @@ import {
   JobContentRenderer,
 } from "../../components/common";
 import { Button, Dialog } from "../../components/ui";
+import { isTouchDevice, shrinkImage } from "../../lib/camera-capture";
 import {
   formatDate,
   formatSalaryRange,
@@ -21,6 +22,7 @@ import {
   Clock,
   Send,
   Upload,
+  Camera,
   CheckCircle2,
   AlertCircle,
   FileText,
@@ -167,7 +169,8 @@ export const JobDetailPage: React.FC = () => {
     },
   });
 
-  const handleFileSelected = (file: File) => {
+  const handleFileSelected = async (picked: File) => {
+    const file = await shrinkImage(picked);
     if (file.size > 5 * 1024 * 1024) {
       notify.error("File Too Large", "Maximum resume upload size is 5 MB. Please select a smaller file.");
       return;
@@ -525,11 +528,27 @@ export const JobDetailPage: React.FC = () => {
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
-                    handleFileSelected(file);
+                    void handleFileSelected(file);
                   }
                   e.target.value = "";
                 }}
               />
+
+              {isTouchDevice() && (
+                <input
+                  id="custom-resume-camera-input"
+                  data-testid="resume-camera-input"
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (file) void handleFileSelected(file);
+                  }}
+                />
+              )}
 
               {!customResume ? (
                 <label
@@ -559,7 +578,7 @@ export const JobDetailPage: React.FC = () => {
                     e.preventDefault();
                     setIsDragging(false);
                     const file = e.dataTransfer.files?.[0];
-                    if (file) handleFileSelected(file);
+                    if (file) void handleFileSelected(file);
                   }}
                 >
                   <div className="flex flex-col items-center justify-center gap-1.5 pointer-events-none">
@@ -590,7 +609,7 @@ export const JobDetailPage: React.FC = () => {
                     e.preventDefault();
                     setIsDragging(false);
                     const file = e.dataTransfer.files?.[0];
-                    if (file) handleFileSelected(file);
+                    if (file) void handleFileSelected(file);
                   }}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -623,6 +642,16 @@ export const JobDetailPage: React.FC = () => {
                     </button>
                   </div>
                 </div>
+              )}
+
+              {isTouchDevice() && (
+                <label
+                  htmlFor="custom-resume-camera-input"
+                  className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-[#D9E2EC] bg-white px-4 text-xs font-medium text-[#0B315D] hover:bg-[#EAF0F7] transition-colors"
+                >
+                  <Camera className="h-4 w-4" aria-hidden="true" />
+                  Take photo of resume
+                </label>
               )}
 
               <p className="text-[11px] text-[#627D98]">

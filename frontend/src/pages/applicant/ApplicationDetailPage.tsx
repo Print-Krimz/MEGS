@@ -31,12 +31,14 @@ import {
   X,
   FileText,
   Library,
+  Camera,
 } from "lucide-react";
 import { ApplicationStatus } from "../../lib/types/enums";
 import type { ComplianceRequirement, RescheduleActivity } from "../../lib/types/application.types";
 import { RescheduleControl, RescheduleRequestDialog } from "../../components/applicant/RescheduleRequest";
 import { RequirementStatusBadge } from "../../components/applicant/RequirementStatusBadge";
 import { notify } from "../../lib/feedback";
+import { isTouchDevice, shrinkImage } from "../../lib/camera-capture";
 import { getApplicationRefetchInterval } from "../../lib/query-policies";
 import { useLiveStreamConnected } from "../../lib/live-stream-status";
 import { addManilaCalendarDays, getManilaToday, toManilaDateInput } from "../../lib/field-limits";
@@ -69,6 +71,7 @@ export const ApplicationDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
   const [activeUploadReqId, setActiveUploadReqId] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [previewDocState, setPreviewDocState] = useState<{
     open: boolean;
@@ -165,23 +168,21 @@ export const ApplicationDetailPage: React.FC = () => {
     },
   });
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file && activeUploadReqId) {
-      if (!COMPLIANCE_UPLOAD_TYPES.includes(file.type)) {
-        notify.error("Unsupported File Type", "Upload a PDF, DOC, DOCX, JPG, PNG, or WEBP file.");
-        if (e.target) e.target.value = "";
-        return;
-      }
-      if (file.size > 5 * 1024 * 1024) {
-        notify.error("File Too Large", "Maximum upload size is 5 MB. Please select a smaller file.");
-        if (e.target) e.target.value = "";
-        return;
-      }
-      uploadMutation.mutate({ requirementId: activeUploadReqId, file });
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const picked = e.target.files?.[0];
+    // reset input so the same file or a new photo can be chosen again
+    e.target.value = "";
+    if (!picked || !activeUploadReqId) return;
+    if (!COMPLIANCE_UPLOAD_TYPES.includes(picked.type)) {
+      notify.error("Unsupported File Type", "Upload a PDF, DOC, DOCX, JPG, PNG, or WEBP file.");
+      return;
     }
-    // reset input
-    if (e.target) e.target.value = "";
+    const file = await shrinkImage(picked);
+    if (file.size > 5 * 1024 * 1024) {
+      notify.error("File Too Large", "Maximum upload size is 5 MB. Please select a smaller file.");
+      return;
+    }
+    uploadMutation.mutate({ requirementId: activeUploadReqId, file });
   };
 
   // Library entries for the same document type, from a different requirement, that have not expired.
@@ -208,6 +209,24 @@ export const ApplicationDetailPage: React.FC = () => {
         onClick={() => setReuseTarget(req)}
       >
         Use a document from my library
+      </Button>
+    );
+  };
+
+  const renderCameraAction = (req: RequirementRef, allowApproved = false) => {
+    if (!isTouchDevice() || (!allowApproved && req.reviewStatus === "APPROVED")) return null;
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={uploadMutation.isPending}
+        leftIcon={<Camera className="w-3.5 h-3.5" />}
+        onClick={() => {
+          setActiveUploadReqId(req.id);
+          cameraInputRef.current?.click();
+        }}
+      >
+        Take photo
       </Button>
     );
   };
@@ -262,6 +281,15 @@ export const ApplicationDetailPage: React.FC = () => {
         ref={fileInputRef}
         type="file"
         accept={COMPLIANCE_UPLOAD_TYPES.join(",")}
+        className="hidden"
+        onChange={handleFileChange}
+      />
+      {/* Hidden camera input: opens the phone's rear camera directly */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
         className="hidden"
         onChange={handleFileChange}
       />
@@ -589,7 +617,8 @@ export const ApplicationDetailPage: React.FC = () => {
                                 {req.documentId ? "Replace File" : "Upload File"}
                               </Button>
 
-                              {renderLibraryAction(req)}
+                              {renderCameraAction(req)}
+{renderLibraryAction(req)}
                             </div>
                           </div>
 
@@ -660,6 +689,7 @@ export const ApplicationDetailPage: React.FC = () => {
                               View
                             </button>
                             {req.expiresAt && toManilaDateInput(req.expiresAt) <= addManilaCalendarDays(getManilaToday(), 30) && (
+                              <>
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -673,6 +703,8 @@ export const ApplicationDetailPage: React.FC = () => {
                               >
                                 Upload updated copy
                               </Button>
+                              {renderCameraAction(req, true)}
+                              </>
                             )}
                           </div>
                         </div>
@@ -776,7 +808,8 @@ export const ApplicationDetailPage: React.FC = () => {
                               </Button>
                             )}
 
-                            {renderLibraryAction(req)}
+                            {renderCameraAction(req)}
+{renderLibraryAction(req)}
                           </div>
                         </div>
 

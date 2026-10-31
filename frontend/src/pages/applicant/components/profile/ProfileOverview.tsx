@@ -1,5 +1,7 @@
 import React from "react";
+import { Camera } from "lucide-react";
 import { Button } from "../../../../components/ui";
+import { isTouchDevice, shrinkImage } from "../../../../lib/camera-capture";
 import { ProfileHealthMeter } from "../../../../components/applicant/ProfileHealthMeter";
 import type { ApplicantProfile } from "../../../../lib/types/applicant.types";
 import type { ProfileSection } from "./profile-navigation";
@@ -152,8 +154,8 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
               disabled={resumeUploadPending}
               onChange={(event) => {
                 const file = event.target.files?.[0];
-                if (file) onResumeFile(file);
                 event.target.value = "";
+                if (file) void shrinkImage(file).then(onResumeFile);
               }}
             />
             {resumeUploadPending && (
@@ -161,6 +163,25 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
             )}
             {resumeUploadPending ? "Reading your resume…" : profile?.resumeUrl ? "Replace resume" : "Upload resume"}
           </label>
+          {isTouchDevice() && (
+            <label className="inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-[#D9E2EC] bg-white px-4 text-xs sm:text-sm font-medium text-[#0B315D] hover:bg-[#EAF0F7] focus-within:ring-2 focus-within:ring-[#0B315D] focus-within:ring-offset-2 transition-colors">
+              <input
+                data-testid="resume-autofill-camera-input"
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="sr-only"
+                disabled={resumeUploadPending}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (file) void shrinkImage(file).then(onResumeFile);
+                }}
+              />
+              <Camera className="h-4 w-4" aria-hidden="true" />
+              Take photo
+            </label>
+          )}
         </div>
         {resumeUploadPending && (
           <div role="status" aria-live="polite" className="mt-4 border-t border-[#D9E2EC] pt-4">
