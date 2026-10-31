@@ -140,7 +140,7 @@ export const ApplicantLayout: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="md:hidden min-h-11 min-w-11 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 border border-slate-200 hover:bg-slate-100 transition-colors shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                className="xl:hidden min-h-11 min-w-11 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 border border-slate-200 hover:bg-slate-100 transition-colors shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
                 aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
                 aria-expanded={mobileMenuOpen}
               >
@@ -161,7 +161,7 @@ export const ApplicantLayout: React.FC = () => {
               </Link>
 
               {/* Primary Desktop Navigation Links */}
-              <nav className="hidden md:flex items-center gap-1.5 ml-4" aria-label="Main Applicant Navigation">
+              <nav className="hidden xl:flex items-center gap-1.5 ml-4" aria-label="Main Applicant Navigation">
                 {navLinks.map((item) => {
                   const Icon = item.icon;
                   return (
@@ -172,7 +172,7 @@ export const ApplicantLayout: React.FC = () => {
                       activeProps={{
                         className: "text-slate-900 bg-slate-100 font-bold border border-slate-200 shadow-2xs",
                       }}
-                      className="flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                      className="flex items-center gap-2 whitespace-nowrap px-3.5 py-2 applicant-touch:min-h-11 text-sm font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
                     >
                       <Icon className="w-4 h-4" />
                       <span>{item.label}</span>
@@ -313,7 +313,7 @@ export const ApplicantLayout: React.FC = () => {
 
         {/* Mobile Navigation Drawer */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-t border-slate-200 bg-white px-4 py-3 space-y-1 shadow-md animate-in slide-in-from-top-2 duration-150">
+          <div className="xl:hidden border-t border-slate-200 bg-white px-4 py-3 space-y-1 shadow-md animate-in slide-in-from-top-2 duration-150">
             {navLinks.map((item) => {
               const Icon = item.icon;
               return (
