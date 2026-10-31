@@ -22,7 +22,9 @@ export interface ResumeReviewDialogProps {
   staff?: boolean;
 }
 
-const checkboxClass = "mt-0.5 rounded text-[#0B315D] focus:ring-[#0B315D]";
+// Applicant sizing only (`in-[.applicant-portal]`): 20 px boxes in 44 px rows. The staff review keeps its denser rows.
+const checkboxClass = "mt-0.5 shrink-0 rounded text-[#0B315D] focus:ring-[#0B315D] in-[.applicant-portal]:mt-0 in-[.applicant-portal]:size-5";
+const rowClass = "flex cursor-pointer items-start gap-3 py-2 in-[.applicant-portal]:min-h-11 in-[.applicant-portal]:items-center";
 
 const range = (start?: string, end?: string, isCurrent?: boolean) => {
   const from = start?.substring(0, 10);
@@ -43,17 +45,19 @@ interface ItemRowProps {
 }
 
 const ItemRow: React.FC<ItemRowProps> = ({ id, title, detail, checked, onChange }) => (
-  <li className="flex items-start gap-3 py-2">
-    <input
-      id={id}
-      type="checkbox"
-      checked={checked}
-      onChange={(e) => onChange(e.target.checked)}
-      className={checkboxClass}
-    />
-    <label htmlFor={id} className="min-w-0 text-sm text-[#102A43]">
-      <span className="font-medium">{title}</span>
-      {detail ? <span className="block text-xs text-[#627D98]">{detail}</span> : null}
+  <li>
+    <label htmlFor={id} className={rowClass}>
+      <input
+        id={id}
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className={checkboxClass}
+      />
+      <span className="min-w-0 text-sm text-[#102A43]">
+        <span className="font-medium">{title}</span>
+        {detail ? <span className="block text-xs text-[#627D98]">{detail}</span> : null}
+      </span>
     </label>
   </li>
 );
@@ -107,6 +111,8 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
       open={open}
       onClose={onClose}
       size="lg"
+      // Phones: the header wraps to several lines, so leave more room and keep the Save button on screen.
+      bodyClassName="max-h-[calc(100dvh-13rem)] sm:max-h-[calc(100dvh-8rem)]"
       title={staff ? "Review details from the resume" : "Review details from your resume"}
       description={
         staff
@@ -141,18 +147,16 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
                     {row.locked && !staff ? (
                       <p className="mt-1 text-xs text-[#627D98]">Verified by MEGS staff. This value can't be changed here.</p>
                     ) : (
-                      <div className="mt-1.5 flex items-center gap-2">
+                      <label htmlFor={id} className={`${rowClass} mt-1 items-center py-0 text-xs text-[#102A43] in-[.applicant-portal]:text-sm`}>
                         <input
                           id={id}
                           type="checkbox"
                           checked={selection.overwrite.has(row.field)}
                           onChange={(e) => update({ overwrite: toggle(selection.overwrite, row.field, e.target.checked) })}
-                          className="rounded text-[#0B315D] focus:ring-[#0B315D]"
+                          className={checkboxClass}
                         />
-                        <label htmlFor={id} className="text-xs text-[#102A43]">
-                          Use the resume value for {label}
-                        </label>
-                      </div>
+                        Use the resume value for {label}
+                      </label>
                     )}
                   </li>
                 );
@@ -262,7 +266,7 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
           </p>
         )}
 
-        <div className="flex justify-end gap-2 border-t border-[#D9E2EC] pt-3">
+        <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#D9E2EC] bg-white pt-3">
           <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
             Not now
           </Button>
