@@ -18,8 +18,6 @@ import {
   formatWorkArrangement,
 } from "../../lib/utils";
 import {
-  MapPin,
-  Clock,
   Send,
   Upload,
   Camera,
@@ -27,10 +25,7 @@ import {
   AlertCircle,
   FileText,
   FileImage,
-  Briefcase,
   Bookmark,
-  Banknote,
-  Building2,
 } from "lucide-react";
 import { MAX_SAVED_JOBS } from "../../lib/saved-jobs";
 import { notify, formatErrorMessage } from "../../lib/feedback";
@@ -219,7 +214,7 @@ export const JobDetailPage: React.FC = () => {
       <div className="space-y-6">
         <PageHeader
           title="Job details"
-          description="Loading position…"
+          description={<span className="block max-sm:min-h-10">Loading position…</span>}
           breadcrumbs={jobBreadcrumbs("Job details")}
           actions={
             <div className="flex flex-wrap items-center gap-2" aria-hidden="true">
@@ -253,7 +248,19 @@ export const JobDetailPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title={job.title}
-        description={job.department ? `${job.department} · ${job.location || "Philippines"}` : (job.location || "Philippines")}
+        description={
+          <>
+            <span className="max-lg:hidden">
+              {job.department ? `${job.department} · ${job.location || "Philippines"}` : (job.location || "Philippines")}
+            </span>
+            {/* Below lg the Role Summary card sits after the description, so the key facts go up here. */}
+            <span className="lg:hidden">
+              {companyName && <>{companyName} · </>}
+              <strong className="font-semibold text-slate-900">{salaryDisplay}</strong>
+              {" · "}{employmentTypeDisplay} · {job.location || "Nationwide"}
+            </span>
+          </>
+        }
         breadcrumbs={[
           { label: "My career", href: "/app" },
           { label: "Explore jobs", href: "/app/jobs" },
@@ -261,10 +268,6 @@ export const JobDetailPage: React.FC = () => {
         ]}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button asChild variant="outline" size="md">
-              <Link to="/app/jobs">Back to jobs</Link>
-            </Button>
-
             <Button
               variant="outline"
               size="md"
@@ -277,15 +280,12 @@ export const JobDetailPage: React.FC = () => {
 
             {job.alreadyApplied ? (
               <div className="lg:hidden">
-                <Link to="/app/applications">
-                  <Button
-                    variant="outline"
-                    size="md"
-                    leftIcon={<CheckCircle2 className="w-4 h-4 text-[#047857]" />}
-                  >
+                <Button asChild variant="outline" size="md">
+                  <Link to="/app/applications">
+                    <CheckCircle2 className="w-4 h-4 text-[#047857]" aria-hidden="true" />
                     Application submitted (View in Tracker)
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               </div>
             ) : isDeploymentLocked ? (
               <div className="lg:hidden">
@@ -337,9 +337,8 @@ export const JobDetailPage: React.FC = () => {
         <div className="lg:col-span-2 space-y-6">
           {/* Main Description */}
           <div className="bg-white border border-[#D9E2EC] rounded-lg p-6 shadow-xs space-y-4">
-            <h3 className="text-sm font-semibold text-[#102A43] border-b border-[#D9E2EC] pb-3 flex items-center gap-2">
-              <Briefcase className="w-4 h-4 text-[#0B315D]" />
-              <span>Position Overview</span>
+            <h3 className="text-sm font-semibold text-[#102A43] border-b border-[#D9E2EC] pb-3">
+              Position Overview
             </h3>
             <JobContentRenderer content={job.description} variant="applicant" />
           </div>
@@ -347,9 +346,8 @@ export const JobDetailPage: React.FC = () => {
           {/* Requirements & Criteria */}
           {job.requirements && (
             <div className="bg-white border border-[#D9E2EC] rounded-lg p-6 shadow-xs space-y-4">
-              <h3 className="text-sm font-semibold text-[#102A43] border-b border-[#D9E2EC] pb-3 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-[#0B315D]" />
-                <span>What you need for this role</span>
+              <h3 className="text-sm font-semibold text-[#102A43] border-b border-[#D9E2EC] pb-3">
+                What you need for this role
               </h3>
               <JobContentRenderer content={job.requirements} variant="applicant" />
             </div>
@@ -358,7 +356,7 @@ export const JobDetailPage: React.FC = () => {
 
         {/* Sidebar Metadata Card */}
         <div className="space-y-4">
-          <div className="bg-white border border-[#D9E2EC] rounded-lg p-5 shadow-xs space-y-5 sticky top-6">
+          <div className="bg-white border border-[#D9E2EC] rounded-lg p-5 shadow-xs space-y-5 sticky top-20">
             <div className="flex items-center gap-3 border-b border-[#D9E2EC] pb-4">
               <JobImage src={job.imageUrl} title={job.title} alt={job.title} size="md" />
               <div>
@@ -373,77 +371,49 @@ export const JobDetailPage: React.FC = () => {
 
             <div className="space-y-3.5 text-xs">
               {companyName && (
-                <div className="flex items-start gap-3">
-                  <Building2 className="w-4 h-4 text-[#627D98] shrink-0 mt-0.5" />
-                  <div>
-                    <div className="text-[#627D98] text-[11px] font-medium">Company</div>
-                    <div className="text-[#102A43] font-medium text-xs mt-0.5">{companyName}</div>
-                  </div>
+                <div className="max-lg:hidden">
+                  <div className="text-[#627D98] text-[11px] font-medium">Company</div>
+                  <div className="text-[#102A43] font-medium text-xs mt-0.5">{companyName}</div>
                 </div>
               )}
 
-              <div className="flex items-start gap-3">
-                <Banknote className="w-4 h-4 text-[#0B315D] shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-[#627D98] text-[11px] font-medium">Monthly Compensation</div>
-                  <div className="text-[#0B315D] font-bold text-sm mt-0.5 font-mono">
-                    {salaryDisplay}
-                  </div>
+              <div className="max-lg:hidden">
+                <div className="text-[#627D98] text-[11px] font-medium">Monthly Compensation</div>
+                <div className="text-[#0B315D] font-bold text-sm mt-0.5 font-mono">
+                  {salaryDisplay}
                 </div>
               </div>
 
-              <div className="flex items-start gap-3">
-                <Briefcase className="w-4 h-4 text-[#627D98] shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-[#627D98] text-[11px] font-medium">Employment Type</div>
-                  <div className="text-[#102A43] font-medium text-xs mt-0.5">{employmentTypeDisplay}</div>
-                </div>
+              <div className="max-lg:hidden">
+                <div className="text-[#627D98] text-[11px] font-medium">Employment Type</div>
+                <div className="text-[#102A43] font-medium text-xs mt-0.5">{employmentTypeDisplay}</div>
               </div>
 
-              <div className="flex items-start gap-3">
-                <Building2 className="w-4 h-4 text-[#627D98] shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-[#627D98] text-[11px] font-medium">Work Arrangement</div>
-                  <div className="text-[#102A43] font-medium text-xs mt-0.5">{workArrangementDisplay}</div>
-                </div>
+              <div>
+                <div className="text-[#627D98] text-[11px] font-medium">Work Arrangement</div>
+                <div className="text-[#102A43] font-medium text-xs mt-0.5">{workArrangementDisplay}</div>
               </div>
 
-              <div className="flex items-start gap-3">
-                <Briefcase className="w-4 h-4 text-[#627D98] shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-[#627D98] text-[11px] font-medium">Position Status</div>
-                  <div className="text-[#102A43] font-semibold text-xs mt-0.5">
-                    <span className="inline-block px-2 py-0.5 rounded bg-[#ECFDF5] text-[#047857] border border-[#A7F3D0] text-[11px]">
-                      {job.status}
-                    </span>
-                  </div>
-                </div>
+              <div className="max-lg:hidden">
+                <div className="text-[#627D98] text-[11px] font-medium">Job Location</div>
+                <div className="text-[#102A43] font-medium text-xs mt-0.5">{job.location || "Nationwide"}</div>
               </div>
 
-              <div className="flex items-start gap-3">
-                <MapPin className="w-4 h-4 text-[#627D98] shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-[#627D98] text-[11px] font-medium">Job Location</div>
-                  <div className="text-[#102A43] font-medium text-xs mt-0.5">{job.location || "Nationwide"}</div>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <Clock className="w-4 h-4 text-[#627D98] shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-[#627D98] text-[11px] font-medium">Posted Date</div>
-                  <div className="text-[#102A43] font-medium text-xs mt-0.5">{formatDate(job.createdAt)}</div>
-                </div>
+              <div>
+                <div className="text-[#627D98] text-[11px] font-medium">Posted Date</div>
+                <div className="text-[#102A43] font-medium text-xs mt-0.5">{formatDate(job.createdAt)}</div>
               </div>
             </div>
 
-            <div className="pt-3 border-t border-[#D9E2EC]">
+            {/* Below lg the same action sits in the page header. */}
+            <div className="pt-3 border-t border-[#D9E2EC] max-lg:hidden">
               {job.alreadyApplied ? (
-                <Link to="/app/applications" className="block w-full">
-                  <Button variant="outline" size="md" className="w-full" leftIcon={<CheckCircle2 className="w-4 h-4 text-[#047857]" />}>
+                <Button asChild variant="outline" size="md" className="w-full">
+                  <Link to="/app/applications">
+                    <CheckCircle2 className="w-4 h-4 text-[#047857]" aria-hidden="true" />
                     Track Application
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               ) : isDeploymentLocked ? (
                 <div className="space-y-2">
                   <div className="rounded-md border border-[#BCCCDC] bg-[#F0F4F8] p-2.5 text-xs text-[#486581] space-y-1">
