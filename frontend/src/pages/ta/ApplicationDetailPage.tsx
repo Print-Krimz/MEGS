@@ -88,7 +88,7 @@ type DialogState =
   | { kind: "deploy" }
   | { kind: "contract" }
   | { kind: "confirmSigned" }
-  | { kind: "close"; outcome: ClosureOutcome };
+  | { kind: "close"; outcome: ClosureOutcome; contractNotSigned?: boolean };
 
 const WalkInSlipDialog = lazy(() =>
   import("../../components/ta/walk-in/WalkInSlipDialog").then((m) => ({ default: m.WalkInSlipDialog })));
@@ -373,7 +373,7 @@ export const ApplicationDetailPage: React.FC = () => {
         return setDialog({ kind: "confirmSigned" });
       case "contract-not-signed":
         // The applicant did not sign: the TA rejects the application.
-        return setDialog({ kind: "close", outcome: "REJECTED" });
+        return setDialog({ kind: "close", outcome: "REJECTED", contractNotSigned: true });
       case "deploy-applicant":
         return setDialog({ kind: "contract" });
       case "schedule-contract-signing":
@@ -1029,6 +1029,7 @@ export const ApplicationDetailPage: React.FC = () => {
         stage={app.status}
         candidateName={candidateName}
         applicationCreatedOn={app.createdAt ? getManilaToday(new Date(app.createdAt)) : undefined}
+        contractNotSigned={dlg?.kind === "close" && Boolean(dlg.contractNotSigned)}
       />
 
       <SignedContractDialog

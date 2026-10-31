@@ -4,6 +4,7 @@ import { FIELD_LIMITS, getManilaToday } from "../../lib/field-limits";
 import {
   BACKOUT_REASONS_BY_PARTY,
   BACKOUT_REASON_LABELS,
+  CONTRACT_NOT_SIGNED_REASON_OPTIONS,
   REJECTION_REASON_OPTIONS,
   canKeepInTalentPool,
   type ClosureDisposition,
@@ -30,6 +31,8 @@ interface CloseApplicationDialogProps {
   candidateName?: string;
   /** Day the application was created (YYYY-MM-DD, Manila): the earliest allowed Backed Out date. */
   applicationCreatedOn?: string;
+  /** Opened from "Not signed": contract wording and only the reasons that fit that step. */
+  contractNotSigned?: boolean;
 }
 
 const KEEP_AFTER_CLIENT_REVIEW = ["CLIENT_ENDORSEMENT", "FINAL_INTERVIEW"];
@@ -57,6 +60,7 @@ export const CloseApplicationDialog: React.FC<CloseApplicationDialogProps> = ({
   stage,
   candidateName,
   applicationCreatedOn,
+  contractNotSigned = false,
 }) => {
   const today = getManilaToday();
   // Talent Pool is offered for a rejection only from a stage that may move to it (the backend enforces this for rejections only).
@@ -71,12 +75,20 @@ export const CloseApplicationDialog: React.FC<CloseApplicationDialogProps> = ({
   const isBackout = outcome === "BACKED_OUT";
   const reasonOptions = isBackout
     ? BACKOUT_REASONS_BY_PARTY.APPLICANT.map((r) => ({ value: r, label: BACKOUT_REASON_LABELS[r] ?? r }))
-    : REJECTION_REASON_OPTIONS;
+    : contractNotSigned
+      ? CONTRACT_NOT_SIGNED_REASON_OPTIONS
+      : REJECTION_REASON_OPTIONS;
   // A no-show is never added to the talent pool, so the only disposition left is Archive.
   const noShow = isBackout && reason === "NO_SHOW";
   // Every closure needs a note explaining the reason.
   const notesMissing = !notes.trim();
-  const copy = COPY[outcome];
+  const copy = contractNotSigned
+    ? {
+        title: "Contract not signed",
+        description: (name: string) => `${name} did not sign the contract. Choose why, then close the application.`,
+        submit: "Close application",
+      }
+    : COPY[outcome];
 
   useEffect(() => {
     if (!open) return;

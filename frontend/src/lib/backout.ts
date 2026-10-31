@@ -92,8 +92,17 @@ export const REJECTION_REASON_OPTIONS: { value: string; label: string }[] = [
   { value: "OTHER", label: "Other reason" },
 ];
 
+/** Reasons offered when the contract is not signed. Only these fit that step. Backend codes: see REJECTION_REASON_CODES. */
+export const CONTRACT_NOT_SIGNED_REASON_OPTIONS: { value: string; label: string }[] = [
+  { value: "DECLINED_CONTRACT", label: "Declined the contract terms" },
+  { value: "MISSED_SIGNING", label: "Did not attend the contract signing" },
+  { value: "CLIENT_WITHDREW_SELECTION", label: "Client withdrew the selection" },
+  { value: "POSITION_FILLED", label: "Position was filled" },
+  { value: "OTHER", label: "Other reason" },
+];
+
 export const REJECTION_REASON_LABELS: Record<string, string> = Object.fromEntries(
-  REJECTION_REASON_OPTIONS.map((o) => [o.value, o.label]),
+  [...REJECTION_REASON_OPTIONS, ...CONTRACT_NOT_SIGNED_REASON_OPTIONS].map((o) => [o.value, o.label]),
 );
 
 export const CLOSURE_OUTCOME_LABELS: Record<ClosureOutcome, string> = { REJECTED: "Rejected", BACKED_OUT: "Backed out" };
