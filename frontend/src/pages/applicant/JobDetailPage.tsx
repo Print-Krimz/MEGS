@@ -136,6 +136,7 @@ export const JobDetailPage: React.FC = () => {
     }
   };
 
+  // The apply dialog shows the result itself (success panel or inline error), so no toast repeats it.
   const applyMutation = useMutation({
     mutationFn: (body?: FormData | { resumeUrl?: string }) =>
       applicantJobsApi.applyToJob(jobId, body),
@@ -143,7 +144,6 @@ export const JobDetailPage: React.FC = () => {
       queryClient.setQueryData(["applicant", "job-detail", jobId], (old: any) => (old ? { ...old, alreadyApplied: true } : old));
       queryClient.invalidateQueries({ queryKey: ["applicant"] });
       setSubmissionSuccess(true);
-      notify.success("Application Submitted", "Your candidacy has been received and is now being reviewed.");
     },
     onError: (err: any) => {
       const errorMsg = formatErrorMessage(err);
@@ -151,23 +151,28 @@ export const JobDetailPage: React.FC = () => {
         queryClient.setQueryData(["applicant", "job-detail", jobId], (old: any) => (old ? { ...old, alreadyApplied: true } : old));
         queryClient.invalidateQueries({ queryKey: ["applicant"] });
       }
-      if (
-        err?.status === 403 ||
-        errorMsg.toLowerCase().includes("deployed") ||
-        errorMsg.toLowerCase().includes("active assignment") ||
-        errorMsg.toLowerCase().includes("restricted")
-      ) {
-        notify.error(
-          "Application Restricted",
-          errorMsg.toLowerCase().includes("deployed") || errorMsg.toLowerCase().includes("assignment")
-            ? errorMsg
-            : "Applications for new positions are restricted during an active deployment assignment."
-        );
-      } else {
-        notify.error("Application Failed", err);
-      }
     },
   });
+
+  const applyErrorMessage = (err: any): string => {
+    const errorMsg = formatErrorMessage(err);
+    const lower = errorMsg.toLowerCase();
+    if (err?.status === 403 || lower.includes("deployed") || lower.includes("active assignment") || lower.includes("restricted")) {
+      return lower.includes("deployed") || lower.includes("assignment")
+        ? errorMsg
+        : "Applications for new positions are restricted during an active deployment assignment.";
+    }
+    return errorMsg;
+  };
+
+  const closeApplyModal = () => {
+    // A submission in flight cannot be cancelled, so the dialog stays until it finishes.
+    if (applyMutation.isPending) return;
+    setApplyModalOpen(false);
+    setCustomResume(null);
+    setIsDragging(false);
+    setSubmissionSuccess(false);
+  };
 
   const handleFileSelected = async (picked: File) => {
     const file = await shrinkImage(picked);
@@ -461,14 +466,9 @@ export const JobDetailPage: React.FC = () => {
       {/* Apply Modal */}
       <Dialog
         open={applyModalOpen}
-        onClose={() => {
-          setApplyModalOpen(false);
-          setCustomResume(null);
-          setIsDragging(false);
-          setSubmissionSuccess(false);
-        }}
+        onClose={closeApplyModal}
         title={`Apply for ${job.title}`}
-        description="Confirm your profile details and submit your application."
+        description={submissionSuccess ? undefined : "Confirm your profile details and submit your application."}
       >
         {submissionSuccess ? (
           <div className="space-y-4 text-center py-4">
@@ -486,12 +486,7 @@ export const JobDetailPage: React.FC = () => {
                 variant="outline"
                 size="sm"
                 className="flex-1"
-                onClick={() => {
-                  setApplyModalOpen(false);
-                  setCustomResume(null);
-                  setIsDragging(false);
-                  setSubmissionSuccess(false);
-                }}
+                onClick={closeApplyModal}
               >
                 Close
               </Button>
@@ -660,10 +655,10 @@ export const JobDetailPage: React.FC = () => {
             </div>
 
             {applyMutation.isError && (
-              <div className="p-3 bg-[#FEF2F2] border border-[#DC2626]/30 rounded-lg flex items-center gap-2 text-xs text-[#DC2626]">
+              <div role="alert" className="p-3 bg-[#FEF2F2] border border-[#DC2626]/30 rounded-lg flex items-center gap-2 text-xs text-[#DC2626]">
                 <AlertCircle className="w-4 h-4 text-[#DC2626] shrink-0" />
                 <span>
-                  {formatErrorMessage(applyMutation.error)}
+                  {applyErrorMessage(applyMutation.error)}
                 </span>
               </div>
             )}
@@ -672,11 +667,8 @@ export const JobDetailPage: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  setApplyModalOpen(false);
-                  setCustomResume(null);
-                  setIsDragging(false);
-                }}
+                disabled={applyMutation.isPending}
+                onClick={closeApplyModal}
               >
                 Cancel
               </Button>
