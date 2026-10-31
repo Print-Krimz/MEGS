@@ -68,6 +68,9 @@ export const NotificationsPage: React.FC = () => {
     onError: (error) => notify.error("Could not mark all notifications as read", error),
   });
 
+  // Offline, TanStack pauses the fetch and the query stays pending: say so instead of an empty list.
+  const offline = notificationsQuery.fetchStatus === "paused" && notificationsQuery.data === undefined;
+  const initialLoading = notificationsQuery.isPending && !offline;
   const notifications = notificationsQuery.data?.items || [];
   const totalItems = notificationsQuery.data?.total || 0;
   const unreadCount = notificationsQuery.data?.unreadCount || 0;
@@ -185,15 +188,15 @@ export const NotificationsPage: React.FC = () => {
               {
                 id: "unread",
                 label: "Unread",
-                badge: notificationsQuery.isLoading ? undefined : { text: String(unreadCount), variant: "info" },
+                badge: initialLoading ? undefined : { text: String(unreadCount), variant: "info" },
               },
             ]}
           />
 
-          {notificationsQuery.isLoading ? (
+          {initialLoading ? (
             <LoadingState variant="table" rows={4} />
-          ) : notificationsQuery.isError ? (
-            <ErrorState compact subject="notifications" className="m-3" error={notificationsQuery.error} onRetry={() => notificationsQuery.refetch()} />
+          ) : offline || notificationsQuery.isError ? (
+            <ErrorState compact subject="notifications" className="m-3" error={offline ? undefined : notificationsQuery.error} onRetry={() => notificationsQuery.refetch()} />
           ) : notifications.length === 0 ? (
             <div className="p-8">
               <EmptyState
@@ -287,7 +290,7 @@ export const NotificationsPage: React.FC = () => {
               : "text-[#627D98] hover:text-[#102A43] hover:bg-[#EAF0F7]"
           }`}
         >
-          {notificationsQuery.isLoading
+          {initialLoading
             ? "All notifications"
             : !filterUnread
             ? `All notifications (${totalItems})`
@@ -303,16 +306,18 @@ export const NotificationsPage: React.FC = () => {
               : "text-[#627D98] hover:text-[#102A43] hover:bg-[#EAF0F7]"
           }`}
         >
-          {notificationsQuery.isLoading ? "Unread Only" : `Unread Only (${unreadCount})`}
+          {initialLoading ? "Unread Only" : `Unread Only (${unreadCount})`}
         </button>
       </div>
 
       {/* List Container */}
-      {notificationsQuery.isLoading ? (
+      {initialLoading ? (
         <LoadingState variant="table" rows={4} />
-      ) : notificationsQuery.isError ? (
+      ) : offline || notificationsQuery.isError ? (
         <ErrorState
-          error={notificationsQuery.error}
+          compact
+          subject="notifications"
+          error={offline ? undefined : notificationsQuery.error}
           onRetry={() => notificationsQuery.refetch()}
         />
       ) : notifications.length === 0 ? (

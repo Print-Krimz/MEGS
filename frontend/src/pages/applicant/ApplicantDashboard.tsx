@@ -31,15 +31,22 @@ import { useLiveStreamConnected } from "../../lib/live-stream-status";
 
 function SectionData<T>({
   query,
+  subject,
   skeleton,
   children,
 }: {
   query: UseQueryResult<T>;
+  /** What this section shows, for the error title ("Couldn't load <subject>"). */
+  subject: string;
   skeleton: React.ReactNode;
   children: (data: T) => React.ReactNode;
 }) {
+  // Offline: TanStack pauses the fetch, so the query stays pending. Say so instead of showing a skeleton forever.
+  if (query.fetchStatus === "paused" && query.data === undefined) {
+    return <ErrorState compact subject={subject} onRetry={() => { void query.refetch(); }} />;
+  }
   if (query.isError && !query.isFetching) {
-    return <ErrorState className="my-0 border-0" error={query.error} onRetry={() => { void query.refetch(); }} />;
+    return <ErrorState className="my-0 border-0" subject={subject} error={query.error} onRetry={() => { void query.refetch(); }} />;
   }
   if (query.isPending || query.isError) {
     return (
@@ -179,6 +186,7 @@ export const ApplicantDashboard: React.FC = () => {
       <div className="bg-white border border-slate-200 p-5 rounded-md min-h-[148px]">
         <SectionData
           query={profileQuery}
+          subject="your profile"
           skeleton={
             <div className="space-y-3">
               <div className="h-4 w-1/2 bg-slate-200" />
@@ -247,6 +255,7 @@ export const ApplicantDashboard: React.FC = () => {
       {/* 4-Segment Operational Metrics Cards */}
       <SectionData
         query={applicationsQuery}
+        subject="your applications"
         skeleton={
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -331,7 +340,7 @@ export const ApplicantDashboard: React.FC = () => {
           </Link>
         </div>
 
-        <SectionData query={applicationsQuery} skeleton={listSkeleton(3)}>
+        <SectionData query={applicationsQuery} subject="your applications" skeleton={listSkeleton(3)}>
           {(applicationData) => {
             const { applications } = summarizeApplications(applicationData);
             return (
@@ -424,7 +433,7 @@ export const ApplicantDashboard: React.FC = () => {
             </Link>
           </div>
 
-          <SectionData query={jobsQuery} skeleton={listSkeleton(2, "h-[120px]")}>
+          <SectionData query={jobsQuery} subject="open jobs" skeleton={listSkeleton(2, "h-[120px]")}>
             {() => (
               <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-200">
                 {openJobs.slice(0, 4).map((job) => {
