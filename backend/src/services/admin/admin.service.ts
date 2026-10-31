@@ -629,6 +629,11 @@ export const changeUserStatus = async (targetUserId: string, adminId: string, is
   // An account still in setup keeps that status when deactivated, so reactivating it hits the guard above.
   const accountStatus = isActive ? "ACTIVE" : pendingSetup ? targetUser.accountStatus : "DEACTIVATED";
 
+  // A repeated request changes nothing, so it writes no audit row either.
+  if (targetUser.isActive === isActive && targetUser.accountStatus === accountStatus) {
+    return { id: targetUser.id, email: targetUser.email, isActive: targetUser.isActive, accountStatus: targetUser.accountStatus };
+  }
+
   const updatedUser = await prisma.user.update({
     where: { id: targetUserId },
     data: { isActive, accountStatus },

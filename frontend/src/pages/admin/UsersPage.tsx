@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { adminApi } from "../../lib/api/admin.api";
@@ -213,9 +213,14 @@ export const UsersPage: React.FC = () => {
     },
   });
 
+  // Set synchronously, so a second click in the same tick cannot start a second request.
+  const statusRequestBusy = useRef(false);
   const updateStatusMutation = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) =>
       adminApi.updateUserStatus(id, isActive),
+    onSettled: () => {
+      statusRequestBusy.current = false;
+    },
     onSuccess: (user, vars) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
@@ -224,7 +229,8 @@ export const UsersPage: React.FC = () => {
        clearSelectedUser();
       notify.success(
         "Account status updated",
-        `The user can ${vars.isActive ? "now" : "no longer"} sign in.`
+        `The user can ${vars.isActive ? "now" : "no longer"} sign in.`,
+        `user-status-${vars.id}`,
       );
     },
     onError: (err: any) => {
@@ -247,7 +253,8 @@ export const UsersPage: React.FC = () => {
   };
 
   const confirmStatusChange = async () => {
-    if (!statusModalUser) return;
+    if (!statusModalUser || statusRequestBusy.current) return;
+    statusRequestBusy.current = true;
     if (statusModalUser.isActive && handoverTo) {
       setHandingOver(true);
       try {
@@ -260,6 +267,7 @@ export const UsersPage: React.FC = () => {
       } catch (err) {
         notify.error("Could not hand over their records", err);
         setHandingOver(false);
+        statusRequestBusy.current = false;
         return;
       }
       setHandingOver(false);
@@ -345,8 +353,12 @@ export const UsersPage: React.FC = () => {
   const [bulkAction, setBulkAction] = useState<BulkUserAction | null>(null);
   const [bulkResult, setBulkResult] = useState<{ title: string; summary: BulkSummary; rows: AdminUserListItem[] } | null>(null);
 
+  const bulkBusy = useRef(false);
   // No bulk endpoint: run the single-user calls side by side. Row ids in the summary are positions in `rows`.
   const bulkMutation = useMutation({
+    onSettled: () => {
+      bulkBusy.current = false;
+    },
     mutationFn: async ({ action, rows }: { action: BulkUserAction; rows: AdminUserListItem[] }): Promise<BulkSummary> => {
       const settled = await Promise.allSettled(
         rows.map((u) =>
@@ -744,7 +756,11 @@ export const UsersPage: React.FC = () => {
               size="sm"
               loading={bulkMutation.isPending}
               className="w-full sm:w-auto"
-              onClick={() => bulkAction && bulkMutation.mutate({ action: bulkAction, rows: selectedRows })}
+              onClick={() => {
+                if (!bulkAction || bulkBusy.current) return;
+                bulkBusy.current = true;
+                bulkMutation.mutate({ action: bulkAction, rows: selectedRows });
+              }}
             >
               {bulkAction ? BULK_USER_ACTIONS[bulkAction].label : ""}
             </Button>

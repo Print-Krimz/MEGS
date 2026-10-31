@@ -477,7 +477,8 @@ export const reviewComplianceRequirement = async (
         "Candidate Compliance Complete",
         `${candidateName} on "${jobTitle}" has completed or scheduled all mandatory compliance documents and is ready for contract signing.`,
         "SUCCESS",
-        `/ta/applications/${requirement.applicationId}`
+        `/ta/applications/${requirement.applicationId}`,
+        { excludeUserId: reviewedById }
       );
     }
   }

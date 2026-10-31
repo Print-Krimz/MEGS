@@ -110,8 +110,9 @@ function cleanTechnicalPhrases(message: string): string {
  * Wraps sonner toasts with consistent title, description, styling, and human-readable error formatting.
  */
 export const notify = {
-  success: (title: string, description?: string) => {
-    return toast.success(title, description ? { description } : undefined);
+  /** Pass `id` so a repeat of the same message replaces the toast instead of stacking another. */
+  success: (title: string, description?: string, id?: string | number) => {
+    return toast.success(title, { ...(description ? { description } : {}), ...(id !== undefined ? { id } : {}) });
   },
 
   error: (title: string, error?: unknown) => {

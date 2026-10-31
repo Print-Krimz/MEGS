@@ -830,13 +830,7 @@ export const uploadApplicantComplianceDocument = async (
   const wasRejected = requirement.reviewStatus === "REJECTED";
   const updated = await storeAndLinkComplianceDocument(requirement, requirementId, file);
 
-  sendNotification(
-    userId,
-    "Compliance Document Uploaded",
-    `Your document for "${requirement.documentLabel}" has been submitted for verification.`,
-    "INFO",
-    `/app/applications/${requirement.applicationId}`
-  );
+  // No notification to the uploader: the upload response already confirms it, and a second toast stacked on it.
 
   const candProfile = requirement.application?.user?.applicantProfile;
   const candidateName = (candProfile?.firstName || candProfile?.lastName)
