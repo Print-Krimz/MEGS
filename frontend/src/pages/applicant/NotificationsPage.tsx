@@ -120,7 +120,7 @@ export const NotificationsPage: React.FC = () => {
       case "APPLICATION_STATUS":
         return <Briefcase className={cn("w-4 h-4", color("text-navy"))} />;
       case "COMPLIANCE_REQUIRED":
-        return <ShieldCheck className={cn("w-4 h-4", "text-amber-700")} />;
+        return <ShieldCheck className="w-4 h-4 text-amber-700" />;
       default:
         return <Bell className={cn("w-4 h-4", staff ? "text-slate-500" : "text-slate-600")} />;
     }
