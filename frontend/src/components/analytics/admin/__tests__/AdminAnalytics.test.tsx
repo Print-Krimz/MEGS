@@ -410,7 +410,7 @@ describe("Analytics Components Test Suite", () => {
     expect(screen.getByRole("link", { name: "Candidate 1" }).getAttribute("href")).toBe("/admin/applications/1");
     expect(screen.getAllByRole("link", { name: "Welder" })[0].getAttribute("href")).toBe("/admin/mrfs/9");
     expect(screen.getByText("16 days over")).toBeDefined();
-    expect(screen.getByRole("img", { name: /Requirements, days in stage: 30 \(limit 14 days\)/ })).toBeDefined();
+    expect(screen.getByRole("img", { name: /Requirements, days in stage, limit 14 days: Within limit 14, Past limit 16/ })).toBeDefined();
     expect(screen.getAllByText(/of 14 days/)).toBeDefined();
     expect(screen.getByText(/· Ben/)).toBeDefined();
     expect(screen.getByText(/Counted from the application date. No stage change was recorded/)).toBeDefined();

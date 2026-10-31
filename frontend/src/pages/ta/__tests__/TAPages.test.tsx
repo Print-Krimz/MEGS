@@ -738,14 +738,14 @@ describe("Talent Acquisition Interface Suite", () => {
 
     // Click Confirm start on the READY_FOR_DEPLOYMENT row
     fireEvent.click(confirmStartButtons[0]);
-    expect(await screen.findByText("Confirm site start")).toBeDefined();
+    expect(await screen.findByText("Confirm start date")).toBeDefined();
 
     // Verify date input is restricted to today and future (min = today)
-    const dateInput = screen.getByLabelText(/Actual first working date/i) as HTMLInputElement;
+    const dateInput = screen.getByLabelText(/First working date/i) as HTMLInputElement;
     expect(dateInput.value).toBe(getManilaToday());
     expect(dateInput.min).toBe(getManilaToday());
     expect(dateInput.max).toBe("2100-12-31");
-    expect(screen.getByText(/Must be today or a future date\./)).toBeDefined();
+    expect(screen.getByText(/Today or a future date/)).toBeDefined();
 
     // Verify confirm button in modal is enabled for today
     const dialog = screen.getByRole("dialog");
