@@ -20,6 +20,8 @@ export interface PhoneInputProps {
   className?: string;
   id?: string;
   mobileOnly?: boolean;
+  /** Browser autofill hint. Defaults to "tel". */
+  autoComplete?: string;
 }
 
 export const PhoneInput: React.FC<PhoneInputProps> = ({
@@ -34,6 +36,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
   className,
   id: customId,
   mobileOnly = false,
+  autoComplete = "tel",
 }) => {
   const generatedId = useId();
   const inputId = customId || generatedId;
@@ -96,7 +99,7 @@ export const PhoneInput: React.FC<PhoneInputProps> = ({
           id={inputId}
           type="tel"
           inputMode="numeric"
-          autoComplete="tel"
+          autoComplete={autoComplete}
           disabled={disabled}
           required={required}
           placeholder={placeholder}

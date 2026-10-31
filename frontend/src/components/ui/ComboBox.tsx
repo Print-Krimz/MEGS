@@ -65,6 +65,8 @@ export interface ComboBoxProps {
    * Ignored (normal rendering) when options are grouped or when allowCustom/loading is set.
    */
   windowed?: boolean;
+  /** Browser autofill hint for the input. Defaults to "off". */
+  autoComplete?: string;
 }
 
 /** Fixed row height (px) and overscan used by windowed mode; at most ~25 options are ever mounted. */
@@ -121,6 +123,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
   leftIcon,
   size = "md",
   windowed = false,
+  autoComplete = "off",
 }) => {
   const generatedId = useId();
   const inputId = customId || generatedId;
@@ -142,6 +145,8 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+  // Tab only commits the highlighted option after the user typed or used the arrow keys.
+  const userNavigated = useRef(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -459,6 +464,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
 
     if (e.key === "ArrowDown") {
       e.preventDefault();
+      userNavigated.current = true;
       if (!isOpen) {
         setIsOpen(true);
         setHighlightedIndex(0);
@@ -468,6 +474,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
       }
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
+      userNavigated.current = true;
       if (!isOpen) {
         setIsOpen(true);
         setHighlightedIndex(0);
@@ -493,6 +500,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
         }
       }
     } else if (e.key === "Escape") {
+      userNavigated.current = false;
       setIsOpen(false);
       if (selectedOption) {
         setSearchQuery(selectedOption.label);
@@ -501,11 +509,15 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
       } else {
         setSearchQuery("");
       }
-      inputRef.current?.blur();
     } else if (e.key === "Tab") {
       if (isOpen) {
         setIsOpen(false);
-        if (highlightedIndex < filteredOptions.length && filteredOptions[highlightedIndex] && !filteredOptions[highlightedIndex].disabled) {
+        if (!userNavigated.current) {
+          // Nothing typed or arrowed: tabbing through leaves the value as it was.
+          if (selectedOption) setSearchQuery(selectedOption.label);
+          else if (allowCustom && value) setSearchQuery(value);
+          else setSearchQuery("");
+        } else if (highlightedIndex < filteredOptions.length && filteredOptions[highlightedIndex] && !filteredOptions[highlightedIndex].disabled) {
           handleSelectOption(filteredOptions[highlightedIndex]);
         } else {
           resolveAndCommitQuery(searchQuery);
@@ -516,6 +528,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = digitsOnly ? e.target.value.replace(/\D/g, "") : e.target.value;
+    userNavigated.current = true;
     setSearchQuery(val);
     setHighlightedIndex(0);
     if (!isOpen) setIsOpen(true);
@@ -523,6 +536,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
 
   const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
     if (!disabled) {
+      userNavigated.current = false;
       setIsOpen(true);
       e.target.select();
       const selectedIdx = valueIndices.get(value)?.[0] ?? -1;
@@ -581,7 +595,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
           onFocus={handleInputFocus}
           onClick={handleInputClick}
           onKeyDown={handleKeyDown}
-          autoComplete="off"
+          autoComplete={autoComplete}
           className={cn(
             "w-full min-h-11 md:min-h-10 applicant-touch:min-h-11 rounded-md bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 font-sans focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 focus:border-focus transition-colors cursor-text text-left",
             size === "sm" ? "px-3 py-2 text-sm" : "px-3 py-2 text-sm",
