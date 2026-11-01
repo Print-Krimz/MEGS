@@ -271,10 +271,10 @@ export const ApplicantDashboard: React.FC = () => {
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
                       Digital Resume Readiness:
                     </span>
-                    <span className="text-sm font-bold tabular-nums text-slate-900">
+                    <span className="shrink-0 text-sm font-bold tabular-nums text-slate-900">
                       {readinessPercent}%
                     </span>
-                    <span className="inline-flex items-center px-2 py-0.5 bg-slate-100 text-slate-900 border border-slate-200 text-xs font-medium rounded-md">
+                    <span className="inline-flex shrink-0 items-center whitespace-nowrap px-2 py-0.5 bg-slate-100 text-slate-900 border border-slate-200 text-xs font-medium rounded-md">
                       {profileHealth.tier}
                     </span>
                   </div>

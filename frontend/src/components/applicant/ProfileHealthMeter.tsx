@@ -22,10 +22,10 @@ export const ProfileHealthMeter: React.FC<ProfileHealthMeterProps> = ({
             <span className="text-sm font-semibold text-[#102A43]">
               Profile Strength:
             </span>
-            <span className="text-sm font-bold font-sans text-[#0B315D]">
+            <span className="shrink-0 text-sm font-bold font-sans text-[#0B315D]">
               {health.score}%
             </span>
-            <span className="inline-flex items-center rounded-md border border-[#0B315D]/20 bg-[#EAF0F7] px-2 py-0.5 text-xs font-medium text-[#0B315D]">
+            <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-md border border-[#0B315D]/20 bg-[#EAF0F7] px-2 py-0.5 text-xs font-medium text-[#0B315D]">
               {health.tier}
             </span>
           </div>
