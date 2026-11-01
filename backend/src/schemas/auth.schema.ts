@@ -101,6 +101,9 @@ export const authSchema = {
       password: password("Password must be at least 8 characters long"),
     }),
   }),
+  resetSessionStatus: z.object({
+    body: z.object({ token }),
+  }),
   changePassword: z.object({
     body: z.object({
       currentPassword: z.string().min(1, "Current password is required").max(FIELD_LIMITS.password),

@@ -8,6 +8,7 @@ import {
   logout,
   forgotPassword,
   resetPassword,
+  resetSessionStatus,
   changePassword,
   setupAccount,
   getInvitationDetails,
@@ -58,6 +59,8 @@ router.post(
   forgotPassword
 );
 router.post("/reset-password", authLimiter, validate(authSchema.resetPassword), resetPassword);
+// Read-only, so it uses only the router-wide IP/account budgets and never spends a reset attempt.
+router.post("/reset-session-status", validate(authSchema.resetSessionStatus), resetSessionStatus);
 router.get("/invitation-details", authLimiter, validate(authSchema.getInvitationDetails), getInvitationDetails);
 router.post("/setup-account", authLimiter, validate(authSchema.setupAccount), setupAccount);
 

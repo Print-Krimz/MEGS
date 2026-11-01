@@ -108,6 +108,15 @@ export class ClaimError extends Error {
 const isOtpTestBypassEnabled = async (): Promise<boolean> =>
   (await getSecurityControls()).otpDisabled;
 
+const OTP_TTL_MS = 10 * 60 * 1000;
+const RESEND_COOLDOWN_MS = 60 * 1000;
+
+/** Deadlines the client shows as countdowns. The OTP row is created with this same createdAt, so the cooldown check agrees. */
+const otpDeadlines = (createdAt: Date) => ({
+  expiresAt: new Date(createdAt.getTime() + OTP_TTL_MS).toISOString(),
+  resendAvailableAt: new Date(createdAt.getTime() + RESEND_COOLDOWN_MS).toISOString(),
+});
+
 export const registerUser = async (emailOrPhone: string, password: string) => {
   if (password.length < 8) {
     throw new Error("Password must be at least 8 characters");
@@ -196,6 +205,7 @@ export const registerUser = async (emailOrPhone: string, password: string) => {
   const plainOtp = generateNumericOtp();
   const otpHash = hashOtp(plainOtp);
 
+  const otpCreatedAt = new Date();
   await prisma.authOtp.create({
     data: {
       email: resolved.email,
@@ -203,7 +213,8 @@ export const registerUser = async (emailOrPhone: string, password: string) => {
       purpose: "REGISTRATION",
       attempts: 0,
       maxAttempts: 5,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+      createdAt: otpCreatedAt,
+      expiresAt: new Date(otpCreatedAt.getTime() + OTP_TTL_MS),
       isUsed: false,
     },
   });
@@ -236,6 +247,7 @@ export const registerUser = async (emailOrPhone: string, password: string) => {
     message: resolved.isPhone
       ? "A 6-digit verification code has been sent to your mobile number via SMS."
       : "A 6-digit verification code has been sent to your email.",
+    ...otpDeadlines(otpCreatedAt),
   };
 };
 
@@ -377,12 +389,13 @@ export const verifyOtp = async (
   const rawResetToken = generateSecureToken();
   const tokenHash = hashToken(rawResetToken);
 
+  const resetTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
   await prisma.passwordResetSession.create({
     data: {
       userId: dbUser.id,
       email: dbUser.email,
       tokenHash,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000), // 15 minutes
+      expiresAt: resetTokenExpiresAt,
       isUsed: false,
     },
   });
@@ -392,6 +405,7 @@ export const verifyOtp = async (
   return {
     message: "Verification successful.",
     resetToken: rawResetToken,
+    resetTokenExpiresAt: resetTokenExpiresAt.toISOString(),
   };
 };
 
@@ -438,6 +452,7 @@ export const resendOtp = async (
         message: resolved.isPhone
           ? "If an account exists for this mobile number, a new verification code has been sent via SMS."
           : "If an account exists for this email, a new verification code has been sent.",
+        ...otpDeadlines(new Date()),
       };
     }
   }
@@ -451,6 +466,7 @@ export const resendOtp = async (
   const plainOtp = generateNumericOtp();
   const otpHash = hashOtp(plainOtp);
 
+  const otpCreatedAt = new Date();
   await prisma.authOtp.create({
     data: {
       email: canonicalEmail,
@@ -458,7 +474,8 @@ export const resendOtp = async (
       purpose,
       attempts: 0,
       maxAttempts: 5,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      createdAt: otpCreatedAt,
+      expiresAt: new Date(otpCreatedAt.getTime() + OTP_TTL_MS),
       isUsed: false,
     },
   });
@@ -485,6 +502,7 @@ export const resendOtp = async (
     message: resolved.isPhone
       ? "A new verification code has been sent to your mobile number via SMS."
       : "A new verification code has been sent to your email.",
+    ...otpDeadlines(otpCreatedAt),
   };
 };
 
@@ -695,10 +713,13 @@ export const logoutUser = async (token?: string, userId?: string, reason?: "idle
 
 export const requestPasswordReset = async (emailOrPhone: string) => {
   const resolved = resolveAuthIdentifier(emailOrPhone);
+  // One timestamp for the reply and the OTP row, so known and unknown accounts get the same shape.
+  const otpCreatedAt = new Date();
   const GENERIC_RESPONSE = {
     message: resolved.isPhone
       ? "If an account exists for this mobile number, a 6-digit verification code has been sent via SMS."
       : "If an account exists for this email, a 6-digit verification code has been sent.",
+    ...otpDeadlines(otpCreatedAt),
   };
 
   try {
@@ -740,7 +761,8 @@ export const requestPasswordReset = async (emailOrPhone: string) => {
         purpose: "PASSWORD_RESET",
         attempts: 0,
         maxAttempts: 5,
-        expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+        createdAt: otpCreatedAt,
+        expiresAt: new Date(otpCreatedAt.getTime() + OTP_TTL_MS),
         isUsed: false,
       },
     });
@@ -828,6 +850,17 @@ export const resetUserPassword = async (token: string, newPassword: string) => {
   logAudit(userId, "PASSWORD_RESET_COMPLETED", "User", userId, {});
 
   return { message: "Password has been reset successfully. You can now log in." };
+};
+
+/** Lets the reset-link page show how long the token has left. Same validity rule as resetUserPassword. */
+export const getResetSessionStatus = async (token: string) => {
+  const session = await prisma.passwordResetSession.findFirst({
+    where: { tokenHash: hashToken(token), isUsed: false },
+  });
+  if (!session || new Date(session.expiresAt).getTime() <= Date.now()) {
+    throw new Error("Invalid or expired password reset session");
+  }
+  return { expiresAt: new Date(session.expiresAt).toISOString() };
 };
 
 export const changeUserPassword = async (
@@ -1045,7 +1078,7 @@ export const setupAccount = async (token: string, newPassword: string) => {
 // ---------------------------------------------------------------------------
 
 const CLAIM_SESSION_MS = 15 * 60 * 1000;
-const CLAIM_COOLDOWN_MS = 60 * 1000;
+const CLAIM_COOLDOWN_MS = RESEND_COOLDOWN_MS;
 const CLAIM_START_MESSAGE = "A verification code has been sent by SMS.";
 const CLAIM_BAD_CODE = "Invalid or expired verification code. Please request a new one.";
 const CLAIM_BAD_SESSION = "This claim session has expired. Please start again.";
@@ -1055,7 +1088,7 @@ const findClaimableUser = async (phoneE164: string) => {
   return user && user.isActive && user.role === "APPLICANT" && user.accountStatus === "WALK_IN" ? user : null;
 };
 
-const issueClaimOtp = async (key: string, purpose: string): Promise<string | null> => {
+const issueClaimOtp = async (key: string, purpose: string): Promise<{ code: string; expiresAt: string; resendAvailableAt: string } | null> => {
   const latest = await prisma.authOtp.findFirst({ where: { email: key, purpose }, orderBy: { createdAt: "desc" } });
   if (latest && !(await getSecurityControls()).rateLimitDisabled &&
       Date.now() - new Date(latest.createdAt).getTime() < CLAIM_COOLDOWN_MS) {
@@ -1063,6 +1096,7 @@ const issueClaimOtp = async (key: string, purpose: string): Promise<string | nul
   }
   await prisma.authOtp.updateMany({ where: { email: key, purpose, isUsed: false }, data: { isUsed: true } });
   const plain = generateNumericOtp();
+  const createdAt = new Date();
   await prisma.authOtp.create({
     data: {
       email: key,
@@ -1070,11 +1104,12 @@ const issueClaimOtp = async (key: string, purpose: string): Promise<string | nul
       purpose,
       attempts: 0,
       maxAttempts: 5,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      createdAt,
+      expiresAt: new Date(createdAt.getTime() + OTP_TTL_MS),
       isUsed: false,
     },
   });
-  return plain;
+  return { code: plain, ...otpDeadlines(createdAt) };
 };
 
 /** Checks a 6-digit code against the newest unused row and uses it up. Every failure reads the same. */
@@ -1116,8 +1151,9 @@ export const startAccountClaim = async (phone: string) => {
     }
     throw new ClaimError("No MEGS office account was found for this mobile number. Check the number, or ask the recruiter who encoded your application.", 404);
   }
-  const code = await issueClaimOtp(user.email, "ACCOUNT_CLAIM");
-  if (!code) throw new ClaimError("A code was sent less than a minute ago. Please wait before requesting another.", 429);
+  const issued = await issueClaimOtp(user.email, "ACCOUNT_CLAIM");
+  if (!issued) throw new ClaimError("A code was sent less than a minute ago. Please wait before requesting another.", 429);
+  const { code, ...deadlines } = issued;
   if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
     console.log(`[DEV OTP] ACCOUNT_CLAIM SMS code generated for ${maskPhoneNumber(phoneE164)}: ${code}`);
   }
@@ -1127,7 +1163,7 @@ export const startAccountClaim = async (phone: string) => {
     await prisma.authOtp.deleteMany({ where: { email: user.email, purpose: "ACCOUNT_CLAIM", isUsed: false } });
     throw new ClaimError("We could not send the SMS code right now. Please try again in a few minutes.", 424);
   }
-  return { message: CLAIM_START_MESSAGE };
+  return { message: CLAIM_START_MESSAGE, ...deadlines };
 };
 
 /** Step 2. Trades the SMS code for a claim token that lasts 15 minutes. */
@@ -1141,6 +1177,7 @@ export const verifyAccountClaim = async (phone: string, otp: string) => {
     data: { isUsed: true },
   });
   const claimToken = generateSecureToken();
+  const claimExpiresAt = new Date(Date.now() + CLAIM_SESSION_MS);
   await prisma.authOtp.create({
     data: {
       email: user.email,
@@ -1148,11 +1185,11 @@ export const verifyAccountClaim = async (phone: string, otp: string) => {
       purpose: "ACCOUNT_CLAIM_SESSION",
       attempts: 0,
       maxAttempts: 1,
-      expiresAt: new Date(Date.now() + CLAIM_SESSION_MS),
+      expiresAt: claimExpiresAt,
       isUsed: false,
     },
   });
-  return { claimToken };
+  return { claimToken, claimExpiresAt: claimExpiresAt.toISOString() };
 };
 
 /** Optional step 3. Emails a code to the address the applicant wants on the account. */
@@ -1164,13 +1201,14 @@ export const sendAccountClaimEmailCode = async (claimToken: string, email: strin
   if (taken && taken.id !== user.id) {
     throw new ClaimError("This email is already used by another account.", 409);
   }
-  const code = await issueClaimOtp(address, "ACCOUNT_CLAIM_EMAIL");
-  if (!code) throw new ClaimError("Please wait a minute before requesting another code.", 429);
+  const issued = await issueClaimOtp(address, "ACCOUNT_CLAIM_EMAIL");
+  if (!issued) throw new ClaimError("Please wait a minute before requesting another code.", 429);
+  const { code, ...deadlines } = issued;
   if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
     console.log(`[DEV OTP] ACCOUNT_CLAIM_EMAIL code generated for ${maskEmail(address)}.`);
   }
   await sendRegistrationOtpEmail(address, code);
-  return { message: "A 6-digit code has been sent to your email." };
+  return { message: "A 6-digit code has been sent to your email.", ...deadlines };
 };
 
 /** Step 4. Sets the password (and the email, once its code checks out) and activates the account. */

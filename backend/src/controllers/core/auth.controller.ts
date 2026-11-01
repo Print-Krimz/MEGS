@@ -11,6 +11,7 @@ import {
   logoutUser,
   requestPasswordReset,
   resetUserPassword,
+  getResetSessionStatus,
   changeUserPassword,
   setupAccount as setupAccountService,
   getInvitationDetails as getInvitationDetailsService,
@@ -139,6 +140,16 @@ export const resetPassword = async (req: Request, res: Response): Promise<void> 
   try {
     const result = await resetUserPassword(token, password);
     sendSuccess(res, result.message, null);
+  } catch (error: any) {
+    sendError(res, error.message, 400);
+  }
+};
+
+// POST /api/auth/reset-session-status - Tells the reset-link page when its token expires
+export const resetSessionStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await getResetSessionStatus(req.body.token);
+    sendSuccess(res, "Reset session is active.", result);
   } catch (error: any) {
     sendError(res, error.message, 400);
   }
