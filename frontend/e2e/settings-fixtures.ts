@@ -33,8 +33,8 @@ export interface SettingsBrowserFixture {
   settingsGetStatus: number;
   profilePatchStatus: number;
   mfa: { required: boolean; enrolled: boolean | null } | null;
-  holdSettingsGet: { userId: string; promise: Promise<void> } | null;
-  holdProfilePatch: { userId: string; promise: Promise<void> } | null;
+  holdSettingsGet: { userId: string; promise: Promise<void>; settled: () => void } | null;
+  holdProfilePatch: { userId: string; promise: Promise<void>; settled: () => void } | null;
 }
 
 export function createSettingsUser(role: SettingsRole, id = `settings-${role.toLowerCase()}`): SettingsUser {
@@ -189,26 +189,30 @@ export async function installSettingsFixture(
     }
     if (path === "/api/settings" && request.method() === "GET") {
       fixture.settingsRequests.push(call);
-      if (fixture.holdSettingsGet?.userId === user.id) await fixture.holdSettingsGet.promise;
-      if (fixture.settingsGetStatus >= 400) return fulfill(null, fixture.settingsGetStatus);
-      return fulfill({
-        account: {
-          id: user.id,
-          role: user.role,
-          name: accountName(user),
-          email: user.email,
-          phoneNumber: user.phoneNumber,
-        },
-        mfa: fixture.mfa,
-      });
+      const held = fixture.holdSettingsGet?.userId === user.id ? fixture.holdSettingsGet : null;
+      try {
+        if (held) await held.promise;
+        if (fixture.settingsGetStatus >= 400) return await fulfill(null, fixture.settingsGetStatus);
+        return await fulfill({
+          account: { id: user.id, role: user.role, name: accountName(user), email: user.email, phoneNumber: user.phoneNumber },
+          mfa: fixture.mfa,
+        });
+      } finally {
+        held?.settled();
+      }
     }
     if (path === "/api/settings/profile" && request.method() === "PATCH") {
       fixture.settingsRequests.push(call);
-      if (fixture.holdProfilePatch?.userId === user.id) await fixture.holdProfilePatch.promise;
-      if (fixture.profilePatchStatus >= 400) return fulfill(null, fixture.profilePatchStatus);
-      const displayName = (body as { displayName?: string } | null)?.displayName;
-      if (typeof displayName === "string") user.displayName = displayName;
-      return fulfill({ displayName: user.displayName });
+      const held = fixture.holdProfilePatch?.userId === user.id ? fixture.holdProfilePatch : null;
+      try {
+        if (held) await held.promise;
+        if (fixture.profilePatchStatus >= 400) return await fulfill(null, fixture.profilePatchStatus);
+        const displayName = (body as { displayName?: string } | null)?.displayName;
+        if (typeof displayName === "string") user.displayName = displayName;
+        return await fulfill({ displayName: user.displayName });
+      } finally {
+        held?.settled();
+      }
     }
     if (path === "/api/auth/change-password/code" && request.method() === "POST") {
       const now = Date.now();

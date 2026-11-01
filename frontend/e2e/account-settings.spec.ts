@@ -86,17 +86,26 @@ for (const kind of ["GET", "PATCH"] as const) test(`account swap while ${kind} i
   const f = await installSettingsFixture(page, "TALENT_ACQUISITION");
   const second = createSettingsUser("TALENT_ACQUISITION", "settings-second"); second.displayName = "Second User"; second.email = "second@example.test"; f.users.set(second.id, second);
   let release!: () => void; const gate = new Promise<void>((resolve) => { release = resolve; });
-  if (kind === "GET") f.holdSettingsGet = { userId: f.initialUser.id, promise: gate };
+  let markSettled!: () => void; const settled = new Promise<void>((resolve) => { markSettled = resolve; });
+  if (kind === "GET") f.holdSettingsGet = { userId: f.initialUser.id, promise: gate, settled: markSettled };
   await open(page);
   if (kind === "PATCH") {
-    await page.getByRole("textbox", { name: "Full name" }).fill("Old Draft"); f.holdProfilePatch = { userId: f.initialUser.id, promise: gate };
+    await page.getByRole("textbox", { name: "Full name" }).fill("Old Draft"); f.holdProfilePatch = { userId: f.initialUser.id, promise: gate, settled: markSettled };
     await page.getByRole("button", { name: "Save changes" }).click();
   }
   await expect.poll(() => f.settingsRequests.some((c) => c.method === kind)).toBeTruthy();
   await switchAccount(page, mockAccessToken(second));
   await expect(page.getByRole("textbox", { name: "Full name" })).toHaveValue("Second User");
-  release(); await expect(page.getByText("second@example.test")).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "Full name" })).toHaveValue("Second User"); if (kind === "PATCH") await expect.poll(() => f.consoleErrors).toContain("[Mutation Cache Error]: AbortError: Session changed"); clean(f, kind === "PATCH" ? "ABORT" : null);
+  const name = page.getByRole("textbox", { name: "Full name" });
+  await name.fill("Second Draft");
+  const meCalls = f.calls.filter((c) => c.path === "/api/me").length;
+  release(); await settled;
+  if (kind === "PATCH") await expect.poll(() => f.consoleErrors).toContain("[Mutation Cache Error]: AbortError: Session changed");
+  await expect(page.getByText("second@example.test")).toBeVisible();
+  await expect(name).toHaveValue("Second Draft");
+  await expect(page.getByText("Name saved.")).toHaveCount(0);
+  expect(f.calls.filter((c) => c.path === "/api/me")).toHaveLength(meCalls);
+  clean(f, kind === "PATCH" ? "ABORT" : null);
 });
 test("guards redirect wrong role and unauthenticated visitors", async ({ browser }) => {
   for (const authenticated of [true, false]) {
