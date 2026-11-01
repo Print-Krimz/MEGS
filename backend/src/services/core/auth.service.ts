@@ -42,7 +42,7 @@ interface ResolvedAuthIdentifier {
   email: string;
 }
 
-const resolveAuthIdentifier = (identifier: string): ResolvedAuthIdentifier => {
+export const resolveAuthIdentifier = (identifier: string): ResolvedAuthIdentifier => {
   const clean = identifier.trim();
   if (isPhilippinePhone(clean)) {
     const phoneE164 = normalizeToE164(clean);
@@ -76,7 +76,7 @@ const resolveAuthIdentifier = (identifier: string): ResolvedAuthIdentifier => {
   };
 };
 
-const findUserByIdentifier = async (resolved: ResolvedAuthIdentifier) => {
+export const findUserByIdentifier = async (resolved: ResolvedAuthIdentifier) => {
   if (resolved.isPhone && resolved.phoneE164) {
     const userByPhone = await prisma.user.findUnique({
       where: { phoneNumber: resolved.phoneE164 },
@@ -1083,7 +1083,7 @@ const CLAIM_START_MESSAGE = "A verification code has been sent by SMS.";
 const CLAIM_BAD_CODE = "Invalid or expired verification code. Please request a new one.";
 const CLAIM_BAD_SESSION = "This claim session has expired. Please start again.";
 
-const findClaimableUser = async (phoneE164: string) => {
+export const findClaimableUser = async (phoneE164: string) => {
   const user = await prisma.user.findFirst({ where: { phoneNumber: { in: phoneVariants(phoneE164) } } });
   return user && user.isActive && user.role === "APPLICANT" && user.accountStatus === "WALK_IN" ? user : null;
 };

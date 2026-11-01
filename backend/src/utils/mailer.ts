@@ -156,7 +156,7 @@ const COMPANY = {
   compliance: "DOLE D.O. 174-17 & D.O. 40-03 Compliant",
 };
 
-const getAppBaseUrl = (): string =>
+export const getAppBaseUrl = (): string =>
   (process.env.APP_URL || process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, "");
 
 // The logo is a public frontend asset. Brevo's API has no inline (CID) images, and a
