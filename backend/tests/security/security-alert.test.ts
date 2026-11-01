@@ -260,6 +260,16 @@ describe("security alerts and change-password code", () => {
       expect(mocks.auditCreate).not.toHaveBeenCalled();
     });
 
+    it("does nothing for a registration still waiting for verification", async () => {
+      useUsers({ ...USER_REAL, accountStatus: "PENDING_VERIFICATION" });
+
+      await notifySecurityEvent({ userId: "user-real" }, "CODE_LOCKOUT");
+
+      expect(mocks.sendMail).not.toHaveBeenCalled();
+      expect(mocks.sendSms).not.toHaveBeenCalled();
+      expect(mocks.auditCreate).not.toHaveBeenCalled();
+    });
+
     it("does nothing for an unknown identifier", async () => {
       useUsers(USER_REAL);
 
@@ -444,6 +454,16 @@ describe("security alerts and change-password code", () => {
       expect(mocks.sendSms.mock.calls[0][0]).toBe("+639171234567");
       expect(mocks.sendSms.mock.calls[0][1]).toMatch(/password change code is \d{6}/);
       expect(result.sentTo).toBe("0917****567");
+    });
+
+    it("reports a failed text instead of claiming the code was sent", async () => {
+      useUsers(USER_PHONE);
+      mocks.sendSms.mockResolvedValue({ success: false, error: "TEXTBEE_API_KEY not configured" });
+
+      await expect(requestPasswordChangeCode("user-phone")).rejects.toThrow(
+        "Failed to deliver the verification code. Please try again later."
+      );
+      expect(mocks.auditCreate).not.toHaveBeenCalled();
     });
   });
 });

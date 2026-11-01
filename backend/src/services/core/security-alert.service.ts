@@ -80,7 +80,8 @@ export const notifySecurityEvent = async (
     const user = "userId" in target
       ? await prisma.user.findUnique({ where: { id: target.userId } })
       : await findUserByIdentifier(resolveAuthIdentifier(target.identifier));
-    if (!user || !user.isActive) return;
+    // A PENDING_VERIFICATION row is the registration in progress, not an existing account.
+    if (!user || !user.isActive || user.accountStatus === "PENDING_VERIFICATION") return;
 
     const credential = CREDENTIAL_EVENTS.includes(event);
     if (!credential) {

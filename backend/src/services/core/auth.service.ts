@@ -929,7 +929,9 @@ export const requestPasswordChangeCode = async (userId: string) => {
   const channel = phone ? "sms" : "email";
   try {
     if (phone) {
-      await sendSmsViaTextBee(phone, `Your MEGS password change code is ${plainOtp}. Valid for 10 minutes.`);
+      // TextBee reports failure in its result instead of throwing.
+      const sms = await sendSmsViaTextBee(phone, `Your MEGS password change code is ${plainOtp}. Valid for 10 minutes.`);
+      if (!sms.success) throw new Error(sms.error || "SMS delivery failed");
       sentTo = maskPhoneNumber(phone);
     } else {
       const html = renderBrandedEmail({
