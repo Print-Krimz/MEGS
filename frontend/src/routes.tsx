@@ -31,6 +31,7 @@ const RouteErrorPage = lazyRouteComponent(() => import("./components/common/Stat
 const NotFoundPage = lazyRouteComponent(() => import("./pages/common/NotFoundPage"), "NotFoundPage");
 const ForbiddenPage = lazyRouteComponent(() => import("./pages/common/ForbiddenPage"), "ForbiddenPage");
 const ChangePasswordPage = lazyRouteComponent(() => import("./pages/common/ChangePasswordPage"), "ChangePasswordPage");
+const SettingsPage = lazyRouteComponent(() => import("./pages/common/SettingsPage"), "SettingsPage");
 
 const LoginPage = lazyRouteComponent(() => import("./pages/auth/LoginPage"), "LoginPage");
 const RegisterPage = lazyRouteComponent(() => import("./pages/auth/RegisterPage"), "RegisterPage");
@@ -317,6 +318,12 @@ export const applicantProfileRoute = createRoute({
   component: ProfilePage,
 });
 
+export const applicantSettingsRoute = createRoute({
+  getParentRoute: () => applicantLayoutRoute,
+  path: "/app/settings",
+  component: SettingsPage,
+});
+
 export const applicantDocumentsRoute = createRoute({ getParentRoute: () => applicantLayoutRoute, path: "/app/documents", component: MyDocumentsPage });
 
 export const applicantNotificationsRoute = createRoute({
@@ -420,6 +427,12 @@ export const taDashboardRoute = createRoute({
   getParentRoute: () => taLayoutRoute,
   path: "/ta",
   component: TADashboard,
+});
+
+export const taSettingsRoute = createRoute({
+  getParentRoute: () => taLayoutRoute,
+  path: "/ta/settings",
+  component: SettingsPage,
 });
 
 export const taApplicationsRoute = createRoute({
@@ -624,6 +637,12 @@ export const adminDashboardRoute = createRoute({
   component: AdminDashboard,
 });
 
+export const adminSettingsRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: "/admin/settings",
+  component: SettingsPage,
+});
+
 export const adminAnalyticsRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/admin/analytics",
@@ -716,12 +735,14 @@ const routeTree = rootRoute.addChildren([
     applicantApplicationsRoute,
     applicantApplicationDetailRoute,
     applicantProfileRoute,
+    applicantSettingsRoute,
     applicantNotificationsRoute,
     applicantDocumentsRoute,
     applicantInvitationsRoute,
   ]),
   taLayoutRoute.addChildren([
     taDashboardRoute,
+    taSettingsRoute,
     taApplicationsRoute,
     taApplicationDetailRoute,
     taJobsRoute,
@@ -745,6 +766,7 @@ const routeTree = rootRoute.addChildren([
   ]),
   adminLayoutRoute.addChildren([
     adminDashboardRoute,
+    adminSettingsRoute,
     adminAnalyticsRoute,
     adminUsersRoute,
     adminScoringRoute,

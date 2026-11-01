@@ -1,11 +1,11 @@
-import React, { lazy, Suspense, useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Link, Outlet } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   Briefcase,
   FileText,
   User,
-  Shield,
+  Settings,
   LogOut,
   Layers,
   Menu,
@@ -20,16 +20,11 @@ import { applicantApi } from "../lib/api/applicant.api";
 
 import { normalizeTitleCase } from "../lib/text-case";
 
-const ChangePasswordModal = lazy(() =>
-  import("../components/common/ChangePasswordModal").then((m) => ({ default: m.ChangePasswordModal })),
-);
-
 export const ApplicantLayout: React.FC = () => {
   const { user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
-  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const accountButtonRef = useRef<HTMLButtonElement>(null);
@@ -282,7 +277,7 @@ export const ApplicantLayout: React.FC = () => {
                         tabIndex={0}
                         ref={(el) => { menuItemsRef.current[0] = el; }}
                         onClick={() => setAccountMenuOpen(false)}
-                        className="flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-900 hover:bg-slate-100 hover:text-slate-900 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                        className="min-h-11 flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-900 hover:bg-slate-100 hover:text-slate-900 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
                       >
                         <User className="w-4 h-4 text-slate-500 shrink-0" />
                         <div className="flex flex-col text-left">
@@ -291,25 +286,23 @@ export const ApplicantLayout: React.FC = () => {
                         </div>
                       </Link>
 
-                      <button
-                        type="button"
+                      <Link
+                        to="/app/settings"
                         role="menuitem"
                         tabIndex={0}
                         ref={(el) => { menuItemsRef.current[1] = el; }}
                         onClick={() => {
-                          // Focus the trigger first: the menu item unmounts, and the dialog returns focus to whatever was focused when it opened.
                           accountButtonRef.current?.focus();
                           setAccountMenuOpen(false);
-                          setShowChangePasswordModal(true);
                         }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-900 hover:bg-slate-100 hover:text-slate-900 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 text-left cursor-pointer"
+                        className="min-h-11 flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-900 hover:bg-slate-100 hover:text-slate-900 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
                       >
-                        <Shield className="w-4 h-4 text-slate-500 shrink-0" />
+                        <Settings className="w-4 h-4 text-slate-500 shrink-0" aria-hidden="true" />
                         <div className="flex flex-col text-left">
-                          <span className="font-semibold text-slate-900">Account Security</span>
-                          <span className="text-xs text-slate-500 font-normal">Password & login protection</span>
+                          <span className="font-semibold text-slate-900">Settings</span>
+                          <span className="text-xs text-slate-500 font-normal">Account and security</span>
                         </div>
-                      </button>
+                      </Link>
                     </div>
 
                     {/* Sign Out Action */}
@@ -324,7 +317,7 @@ export const ApplicantLayout: React.FC = () => {
                           setAccountMenuOpen(false);
                           setShowSignOutConfirm(true);
                         }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 hover:text-rose-900 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 cursor-pointer"
+                        className="min-h-11 w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 hover:text-rose-900 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 cursor-pointer"
                       >
                         <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
                         <div className="flex flex-col text-left">
@@ -373,13 +366,6 @@ export const ApplicantLayout: React.FC = () => {
         open={showSignOutConfirm}
         onClose={() => setShowSignOutConfirm(false)}
       />
-
-      {/* Account Security / Change Password Dialog */}
-      {showChangePasswordModal && (
-        <Suspense fallback={null}>
-          <ChangePasswordModal open onClose={() => setShowChangePasswordModal(false)} />
-        </Suspense>
-      )}
 
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-6 px-4 text-center text-xs text-slate-500">

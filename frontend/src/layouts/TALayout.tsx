@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import {
   LayoutDashboard,
@@ -15,7 +15,7 @@ import {
   Menu,
   X,
   ChevronDown,
-  Shield,
+  Settings,
   // UserSearch,
   FileCheck2,
   type LucideIcon,
@@ -26,16 +26,13 @@ import { useRealtimeNotifications } from "../hooks/useRealtimeNotifications";
 import { useIdleSignOut } from "../hooks/useIdleSignOut";
 import { IdleWarningDialog, NotificationBell, RealtimeToastContainer, SignOutDialog } from "../components/common";
 import { getInitials } from "../lib/utils";
+import { resolveUserName } from "../lib/user-name";
 import { Role } from "../lib/types/enums";
 import { TA_COPY } from "../lib/ta-copy";
 import { taApi } from "../lib/api/ta.api";
 import { REFERENCE_QUERY_STALE_TIME_MS } from "../lib/query-policies";
 import { employeesApi } from "../lib/api/employees.api";
 import { TAGlobalSearch } from "./TAGlobalSearch";
-
-const ChangePasswordModal = lazy(() =>
-  import("../components/common/ChangePasswordModal").then((m) => ({ default: m.ChangePasswordModal })),
-);
 
 interface NavItem {
   to: string;
@@ -147,7 +144,6 @@ export const TALayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
-  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const accountButtonRef = useRef<HTMLButtonElement>(null);
@@ -166,10 +162,11 @@ export const TALayout: React.FC = () => {
     handleToastClick,
   } = useRealtimeNotifications({ recentEnabled: bellOpen });
 
-  const profile = user?.applicantProfile;
-  const hasProfileName = Boolean(profile?.firstName && profile?.lastName);
-  const fullName = hasProfileName ? `${profile!.firstName} ${profile!.lastName}` : user?.email || "Recruiter";
-  const initials = getInitials(profile?.firstName, profile?.lastName) || "TA";
+  const actualName = resolveUserName(user, "");
+  const hasActualName = Boolean(actualName);
+  const fullName = actualName || user?.email || "Recruiter";
+  const [firstName, ...lastNames] = actualName.split(/\s+/);
+  const initials = hasActualName ? getInitials(firstName, lastNames.join(" ")) : "TA";
 
   // Every close path returns focus to the trigger so keyboard users never land on <body>.
   const closeAccountMenu = () => {
@@ -535,19 +532,9 @@ export const TALayout: React.FC = () => {
                         {initials}
                       </div>
                       <div className="overflow-hidden min-w-0">
-                        {hasProfileName ? (
-                          <>
-                            <div className="text-xs font-bold text-slate-900 truncate">
-                              {fullName}
-                            </div>
-                            <div className="text-[11px] text-slate-600 truncate">
-                              {user?.email}
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-xs font-semibold text-slate-900 truncate">
-                            {user?.email}
-                          </div>
+                        <div className="text-xs font-bold text-slate-900 truncate">{fullName}</div>
+                        {hasActualName && user?.email && (
+                          <div className="text-[11px] text-slate-600 truncate">{user.email}</div>
                         )}
                       </div>
                     </div>
@@ -560,20 +547,17 @@ export const TALayout: React.FC = () => {
 
                   {/* Navigation & Action Items */}
                   <div className="py-1">
-                    <button
-                      type="button"
+                    <Link
+                      to="/ta/settings"
                       role="menuitem"
                       tabIndex={0}
                       ref={(el) => { menuItemsRef.current[0] = el; }}
-                      onClick={() => {
-                        closeAccountMenu();
-                        setShowChangePasswordModal(true);
-                      }}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950 transition-colors focus-visible:outline-none focus-visible:bg-slate-100 focus-visible:text-slate-950 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus text-left cursor-pointer"
+                      onClick={closeAccountMenu}
+                      className="min-h-11 flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950 transition-colors focus-visible:outline-none focus-visible:bg-slate-100 focus-visible:text-slate-950 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
                     >
-                      <Shield className="w-4 h-4 text-slate-500 shrink-0" />
-                      <span className="text-slate-900 font-medium">Change password</span>
-                    </button>
+                      <Settings className="w-4 h-4 text-slate-500 shrink-0" aria-hidden="true" />
+                      <span className="text-slate-900 font-medium">Settings</span>
+                    </Link>
                   </div>
 
                   {/* Sign Out Action */}
@@ -587,7 +571,7 @@ export const TALayout: React.FC = () => {
                         closeAccountMenu();
                         setShowSignOutConfirm(true);
                       }}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 hover:text-rose-900 transition-colors focus-visible:outline-none focus-visible:bg-rose-50 focus-visible:text-rose-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus text-left cursor-pointer"
+                      className="min-h-11 w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 hover:text-rose-900 transition-colors focus-visible:outline-none focus-visible:bg-rose-50 focus-visible:text-rose-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus text-left cursor-pointer"
                     >
                       <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
                       <span className="text-rose-900 font-medium">Sign out</span>
@@ -598,13 +582,6 @@ export const TALayout: React.FC = () => {
             </div>
           </div>
         </header>
-
-        {/* Account Security / Change Password Dialog */}
-        {showChangePasswordModal && (
-          <Suspense fallback={null}>
-            <ChangePasswordModal open onClose={() => setShowChangePasswordModal(false)} />
-          </Suspense>
-        )}
 
         {/* Content Container */}
         <main id="ta-main-content" className="flex-1 p-3 sm:p-5 lg:p-6 max-w-[1600px] w-full mx-auto min-w-0">

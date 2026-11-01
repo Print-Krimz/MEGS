@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Link, Outlet } from "@tanstack/react-router";
 import {
   ShieldAlert,
@@ -11,7 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ChevronDown,
-  Shield,
+  Settings,
   Menu,
   X,
   Database,
@@ -26,11 +26,8 @@ import {
   SignOutDialog,
 } from "../components/common";
 import { getInitials } from "../lib/utils";
+import { resolveUserName } from "../lib/user-name";
 import "./admin.css";
-
-const ChangePasswordModal = lazy(() =>
-  import("../components/common/ChangePasswordModal").then((m) => ({ default: m.ChangePasswordModal })),
-);
 
 interface NavSection {
   label: string;
@@ -81,11 +78,10 @@ export const AdminLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
 
   const accountMenuRef = useRef<HTMLDivElement>(null);
   const accountButtonRef = useRef<HTMLButtonElement>(null);
-  const menuItemsRef = useRef<(HTMLButtonElement | null)[]>([]);
+  const menuItemsRef = useRef<(HTMLAnchorElement | HTMLButtonElement | null)[]>([]);
   const mobileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const mobileMenuRef = useRef<HTMLElement>(null);
 
@@ -100,10 +96,11 @@ export const AdminLayout: React.FC = () => {
     handleToastClick,
   } = useRealtimeNotifications({ recentEnabled: bellOpen });
 
-  const profile = user?.applicantProfile;
-  const hasProfileName = Boolean(profile?.firstName && profile?.lastName);
-  const fullName = hasProfileName ? `${profile!.firstName} ${profile!.lastName}` : user?.email || "Administrator";
-  const initials = getInitials(profile?.firstName, profile?.lastName) || "AD";
+  const actualName = resolveUserName(user, "");
+  const hasActualName = Boolean(actualName);
+  const fullName = actualName || user?.email || "Administrator";
+  const [firstName, ...lastNames] = actualName.split(/\s+/);
+  const initials = hasActualName ? getInitials(firstName, lastNames.join(" ")) : "AD";
 
   // Close account menu on click outside
   useEffect(() => {
@@ -397,7 +394,7 @@ export const AdminLayout: React.FC = () => {
                 </div>
                 <div className="hidden sm:block text-left leading-tight">
                   <div className="text-xs font-bold text-slate-900 truncate max-w-[140px]">
-                    {hasProfileName ? fullName : user?.email}
+                    {fullName}
                   </div>
                   <div className="text-xs text-slate-500 font-medium truncate max-w-[140px]">
                     Administrator
@@ -425,19 +422,9 @@ export const AdminLayout: React.FC = () => {
                         {initials}
                       </div>
                       <div className="overflow-hidden min-w-0">
-                        {hasProfileName ? (
-                          <>
-                            <div className="text-xs font-bold text-slate-900 truncate">
-                              {fullName}
-                            </div>
-                            <div className="text-[11px] text-slate-500 truncate">
-                              {user?.email}
-                            </div>
-                          </>
-                        ) : (
-                          <div className="text-xs font-semibold text-slate-900 truncate">
-                            {user?.email}
-                          </div>
+                        <div className="text-xs font-bold text-slate-900 truncate">{fullName}</div>
+                        {hasActualName && user?.email && (
+                          <div className="text-[11px] text-slate-500 truncate">{user.email}</div>
                         )}
                       </div>
                     </div>
@@ -450,20 +437,20 @@ export const AdminLayout: React.FC = () => {
 
                   {/* Navigation & Action Items */}
                   <div className="py-1">
-                    <button
-                      type="button"
+                    <Link
+                      to="/admin/settings"
                       role="menuitem"
                       tabIndex={0}
                       ref={(el) => { menuItemsRef.current[0] = el; }}
                       onClick={() => {
+                        accountButtonRef.current?.focus();
                         setAccountMenuOpen(false);
-                        setShowChangePasswordModal(true);
                       }}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950 transition-colors focus-visible:outline-none focus-visible:bg-slate-100 focus-visible:text-slate-950 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus text-left cursor-pointer"
+                      className="min-h-11 flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950 transition-colors focus-visible:outline-none focus-visible:bg-slate-100 focus-visible:text-slate-950 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
                     >
-                      <Shield className="w-4 h-4 text-slate-500 shrink-0" />
-                      <span className="text-slate-900 font-medium">Change password</span>
-                    </button>
+                      <Settings className="w-4 h-4 text-slate-500 shrink-0" aria-hidden="true" />
+                      <span className="text-slate-900 font-medium">Settings</span>
+                    </Link>
                   </div>
 
                   {/* Sign Out Action */}
@@ -477,7 +464,7 @@ export const AdminLayout: React.FC = () => {
                         setAccountMenuOpen(false);
                         setShowSignOutConfirm(true);
                       }}
-                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 hover:text-rose-900 transition-colors focus-visible:outline-none focus-visible:bg-rose-50 focus-visible:text-rose-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus text-left cursor-pointer"
+                      className="min-h-11 w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 hover:text-rose-900 transition-colors focus-visible:outline-none focus-visible:bg-rose-50 focus-visible:text-rose-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus text-left cursor-pointer"
                     >
                       <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
                       <span className="text-rose-900 font-medium">Sign out</span>
@@ -488,13 +475,6 @@ export const AdminLayout: React.FC = () => {
             </div>
           </div>
         </header>
-
-        {/* Account Security / Change Password Dialog */}
-        {showChangePasswordModal && (
-          <Suspense fallback={null}>
-            <ChangePasswordModal open onClose={() => setShowChangePasswordModal(false)} />
-          </Suspense>
-        )}
 
         {/* Content Container */}
         <main id="admin-main-content" tabIndex={-1} className="flex-1 p-3 sm:p-5 lg:p-6 max-w-[1600px] w-full mx-auto min-w-0">
