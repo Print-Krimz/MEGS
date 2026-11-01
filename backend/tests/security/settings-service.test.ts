@@ -25,4 +25,3 @@ describe("settings service", () => {
   it("rejects concurrent demotion or deactivation", async () => { mocks.updateMany.mockResolvedValue({ count: 0 }); await expect(updateProfile("self", "New")).rejects.toThrow(); expect(mocks.audit).not.toHaveBeenCalled(); });
   it("audits actual changes using the self id", async () => { await updateProfile("self", "New"); expect(mocks.audit).toHaveBeenCalledWith({ data: expect.objectContaining({ userId: "self", details: JSON.stringify({ targetEntityId: "self", before: "Old", after: "New" }) }) }); });
 });
-
