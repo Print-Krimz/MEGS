@@ -33,6 +33,7 @@ import { ensureApplicantProfile } from '../applicant/applicant.service.js';
 import { isActiveAccount, isMfaEnforced } from '../../security/auth-policy.js';
 import { getSecurityControls } from '../../security/security-controls.js';
 import { safeLogError } from '../../security/errors.js';
+import { notifySecurityEvent } from './security-alert.service.js';
 
 interface ResolvedAuthIdentifier {
   raw: string;
@@ -301,6 +302,7 @@ export const verifyOtp = async (
       where: { id: activeOtp.id },
       data: { isUsed: true },
     });
+    if (dbUser) void notifySecurityEvent({ userId: dbUser.id }, "CODE_LOCKOUT").catch(console.error);
     throw new Error("Maximum verification attempts exceeded. Please request a new code.");
   }
 
@@ -327,6 +329,7 @@ export const verifyOtp = async (
         where: { id: activeOtp.id },
         data: { isUsed: true },
       });
+      if (dbUser) void notifySecurityEvent({ userId: dbUser.id }, "CODE_LOCKOUT").catch(console.error);
       throw new Error("Maximum verification attempts exceeded. Please request a new code.");
     }
     throw new Error(`Invalid verification code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`);
@@ -848,6 +851,7 @@ export const resetUserPassword = async (token: string, newPassword: string) => {
   if (updated.count !== 1) throw new Error("User account is invalid or deactivated.");
 
   logAudit(userId, "PASSWORD_RESET_COMPLETED", "User", userId, {});
+  void notifySecurityEvent({ userId }, "PASSWORD_RESET").catch(console.error);
 
   return { message: "Password has been reset successfully. You can now log in." };
 };

@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import prisma from "../../utils/prisma.js";
 import supabase from "../../utils/supabase.js";
 import { logAudit } from "../../utils/audit.js";
+import { notifySecurityEvent } from "./security-alert.service.js";
 
 const SUPABASE_URL = process.env.SUPABASE_URL || "";
 const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY || "";
@@ -236,6 +237,7 @@ export const verifyRecoveryCode = async (userId: string, plainRecoveryCode: stri
 
   if (!matchedCode) {
     logAudit(userId, "FAILED_MFA_RECOVERY_ATTEMPT", "User", userId, {});
+    void notifySecurityEvent({ userId }, "MFA_RECOVERY_FAILED").catch(console.error);
     throw new Error("Invalid or already used recovery code");
   }
 
@@ -260,6 +262,7 @@ export const verifyRecoveryCode = async (userId: string, plainRecoveryCode: stri
   });
 
   logAudit(userId, "MFA_RECOVERY_CODE_USED", "User", userId, { remainingCodes });
+  void notifySecurityEvent({ userId }, "MFA_RECOVERY_CODE_USED", { remainingCodes }).catch(console.error);
 
   return {
     valid: true,
@@ -311,6 +314,7 @@ export const resetUserMfa = async (targetUserId: string, adminId: string) => {
   logAudit(adminId, "MFA_RESET_BY_ADMIN", "User", targetUserId, {
     targetEmail: targetUser.email,
   });
+  void notifySecurityEvent({ userId: targetUserId }, "MFA_RESET_BY_ADMIN").catch(console.error);
 
   return {
     message: `Multi-Factor Authentication has been reset for ${targetUser.email}`,
