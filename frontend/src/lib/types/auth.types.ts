@@ -3,6 +3,7 @@ import type { Role } from "./enums";
 export interface User {
   id: string;
   email: string;
+  displayName?: string | null;
   phoneNumber?: string | null;
   role: Role;
   isActive: boolean;

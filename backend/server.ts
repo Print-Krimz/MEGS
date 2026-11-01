@@ -104,6 +104,9 @@ app.use("/api", (_req, res, next) => {
 
 app.use("/api/auth", authRoutes);
 
+import settingsRoutes from "./src/routes/core/settings.routes.js";
+app.use("/api/settings", settingsRoutes);
+
 import configRoutes from "./src/routes/core/config.routes.js";
 app.use("/api/config", configRoutes);
 
@@ -182,4 +185,3 @@ export default app;
 
 // Email worker polling loop decommissioned to prevent empty database queries
 // startEmailWorker();
-

@@ -63,6 +63,7 @@ export const verifyMfaEnrollmentHandler = async (req: Request, res: Response): P
       select: {
         id: true,
         email: true,
+        displayName: true,
         role: true,
         accountStatus: true,
         mustChangePassword: true,
@@ -105,6 +106,7 @@ export const verifyMfaLoginHandler = async (req: Request, res: Response): Promis
       select: {
         id: true,
         email: true,
+        displayName: true,
         role: true,
         accountStatus: true,
         mustChangePassword: true,
@@ -147,6 +149,7 @@ export const verifyMfaRecoveryHandler = async (req: Request, res: Response): Pro
       select: {
         id: true,
         email: true,
+        displayName: true,
         role: true,
         accountStatus: true,
         mustChangePassword: true,

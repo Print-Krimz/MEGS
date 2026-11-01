@@ -8,6 +8,7 @@ declare global {
       user?: {
         id: string;   // Supabase UUID
         email: string;
+        displayName?: string | null;
         role: string;
         mustChangePassword?: boolean;
         accountStatus?: string;

@@ -41,6 +41,7 @@ export const authenticateJWT = async (
       select: {
         id: true,
         email: true,
+        displayName: true,
         role: true,
         isActive: true,
         accountStatus: true,
@@ -73,6 +74,7 @@ export const authenticateJWT = async (
   req.user = {
     id: dbUser.id,
     email: dbUser.email,
+    displayName: dbUser.displayName,
     role: dbUser.role,
     mustChangePassword: dbUser.mustChangePassword,
     accountStatus: dbUser.accountStatus,

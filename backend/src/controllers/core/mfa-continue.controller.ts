@@ -16,7 +16,7 @@ export const continueWithoutMfa = async (req: Request, res: Response) => {
   catch { sendError(res, "Invalid or expired token", 401); return; }
   if (await isSessionRevoked(token)) { sendError(res, "Invalid or expired token", 401); return; }
   const user = await prisma.user.findUnique({ where: { id: claims.sub }, select: {
-    id: true, email: true, role: true, isActive: true, accountStatus: true, mustChangePassword: true,
+    id: true, email: true, displayName: true, role: true, isActive: true, accountStatus: true, mustChangePassword: true,
   } });
   if (!user || !isActiveAccount(user.isActive, user.accountStatus) || !STAFF_ROLES.has(user.role)) {
     sendError(res, "Account is not active", 403); return;

@@ -1,0 +1,11 @@
+import { Router } from "express";
+import { authenticateJWT, requireRole } from "../../middleware/auth.middleware.js";
+import { settingsLimiters } from "../../middleware/rate-limiter.middleware.js";
+import { validate } from "../../middleware/validate.middleware.js";
+import { settingsSchema } from "../../schemas/settings.schema.js";
+import { getSettingsHandler, updateProfileHandler } from "../../controllers/core/settings.controller.js";
+const router = Router();
+router.use(authenticateJWT, ...settingsLimiters);
+router.get("/", getSettingsHandler);
+router.patch("/profile", requireRole("ADMINISTRATOR", "TALENT_ACQUISITION"), validate(settingsSchema.profile), updateProfileHandler);
+export default router;

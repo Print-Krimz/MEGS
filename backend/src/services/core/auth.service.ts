@@ -538,6 +538,7 @@ export const loginUser = async (emailOrPhone: string, password: string, ip?: str
     select: {
       id: true,
       email: true,
+      displayName: true,
       phoneNumber: true,
       role: true,
       isActive: true,
@@ -598,6 +599,7 @@ export const loginUser = async (emailOrPhone: string, password: string, ip?: str
         user: {
           id: dbUser.id,
           email: dbUser.email,
+          displayName: dbUser.displayName,
           role: dbUser.role,
           accountStatus: dbUser.accountStatus,
           mustChangePassword: dbUser.mustChangePassword,
@@ -616,6 +618,7 @@ export const loginUser = async (emailOrPhone: string, password: string, ip?: str
       user: {
         id: dbUser.id,
         email: dbUser.email,
+        displayName: dbUser.displayName,
         role: dbUser.role,
         accountStatus: dbUser.accountStatus,
         mustChangePassword: dbUser.mustChangePassword,
@@ -640,6 +643,7 @@ export const loginUser = async (emailOrPhone: string, password: string, ip?: str
     user: {
       id: dbUser.id,
       email: dbUser.email,
+      displayName: dbUser.displayName,
       phoneNumber: dbUser.phoneNumber,
       role: dbUser.role,
       accountStatus: dbUser.accountStatus,
@@ -664,6 +668,7 @@ export const refreshUserSession = async (refreshToken: string) => {
     select: {
       id: true,
       email: true,
+      displayName: true,
       phoneNumber: true,
       role: true,
       isActive: true,
@@ -680,6 +685,7 @@ export const refreshUserSession = async (refreshToken: string) => {
     user: {
       id: dbUser.id,
       email: dbUser.email,
+      displayName: dbUser.displayName,
       phoneNumber: dbUser.phoneNumber,
       role: dbUser.role,
       accountStatus: dbUser.accountStatus,

@@ -141,3 +141,4 @@ export const streamFailureLimiter = rateLimit({
   skip: skipDisabled, skipSuccessfulRequests: true, standardHeaders: true, legacyHeaders: false, passOnStoreError: false,
   handler: rateLimitHandler("Too many requests. Please retry after the indicated delay.", 900),
 });
+export const settingsLimiters = operationLimiters("settings", 120, 2400, 15 * 60 * 1000);
