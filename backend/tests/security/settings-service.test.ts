@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ findUnique: vi.fn(), updateMany: vi.fn(), audit: vi.fn(), factors: vi.fn(), enforced: vi.fn() }));
-vi.mock("../../src/utils/prisma.js", () => ({ default: { user: { findUnique: mocks.findUnique, updateMany: mocks.updateMany } } }));
+vi.mock("../../src/utils/prisma.js", () => ({ default: { user: { findUnique: mocks.findUnique }, $transaction: (fn: any) => fn({ user: { updateMany: mocks.updateMany }, auditLog: { create: mocks.audit } }) } }));
 vi.mock("../../src/utils/audit.js", () => ({ logAudit: mocks.audit }));
 vi.mock("../../src/utils/supabase.js", () => ({ default: { auth: { admin: { mfa: { listFactors: mocks.factors } } } } }));
 vi.mock("../../src/security/auth-policy.js", () => ({ STAFF_ROLES: new Set(["ADMINISTRATOR", "TALENT_ACQUISITION"]), isMfaEnforced: mocks.enforced }));
@@ -23,6 +23,6 @@ describe("settings service", () => {
   });
   it("does not write or audit unchanged names", async () => { await updateProfile("self", "Old"); expect(mocks.updateMany).not.toHaveBeenCalled(); expect(mocks.audit).not.toHaveBeenCalled(); });
   it("rejects concurrent demotion or deactivation", async () => { mocks.updateMany.mockResolvedValue({ count: 0 }); await expect(updateProfile("self", "New")).rejects.toThrow(); expect(mocks.audit).not.toHaveBeenCalled(); });
-  it("audits actual changes using the self id", async () => { await updateProfile("self", "New"); expect(mocks.audit).toHaveBeenCalledWith("self", expect.any(String), "User", "self", expect.objectContaining({ before: "Old", after: "New" })); });
+  it("audits actual changes using the self id", async () => { await updateProfile("self", "New"); expect(mocks.audit).toHaveBeenCalledWith({ data: expect.objectContaining({ userId: "self", details: JSON.stringify({ targetEntityId: "self", before: "Old", after: "New" }) }) }); });
 });
 

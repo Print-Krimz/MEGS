@@ -1,7 +1,6 @@
 import prisma from "../../utils/prisma.js";
 import supabase from "../../utils/supabase.js";
 import { displayEmail } from "../../utils/display-email.js";
-import { logAudit } from "../../utils/audit.js";
 import { isMfaEnforced, STAFF_ROLES } from "../../security/auth-policy.js";
 
 export class SettingsAccessError extends Error {}
@@ -47,17 +46,26 @@ export const updateProfile = async (id: string, displayName: string) => {
   }
   if (user.displayName === displayName) return { displayName };
 
-  const updated = await prisma.user.updateMany({
-    where: {
-      id,
-      role: { in: ["ADMINISTRATOR", "TALENT_ACQUISITION"] },
-      isActive: true,
-      accountStatus: "ACTIVE",
-      displayName: user.displayName,
-    },
-    data: { displayName },
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.user.updateMany({
+      where: {
+        id,
+        role: { in: ["ADMINISTRATOR", "TALENT_ACQUISITION"] },
+        isActive: true,
+        accountStatus: "ACTIVE",
+        displayName: user.displayName,
+      },
+      data: { displayName },
+    });
+    if (updated.count !== 1) throw new SettingsAccessError("Account changed. Please try again.");
+    await tx.auditLog.create({
+      data: {
+        userId: id,
+        action: "STAFF_DISPLAY_NAME_UPDATED",
+        entity: "User",
+        details: JSON.stringify({ targetEntityId: id, before: user.displayName, after: displayName }),
+      },
+    });
   });
-  if (updated.count !== 1) throw new SettingsAccessError("Account changed. Please try again.");
-  await logAudit(id, "STAFF_DISPLAY_NAME_UPDATED", "User", id, { before: user.displayName, after: displayName });
   return { displayName };
 };
