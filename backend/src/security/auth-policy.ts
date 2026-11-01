@@ -10,7 +10,9 @@ export const isPasswordChangeAllowedRoute = (
   req: Pick<Request, "method" | "baseUrl" | "path">
 ): boolean => {
   const key = routeKey(req);
-  return key === "POST /api/auth/change-password" || key === "POST /api/auth/logout";
+  return key === "POST /api/auth/change-password" ||
+    key === "POST /api/auth/change-password/code" ||
+    key === "POST /api/auth/logout";
 };
 
 export const isStaffMfaExceptionRoute = (
