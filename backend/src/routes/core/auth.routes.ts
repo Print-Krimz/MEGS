@@ -10,6 +10,7 @@ import {
   resetPassword,
   resetSessionStatus,
   changePassword,
+  requestPasswordChangeCodeHandler,
   setupAccount,
   getInvitationDetails,
   claimStart,
@@ -34,6 +35,7 @@ import {
   authIpLimiter,
   authAccountLimiter,
   claimPhoneLimiter,
+  operationLimiters,
 } from '../../middleware/rate-limiter.middleware.js';
 import { verifyTurnstile } from '../../middleware/turnstile.middleware.js';
 
@@ -88,6 +90,12 @@ router.post(
 router.get("/mfa/status", authLimiter, getMfaStatusHandler);
 
 // Authenticated Endpoints
+router.post(
+  "/change-password/code",
+  authenticateJWT,
+  ...operationLimiters("password-change-code", 5, 50),
+  requestPasswordChangeCodeHandler
+);
 router.post(
   "/change-password",
   authenticateJWT,

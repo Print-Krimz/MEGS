@@ -108,6 +108,7 @@ export const authSchema = {
     body: z.object({
       currentPassword: z.string().min(1, "Current password is required").max(FIELD_LIMITS.password),
       newPassword: password("New password must be at least 8 characters long"),
+      otp: z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code"),
     }),
   }),
   setupAccount: z.object({

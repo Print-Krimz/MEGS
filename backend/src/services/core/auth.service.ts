@@ -5,7 +5,9 @@ import {
   sendMail,
   sendRegistrationOtpEmail,
   sendPasswordResetOtpEmail,
+  renderBrandedEmail,
 } from '../../utils/mailer.js';
+import { findSmsPhone } from '../../utils/notification.js';
 import {
   generateNumericOtp,
   hashOtp,
@@ -867,10 +869,130 @@ export const getResetSessionStatus = async (token: string) => {
   return { expiresAt: new Date(session.expiresAt).toISOString() };
 };
 
+// Sends a 6-digit code to the account's stored email (or stored phone when the email is a placeholder).
+export const requestPasswordChangeCode = async (userId: string) => {
+  const dbUser = await prisma.user.findUnique({ where: { id: userId } });
+  if (!dbUser || !isActiveAccount(dbUser.isActive, dbUser.accountStatus)) {
+    throw new Error("User account not found");
+  }
+
+  const otpCreatedAt = new Date();
+  const latestOtp = await prisma.authOtp.findFirst({
+    where: { email: dbUser.email, purpose: "PASSWORD_CHANGE" },
+    orderBy: { createdAt: "desc" },
+  });
+  if (latestOtp && !(await getSecurityControls()).rateLimitDisabled) {
+    const elapsed = Date.now() - new Date(latestOtp.createdAt).getTime();
+    if (elapsed < 60000) {
+      throw new Error(`Please wait ${Math.ceil((60000 - elapsed) / 1000)} seconds before requesting another code.`);
+    }
+  }
+
+  await prisma.authOtp.updateMany({
+    where: { email: dbUser.email, purpose: "PASSWORD_CHANGE", isUsed: false },
+    data: { isUsed: true },
+  });
+
+  const plainOtp = generateNumericOtp();
+  await prisma.authOtp.create({
+    data: {
+      email: dbUser.email,
+      otpHash: hashOtp(plainOtp),
+      purpose: "PASSWORD_CHANGE",
+      attempts: 0,
+      maxAttempts: 5,
+      createdAt: otpCreatedAt,
+      expiresAt: new Date(otpCreatedAt.getTime() + OTP_TTL_MS),
+      isUsed: false,
+    },
+  });
+
+  const phone = isSyntheticEmail(dbUser.email) ? await findSmsPhone(userId) : null;
+  if (isSyntheticEmail(dbUser.email) && !phone) {
+    throw new Error("No email or mobile number on file. Contact your administrator.");
+  }
+  if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
+    console.log(`🔑 [DEV OTP] PASSWORD_CHANGE code generated for ${phone ? maskPhoneNumber(phone) : maskEmail(dbUser.email)}: ${plainOtp}`);
+  }
+
+  let sentTo: string;
+  const channel = phone ? "sms" : "email";
+  try {
+    if (phone) {
+      await sendSmsViaTextBee(phone, `Your MEGS password change code is ${plainOtp}. Valid for 10 minutes.`);
+      sentTo = maskPhoneNumber(phone);
+    } else {
+      const html = renderBrandedEmail({
+        heading: "Confirm your password change",
+        preheader: "Your MEGS password change code expires in 10 minutes.",
+        bodyHtml: `<p style="margin: 0 0 16px 0;">Enter this 6-digit code to confirm the change:</p><p style="margin: 0 0 16px 0; font-family: 'Courier New', monospace; font-size: 32px; font-weight: 700; letter-spacing: 8px;">${plainOtp}</p><p style="margin: 0;">This code expires in <strong>10 minutes</strong> and can only be used once.</p>`,
+        footnote: "If you did not try to change your password, change it now and contact your administrator.",
+      });
+      await sendMail(
+        dbUser.email,
+        "MEGS Inc.: Confirm your password change",
+        `Your MEGS password change code is ${plainOtp}.\n\nThis code expires in 10 minutes.`,
+        html
+      );
+      sentTo = maskEmail(dbUser.email);
+    }
+  } catch (mailError: any) {
+    safeLogError("Auth password change code delivery", mailError);
+    throw new Error("Failed to deliver the verification code. Please try again later.");
+  }
+
+  logAudit(userId, "PASSWORD_CHANGE_CODE_SENT", "User", userId, { channel });
+  return { message: `We sent a 6-digit code to ${sentTo}.`, sentTo, ...otpDeadlines(otpCreatedAt) };
+};
+
+// Checks and consumes the PASSWORD_CHANGE code, with the same attempt rules as verifyOtp.
+const consumePasswordChangeCode = async (userId: string, email: string, otp: string) => {
+  const invalid = () => new Error("Invalid or expired verification code. Please request a new one.");
+  const lockout = async (id: number) => {
+    await prisma.authOtp.update({ where: { id }, data: { isUsed: true } });
+    void notifySecurityEvent({ userId }, "CODE_LOCKOUT").catch(console.error);
+    return new Error("Maximum verification attempts exceeded. Please request a new code.");
+  };
+
+  const code = otp.trim();
+  if (!/^\d{6}$/.test(code)) throw new Error("Verification code must be exactly 6 numeric digits");
+
+  const row = await prisma.authOtp.findFirst({
+    where: { email, purpose: "PASSWORD_CHANGE", isUsed: false },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!row) throw invalid();
+  if (new Date(row.expiresAt).getTime() < Date.now()) {
+    await prisma.authOtp.update({ where: { id: row.id }, data: { isUsed: true } });
+    throw new Error("Verification code has expired. Please request a new one.");
+  }
+  if (row.attempts >= row.maxAttempts) throw await lockout(row.id);
+
+  const attempt = await prisma.authOtp.updateMany({
+    where: { id: row.id, isUsed: false, expiresAt: { gt: new Date() }, attempts: { lt: row.maxAttempts } },
+    data: { attempts: { increment: 1 } },
+  });
+  if (attempt.count !== 1) throw invalid();
+
+  if (!verifyOtpHash(code, row.otpHash)) {
+    const updated = await prisma.authOtp.findUnique({ where: { id: row.id } });
+    const remaining = Math.max(0, row.maxAttempts - (updated?.attempts ?? row.attempts + 1));
+    if (remaining <= 0) throw await lockout(row.id);
+    throw new Error(`Invalid verification code. ${remaining} attempt${remaining === 1 ? "" : "s"} remaining.`);
+  }
+
+  const consumed = await prisma.authOtp.updateMany({
+    where: { id: row.id, isUsed: false },
+    data: { isUsed: true },
+  });
+  if (consumed.count !== 1) throw invalid();
+};
+
 export const changeUserPassword = async (
   userId: string,
   currentPassword: string,
-  newPassword: string
+  newPassword: string,
+  otp: string
 ) => {
   if (newPassword.length < 8) {
     throw new Error("New password must be at least 8 characters long");
@@ -891,6 +1013,8 @@ export const changeUserPassword = async (
     throw new Error("Current password is incorrect");
   }
 
+  await consumePasswordChangeCode(userId, dbUser.email, otp);
+
   const { error: updateError } = await supabase.auth.admin.updateUserById(userId, {
     password: newPassword,
   });
@@ -905,6 +1029,7 @@ export const changeUserPassword = async (
   });
 
   logAudit(userId, "PASSWORD_CHANGED", "User", userId, {});
+  void notifySecurityEvent({ userId }, "PASSWORD_CHANGED").catch(console.error);
 
   return { message: "Password changed successfully" };
 };

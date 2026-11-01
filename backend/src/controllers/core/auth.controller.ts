@@ -13,6 +13,7 @@ import {
   resetUserPassword,
   getResetSessionStatus,
   changeUserPassword,
+  requestPasswordChangeCode,
   setupAccount as setupAccountService,
   getInvitationDetails as getInvitationDetailsService,
   ClaimError,
@@ -158,13 +159,24 @@ export const resetSessionStatus = async (req: Request, res: Response): Promise<v
 // POST /api/auth/change-password - Authenticated user changes own password
 export const changePassword = async (req: Request, res: Response): Promise<void> => {
   const userId = req.user!.id;
-  const { currentPassword, newPassword } = req.body;
+  const { currentPassword, newPassword, otp } = req.body;
 
   try {
-    const result = await changeUserPassword(userId, currentPassword, newPassword);
+    const result = await changeUserPassword(userId, currentPassword, newPassword, otp);
     sendSuccess(res, result.message, null);
   } catch (error: any) {
     sendError(res, error.message, 400);
+  }
+};
+
+// POST /api/auth/change-password/code - Sends the code that change-password requires to the stored email or phone
+export const requestPasswordChangeCodeHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await requestPasswordChangeCode(req.user!.id);
+    sendSuccess(res, result.message, result);
+  } catch (error: any) {
+    const status = error.message.includes("Please wait") ? 429 : error.message.includes("not found") ? 404 : 400;
+    sendError(res, error.message, status);
   }
 };
 
