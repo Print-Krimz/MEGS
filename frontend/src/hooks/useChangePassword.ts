@@ -5,6 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
 import { authApi } from "../lib/api/auth.api";
 import { useAuth } from "./useAuth";
+import { useOtpTimers } from "./useCountdown";
 import { Role } from "../lib/types/enums";
 import { notify, formatErrorMessage } from "../lib/feedback";
 import { isWithinPasswordByteLimit, PASSWORD_MAX_BYTES_MESSAGE } from "../lib/password-strength";
@@ -17,6 +18,7 @@ export const changePasswordSchema = z
       .min(8, "New password must be at least 8 characters long")
       .refine(isWithinPasswordByteLimit, PASSWORD_MAX_BYTES_MESSAGE),
     confirmPassword: z.string().min(1, "Please confirm your new password"),
+    otp: z.string().regex(/^\d{6}$/, "Enter the 6-digit code"),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
     message: "New passwords do not match",
@@ -32,16 +34,19 @@ export const CHANGE_PASSWORD_COPY = {
   currentPassword: "Current password",
   newPassword: "New password",
   confirmPassword: "Confirm new password",
+  otp: "Verification code",
+  sendCode: "Send code",
+  resendCode: "Send a new code",
   submit: "Update password",
   successTitle: "Password updated",
   successMessage: "Your password has been changed.",
   errorTitle: "Password update failed",
 } as const;
 
-export type ChangePasswordField = "currentPassword" | "newPassword" | "confirmPassword";
+export type ChangePasswordField = "currentPassword" | "newPassword" | "confirmPassword" | "otp";
 export type ChangePasswordValues = Record<ChangePasswordField, string>;
 
-const EMPTY_VALUES: ChangePasswordValues = { currentPassword: "", newPassword: "", confirmPassword: "" };
+const EMPTY_VALUES: ChangePasswordValues = { currentPassword: "", newPassword: "", confirmPassword: "", otp: "" };
 
 export interface UseChangePasswordOptions {
   /**
@@ -66,6 +71,21 @@ export function useChangePassword({ mode, onDone }: UseChangePasswordOptions) {
   const [values, setValues] = useState<ChangePasswordValues>(EMPTY_VALUES);
   const [errors, setErrors] = useState<Partial<Record<ChangePasswordField, string>>>({});
   const [serverError, setServerError] = useState<string | null>(null);
+
+  const [codeSentTo, setCodeSentTo] = useState<string | null>(null);
+  const timers = useOtpTimers();
+
+  const codeMutation = useMutation({
+    mutationFn: authApi.requestPasswordChangeCode,
+    onSuccess: (data) => {
+      setCodeSentTo(data.sentTo);
+      timers.start(data);
+      setServerError(null);
+    },
+    onError: (err) => {
+      setServerError(formatErrorMessage(err));
+    },
+  });
 
   const mutation = useMutation({
     mutationFn: authApi.changePassword,
@@ -96,6 +116,7 @@ export function useChangePassword({ mode, onDone }: UseChangePasswordOptions) {
     setValues(EMPTY_VALUES);
     setErrors({});
     setServerError(null);
+    setCodeSentTo(null);
   }, []);
 
   const submit = (event?: FormEvent) => {
@@ -117,11 +138,27 @@ export function useChangePassword({ mode, onDone }: UseChangePasswordOptions) {
     mutation.mutate({
       currentPassword: result.data.currentPassword,
       newPassword: result.data.newPassword,
+      otp: result.data.otp,
     });
   };
 
   /** Cancel on the voluntary page: back to the role home. */
   const goHome = () => navigate({ to: roleHomePath(user?.role) });
 
-  return { values, errors, serverError, isPending: mutation.isPending, setField, submit, reset, goHome };
+  return {
+    values,
+    errors,
+    serverError,
+    isPending: mutation.isPending,
+    setField,
+    submit,
+    reset,
+    goHome,
+    sendCode: () => codeMutation.mutate(),
+    isSendingCode: codeMutation.isPending,
+    codeSentTo,
+    cooldown: timers.cooldown,
+    expiresIn: timers.expiresIn,
+    expired: timers.expired,
+  };
 }

@@ -156,6 +156,12 @@ export interface ResetPasswordRequest {
 export interface ChangePasswordRequest {
   currentPassword: string;
   newPassword: string;
+  otp: string;
+}
+
+export interface PasswordChangeCodeResponse extends OtpDeadlines {
+  message: string;
+  sentTo: string;
 }
 
 export interface SetupAccountRequest {

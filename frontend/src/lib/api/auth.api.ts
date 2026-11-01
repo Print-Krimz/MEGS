@@ -5,6 +5,7 @@ import type {
   LoginRequest,
   LoginResponse,
   OtpDeadlines,
+  PasswordChangeCodeResponse,
   RegisterRequest,
   RegisterResponse,
   ResetPasswordRequest,
@@ -65,6 +66,9 @@ export const authApi = {
 
   changePassword: (data: ChangePasswordRequest) =>
     api.post<{ message: string }>("/api/auth/change-password", data),
+
+  requestPasswordChangeCode: () =>
+    api.post<PasswordChangeCodeResponse>("/api/auth/change-password/code"),
 
   enrollMfa: (token?: string) =>
     api.post<import("../types/auth.types").MfaEnrollResponse>(

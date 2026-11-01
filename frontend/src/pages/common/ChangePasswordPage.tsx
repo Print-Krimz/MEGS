@@ -5,12 +5,17 @@ import { Spinner } from "@/components/shadcn/spinner";
 import { AuthPasswordField } from "../../components/auth/AuthField";
 import { AuthError, AuthHeading } from "../../components/auth/AuthChrome";
 import { useAuth } from "../../hooks/useAuth";
+import { CountdownText, OtpExpiryHint } from "../../components/auth/CountdownText";
+import { OtpCodeField } from "../../components/auth/OtpCodeField";
 import { useChangePassword, CHANGE_PASSWORD_COPY } from "../../hooks/useChangePassword";
 import { PASSWORD_MAX_BYTES } from "../../lib/password-strength";
 
 export const ChangePasswordPage: React.FC = () => {
   const { mustChangePassword } = useAuth();
-  const { values, errors, serverError, isPending, setField, submit, goHome } = useChangePassword({ mode: "redirect" });
+  const {
+    values, errors, serverError, isPending, setField, submit, goHome,
+    sendCode, isSendingCode, codeSentTo, cooldown, expiresIn, expired,
+  } = useChangePassword({ mode: "redirect" });
 
   return (
     <div className="flex flex-col gap-8">
@@ -64,6 +69,26 @@ export const ChangePasswordPage: React.FC = () => {
             error={errors.confirmPassword}
             required
           />
+
+          <div className="flex flex-col gap-2">
+            <Button type="button" variant="outline" size="lg" className="w-full" onClick={sendCode} disabled={isSendingCode || cooldown > 0}>
+              {isSendingCode && <Spinner data-icon="inline-start" />}
+              {codeSentTo ? CHANGE_PASSWORD_COPY.resendCode : CHANGE_PASSWORD_COPY.sendCode}
+              {cooldown > 0 && <CountdownText seconds={cooldown} />}
+            </Button>
+            {codeSentTo && <p className="text-sm text-muted-foreground">We sent a code to {codeSentTo}.</p>}
+          </div>
+
+          {(codeSentTo || errors.otp) && (
+            <OtpCodeField
+              id="change-otp"
+              label={CHANGE_PASSWORD_COPY.otp}
+              value={values.otp}
+              onChange={(val) => setField("otp", val.replace(/\D/g, "").slice(0, 6))}
+              error={errors.otp}
+              hint={<OtpExpiryHint expired={expired} seconds={expiresIn} />}
+            />
+          )}
         </FieldGroup>
 
         <div className="flex flex-col gap-3">
