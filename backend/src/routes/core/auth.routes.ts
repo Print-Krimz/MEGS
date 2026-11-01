@@ -93,7 +93,7 @@ router.get("/mfa/status", authLimiter, getMfaStatusHandler);
 router.post(
   "/change-password/code",
   authenticateJWT,
-  ...operationLimiters("password-change-code", 5, 50),
+  ...operationLimiters("password-change-code", 5, 300),
   requestPasswordChangeCodeHandler
 );
 router.post(

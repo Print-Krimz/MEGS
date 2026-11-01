@@ -912,7 +912,11 @@ export const requestPasswordChangeCode = async (userId: string) => {
     throw new Error("No email or mobile number on file. Contact your administrator.");
   }
   if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
-    console.log(`🔑 [DEV OTP] PASSWORD_CHANGE code generated for ${phone ? maskPhoneNumber(phone) : maskEmail(dbUser.email)}: ${plainOtp}`);
+    console.log(
+      phone
+        ? `📱 [DEV OTP] PASSWORD_CHANGE SMS code generated for ${maskPhoneNumber(phone)}: ${plainOtp}`
+        : `🔑 [DEV OTP] PASSWORD_CHANGE code generated for ${maskEmail(dbUser.email)}.`,
+    );
   }
 
   let sentTo: string;
@@ -1020,7 +1024,7 @@ export const changeUserPassword = async (
   });
 
   if (updateError) {
-    throw new Error("Failed to update password. Please try again later.");
+    throw new Error("Failed to update password. Please request a new code and try again.");
   }
 
   await prisma.user.update({
