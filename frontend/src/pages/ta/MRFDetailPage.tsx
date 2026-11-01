@@ -734,6 +734,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
             readOnly={readOnly}
             createdAt={mrf.createdAt}
             createdByName={mrf.createdBy ? resolveUserName(mrf.createdBy) : undefined}
+            createdByEmail={mrf.createdBy?.email}
           />
         </div>
       </div>

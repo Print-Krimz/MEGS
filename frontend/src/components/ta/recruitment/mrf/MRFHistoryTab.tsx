@@ -12,6 +12,7 @@ interface MRFHistoryTabProps {
   readOnly: boolean;
   createdAt?: string | null;
   createdByName?: string | null;
+  createdByEmail?: string | null;
 }
 
 const profileOf = (d: any) => d.employee?.user?.applicantProfile || d.application?.user?.applicantProfile;
@@ -26,7 +27,7 @@ const contractPeriod = (d: any) =>
   `${d.contractStart ? formatDate(d.contractStart) : "Not set"} – ${d.contractEnd ? formatDate(d.contractEnd) : "Ongoing"}`;
 
 /** Who was deployed against this request, with the date the request was raised. */
-export const MRFHistoryTab: React.FC<MRFHistoryTabProps> = ({ deployments, headcount, fallbackSite, readOnly, createdAt, createdByName }) => {
+export const MRFHistoryTab: React.FC<MRFHistoryTabProps> = ({ deployments, headcount, fallbackSite, readOnly, createdAt, createdByName, createdByEmail }) => {
   const [search, setSearch] = useState("");
   const query = search.toLowerCase().trim();
   const filtered = deployments.filter((d: any) => {
@@ -49,7 +50,7 @@ export const MRFHistoryTab: React.FC<MRFHistoryTabProps> = ({ deployments, headc
           {createdAt && (
             <p className="text-sm text-slate-600">
               Request raised {formatDate(createdAt)}
-              {!readOnly && createdByName ? ` by ${createdByName}` : ""}.
+              {!readOnly && createdByName ? ` by ${createdByName}${createdByEmail && createdByEmail !== createdByName ? ` (${createdByEmail})` : ""}` : ""}.
             </p>
           )}
         </div>
