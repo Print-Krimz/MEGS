@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('../../src/utils/prisma.js', () => ({ default: {} }));
-import { formatBackupRow, restoreBackupTables } from '../../src/services/admin/backup-tables.js';
+import { collectBackupTables, formatBackupRow, restoreBackupTables } from '../../src/services/admin/backup-tables.js';
 const migration = new URL('../../prisma/schema/migrations/20261101130000_add_user_display_name/migration.sql', import.meta.url);
 describe('staff display name migration and backups', () => {
   it('preserves current and old backup fields', () => {
@@ -29,6 +29,32 @@ describe('staff display name migration and backups', () => {
       const users = await client.query('SELECT id, role, email, "displayName" FROM "User" ORDER BY id');
       expect(users.rows.map((r: any) => [r.id, r.displayName])).toEqual([['a','José Cruz'],['b',null],['n',null],['p',null],['t','Mei']]);
       expect(users.rows).toHaveLength(5);
+      expect((await client.query('SELECT count(*)::int AS n FROM "ApplicantProfile"')).rows[0].n).toBe(4);
+
+      // Run the real backup SQL on the same temporary tables inside the rollback transaction.
+      const tx = {
+        $queryRaw: async (sql: any) => (await client.query(sql.text, sql.values)).rows,
+        $executeRaw: async (sql: any) => (await client.query(sql.text, sql.values)).rowCount,
+      };
+      const db = new Proxy({ $transaction: async (fn: any) => fn(tx) }, {
+        get(target, key) {
+          if (key === '$transaction') return target.$transaction;
+          if (key === 'user') return { findMany: async () => (await client.query('SELECT * FROM "User" ORDER BY id')).rows };
+          return { findMany: async () => [] };
+        },
+      });
+      const snapshot = await collectBackupTables(db as any);
+      expect(snapshot.users.find((row) => row.id === 'a')).toMatchObject({ email: 'a@x', role: 'ADMINISTRATOR', displayName: 'José Cruz' });
+      await client.query(`UPDATE "User" SET "displayName" = 'Changed', email = 'changed@x' WHERE id = 'a'`);
+      await restoreBackupTables(db as any, { users: snapshot.users });
+      expect((await client.query(`SELECT email, role, "displayName" FROM "User" WHERE id = 'a'`)).rows[0])
+        .toEqual({ email: 'a@x', role: 'ADMINISTRATOR', displayName: 'José Cruz' });
+
+      await client.query(`UPDATE "User" SET "displayName" = 'Saved name', email = 'changed@x' WHERE id = 'a'`);
+      await restoreBackupTables(db as any, { users: [{ id: 'a', email: 'old@x', role: 'ADMINISTRATOR' }] });
+      expect((await client.query(`SELECT email, role, "displayName" FROM "User" WHERE id = 'a'`)).rows[0])
+        .toEqual({ email: 'old@x', role: 'ADMINISTRATOR', displayName: 'Saved name' });
+      expect((await client.query('SELECT count(*)::int AS n FROM "User"')).rows[0].n).toBe(5);
       expect((await client.query('SELECT count(*)::int AS n FROM "ApplicantProfile"')).rows[0].n).toBe(4);
     } finally { await client.query('ROLLBACK'); await client.end(); }
   });
