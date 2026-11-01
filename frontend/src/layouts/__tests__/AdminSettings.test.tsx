@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AdminLayout } from "../AdminLayout";
 
+const identity = vi.hoisted(() => ({ unnamed: false }));
 const mockLogout = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("../../hooks/useAuth", () => ({
@@ -11,10 +12,10 @@ vi.mock("../../hooks/useAuth", () => ({
       id: "u-admin-super-1",
       email: "chief.admin@megs.ph",
       role: "ADMINISTRATOR",
-      displayName: "Alex Admin",
+      displayName: identity.unnamed ? null : "Alex Admin",
       accountStatus: "ACTIVE",
       createdAt: "2026-01-10T08:00:00.000Z",
-      applicantProfile: { firstName: "Chief", lastName: "Admin" },
+      applicantProfile: identity.unnamed ? null : { firstName: "Chief", lastName: "Admin" },
     },
     isAuthenticated: true,
     logout: mockLogout,
@@ -60,6 +61,16 @@ function renderWithClient(ui: React.ReactElement) {
 describe("AdminLayout Navigation & Account Menu", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    identity.unnamed = false;
+  });
+
+  it("uses role initials and shows email once in the menu when unnamed", () => {
+    identity.unnamed = true;
+    renderWithClient(<AdminLayout />);
+    const button = screen.getByRole("button", { name: "Account menu for chief.admin@megs.ph" });
+    expect(button).toHaveTextContent("AD");
+    fireEvent.click(button);
+    expect(screen.getByRole("menu").textContent?.split("chief.admin@megs.ph")).toHaveLength(2);
   });
 
   it("renders Admin identity trigger button with accessible attributes in top-right header", () => {

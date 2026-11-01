@@ -162,7 +162,7 @@ export const TALayout: React.FC = () => {
     handleToastClick,
   } = useRealtimeNotifications({ recentEnabled: bellOpen });
 
-  const actualName = resolveUserName(user, "");
+  const actualName = resolveUserName(user ? { ...user, email: null } : user, "");
   const hasActualName = Boolean(actualName);
   const fullName = actualName || user?.email || "Recruiter";
   const [firstName, ...lastNames] = actualName.split(/\s+/);

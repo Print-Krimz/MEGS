@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useRef, useState, useSyncExternalStore } from "react";
+import React, { lazy, Suspense, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Input } from "../../components/ui";
@@ -104,6 +104,10 @@ function SettingsContent({ userId, sessionGeneration, identityRef, refreshUser }
   const account = settingsQuery.data?.account;
   const savedName = account?.name ?? "";
   const isStaff = account?.role === Role.TALENT_ACQUISITION || account?.role === Role.ADMINISTRATOR;
+  useEffect(() => {
+    if (nameDraft !== null && nameDraft.trim() === savedName.trim()) setNameDraft(null);
+  }, [nameDraft, savedName]);
+
   const displayedName = nameDraft ?? savedName;
   const isDirty = Boolean(isStaff && nameDraft !== null && nameDraft.trim() !== savedName.trim());
   const dirtyGuard = useDirtyGuard({ isDirty, message: "Your name has not been saved." });

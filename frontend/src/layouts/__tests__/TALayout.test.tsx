@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TALayout } from "../TALayout";
 
+const identity = vi.hoisted(() => ({ unnamed: false }));
 const mockLogout = vi.fn().mockResolvedValue(undefined);
 
 vi.mock("../../hooks/useAuth", () => ({
@@ -11,10 +12,10 @@ vi.mock("../../hooks/useAuth", () => ({
       id: "u-ta-recruiter-1",
       email: "recruiter@megs.ph",
       role: "TALENT_ACQUISITION",
-      displayName: "Morgan Lee",
+      displayName: identity.unnamed ? null : "Morgan Lee",
       accountStatus: "ACTIVE",
       createdAt: "2026-01-15T08:00:00.000Z",
-      applicantProfile: { firstName: "Sarah", lastName: "Santos" },
+      applicantProfile: identity.unnamed ? null : { firstName: "Sarah", lastName: "Santos" },
     },
     isAuthenticated: true,
     logout: mockLogout,
@@ -60,6 +61,7 @@ function renderWithClient(ui: React.ReactElement) {
 describe("TALayout Navigation & Account Menu", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    identity.unnamed = false;
   });
 
   it("renders only core operational recruitment navigation items and does not render My Profile in primary navigation", () => {
@@ -86,6 +88,15 @@ describe("TALayout Navigation & Account Menu", () => {
     // Sidebar footer and standalone sidebar sign out button must NOT exist
     const initialSignOut = screen.queryByRole("button", { name: /^Sign Out$/i });
     expect(initialSignOut).toBeNull();
+  });
+
+  it("uses role initials and shows email once in the menu when unnamed", () => {
+    identity.unnamed = true;
+    renderWithClient(<TALayout />);
+    const button = screen.getByRole("button", { name: "Account menu for recruiter@megs.ph" });
+    expect(button).toHaveTextContent("TA");
+    fireEvent.click(button);
+    expect(screen.getByRole("menu").textContent?.split("recruiter@megs.ph")).toHaveLength(2);
   });
 
   it("renders TA identity trigger button with accessible attributes in top-right header", () => {

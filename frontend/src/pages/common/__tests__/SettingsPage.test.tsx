@@ -173,6 +173,33 @@ describe("SettingsPage", () => {
     await waitFor(() => expect(input).toHaveValue("Latest Saved Name"));
   });
 
+  it("follows later refetches after the server catches up with a draft", async () => {
+    const { queryClient } = renderSettingsPage(mocks.user);
+    const input = await screen.findByLabelText("Full name");
+    fireEvent.change(input, { target: { value: "Taylor" } });
+    const key = ["settings", mocks.user.id, getSessionGeneration()];
+    act(() => queryClient.setQueryData(key, settings(mocks.user.id, mocks.user.role, "Taylor")));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save changes" })).toBeDisabled());
+    act(() => queryClient.setQueryData(key, settings(mocks.user.id, mocks.user.role, "Morgan")));
+    await waitFor(() => expect(input).toHaveValue("Morgan"));
+  });
+
+  it("isolates a new session for the same user from a pending save", async () => {
+    const oldSave = deferred<{ displayName: string }>();
+    mocks.updateProfile.mockImplementationOnce(() => oldSave.promise);
+    renderSettingsPage(mocks.user);
+    const input = await screen.findByLabelText("Full name");
+    fireEvent.change(input, { target: { value: "Old session draft" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(input).toBeDisabled());
+    act(() => bumpSessionGeneration());
+    expect(await screen.findByDisplayValue("Alex Recruiter")).toBeEnabled();
+    await act(async () => oldSave.resolve({ displayName: "Old session draft" }));
+    expect(screen.getByLabelText("Full name")).toHaveValue("Alex Recruiter");
+    expect(mocks.refreshUser).not.toHaveBeenCalled();
+    expect(screen.queryByText("Name saved.")).toBeNull();
+  });
+
   it("blocks navigation while a staff name is dirty", async () => {
     renderSettingsPage(mocks.user);
     const input = await screen.findByLabelText("Full name");
