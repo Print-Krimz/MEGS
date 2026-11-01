@@ -3,6 +3,7 @@ import type { Request, Response } from "express";
 import { createHash } from "node:crypto";
 import { PostgresRateLimitStore } from "../security/shared-store.js";
 import { resolveAuthIdentifier } from "../schemas/auth.schema.js";
+import { notifySecurityEvent, notifyClaimProbe, type SecurityEvent } from "../services/core/security-alert.service.js";
 // Same developer switch as main MEGS. It applies in hosted production/Heroku.
 const skipDisabled = () => process.env.DISABLE_RATE_LIMIT === "true";
 const securityStore = (name: string) => new PostgresRateLimitStore(name);
@@ -12,16 +13,16 @@ const quotaKey = (key: string) => `0:${key}`;
 const hashIdentity = (value: string) => createHash("sha256").update(value).digest("hex");
 export const clientIp = (req: Request) => ipKeyGenerator(req.ip || req.socket?.remoteAddress || "127.0.0.1");
 
-const limiter = (name: string, max: number, windowMs: number, keyGenerator: (req: Request) => string) => rateLimit({
+const limiter = (name: string, max: number, windowMs: number, keyGenerator: (req: Request) => string, onLimit?: (req: Request) => void) => rateLimit({
   windowMs, max, keyGenerator: req => quotaKey(keyGenerator(req)), store: securityStore(name),
   skip: skipDisabled, standardHeaders: true, legacyHeaders: false, passOnStoreError: false,
-  handler: rateLimitHandler("Too many requests. Please retry after the indicated delay.", Math.ceil(windowMs / 1000)),
+  handler: rateLimitHandler("Too many requests. Please retry after the indicated delay.", Math.ceil(windowMs / 1000), onLimit),
 });
 
 /**
  * Standard RFC rate-limit response handler following MEGS unified response shape.
  */
-export const rateLimitHandler = (message: string, defaultRetrySeconds: number = 900) => {
+export const rateLimitHandler = (message: string, defaultRetrySeconds: number = 900, onLimit?: (req: Request) => void) => {
   return (req: Request, res: Response) => {
     const retryAfter = res.getHeader("Retry-After");
     const retrySeconds = retryAfter ? Number(retryAfter) : defaultRetrySeconds;
@@ -32,6 +33,12 @@ export const rateLimitHandler = (message: string, defaultRetrySeconds: number = 
       code: "RATE_LIMIT_EXCEEDED",
       retryAfter: retrySeconds,
     });
+    // Runs after the response so the body is the same for known and unknown accounts.
+    try {
+      onLimit?.(req);
+    } catch (e) {
+      console.error("[RATE LIMIT ALERT]", e instanceof Error ? e.message : e);
+    }
   };
 };
 
@@ -39,6 +46,18 @@ export const rateLimitHandler = (message: string, defaultRetrySeconds: number = 
  * Key generator combining client IP and lowercase email to mitigate distributed credential stuffing
  * while preventing single-IP collateral blocking when multiple users share an office gateway.
  */
+const alertIdentifier = (event: SecurityEvent) => (req: Request) => {
+  const identifier = resolveAuthIdentifier(req.body).value;
+  if (identifier) notifySecurityEvent({ identifier }, event, { ip: req.ip }).catch(console.error);
+};
+const alertClaimProbe = (req: Request) => {
+  notifyClaimProbe(String(req.body?.phone ?? ""), req.ip).catch(console.error);
+};
+const alertAuthLimit = (req: Request) => {
+  if (req.path.startsWith("/claim")) alertClaimProbe(req);
+  else alertIdentifier("SIGN_IN_LIMITED")(req);
+};
+
 export const authKeyGenerator = (req: Request): string => {
   const email = resolveAuthIdentifier(req.body).value ?? "";
   const rawIp = req.ip || req.socket?.remoteAddress || "127.0.0.1";
@@ -71,7 +90,7 @@ export const authLimiter = rateLimit({
   skip: skipDisabled,
   store: securityStore("auth-pair"),
   keyGenerator: req => quotaKey(hashIdentity(authKeyGenerator(req))),
-  handler: rateLimitHandler("Too many authentication attempts. Please try again after 15 minutes.", 900),
+  handler: rateLimitHandler("Too many authentication attempts. Please try again after 15 minutes.", 900, alertAuthLimit),
 });
 
 /**
@@ -86,7 +105,7 @@ export const forgotPasswordLimiter = rateLimit({
   skip: skipDisabled,
   store: securityStore("mail-account"),
   keyGenerator: req => quotaKey(hashIdentity(emailKeyGenerator(req))),
-  handler: rateLimitHandler("Too many password reset requests. Please wait an hour before requesting again.", 3600),
+  handler: rateLimitHandler("Too many password reset requests. Please wait an hour before requesting again.", 3600, alertIdentifier("RESET_LIMITED")),
 });
 
 // Separate budgets prevent changing an email/IP from resetting every counter.
@@ -111,7 +130,7 @@ const claimPhoneKey = (req: Request): string => {
   const digits = String(req.body?.phone ?? "").replace(/\D/g, "").slice(-10);
   return digits ? hashIdentity(`claim_phone_${digits}`) : clientIp(req);
 };
-export const claimPhoneLimiter = limiter("claim-phone", 5, 15 * 60 * 1000, claimPhoneKey);
+export const claimPhoneLimiter = limiter("claim-phone", 5, 15 * 60 * 1000, claimPhoneKey, alertClaimProbe);
 
 // Public no-login pages (QR tracker, offer links): per-IP, 60 requests per 15 minutes.
 export const publicLimiter = limiter("public-ip", 60, 15 * 60 * 1000, clientIp);
