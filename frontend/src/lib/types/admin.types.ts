@@ -67,6 +67,7 @@ export interface AuditLog {
   user?: {
     id: string;
     email: string;
+    displayName?: string | null;
     role: string;
     applicantProfile?: {
       firstName?: string;

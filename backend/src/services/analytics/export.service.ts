@@ -1,3 +1,4 @@
+import { resolveUserName } from "../../utils/user-name.js";
 import prisma from "../../utils/prisma.js";
 import { parseDateRange, type AnalyticsFilterDto } from "./analytics.service.js";
 import {
@@ -129,7 +130,7 @@ async function describeFilters(filters: AnalyticsFilterDto, requestedBy: Request
     admin && filters.recruiterId
       ? prisma.user.findFirst({
           where: { id: filters.recruiterId, role: TA },
-          select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } },
+          select: { role: true, displayName: true, email: true, applicantProfile: { select: { firstName: true, lastName: true } } },
         })
       : null,
   ]);
@@ -138,7 +139,7 @@ async function describeFilters(filters: AnalyticsFilterDto, requestedBy: Request
   if (filters.mrfId) parts.push(`Client request: ${request?.title ?? "not available"}`);
   if (filters.jobPostingId) parts.push(`Job post: ${job?.title ?? "not available"}`);
   if (admin) {
-    const name = recruiter ? `${recruiter.applicantProfile?.firstName ?? ""} ${recruiter.applicantProfile?.lastName ?? ""}`.trim() || recruiter.email : null;
+    const name = recruiter ? resolveUserName(recruiter) : null;
     parts.push(filters.recruiterId ? `Recruiter: ${name ?? "not available"}` : "All recruiters");
   } else {
     parts.push("Only your own records");
@@ -549,14 +550,11 @@ async function awaitingStartSection(filters: AnalyticsFilterDto, requestedBy: Re
       contractStart: true,
       site: true,
       client: { select: { name: true } },
-      mrf: { select: { title: true, assignedTa: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } } } },
-      employee: { select: { user: { select: { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } } } },
+      mrf: { select: { title: true, assignedTa: { select: { role: true, displayName: true, email: true, applicantProfile: { select: { firstName: true, lastName: true } } } } } },
+      employee: { select: { user: { select: { role: true, displayName: true, email: true, applicantProfile: { select: { firstName: true, lastName: true } } } } } },
     },
   });
-  const nameOf = (u?: { email: string; applicantProfile?: { firstName: string | null; lastName: string | null } | null } | null) => {
-    const full = `${u?.applicantProfile?.firstName ?? ""} ${u?.applicantProfile?.lastName ?? ""}`.trim();
-    return full || displayEmail(u?.email) || "";
-  };
+  const nameOf = (u: Parameters<typeof resolveUserName>[0]) => resolveUserName(u ? { ...u, email: displayEmail(u.email) } : u, "");
   return {
     sheet: "Waiting to start",
     title: "Hired, waiting to start",

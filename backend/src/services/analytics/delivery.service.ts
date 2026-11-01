@@ -1,3 +1,4 @@
+import { resolveUserName } from "../../utils/user-name.js";
 import prisma from "../../utils/prisma.js";
 import { manilaDateString, manilaDaysUntil, parseManilaDateOnly } from "../../schemas/field-limits.js";
 import { parseDateRange, type AnalyticsFilterDto, type UserScope } from "./analytics.service.js";
@@ -335,10 +336,7 @@ export function buildJobClause(filters: AnalyticsFilterDto, scope?: UserScope): 
   return clause;
 }
 
-const personName = (u?: { email?: string | null; applicantProfile?: { firstName?: string | null; lastName?: string | null } | null } | null) => {
-  const full = `${u?.applicantProfile?.firstName ?? ""} ${u?.applicantProfile?.lastName ?? ""}`.trim();
-  return full || u?.email || "Unknown";
-};
+const personName = resolveUserName;
 
 const rangeInfo = (start: Date, end: Date, days: number): DateRangeInfo => ({
   startDate: manilaDateString(start),
@@ -347,7 +345,7 @@ const rangeInfo = (start: Date, end: Date, days: number): DateRangeInfo => ({
 });
 
 const stageLabel = (key: StageRowKey) => STAGE_ROWS.find((r) => r.key === key)!.label;
-const NAME_SELECT = { email: true, applicantProfile: { select: { firstName: true, lastName: true } } } as const;
+const NAME_SELECT = { role: true, displayName: true, email: true, applicantProfile: { select: { firstName: true, lastName: true } } } as const;
 const JOB_OWNER_SELECT = { postedById: true, mrf: { select: { assignedTaId: true } } } as const;
 
 // ─────────────────────────────────────────────
@@ -1229,7 +1227,7 @@ async function computeAdminDelivery(
     ...(filters.recruiterId ? [filters.recruiterId] : []),
   ].filter((id): id is string => id !== null);
   const people = ownerIds.length
-    ? await prisma.user.findMany({ where: { id: { in: [...new Set(ownerIds)] } }, select: { id: true, role: true, ...NAME_SELECT } })
+    ? await prisma.user.findMany({ where: { id: { in: [...new Set(ownerIds)] } }, select: { id: true, ...NAME_SELECT } })
     : [];
   const nonTaIds = new Set(people.filter((u) => u.role !== TA_ROLE).map((u) => u.id));
   const keyOf = (id: string | null) => (id === null || nonTaIds.has(id) ? UNASSIGNED : id);

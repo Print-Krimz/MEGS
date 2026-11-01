@@ -32,7 +32,7 @@ export const AssignmentPanel: React.FC<AssignmentPanelProps> = ({ mrfId, mrfOwne
     staleTime: 5 * 60 * 1000,
   });
   const recruiters = optionsQuery.data?.recruiters ?? [];
-  const selectOptions = [{ value: NONE, label: "No recruiter" }, ...recruiters.map((r) => ({ value: r.id, label: r.name }))];
+  const selectOptions = [{ value: NONE, label: "No recruiter" }, ...recruiters.map((r) => ({ value: r.id, label: r.name === r.email ? r.name : `${r.name} (${r.email})` }))];
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["admin", "mrf", String(mrfId)] });

@@ -15,6 +15,7 @@ import type { PaginatedListResponse } from "../types/api.types";
 export interface AdminUserListItem {
   id: string;
   email: string;
+  displayName?: string | null;
   role: Role;
   isActive: boolean;
   accountStatus: string;

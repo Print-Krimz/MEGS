@@ -14,6 +14,7 @@ export const inviteTA = async (
   lastName?: string
 ) => {
   const emailLower = email.toLowerCase().trim();
+  const displayName = [firstName?.trim(), lastName?.trim()].filter(Boolean).join(" ");
 
   const existing = await prisma.user.findUnique({ where: { email: emailLower } });
   if (
@@ -34,6 +35,7 @@ export const inviteTA = async (
       where: { id: existing.id },
       data: {
         accountStatus: "PENDING",
+        ...(displayName ? { displayName } : {}),
         invitedAt: new Date(),
         invitedBy: adminId,
       },
@@ -67,6 +69,7 @@ export const inviteTA = async (
         id: userId,
         email: authData.user.email!,
         role: "TALENT_ACQUISITION",
+        ...(displayName ? { displayName } : {}),
         accountStatus: "PENDING",
         mustChangePassword: false,
         invitedAt: new Date(),
@@ -354,6 +357,7 @@ export const fetchAuditLogs = async (filters: {
       { entity: { contains: q, mode: "insensitive" } },
       { details: { contains: q, mode: "insensitive" } },
       { user: { email: { contains: q, mode: "insensitive" } } },
+      { user: { displayName: { contains: q, mode: "insensitive" } } },
     ];
   }
 
@@ -367,6 +371,7 @@ export const fetchAuditLogs = async (filters: {
           id: true,
           email: true,
           role: true,
+          displayName: true,
           applicantProfile: {
             select: { firstName: true, lastName: true },
           },
@@ -379,6 +384,7 @@ export const fetchAuditLogs = async (filters: {
 export const buildAdminUserSearchFilter = (search: string) => {
   const searchTerms: any[] = [
     { email: { contains: search, mode: "insensitive" } },
+    { displayName: { contains: search, mode: "insensitive" } },
     { applicantProfile: { firstName: { contains: search, mode: "insensitive" } } },
     { applicantProfile: { lastName: { contains: search, mode: "insensitive" } } },
   ];
@@ -480,6 +486,7 @@ export const fetchAllUsers = async (filters: {
       id: true,
       email: true,
       role: true,
+      displayName: true,
       isActive: true,
       accountStatus: true,
       invitedAt: true,
@@ -518,6 +525,7 @@ export const fetchAllUsers = async (filters: {
     return {
       id: u.id,
       email: u.email,
+      displayName: u.displayName,
       role: u.role,
       isActive: u.isActive,
       accountStatus: u.accountStatus,

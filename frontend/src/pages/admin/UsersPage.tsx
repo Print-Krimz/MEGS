@@ -1,3 +1,4 @@
+import { resolveUserName } from "../../lib/user-name";
 import React, { useRef, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -390,7 +391,7 @@ export const UsersPage: React.FC = () => {
     u.lastLoginAt ? <time dateTime={u.lastLoginAt}>{formatDateTime(u.lastLoginAt)}</time> : "Never";
 
   const userLabel = (u: AdminUserListItem) =>
-    u.applicantProfile ? `${u.applicantProfile.firstName} ${u.applicantProfile.lastName}` : u.email;
+    resolveUserName(u);
 
   // Inline role edit. Picking a role only opens the confirm dialog; the select keeps showing the saved role.
   const renderRole = (u: AdminUserListItem) => {
@@ -510,14 +511,13 @@ export const UsersPage: React.FC = () => {
         <div className="overflow-hidden rounded-md border border-slate-300 bg-white">
           {selectedUser && (
             <div className="px-3.5 py-2.5 bg-navy-soft border-b border-navy-line text-sm text-slate-900" role="status" aria-live="polite">
-              Selected account: <strong>{selectedUser.applicantProfile ? `${selectedUser.applicantProfile.firstName} ${selectedUser.applicantProfile.lastName}` : selectedUser.email}</strong>
+              Selected account: <strong>{resolveUserName(selectedUser)}</strong>
             </div>
           )}
           <div className="md:hidden divide-y divide-slate-200">
             {paginatedUsers.map((u) => {
               const isSelf = currentAdmin?.id === u.id;
-              const profile = u.applicantProfile;
-              const fullName = profile ? `${profile.firstName} ${profile.lastName}` : null;
+              const fullName = resolveUserName(u);
               return (
                 <div
                   key={u.id}
@@ -536,7 +536,7 @@ export const UsersPage: React.FC = () => {
                         {fullName || u.email}
                         {isSelf && <span className="ml-1.5 font-normal text-slate-600">(you)</span>}
                       </div>
-                      {fullName && <div className="text-sm text-slate-600 break-all">{u.email}</div>}
+                      {fullName !== u.email && <div className="text-sm text-slate-600 break-all">{u.email}</div>}
                     </div>
                     <ActionMenu
                       label={`Actions for ${u.email}`}
@@ -618,10 +618,7 @@ export const UsersPage: React.FC = () => {
               <tbody className="divide-y divide-slate-200">
                 {paginatedUsers.map((u) => {
                   const isSelf = currentAdmin?.id === u.id;
-                  const profile = u.applicantProfile;
-                  const fullName = profile
-                    ? `${profile.firstName} ${profile.lastName}`
-                    : null;
+                  const fullName = resolveUserName(u);
 
                   return (
                     <tr
@@ -639,10 +636,10 @@ export const UsersPage: React.FC = () => {
                       </td>
                       <td className="px-3 py-3">
                         <div className="font-medium text-slate-950 break-all">
-                          {u.email}
+                          {fullName}
                           {isSelf && <span className="ml-1.5 font-normal text-slate-600">(you)</span>}
                         </div>
-                        {fullName && <div className="text-sm text-slate-600">{fullName}</div>}
+                        {fullName !== u.email && <div className="text-sm text-slate-600">{u.email}</div>}
                       </td>
                       <td className="px-3 py-3">
                         {renderRole(u)}
@@ -932,7 +929,7 @@ export const UsersPage: React.FC = () => {
               helperText="Their requests, clients and standalone openings, with the candidates and placements under them. If you skip this, only an Admin can see those records until you reassign them."
               value={handoverTo}
               onChange={(e) => setHandoverTo(e.target.value)}
-              options={[{ value: "", label: "Do not hand over yet" }, ...handoverCandidates.map((r) => ({ value: r.id, label: r.name }))]}
+              options={[{ value: "", label: "Do not hand over yet" }, ...handoverCandidates.map((r) => ({ value: r.id, label: r.name === r.email ? r.name : `${r.name} (${r.email})` }))]}
               disabled={handoverOptionsQuery.isLoading}
             />
           )}

@@ -1,3 +1,4 @@
+import { resolveUserName } from "../../utils/user-name.js";
 import prisma from "../../utils/prisma.js";
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly } from "../../schemas/field-limits.js";
 import { ApplicationStatus } from "@prisma/client";
@@ -400,15 +401,15 @@ export const getAnalyticsFilterOptions = async (
       select: {
         id: true,
         email: true,
+        role: true,
+        displayName: true,
         applicantProfile: { select: { firstName: true, lastName: true } },
       },
     }),
   ]);
 
   const recruiterOptions = recruiters.map((r) => {
-    const name = r.applicantProfile
-      ? `${r.applicantProfile.firstName} ${r.applicantProfile.lastName}`.trim()
-      : r.email;
+    const name = resolveUserName(r);
     return { id: r.id, email: r.email, name };
   });
 

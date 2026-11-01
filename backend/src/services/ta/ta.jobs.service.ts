@@ -86,7 +86,7 @@ export const listTAJobs = async (statusOrOptions?: string | ListTAJobsOptions) =
           workArrangement: true,
         },
       },
-      postedBy: { select: { id: true, email: true } },
+      postedBy: { select: { id: true, email: true, role: true, displayName: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
       _count: { select: { applications: true } },
     },
     }),
@@ -200,7 +200,7 @@ export const getTAJob = async (jobId: number) => {
   const job = await prisma.jobPosting.findUnique({
     where: { id: jobId },
     include: {
-      postedBy: { select: { id: true, email: true } },
+      postedBy: { select: { id: true, email: true, role: true, displayName: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
       mrf: {
         select: {
           id: true,

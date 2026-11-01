@@ -266,7 +266,7 @@ const compareMRFs = (sortBy: MRFSortOption) => (a: MRFSortKey, b: MRFSortKey): n
 
 const MRF_LIST_INCLUDE: Prisma.ManpowerRequestInclude = {
   client: { select: { id: true, name: true } },
-  createdBy: { select: { id: true, email: true } },
+  createdBy: { select: { id: true, email: true, role: true, displayName: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
   deployments: {
     where: {
       status: {
@@ -450,7 +450,7 @@ export const getMRFDetails = async (id: number) => {
     where: { id },
     include: {
       client: true,
-      createdBy: { select: { id: true, email: true } },
+      createdBy: { select: { id: true, email: true, role: true, displayName: true, applicantProfile: { select: { firstName: true, lastName: true } } } },
       jobPostings: {
         orderBy: { createdAt: "desc" },
       },

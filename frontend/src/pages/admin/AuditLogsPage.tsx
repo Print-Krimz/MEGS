@@ -1,3 +1,4 @@
+import { resolveUserName } from "../../lib/user-name";
 import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { adminApi } from "../../lib/api/admin.api";
@@ -128,9 +129,7 @@ export const AuditLogsPage: React.FC = () => {
       const rawAction = (log.action || "").toLowerCase();
       const formattedAct = formatAction(log.action).toLowerCase();
       const actorEmail = (log.user?.email || log.userId || "").toLowerCase();
-      const actorName = log.user?.applicantProfile
-        ? `${log.user.applicantProfile.firstName || ""} ${log.user.applicantProfile.lastName || ""}`.toLowerCase()
-        : "";
+      const actorName = resolveUserName(log.user, "").toLowerCase();
       const entityFormatted = formatTargetEntity(log);
       const entityStr = `${entityFormatted.type} ${entityFormatted.label} ${entityFormatted.secondary || ""}`.toLowerCase();
       const detailsStr = (typeof log.details === "string" ? log.details : JSON.stringify(log.details || {})).toLowerCase();
@@ -308,6 +307,7 @@ export const AuditLogsPage: React.FC = () => {
             <span className="truncate font-medium text-slate-900" title={actor.name}>
               {actor.name}
             </span>
+            {actor.email && actor.email !== actor.name && <span className="truncate text-xs text-slate-500" title={actor.email}>{actor.email}</span>}
             {actor.role && <span className="text-xs text-slate-500">{actor.role}</span>}
           </div>
         );

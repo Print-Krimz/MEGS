@@ -1,3 +1,4 @@
+import { resolveUserName } from "../../lib/user-name";
 import React, { useState } from "react";
 import { Link, useLocation, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -732,7 +733,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
             fallbackSite={mrf.location}
             readOnly={readOnly}
             createdAt={mrf.createdAt}
-            createdByEmail={mrf.createdBy?.email}
+            createdByName={mrf.createdBy ? resolveUserName(mrf.createdBy) : undefined}
           />
         </div>
       </div>

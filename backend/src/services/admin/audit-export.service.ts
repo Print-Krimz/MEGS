@@ -1,3 +1,4 @@
+import { resolveUserName } from "../../utils/user-name.js";
 import { fetchAuditLogs } from "./admin.service.js";
 import { logAudit } from "../../utils/audit.js";
 import { getReportMetadata } from "../analytics/report-theme.js";
@@ -29,10 +30,7 @@ const safeFormatDate = (date: Date | string | null | undefined): string => {
 };
 
 const resolveActorName = (log: any): string => {
-  if (log.user?.applicantProfile?.firstName || log.user?.applicantProfile?.lastName) {
-    return `${log.user.applicantProfile.firstName || ""} ${log.user.applicantProfile.lastName || ""}`.trim();
-  }
-  if (log.user?.email) return log.user.email;
+  if (log.user && resolveUserName(log.user, "")) return resolveUserName(log.user, "");
 
   let details: any = {};
   try {

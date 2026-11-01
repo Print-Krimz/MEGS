@@ -1,3 +1,4 @@
+import { resolveUserName } from "../user-name";
 import type { AuditCategory, AuditLog } from "../types/admin.types";
 
 export const ACTION_LABELS: Record<string, string> = {
@@ -506,23 +507,8 @@ export function formatActor(log: AuditLog): {
   const details = parseDetails(log.details);
   const user = log.user;
 
-  // 1. If user object has first/last name from applicantProfile
-  if (user?.applicantProfile?.firstName || user?.applicantProfile?.lastName) {
-    const fullName = `${user.applicantProfile.firstName || ""} ${user.applicantProfile.lastName || ""}`.trim();
-    return {
-      name: fullName,
-      role: formatRole(user.role),
-      email: user.email,
-    };
-  }
-
-  // 2. If user object has email
-  if (user?.email) {
-    return {
-      name: user.email,
-      role: formatRole(user.role),
-      email: user.email,
-    };
+  if (user && resolveUserName(user, "")) {
+    return { name: resolveUserName(user), role: formatRole(user.role), email: user.email };
   }
 
   // 3. Extract explicit actor information from details payload if available
