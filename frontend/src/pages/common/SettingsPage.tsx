@@ -35,12 +35,23 @@ const staffLabelQueryKeys = [
   ["ta", "jobs"],
 ] as const;
 
+const rowClass = "grid gap-1 px-4 py-3.5 sm:grid-cols-[11rem_minmax(0,1fr)] sm:items-center sm:gap-4 sm:px-5";
+
+function SettingsRow({ label, children, action }: { label: string; children: React.ReactNode; action?: React.ReactNode }) {
+  return (
+    <div className={rowClass}>
+      <dt className="text-sm font-medium text-slate-700">{label}</dt>
+      <dd className="flex min-w-0 flex-wrap items-center justify-between gap-3 text-sm text-slate-900">
+        <span className="min-w-0 break-words">{children}</span>
+        {action}
+      </dd>
+    </div>
+  );
+}
+
 function AccountRow({ label, value }: { label: string; value: string | null }) {
   return (
-    <div className="space-y-1">
-      <dt className="text-xs font-medium text-slate-600">{label}</dt>
-      <dd className="break-words text-sm text-slate-900">{value || <span className="text-slate-500">Not provided</span>}</dd>
-    </div>
+    <SettingsRow label={label}>{value || <span className="text-slate-500">Not provided</span>}</SettingsRow>
   );
 }
 
@@ -48,12 +59,14 @@ function SettingsLink({ to, children }: { to: string; children: React.ReactNode 
   return (
     <Link
       to={to}
-      className="inline-flex min-h-11 items-center rounded-md px-2 text-sm font-medium text-navy underline-offset-4 hover:text-navy-hover hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+      className="inline-flex min-h-11 items-center text-sm font-medium text-navy underline-offset-4 hover:text-navy-hover hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9"
     >
       {children}
     </Link>
   );
 }
+
+const panelClass = "overflow-hidden rounded-md border border-slate-300 bg-white";
 
 export const SettingsPage: React.FC = () => {
   const { user, refreshUser } = useAuth();
@@ -178,7 +191,7 @@ function SettingsContent({ userId, sessionGeneration, identityRef, refreshUser }
     setSaveMessage(null);
   };
 
-  const pageHeader = <PageHeader title="Settings" description="Manage your account information and security." flush />;
+  const pageHeader = <PageHeader title="Settings" description="Your name, sign-in details and password." flush />;
 
   if (settingsQuery.isPending && !settingsQuery.data) {
     return <>{pageHeader}<LoadingState variant="detail" message="Loading account settings…" /></>;
@@ -201,18 +214,17 @@ function SettingsContent({ userId, sessionGeneration, identityRef, refreshUser }
       : "Two-step verification status is unavailable.";
 
   return (
-    <div className="space-y-5">
+    <div className="max-w-3xl space-y-6">
       {pageHeader}
       {settingsQuery.isError && (
         <ErrorState compact subject="account settings" error={settingsQuery.error} onRetry={() => void settingsQuery.refetch()} />
       )}
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <section aria-labelledby="account-information-heading" className="space-y-4 rounded-md border border-slate-300 bg-white p-4 sm:p-5">
-          <h2 id="account-information-heading" className="text-base font-semibold text-slate-900">Account information</h2>
-
-          {isStaff ? (
-            <form onSubmit={handleSaveName} noValidate className="space-y-3">
+      <section aria-labelledby="account-information-heading" className="space-y-2">
+        <h2 id="account-information-heading" className="text-base font-semibold text-slate-900">Profile</h2>
+        <div className={panelClass}>
+          {isStaff && (
+            <form onSubmit={handleSaveName} noValidate className="space-y-3 border-b border-slate-200 px-4 py-4 sm:px-5">
               <Input
                 id="settings-full-name"
                 label="Full name"
@@ -236,67 +248,63 @@ function SettingsContent({ userId, sessionGeneration, identityRef, refreshUser }
                 <Button type="submit" loading={saveMutation.isPending} disabled={!isDirty || saveMutation.isPending}>
                   Save changes
                 </Button>
-                <Button type="button" variant="outline" onClick={() => void handleCancel()} disabled={!isDirty || saveMutation.isPending}>
+                <Button type="button" variant="ghost" onClick={() => void handleCancel()} disabled={!isDirty || saveMutation.isPending}>
                   Cancel
                 </Button>
               </div>
             </form>
-          ) : (
-            <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <AccountRow label="Name" value={account.name} />
-            </dl>
           )}
-
-          <dl className="grid grid-cols-1 gap-4 border-t border-slate-200 pt-4 sm:grid-cols-2">
+          <dl className="divide-y divide-slate-200">
+            {!isStaff && <AccountRow label="Name" value={account.name} />}
             <AccountRow label="Sign-in email" value={account.email} />
             <AccountRow label="Phone number" value={account.phoneNumber} />
             <AccountRow label="Role" value={roleLabels[account.role]} />
           </dl>
-        </section>
+        </div>
+      </section>
 
-        <section aria-labelledby="security-heading" className="space-y-4 rounded-md border border-slate-300 bg-white p-4 sm:p-5">
-          <h2 id="security-heading" className="text-base font-semibold text-slate-900">Security</h2>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
-            <div>
-              <h3 className="text-sm font-medium text-slate-900">Password</h3>
-              <p className="mt-1 text-sm text-slate-600">Update your sign-in password.</p>
-            </div>
-            <Button type="button" variant="outline" onClick={() => setPasswordOpen(true)}>Change password</Button>
-          </div>
+      <section aria-labelledby="security-heading" className="space-y-2">
+        <h2 id="security-heading" className="text-base font-semibold text-slate-900">Security</h2>
+        <dl className={`${panelClass} divide-y divide-slate-200`}>
+          <SettingsRow
+            label="Password"
+            action={<Button type="button" variant="outline" onClick={() => setPasswordOpen(true)}>Change password</Button>}
+          >
+            <span className="text-slate-600">A code is sent to you to confirm a change.</span>
+          </SettingsRow>
 
           {!isApplicant && (
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">
-              <div>
-                <h3 className="text-sm font-medium text-slate-900">Two-step verification</h3>
-                <p className="mt-1 text-sm text-slate-600">{mfaStatus}</p>
-              </div>
-              {mfaUnavailable && (
+            <SettingsRow
+              label="Two-step verification"
+              action={mfaUnavailable ? (
                 <Button type="button" variant="outline" onClick={() => void settingsQuery.refetch()} loading={settingsQuery.isFetching}>
                   Try again
                 </Button>
-              )}
-            </div>
+              ) : undefined}
+            >
+              {mfaStatus}
+            </SettingsRow>
           )}
+        </dl>
+      </section>
 
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium text-slate-900">Account links</h3>
-            <nav aria-label="Account links" className="flex flex-col items-start">
-              {isApplicant && <SettingsLink to="/app/profile">My Profile</SettingsLink>}
-              <SettingsLink to={account.role === Role.ADMINISTRATOR ? "/admin/notifications" : account.role === Role.TALENT_ACQUISITION ? "/ta/notifications" : "/app/notifications"}>
-                Notifications
-              </SettingsLink>
-              {account.role === Role.ADMINISTRATOR && (
-                <>
-                  <SettingsLink to="/admin/users">Users</SettingsLink>
-                  <SettingsLink to="/admin/scoring">Matching settings</SettingsLink>
-                  <SettingsLink to="/admin/audit">Activity history</SettingsLink>
-                  <SettingsLink to="/admin/maintenance">Backups and recovery</SettingsLink>
-                </>
-              )}
-            </nav>
-          </div>
-        </section>
-      </div>
+      <section aria-labelledby="related-pages-heading" className="space-y-2">
+        <h2 id="related-pages-heading" className="text-base font-semibold text-slate-900">Related pages</h2>
+        <nav aria-label="Related pages" className={`${panelClass} flex flex-wrap gap-x-6 gap-y-1 px-4 py-2 sm:px-5`}>
+          {isApplicant && <SettingsLink to="/app/profile">My Profile</SettingsLink>}
+          <SettingsLink to={account.role === Role.ADMINISTRATOR ? "/admin/notifications" : account.role === Role.TALENT_ACQUISITION ? "/ta/notifications" : "/app/notifications"}>
+            Notifications
+          </SettingsLink>
+          {account.role === Role.ADMINISTRATOR && (
+            <>
+              <SettingsLink to="/admin/users">Users</SettingsLink>
+              <SettingsLink to="/admin/scoring">Matching settings</SettingsLink>
+              <SettingsLink to="/admin/audit">Activity history</SettingsLink>
+              <SettingsLink to="/admin/maintenance">Backups and recovery</SettingsLink>
+            </>
+          )}
+        </nav>
+      </section>
 
       {dirtyGuard.discardDialog}
       {passwordOpen && (

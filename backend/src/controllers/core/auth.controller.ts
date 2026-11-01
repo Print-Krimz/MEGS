@@ -172,7 +172,7 @@ export const changePassword = async (req: Request, res: Response): Promise<void>
 // POST /api/auth/change-password/code - Sends the code that change-password requires to the stored email or phone
 export const requestPasswordChangeCodeHandler = async (req: Request, res: Response): Promise<void> => {
   try {
-    const result = await requestPasswordChangeCode(req.user!.id);
+    const result = await requestPasswordChangeCode(req.user!.id, req.body.currentPassword);
     sendSuccess(res, result.message, result);
   } catch (error: any) {
     const status = error.message.includes("Please wait") ? 429 : error.message.includes("not found") ? 404 : 400;

@@ -104,6 +104,11 @@ export const authSchema = {
   resetSessionStatus: z.object({
     body: z.object({ token }),
   }),
+  requestPasswordChangeCode: z.object({
+    body: z.object({
+      currentPassword: z.string().min(1, "Current password is required").max(FIELD_LIMITS.password),
+    }),
+  }),
   changePassword: z.object({
     body: z.object({
       currentPassword: z.string().min(1, "Current password is required").max(FIELD_LIMITS.password),

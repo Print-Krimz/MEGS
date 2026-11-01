@@ -420,7 +420,7 @@ describe("security alerts and change-password code", () => {
     it("accepts the code that requestPasswordChangeCode emailed and then updates the password", async () => {
       useUsers(USER_REAL);
 
-      await requestPasswordChangeCode("user-real");
+      await requestPasswordChangeCode("user-real", "CurrentPass123!");
       const emailedText = mocks.sendMail.mock.calls[0][2] as string;
       const code = emailedText.match(/code is (\d{6})/)![1];
       const stored = mocks.authOtpCreate.mock.calls[0][0].data;
@@ -436,7 +436,7 @@ describe("security alerts and change-password code", () => {
     it("emails the code to the stored address of a real-email account and nowhere else", async () => {
       useUsers(USER_REAL);
 
-      const result = await requestPasswordChangeCode("user-real");
+      const result = await requestPasswordChangeCode("user-real", "CurrentPass123!");
 
       expect(mocks.sendMail).toHaveBeenCalledTimes(1);
       expect(mocks.sendMail.mock.calls[0][0]).toBe("staff@example.com");
@@ -444,10 +444,21 @@ describe("security alerts and change-password code", () => {
       expect(result.sentTo).toBe(maskEmail("staff@example.com"));
     });
 
+    it("sends no code when the current password is wrong", async () => {
+      useUsers(USER_REAL);
+      mocks.signInWithPassword.mockResolvedValue({ data: null, error: new Error("Invalid login credentials") });
+
+      await expect(requestPasswordChangeCode("user-real", "WrongPass123!")).rejects.toThrow("Current password is incorrect");
+
+      expect(mocks.authOtpCreate).not.toHaveBeenCalled();
+      expect(mocks.sendMail).not.toHaveBeenCalled();
+      expect(mocks.sendSms).not.toHaveBeenCalled();
+    });
+
     it("texts the code to the stored phone of a phone-only account", async () => {
       useUsers(USER_PHONE);
 
-      const result = await requestPasswordChangeCode("user-phone");
+      const result = await requestPasswordChangeCode("user-phone", "CurrentPass123!");
 
       expect(mocks.sendMail).not.toHaveBeenCalled();
       expect(mocks.sendSms).toHaveBeenCalledTimes(1);
@@ -460,7 +471,7 @@ describe("security alerts and change-password code", () => {
       useUsers(USER_PHONE);
       mocks.sendSms.mockResolvedValue({ success: false, error: "TEXTBEE_API_KEY not configured" });
 
-      await expect(requestPasswordChangeCode("user-phone")).rejects.toThrow(
+      await expect(requestPasswordChangeCode("user-phone", "CurrentPass123!")).rejects.toThrow(
         "Failed to deliver the verification code. Please try again later."
       );
       expect(mocks.auditCreate).not.toHaveBeenCalled();

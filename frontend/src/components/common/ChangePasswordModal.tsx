@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { Dialog, PasswordInput, Button } from "../ui";
-import { KeyRound, AlertCircle } from "lucide-react";
+import { KeyRound, AlertCircle, ArrowLeft } from "lucide-react";
 import { PASSWORD_MAX_BYTES } from "../../lib/password-strength";
 import { CountdownText, OtpExpiryHint } from "../auth/CountdownText";
 import { OtpCodeField } from "../auth/OtpCodeField";
@@ -14,7 +14,7 @@ export interface ChangePasswordModalProps {
 export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ open, onClose }) => {
   const {
     values, errors, serverError, isPending, setField, submit, reset,
-    sendCode, isSendingCode, codeSentTo, cooldown, expiresIn, expired,
+    step, back, resendCode, isSendingCode, codeSentTo, cooldown, expiresIn, expired,
   } = useChangePassword({
     mode: "close",
     onDone: onClose,
@@ -25,15 +25,17 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ open, 
     if (!open) reset();
   }, [open, reset]);
 
+  const onCodeStep = step === "code";
+
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      title="Update your password"
-      description="Choose a strong, unique password to keep your account secure."
+      title="Change password"
+      description={onCodeStep ? "Step 2 of 2: enter the code we sent you." : "Step 1 of 2: set your new password."}
       size="md"
     >
-      <div className="space-y-4">
+      <form onSubmit={submit} className="space-y-4" noValidate>
         {serverError && (
           <div role="alert" className="flex items-start gap-2 border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600" aria-hidden="true" />
@@ -41,57 +43,11 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ open, 
           </div>
         )}
 
-        <form onSubmit={submit} className="space-y-4" noValidate>
-          <PasswordInput
-            label={CHANGE_PASSWORD_COPY.currentPassword}
-            autoComplete="current-password"
-            placeholder="Enter your current password"
-            value={values.currentPassword}
-            onChange={(e) => setField("currentPassword", e.target.value)}
-            error={errors.currentPassword}
-            required
-          />
-
-          <PasswordInput
-            label={CHANGE_PASSWORD_COPY.newPassword}
-            autoComplete="new-password"
-            placeholder="Create a new password"
-            value={values.newPassword}
-            maxLength={PASSWORD_MAX_BYTES}
-            onChange={(e) => setField("newPassword", e.target.value)}
-            error={errors.newPassword}
-            showStrengthIndicator
-            required
-          />
-
-          <PasswordInput
-            label={CHANGE_PASSWORD_COPY.confirmPassword}
-            autoComplete="new-password"
-            placeholder="Re-enter your new password"
-            value={values.confirmPassword}
-            maxLength={PASSWORD_MAX_BYTES}
-            onChange={(e) => setField("confirmPassword", e.target.value)}
-            error={errors.confirmPassword}
-            required
-          />
-
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={sendCode} loading={isSendingCode} disabled={cooldown > 0}>
-                {codeSentTo ? CHANGE_PASSWORD_COPY.resendCode : CHANGE_PASSWORD_COPY.sendCode}
-              </Button>
-              {cooldown > 0 && (
-                <span className="text-sm text-slate-600">
-                  <CountdownText seconds={cooldown} />
-                </span>
-              )}
-            </div>
-            <div role="status" className="text-sm text-slate-600">
-              {codeSentTo && `We sent a code to ${codeSentTo}.`}
-            </div>
-          </div>
-
-          {(codeSentTo || errors.otp) && (
+        {onCodeStep ? (
+          <div className="space-y-4">
+            <p role="status" className="text-sm text-slate-700">
+              We sent a code to <span className="font-medium text-slate-900">{codeSentTo}</span>.
+            </p>
             <OtpCodeField
               id="change-otp"
               label={CHANGE_PASSWORD_COPY.otp}
@@ -99,19 +55,78 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ open, 
               onChange={(val) => setField("otp", val.replace(/\D/g, "").slice(0, 6))}
               error={errors.otp}
               hint={<OtpExpiryHint expired={expired} seconds={expiresIn} />}
+              autoFocus
             />
-          )}
-
-          <div className="flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
-            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isPending}>
-              Cancel
-            </Button>
-            <Button type="submit" variant="primary" size="sm" loading={isPending} leftIcon={<KeyRound className="h-3.5 w-3.5" />}>
-              {CHANGE_PASSWORD_COPY.submit}
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button type="button" variant="outline" size="sm" onClick={resendCode} loading={isSendingCode} disabled={cooldown > 0}>
+                {CHANGE_PASSWORD_COPY.resendCode}
+              </Button>
+              {cooldown > 0 && (
+                <span className="text-sm text-slate-600">
+                  <CountdownText seconds={cooldown} />
+                </span>
+              )}
+            </div>
           </div>
-        </form>
-      </div>
+        ) : (
+          <>
+            <PasswordInput
+              label={CHANGE_PASSWORD_COPY.currentPassword}
+              autoComplete="current-password"
+              placeholder="Enter your current password"
+              value={values.currentPassword}
+              onChange={(e) => setField("currentPassword", e.target.value)}
+              error={errors.currentPassword}
+              required
+            />
+
+            <PasswordInput
+              label={CHANGE_PASSWORD_COPY.newPassword}
+              autoComplete="new-password"
+              placeholder="Create a new password"
+              value={values.newPassword}
+              maxLength={PASSWORD_MAX_BYTES}
+              onChange={(e) => setField("newPassword", e.target.value)}
+              error={errors.newPassword}
+              showStrengthIndicator
+              required
+            />
+
+            <PasswordInput
+              label={CHANGE_PASSWORD_COPY.confirmPassword}
+              autoComplete="new-password"
+              placeholder="Re-enter your new password"
+              value={values.confirmPassword}
+              maxLength={PASSWORD_MAX_BYTES}
+              onChange={(e) => setField("confirmPassword", e.target.value)}
+              error={errors.confirmPassword}
+              required
+            />
+          </>
+        )}
+
+        <div className="flex items-center justify-end gap-2 border-t border-slate-200 pt-4">
+          {onCodeStep ? (
+            <>
+              <Button type="button" variant="outline" size="sm" onClick={back} disabled={isPending} leftIcon={<ArrowLeft className="h-3.5 w-3.5" />}>
+                {CHANGE_PASSWORD_COPY.back}
+              </Button>
+              <Button type="submit" variant="primary" size="sm" loading={isPending} leftIcon={<KeyRound className="h-3.5 w-3.5" />}>
+                {CHANGE_PASSWORD_COPY.submit}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={isSendingCode}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="primary" size="sm" loading={isSendingCode}>
+                {CHANGE_PASSWORD_COPY.continue}
+              </Button>
+            </>
+          )}
+        </div>
+      </form>
     </Dialog>
   );
 };

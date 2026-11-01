@@ -94,6 +94,7 @@ router.post(
   "/change-password/code",
   authenticateJWT,
   ...operationLimiters("password-change-code", 5, 300),
+  validate(authSchema.requestPasswordChangeCode),
   requestPasswordChangeCodeHandler
 );
 router.post(

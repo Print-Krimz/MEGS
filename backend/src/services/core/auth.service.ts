@@ -876,11 +876,18 @@ export const getResetSessionStatus = async (token: string) => {
 };
 
 // Sends a 6-digit code to the account's stored email (or stored phone when the email is a placeholder).
-export const requestPasswordChangeCode = async (userId: string) => {
+export const requestPasswordChangeCode = async (userId: string, currentPassword: string) => {
   const dbUser = await prisma.user.findUnique({ where: { id: userId } });
   if (!dbUser || !isActiveAccount(dbUser.isActive, dbUser.accountStatus)) {
     throw new Error("User account not found");
   }
+
+  // Same check as changeUserPassword: no code is created or sent for a wrong password.
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email: dbUser.email,
+    password: currentPassword,
+  });
+  if (signInError) throw new Error("Current password is incorrect");
 
   const otpCreatedAt = new Date();
   const latestOtp = await prisma.authOtp.findFirst({
