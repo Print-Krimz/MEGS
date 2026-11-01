@@ -263,7 +263,7 @@ ${RESUME_ANALYSIS_INSTRUCTIONS}
     config: {
       responseMimeType: "application/json",
     },
-  });
+  }, EXTRACTION_TEXT_TIMEOUT_MS, extractionOptions(() => undefined));
   return parseResumeAnalysis(response.text || "");
 };
 
@@ -783,7 +783,7 @@ ${RESUME_ANALYSIS_INSTRUCTIONS}
     config: {
       responseMimeType: "application/json",
     },
-  });
+  }, EXTRACTION_VISION_TIMEOUT_MS, extractionOptions(() => undefined));
 
   return parseResumeAnalysis(response.text || "");
 };
