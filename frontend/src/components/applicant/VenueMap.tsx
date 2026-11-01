@@ -45,7 +45,15 @@ export function VenueMap({ location }: VenueMapProps) {
             '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors',
           maxZoom: 19,
         }).addTo(map);
-        L.marker([...COMPANY_LAT_LNG], { keyboard: false, interactive: false }).addTo(map);
+        // circleMarker avoids Leaflet's default PNG icon, which Vite cannot resolve.
+        L.circleMarker([...COMPANY_LAT_LNG], {
+          radius: 8,
+          color: "#FFFFFF",
+          weight: 2,
+          fillColor: "#0B315D",
+          fillOpacity: 1,
+          interactive: false,
+        }).addTo(map);
       } catch {
         map?.remove();
         map = null;
@@ -76,7 +84,7 @@ export function VenueMap({ location }: VenueMapProps) {
             ref={containerRef}
             role="img"
             aria-label={`Map showing ${venue}`}
-            className="h-[200px] w-full overflow-hidden rounded-lg border border-[#D9E2EC] bg-[#F0F4F8]"
+            className="isolate h-[200px] w-full overflow-hidden rounded-lg border border-[#D9E2EC] bg-[#F0F4F8]"
           />
         )}
         <a
