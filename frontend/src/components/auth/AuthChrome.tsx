@@ -3,6 +3,7 @@ import { AlertCircle, Check } from "lucide-react";
 import { AnimatePresence, EASE_OUT, m } from "../public/motion";
 import { Alert, AlertDescription } from "@/components/shadcn/alert";
 import { cn } from "../../lib/shadcn-utils";
+import { CountdownText } from "./CountdownText";
 
 /** Destructive inline alert that animates its height in and out. */
 export const AuthError: React.FC<{ message?: string | null; className?: string }> = ({ message, className }) => (
@@ -24,6 +25,19 @@ export const AuthError: React.FC<{ message?: string | null; className?: string }
     )}
   </AnimatePresence>
 );
+
+/** Shown while the server is refusing requests (429). Disappears when the wait is over. */
+export const LockoutNotice: React.FC<{ seconds: number }> = ({ seconds }) =>
+  seconds > 0 ? (
+    <Alert variant="destructive" className="border-destructive/30 bg-destructive/5">
+      <AlertCircle aria-hidden="true" />
+      <AlertDescription className="text-destructive">
+        <span>
+          Too many attempts. Try again in <CountdownText seconds={seconds} />
+        </span>
+      </AlertDescription>
+    </Alert>
+  ) : null;
 
 /** Step heading. Takes focus when it mounts after a step change so screen readers announce it. */
 export const AuthHeading: React.FC<{

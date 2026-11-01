@@ -7,12 +7,14 @@ import { Button } from "@/components/shadcn/button";
 import { FieldGroup, FieldLabel } from "@/components/shadcn/field";
 import { Spinner } from "@/components/shadcn/spinner";
 import { AuthPasswordField, AuthTextField } from "../../components/auth/AuthField";
-import { AuthError, AuthHeading, AuthStep, AuthStepper } from "../../components/auth/AuthChrome";
+import { AuthError, AuthHeading, AuthStep, AuthStepper, LockoutNotice } from "../../components/auth/AuthChrome";
+import { CountdownText, OtpExpiryHint } from "../../components/auth/CountdownText";
 import { OtpCodeField } from "../../components/auth/OtpCodeField";
 import { TurnstileWidget, type TurnstileWidgetRef } from "../../components/common";
 import { publicApi } from "../../lib/api/public.api";
 import { formatErrorMessage } from "../../lib/feedback";
 import { isPhilippinePhone, maskPhone } from "../../lib/utils";
+import { useCountdown, useLockout, useOtpTimers } from "../../hooks/useCountdown";
 import { useSecurityControls } from "../../hooks/useSecurityControls";
 import { isWithinPasswordByteLimit, PASSWORD_MAX_BYTES, PASSWORD_MAX_BYTES_MESSAGE } from "../../lib/password-strength";
 
@@ -63,21 +65,36 @@ export const ClaimAccountPage: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
 
-  const [cooldown, setCooldown] = useState(0);
-  useEffect(() => {
-    if (step !== "CODE" || cooldown <= 0) return;
-    const t = setInterval(() => setCooldown((c) => (c > 0 ? c - 1 : 0)), 1000);
-    return () => clearInterval(t);
-  }, [step, cooldown]);
+  const rateLimitDisabled = controls.data?.rateLimitDisabled === true && !controls.isError;
+  const smsCode = useOtpTimers(rateLimitDisabled);
+  const emailCode = useOtpTimers(rateLimitDisabled);
+  const lockout = useLockout();
+  const [claimExpiresAt, setClaimExpiresAt] = useState<string | null>(null);
+  const claimSession = useCountdown(claimExpiresAt);
 
-  const fail = (err: unknown) => setServerError(formatErrorMessage(err));
+  // A 429 shows the lockout countdown; any other failure keeps its own message.
+  const fail = (err: unknown) => {
+    if (!lockout.lock(err)) setServerError(formatErrorMessage(err));
+  };
+
+  // The 15-minute claim session ran out: start again from the mobile number.
+  useEffect(() => {
+    if (step === "PASSWORD" && claimExpiresAt && claimSession.isDone) {
+      setStep("PHONE");
+      setClaimToken("");
+      setClaimExpiresAt(null);
+      setEmailCodeSent(false);
+      setEmailOtp("");
+      setServerError("Your setup time ran out. Send a new SMS code to start again.");
+    }
+  }, [step, claimExpiresAt, claimSession.isDone]);
 
   const startMutation = useMutation({
     mutationFn: () => publicApi.claimStart(phone.trim(), turnstileToken || undefined),
-    onSuccess: () => {
+    onSuccess: (data) => {
       setServerError(null);
       setOtp("");
-      setCooldown(60);
+      smsCode.start(data);
       // The token is single use; the code step shows a fresh check for "Send a new code".
       turnstileRef.current?.reset();
       setTurnstileToken("");
@@ -95,6 +112,7 @@ export const ClaimAccountPage: React.FC = () => {
     onSuccess: (res) => {
       setServerError(null);
       setClaimToken(res.claimToken);
+      setClaimExpiresAt(res.claimExpiresAt ?? new Date(Date.now() + 15 * 60_000).toISOString());
       setStep("PASSWORD");
     },
     onError: fail,
@@ -102,9 +120,10 @@ export const ClaimAccountPage: React.FC = () => {
 
   const emailCodeMutation = useMutation({
     mutationFn: () => publicApi.claimEmailCode(claimToken, email.trim()),
-    onSuccess: () => {
+    onSuccess: (data) => {
       setServerError(null);
       setEmailCodeSent(true);
+      emailCode.start(data);
     },
     onError: fail,
   });
@@ -203,6 +222,7 @@ export const ClaimAccountPage: React.FC = () => {
           }
         />
         <AuthError message={serverError} />
+        <LockoutNotice seconds={lockout.secondsLeft} />
         <OtpCodeField
           label="6-digit code"
           value={otp}
@@ -212,7 +232,7 @@ export const ClaimAccountPage: React.FC = () => {
             setErrors({});
           }}
           error={errors.otp}
-          hint="The code expires in 10 minutes."
+          hint={<OtpExpiryHint expired={smsCode.expired} seconds={smsCode.expiresIn} />}
         />
         <div className="flex flex-col gap-2 border-t border-border pt-4">
           {!isCaptchaDisabled && (
@@ -228,16 +248,16 @@ export const ClaimAccountPage: React.FC = () => {
             variant="ghost"
             size="lg"
             className="self-start"
-            disabled={cooldown > 0 || startMutation.isPending || (isCaptchaRequired && !turnstileToken)}
+            disabled={smsCode.cooldown > 0 || startMutation.isPending || lockout.isLocked || (isCaptchaRequired && !turnstileToken)}
             onClick={() => {
               setServerError(null);
               startMutation.mutate();
             }}
           >
             {startMutation.isPending && <Spinner data-icon="inline-start" />}
-            {cooldown > 0 ? `Send a new code in ${cooldown}s` : "Send a new code"}
+            {smsCode.cooldown > 0 ? `Send a new code in ${smsCode.cooldown}s` : "Send a new code"}
           </Button>
-          {cooldown === 0 && isCaptchaRequired && !turnstileToken && (
+          {smsCode.cooldown === 0 && isCaptchaRequired && !turnstileToken && (
             <p className="text-sm text-muted-foreground">Finish the security check to send a new code.</p>
           )}
         </div>
@@ -255,7 +275,7 @@ export const ClaimAccountPage: React.FC = () => {
             <ArrowLeft data-icon="inline-start" aria-hidden="true" />
             Change number
           </Button>
-          <Button type="submit" size="lg" disabled={verifyMutation.isPending}>
+          <Button type="submit" size="lg" disabled={verifyMutation.isPending || smsCode.expired || lockout.isLocked}>
             {verifyMutation.isPending && <Spinner data-icon="inline-start" />}
             Verify code
           </Button>
@@ -267,6 +287,10 @@ export const ClaimAccountPage: React.FC = () => {
       <form onSubmit={submitPassword} className="flex flex-col gap-6" noValidate>
         <AuthHeading focusOnMount title="Choose a password" description="You will use it with your mobile number to log in." />
         <AuthError message={serverError} />
+        <LockoutNotice seconds={lockout.secondsLeft} />
+        <p className="text-sm text-muted-foreground">
+          Finish within <CountdownText seconds={claimSession.secondsLeft} />
+        </p>
         <FieldGroup>
           <AuthPasswordField
             id="claim-password"
@@ -309,11 +333,15 @@ export const ClaimAccountPage: React.FC = () => {
                 type="button"
                 variant="outline"
                 className="self-start"
-                disabled={emailCodeMutation.isPending}
+                disabled={emailCodeMutation.isPending || emailCode.cooldown > 0 || lockout.isLocked}
                 onClick={sendEmailCode}
               >
                 {emailCodeMutation.isPending && <Spinner data-icon="inline-start" />}
-                {emailCodeSent ? "Resend email code" : "Send code to email"}
+                {emailCodeSent
+                  ? emailCode.cooldown > 0
+                    ? `Resend email code in ${emailCode.cooldown}s`
+                    : "Resend email code"
+                  : "Send code to email"}
               </Button>
               {emailCodeSent && (
                 <OtpCodeField
@@ -322,13 +350,13 @@ export const ClaimAccountPage: React.FC = () => {
                   value={emailOtp}
                   onChange={(v) => setEmailOtp(v.replace(/\D/g, "").slice(0, 6))}
                   error={errors.emailOtp}
-                  hint="Check your inbox for the 6-digit code."
+                  hint={<OtpExpiryHint expired={emailCode.expired} seconds={emailCode.expiresIn} />}
                 />
               )}
             </div>
           )}
         </FieldGroup>
-        <Button type="submit" size="lg" className="w-full" disabled={completeMutation.isPending}>
+        <Button type="submit" size="lg" className="w-full" disabled={completeMutation.isPending || lockout.isLocked}>
           {completeMutation.isPending && <Spinner data-icon="inline-start" />}
           Set up my account
         </Button>
@@ -343,6 +371,7 @@ export const ClaimAccountPage: React.FC = () => {
           description="For applicants who applied at a MEGS office. Enter the mobile number you gave the recruiter."
         />
         <AuthError message={serverError} />
+        <LockoutNotice seconds={lockout.secondsLeft} />
         <FieldGroup>
           <AuthTextField
             id="claim-phone"
@@ -378,7 +407,7 @@ export const ClaimAccountPage: React.FC = () => {
           type="submit"
           size="lg"
           className="w-full"
-          disabled={startMutation.isPending}
+          disabled={startMutation.isPending || lockout.isLocked}
         >
           {startMutation.isPending && <Spinner data-icon="inline-start" />}
           Send SMS code

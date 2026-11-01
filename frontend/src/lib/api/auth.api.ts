@@ -4,6 +4,7 @@ import type {
   ForgotPasswordRequest,
   LoginRequest,
   LoginResponse,
+  OtpDeadlines,
   RegisterRequest,
   RegisterResponse,
   ResetPasswordRequest,
@@ -42,7 +43,7 @@ export const authApi = {
     api.post<ResendOtpResponse>("/api/auth/resend-otp", data),
 
   forgotPassword: (data: ForgotPasswordRequest, turnstileToken?: string) =>
-    api.post<{ message: string }>(
+    api.post<{ message: string } & OtpDeadlines>(
       "/api/auth/forgot-password",
       data,
       turnstileToken ? { headers: { "x-turnstile-token": turnstileToken } } : undefined
@@ -50,6 +51,9 @@ export const authApi = {
 
   resetPassword: (data: ResetPasswordRequest) =>
     api.post<{ message: string }>("/api/auth/reset-password", data),
+
+  resetSessionStatus: (token: string) =>
+    api.post<{ expiresAt: string }>("/api/auth/reset-session-status", { token }),
 
   getInvitationDetails: (token: string) =>
     api.get<import("../types/auth.types").InvitationDetailsResponse>(

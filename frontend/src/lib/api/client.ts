@@ -4,18 +4,30 @@ import type { ApiResponse, ApiErrorDetail } from "../types/api.types";
 export class ApiError extends Error {
   public status: number;
   public details?: ApiErrorDetail[] | Record<string, unknown> | string;
+  /** Seconds until a rate-limited (429) request may be retried, when the server said so. */
+  public retryAfter?: number;
 
   constructor(
     status: number,
     message: string,
-    details?: ApiErrorDetail[] | Record<string, unknown> | string
+    details?: ApiErrorDetail[] | Record<string, unknown> | string,
+    retryAfter?: number
   ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.details = details;
+    this.retryAfter = retryAfter;
   }
 }
+
+/** The limiter puts `retryAfter` (seconds) in the 429 body and `Retry-After` in the headers. */
+const readRetryAfter = (res: Response, json: unknown): number | undefined => {
+  if (res.status !== 429) return undefined;
+  const fromBody = (json as { retryAfter?: unknown } | null)?.retryAfter;
+  const seconds = typeof fromBody === "number" ? fromBody : Number(res.headers?.get("Retry-After"));
+  return Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : undefined;
+};
 
 export function resolveApiBase(rawUrl?: string): string {
   if (!rawUrl) return "";
@@ -190,7 +202,7 @@ export async function apiRequest<T>(
 
     if (!res.ok || (json && !json.success)) {
       const errorMsg = json?.message || res.statusText || "An error occurred with the request.";
-      throw new ApiError(res.status, errorMsg, json?.error as ApiErrorDetail[] | undefined);
+      throw new ApiError(res.status, errorMsg, json?.error as ApiErrorDetail[] | undefined, readRetryAfter(res, json));
     }
 
     return json!.data;

@@ -13,7 +13,8 @@ import { Spinner } from "@/components/shadcn/spinner";
 import { authApi } from "../../lib/api/auth.api";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import type { LoginResponse } from "../../lib/types/auth.types";
-import { AuthError } from "./AuthChrome";
+import { useLockout } from "../../hooks/useCountdown";
+import { AuthError, LockoutNotice } from "./AuthChrome";
 import { AuthTextField } from "./AuthField";
 import { OtpCodeField } from "./OtpCodeField";
 import { MfaDisabledContinuation } from "./MfaDisabledContinuation";
@@ -44,6 +45,11 @@ export const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
   const [recoveryCode, setRecoveryCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const lockout = useLockout();
+  // A 429 shows the lockout countdown; any other failure keeps its own message.
+  const failWith = (err: unknown) => {
+    if (!lockout.lock(err)) setError(formatErrorMessage(err));
+  };
 
   const handleVerifyTotp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,9 +68,8 @@ export const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
         code: code.trim(),
       });
       onSuccess(res);
-    } catch (err: any) {
-      const formatted = formatErrorMessage(err);
-      setError(formatted);
+    } catch (err: unknown) {
+      failWith(err);
     } finally {
       setIsLoading(false);
     }
@@ -86,9 +91,8 @@ export const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
       });
       notify.success("Backup code accepted", "Your authenticator was reset. Set up a new one to continue.");
       onSuccess(res);
-    } catch (err: any) {
-      const formatted = formatErrorMessage(err);
-      setError(formatted);
+    } catch (err: unknown) {
+      failWith(err);
     } finally {
       setIsLoading(false);
     }
@@ -117,6 +121,7 @@ export const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
         <MfaDisabledContinuation token={tempToken} open={open} onSuccess={onSuccess} />
 
         <AuthError message={error} />
+        <LockoutNotice seconds={lockout.secondsLeft} />
 
         {mode === "TOTP" ? (
           <form onSubmit={handleVerifyTotp} className="flex flex-col gap-6" noValidate>
@@ -136,7 +141,7 @@ export const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
             </FieldGroup>
 
             <DialogFooter className="flex-col gap-3 sm:flex-col sm:justify-stretch">
-              <Button type="submit" size="lg" disabled={isLoading} className="w-full">
+              <Button type="submit" size="lg" disabled={isLoading || lockout.isLocked} className="w-full">
                 {isLoading && <Spinner data-icon="inline-start" />}
                 Verify code
               </Button>
@@ -178,7 +183,7 @@ export const MfaChallengeModal: React.FC<MfaChallengeModalProps> = ({
             </FieldGroup>
 
             <DialogFooter className="flex-col gap-3 sm:flex-col sm:justify-stretch">
-              <Button type="submit" size="lg" disabled={isLoading} className="w-full">
+              <Button type="submit" size="lg" disabled={isLoading || lockout.isLocked} className="w-full">
                 {isLoading && <Spinner data-icon="inline-start" />}
                 Verify recovery code
               </Button>

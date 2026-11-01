@@ -103,7 +103,13 @@ export interface RegisterRequest {
   password: string;
 }
 
-export interface RegisterResponse {
+/** Deadlines the server attaches when it sends a code. Optional so a frontend deployed first still works. */
+export interface OtpDeadlines {
+  expiresAt?: string;
+  resendAvailableAt?: string;
+}
+
+export interface RegisterResponse extends OtpDeadlines {
   id: string;
   email: string;
   phoneNumber?: string | null;
@@ -124,6 +130,7 @@ export interface VerifyOtpRequest {
 export interface VerifyOtpResponse {
   message: string;
   resetToken?: string;
+  resetTokenExpiresAt?: string;
 }
 
 export interface ResendOtpRequest {
@@ -132,7 +139,7 @@ export interface ResendOtpRequest {
   purpose: OtpPurpose;
 }
 
-export interface ResendOtpResponse {
+export interface ResendOtpResponse extends OtpDeadlines {
   message: string;
 }
 

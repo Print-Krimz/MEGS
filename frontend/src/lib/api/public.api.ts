@@ -1,4 +1,5 @@
 import { api } from "./client";
+import type { OtpDeadlines } from "../types/auth.types";
 import type {
   CheckInJob,
   CheckInSubmitBody,
@@ -45,17 +46,17 @@ export const publicApi = {
     api.post<PublicOfferResult>(`/api/public/offers/${encodeURIComponent(String(id))}/respond`, body),
 
   claimStart: (phone: string, turnstileToken?: string) =>
-    api.post<{ message: string }>(
+    api.post<{ message: string } & OtpDeadlines>(
       "/api/auth/claim/start",
       { phone, turnstileToken: turnstileToken ?? "" },
       turnstileToken ? { headers: { "x-turnstile-token": turnstileToken } } : undefined
     ),
 
   claimVerify: (phone: string, otp: string) =>
-    api.post<{ claimToken: string }>("/api/auth/claim/verify", { phone, otp }),
+    api.post<{ claimToken: string; claimExpiresAt?: string }>("/api/auth/claim/verify", { phone, otp }),
 
   claimEmailCode: (claimToken: string, email: string) =>
-    api.post<{ message?: string }>("/api/auth/claim/email-code", { claimToken, email }),
+    api.post<{ message?: string } & OtpDeadlines>("/api/auth/claim/email-code", { claimToken, email }),
 
   claimComplete: (body: { claimToken: string; password: string; email?: string; emailOtp?: string }) =>
     api.post<{ message?: string }>("/api/auth/claim/complete", body),

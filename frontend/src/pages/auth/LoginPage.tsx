@@ -6,7 +6,7 @@ import { Button } from "@/components/shadcn/button";
 import { FieldGroup, FieldLabel } from "@/components/shadcn/field";
 import { Spinner } from "@/components/shadcn/spinner";
 import { AuthPasswordField, AuthTextField } from "../../components/auth/AuthField";
-import { AuthError, AuthHeading } from "../../components/auth/AuthChrome";
+import { AuthError, AuthHeading, LockoutNotice } from "../../components/auth/AuthChrome";
 import { authApi } from "../../lib/api/auth.api";
 import { useAuth } from "../../hooks/useAuth";
 import { Role } from "../../lib/types/enums";
@@ -16,6 +16,7 @@ import { MfaChallengeModal } from "../../components/auth/MfaChallengeModal";
 import { MfaSetupModal } from "../../components/auth/MfaSetupModal";
 import { TurnstileWidget, type TurnstileWidgetRef } from "../../components/common";
 import type { LoginResponse } from "../../lib/types/auth.types";
+import { useLockout } from "../../hooks/useCountdown";
 import { useSecurityControls } from "../../hooks/useSecurityControls";
 import { isPhilippinePhone } from "../../lib/utils";
 
@@ -73,6 +74,7 @@ export const LoginPage: React.FC = () => {
 
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
+  const lockout = useLockout();
 
   const handleFinalSuccess = (data: LoginResponse) => {
     login(data);
@@ -134,8 +136,8 @@ export const LoginPage: React.FC = () => {
       turnstileRef.current?.reset();
       turnstileTokenRef.current = "";
       setTurnstileToken("");
-      const formatted = formatErrorMessage(err);
-      setServerError(formatted);
+      // A 429 shows the lockout countdown; any other failure keeps its own message.
+      if (!lockout.lock(err)) setServerError(formatErrorMessage(err));
     },
     onSettled: () => {
       submittingRef.current = false;
@@ -149,11 +151,11 @@ export const LoginPage: React.FC = () => {
   const isCaptchaRequired = hasSiteKey && !isCaptchaDisabled && import.meta.env.MODE !== "test";
   const isCredentialsFilled = formData.email.trim().length > 0 && formData.password.length > 0;
   const isSubmitDisabled =
-    loginMutation.isPending || !isCredentialsFilled || (isCaptchaRequired && !turnstileToken);
+    loginMutation.isPending || lockout.isLocked || !isCredentialsFilled || (isCaptchaRequired && !turnstileToken);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (submittingRef.current || loginMutation.isPending) return;
+    if (submittingRef.current || loginMutation.isPending || lockout.isLocked) return;
     setServerError(null);
 
     const result = loginSchema.safeParse(formData);
@@ -211,6 +213,7 @@ export const LoginPage: React.FC = () => {
       />
 
       <AuthError message={serverError} />
+      <LockoutNotice seconds={lockout.secondsLeft} />
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6" noValidate>
         <FieldGroup>

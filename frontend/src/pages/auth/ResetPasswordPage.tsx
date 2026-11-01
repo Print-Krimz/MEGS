@@ -1,13 +1,17 @@
 import React, { useState } from "react";
 import { Link, useSearch } from "@tanstack/react-router";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { Button } from "@/components/shadcn/button";
 import { FieldGroup } from "@/components/shadcn/field";
 import { Spinner } from "@/components/shadcn/spinner";
 import { AuthPasswordField, AuthTextField } from "../../components/auth/AuthField";
-import { AuthError, AuthHeading } from "../../components/auth/AuthChrome";
+import { AuthError, AuthHeading, LockoutNotice } from "../../components/auth/AuthChrome";
+import { CountdownText } from "../../components/auth/CountdownText";
 import { authApi } from "../../lib/api/auth.api";
+import { ApiError } from "../../lib/api/client";
+import { useCountdown, useLockout } from "../../hooks/useCountdown";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { CheckCircle2, ArrowRight } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import { isWithinPasswordByteLimit, PASSWORD_MAX_BYTES, PASSWORD_MAX_BYTES_MESSAGE } from "../../lib/password-strength";
@@ -52,6 +56,23 @@ export const ResetPasswordPage: React.FC = () => {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const lockout = useLockout();
+
+  // Ask the server how long this token has left. A pasted token is checked once typing pauses.
+  const token = useDebouncedValue(formData.token.trim(), 500);
+  const sessionStatus = useQuery({
+    queryKey: ["reset-session-status", token],
+    queryFn: () => authApi.resetSessionStatus(token),
+    enabled: token.length > 0 && !isSuccess,
+    retry: false,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+  const expiresAt = sessionStatus.data?.expiresAt ?? null;
+  const countdown = useCountdown(expiresAt);
+  // Only a 400 means the server rejected the token; a network or limiter error says nothing about it.
+  const tokenRejected = sessionStatus.error instanceof ApiError && sessionStatus.error.status === 400;
+  const linkExpired = tokenRejected || (expiresAt !== null && countdown.isDone);
 
   const resetMutation = useMutation({
     mutationFn: authApi.resetPassword,
@@ -60,6 +81,8 @@ export const ResetPasswordPage: React.FC = () => {
       notify.success("Password Reset Complete", "Your new password has been saved.");
     },
     onError: (err) => {
+      // A 429 shows the lockout countdown; any other failure keeps its own message.
+      if (lockout.lock(err)) return;
       const formatted = formatErrorMessage(err);
       setServerError(formatted);
       notify.error("Password Reset Failed", err);
@@ -125,12 +148,34 @@ export const ResetPasswordPage: React.FC = () => {
     );
   }
 
+  if (linkExpired) {
+    return (
+      <div className="flex flex-col gap-8">
+        <title>Reset password | MEGS</title>
+        <AuthHeading focusOnMount title="This reset link has expired" description="Reset links work once and last 15 minutes. Request a new code to try again." />
+        <Button asChild size="lg" className="w-full">
+          <Link to="/forgot-password">
+            Request a new code
+            <ArrowRight data-icon="inline-end" aria-hidden="true" />
+          </Link>
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-8">
       <title>Reset password | MEGS</title>
       <AuthHeading title="Set a new password" description="Choose a password you have not used before." />
 
       <AuthError message={serverError} />
+      <LockoutNotice seconds={lockout.secondsLeft} />
+
+      {expiresAt && (
+        <p className="text-sm text-muted-foreground">
+          Finish within <CountdownText seconds={countdown.secondsLeft} />
+        </p>
+      )}
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6" noValidate>
         <FieldGroup>
@@ -173,7 +218,7 @@ export const ResetPasswordPage: React.FC = () => {
           />
         </FieldGroup>
 
-        <Button type="submit" size="lg" disabled={resetMutation.isPending} className="w-full">
+        <Button type="submit" size="lg" disabled={resetMutation.isPending || lockout.isLocked} className="w-full">
           {resetMutation.isPending && <Spinner data-icon="inline-start" />}
           {resetMutation.isPending ? "Updating…" : "Update password"}
         </Button>

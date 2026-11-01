@@ -6,8 +6,10 @@ import { Button } from "@/components/shadcn/button";
 import { FieldGroup, FieldLabel } from "@/components/shadcn/field";
 import { Spinner } from "@/components/shadcn/spinner";
 import { AuthPasswordField, AuthTextField } from "../../components/auth/AuthField";
-import { AuthError, AuthHeading, AuthStep, AuthStepper } from "../../components/auth/AuthChrome";
+import { AuthError, AuthHeading, AuthStep, AuthStepper, LockoutNotice } from "../../components/auth/AuthChrome";
+import { CountdownText, OtpExpiryHint } from "../../components/auth/CountdownText";
 import { OtpCodeField } from "../../components/auth/OtpCodeField";
+import { useCountdown, useLockout, useOtpTimers } from "../../hooks/useCountdown";
 import { authApi } from "../../lib/api/auth.api";
 import { TurnstileWidget, type TurnstileWidgetRef } from "../../components/common";
 import { CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
@@ -62,7 +64,14 @@ export const ForgotPasswordPage: React.FC = () => {
 
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
-  const [cooldown, setCooldown] = useState(60);
+  const otp = useOtpTimers(rateLimitDisabled);
+  const lockout = useLockout();
+  const [resetExpiresAt, setResetExpiresAt] = useState<string | null>(null);
+  const resetSession = useCountdown(resetExpiresAt);
+  // A 429 shows the lockout countdown; any other failure keeps its own message.
+  const failWith = (err: unknown) => {
+    if (!lockout.lock(err)) setServerError(formatErrorMessage(err));
+  };
 
   useEffect(() => {
     if (search?.email && email !== search.email) {
@@ -70,26 +79,25 @@ export const ForgotPasswordPage: React.FC = () => {
     }
   }, [search?.email]);
 
-  useEffect(() => { if (rateLimitDisabled) setCooldown(0); }, [rateLimitDisabled, cooldown]);
-
-  // Cooldown countdown timer for resend
+  // The 15-minute reset window ran out: start over with a fresh code.
   useEffect(() => {
-    if (step === "VERIFY_OTP" && cooldown > 0) {
-      const timer = setInterval(() => {
-        setCooldown((prev) => (prev > 0 ? prev - 1 : 0));
-      }, 1000);
-      return () => clearInterval(timer);
+    if (step === "SET_PASSWORD" && resetExpiresAt && resetSession.isDone) {
+      setStep("EMAIL");
+      setResetToken("");
+      setResetExpiresAt(null);
+      setOtpCode("");
+      setServerError("Your reset time ran out. Request a new code to try again.");
     }
-  }, [step, cooldown]);
+  }, [step, resetExpiresAt, resetSession.isDone]);
 
   // Step 1 Mutation: Request OTP
   const forgotMutation = useMutation({
     mutationFn: (variables: { data: { email: string }; turnstileToken?: string }) =>
       authApi.forgotPassword(variables.data, variables.turnstileToken),
-    onSuccess: () => {
+    onSuccess: (data) => {
       setServerError(null);
       setStep("VERIFY_OTP");
-      setCooldown(60);
+      otp.start(data);
       const isPhone = isPhilippinePhone(email.trim());
       notify.success(
         "Verification code sent",
@@ -101,8 +109,7 @@ export const ForgotPasswordPage: React.FC = () => {
     onError: (err) => {
       turnstileRef.current?.reset();
       setTurnstileToken("");
-      const formatted = formatErrorMessage(err);
-      setServerError(formatted);
+      failWith(err);
     },
   });
 
@@ -112,6 +119,7 @@ export const ForgotPasswordPage: React.FC = () => {
     onSuccess: (data) => {
       if (data.resetToken) {
         setResetToken(data.resetToken);
+        setResetExpiresAt(data.resetTokenExpiresAt ?? new Date(Date.now() + 15 * 60_000).toISOString());
         setServerError(null);
         setStep("SET_PASSWORD");
         notify.success("Code verified", "Please set your new security password.");
@@ -119,18 +127,15 @@ export const ForgotPasswordPage: React.FC = () => {
         setServerError("Verification session could not be established. Please retry.");
       }
     },
-    onError: (err) => {
-      const formatted = formatErrorMessage(err);
-      setServerError(formatted);
-    },
+    onError: failWith,
   });
 
   // Resend OTP Mutation
   const resendMutation = useMutation({
     mutationFn: authApi.resendOtp,
-    onSuccess: () => {
+    onSuccess: (data) => {
       setServerError(null);
-      setCooldown(60);
+      otp.start(data);
       const isPhone = isPhilippinePhone(email.trim());
       notify.success(
         "Code resent",
@@ -139,10 +144,7 @@ export const ForgotPasswordPage: React.FC = () => {
           : "A new 6-digit verification code has been dispatched."
       );
     },
-    onError: (err) => {
-      const formatted = formatErrorMessage(err);
-      setServerError(formatted);
-    },
+    onError: failWith,
   });
 
   // Step 3 Mutation: Submit New Password
@@ -153,10 +155,7 @@ export const ForgotPasswordPage: React.FC = () => {
       setStep("SUCCESS");
       notify.success("Password updated", "Your account password has been successfully reset.");
     },
-    onError: (err) => {
-      const formatted = formatErrorMessage(err);
-      setServerError(formatted);
-    },
+    onError: failWith,
   });
 
   // Off when the build disables it or the developer-owned DISABLE_CAPTCHA switch is on (Heroku).
@@ -165,7 +164,8 @@ export const ForgotPasswordPage: React.FC = () => {
   const hasSiteKey = Boolean(import.meta.env.VITE_TURNSTILE_SITE_KEY);
   const isCaptchaRequired = hasSiteKey && !isCaptchaDisabled && import.meta.env.MODE !== "test";
   const isEmailFilled = email.trim().length > 0;
-  const isSubmitDisabled = forgotMutation.isPending || !isEmailFilled || (isCaptchaRequired && !turnstileToken);
+  const isSubmitDisabled =
+    forgotMutation.isPending || lockout.isLocked || !isEmailFilled || (isCaptchaRequired && !turnstileToken);
 
   const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,7 +209,7 @@ export const ForgotPasswordPage: React.FC = () => {
   };
 
   const handleResend = () => {
-    if (cooldown > 0 || resendMutation.isPending) return;
+    if (otp.cooldown > 0 || resendMutation.isPending || lockout.isLocked) return;
     setServerError(null);
     resendMutation.mutate({
       email: email.trim(),
@@ -291,6 +291,11 @@ export const ForgotPasswordPage: React.FC = () => {
         />
 
         <AuthError message={serverError} />
+        <LockoutNotice seconds={lockout.secondsLeft} />
+
+        <p className="text-sm text-muted-foreground">
+          Finish within <CountdownText seconds={resetSession.secondsLeft} />
+        </p>
 
         <form onSubmit={handlePasswordSubmit} className="flex flex-col gap-6" noValidate>
           <FieldGroup>
@@ -330,7 +335,7 @@ export const ForgotPasswordPage: React.FC = () => {
             />
           </FieldGroup>
 
-          <Button type="submit" size="lg" className="w-full" disabled={resetPasswordMutation.isPending}>
+          <Button type="submit" size="lg" className="w-full" disabled={resetPasswordMutation.isPending || lockout.isLocked}>
             {resetPasswordMutation.isPending && <Spinner data-icon="inline-start" />}
             Update password
           </Button>
@@ -351,6 +356,7 @@ export const ForgotPasswordPage: React.FC = () => {
         />
 
         <AuthError message={serverError} />
+        <LockoutNotice seconds={lockout.secondsLeft} />
 
         <form onSubmit={handleOtpSubmit} className="flex flex-col gap-6" noValidate>
           <OtpCodeField
@@ -365,7 +371,7 @@ export const ForgotPasswordPage: React.FC = () => {
               }
             }}
             error={validationErrors.otp}
-            hint="The code expires in 10 minutes."
+            hint={<OtpExpiryHint expired={otp.expired} seconds={otp.expiresIn} />}
           />
 
           <div className="flex flex-col gap-3">
@@ -373,7 +379,7 @@ export const ForgotPasswordPage: React.FC = () => {
               type="submit"
               size="lg"
               className="w-full"
-              disabled={otpCode.length !== 6 || verifyOtpMutation.isPending}
+              disabled={otpCode.length !== 6 || verifyOtpMutation.isPending || otp.expired || lockout.isLocked}
               aria-describedby="reset-otp-submit-hint"
             >
               {verifyOtpMutation.isPending && <Spinner data-icon="inline-start" />}
@@ -414,11 +420,11 @@ export const ForgotPasswordPage: React.FC = () => {
             variant="ghost"
             size="sm"
             className="-mr-3 text-accent hover:text-accent"
-            disabled={cooldown > 0 || resendMutation.isPending}
+            disabled={otp.cooldown > 0 || resendMutation.isPending || lockout.isLocked}
             onClick={handleResend}
           >
             <RefreshCw data-icon="inline-start" aria-hidden="true" className={resendMutation.isPending ? "animate-spin" : undefined} />
-            {cooldown > 0 ? `Resend code in ${cooldown}s` : "Resend code"}
+            {otp.cooldown > 0 ? `Resend code in ${otp.cooldown}s` : "Resend code"}
           </Button>
         </div>
       </div>
@@ -439,6 +445,7 @@ export const ForgotPasswordPage: React.FC = () => {
         />
 
         <AuthError message={serverError} />
+        <LockoutNotice seconds={lockout.secondsLeft} />
 
         <form onSubmit={handleEmailSubmit} className="flex flex-col gap-6" noValidate>
           <FieldGroup>

@@ -9,7 +9,7 @@ interface OtpCodeFieldProps {
   value: string;
   onChange: (value: string) => void;
   error?: string;
-  hint?: string;
+  hint?: React.ReactNode;
   autoFocus?: boolean;
   disabled?: boolean;
 }
@@ -26,6 +26,7 @@ export const OtpCodeField: React.FC<OtpCodeFieldProps> = ({
   disabled,
 }) => {
   const errorId = `${id}-error`;
+  const hintId = `${id}-hint`;
   return (
     <Field data-invalid={error ? true : undefined}>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
@@ -40,7 +41,7 @@ export const OtpCodeField: React.FC<OtpCodeFieldProps> = ({
         value={value}
         onChange={onChange}
         aria-invalid={error ? true : undefined}
-        aria-describedby={error ? errorId : undefined}
+        aria-describedby={error ? errorId : hint ? hintId : undefined}
         containerClassName="w-full"
       >
         <InputOTPGroup className="w-full justify-between gap-2">
@@ -57,7 +58,7 @@ export const OtpCodeField: React.FC<OtpCodeFieldProps> = ({
       {error ? (
         <FieldError id={errorId}>{error}</FieldError>
       ) : (
-        hint && <FieldDescription>{hint}</FieldDescription>
+        hint && <FieldDescription id={hintId}>{hint}</FieldDescription>
       )}
     </Field>
   );

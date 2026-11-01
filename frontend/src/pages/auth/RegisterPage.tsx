@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
 import { z } from "zod";
@@ -6,8 +6,10 @@ import { Button } from "@/components/shadcn/button";
 import { FieldGroup, FieldLabel } from "@/components/shadcn/field";
 import { Spinner } from "@/components/shadcn/spinner";
 import { AuthPasswordField, AuthTextField } from "../../components/auth/AuthField";
-import { AuthError, AuthHeading, AuthStep, AuthStepper } from "../../components/auth/AuthChrome";
+import { AuthError, AuthHeading, AuthStep, AuthStepper, LockoutNotice } from "../../components/auth/AuthChrome";
+import { OtpExpiryHint } from "../../components/auth/CountdownText";
 import { OtpCodeField } from "../../components/auth/OtpCodeField";
+import { useLockout, useOtpTimers } from "../../hooks/useCountdown";
 import { authApi } from "../../lib/api/auth.api";
 import { TurnstileWidget, type TurnstileWidgetRef } from "../../components/common";
 import { CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
@@ -62,27 +64,20 @@ export const RegisterPage: React.FC = () => {
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState<string | null>(null);
   const [claimable, setClaimable] = useState(false);
-  const [cooldown, setCooldown] = useState(60);
-
-  useEffect(() => { if (rateLimitDisabled) setCooldown(0); }, [rateLimitDisabled, cooldown]);
-
-  // Cooldown countdown timer for resend
-  useEffect(() => {
-    if (step === "VERIFY_OTP" && cooldown > 0) {
-      const timer = setInterval(() => {
-        setCooldown((prev) => (prev > 0 ? prev - 1 : 0));
-      }, 1000);
-      return () => clearInterval(timer);
-    }
-  }, [step, cooldown]);
+  const otp = useOtpTimers(rateLimitDisabled);
+  const lockout = useLockout();
+  // A 429 shows the lockout countdown; any other failure keeps its own message.
+  const failWith = (err: unknown) => {
+    if (!lockout.lock(err)) setServerError(formatErrorMessage(err));
+  };
 
   const registerMutation = useMutation({
     mutationFn: (variables: { data: { email: string; password: string }; turnstileToken?: string }) =>
       authApi.register(variables.data, variables.turnstileToken),
-    onSuccess: () => {
+    onSuccess: (data) => {
       setServerError(null);
       setStep("VERIFY_OTP");
-      setCooldown(60);
+      otp.start(data);
       const isPhone = isPhilippinePhone(formData.email);
       notify.success(
         "Verification code sent",
@@ -100,8 +95,7 @@ export const RegisterPage: React.FC = () => {
         setServerError(null);
         return;
       }
-      const formatted = formatErrorMessage(err);
-      setServerError(formatted);
+      failWith(err);
     },
   });
 
@@ -111,23 +105,17 @@ export const RegisterPage: React.FC = () => {
       setServerError(null);
       setStep("SUCCESS");
     },
-    onError: (err) => {
-      const formatted = formatErrorMessage(err);
-      setServerError(formatted);
-    },
+    onError: failWith,
   });
 
   const resendMutation = useMutation({
     mutationFn: authApi.resendOtp,
-    onSuccess: () => {
+    onSuccess: (data) => {
       setServerError(null);
-      setCooldown(60);
+      otp.start(data);
       notify.success("Code resent", "A new 6-digit verification code has been dispatched.");
     },
-    onError: (err) => {
-      const formatted = formatErrorMessage(err);
-      setServerError(formatted);
-    },
+    onError: failWith,
   });
 
   // Off when the build disables it or the developer-owned DISABLE_CAPTCHA switch is on (Heroku).
@@ -140,7 +128,7 @@ export const RegisterPage: React.FC = () => {
     formData.password.length > 0 &&
     formData.confirmPassword.length > 0;
   const isSubmitDisabled =
-    registerMutation.isPending || !isCredentialsFilled || (isCaptchaRequired && !turnstileToken);
+    registerMutation.isPending || lockout.isLocked || !isCredentialsFilled || (isCaptchaRequired && !turnstileToken);
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -195,7 +183,7 @@ export const RegisterPage: React.FC = () => {
   };
 
   const handleResend = () => {
-    if (cooldown > 0 || resendMutation.isPending) return;
+    if (otp.cooldown > 0 || resendMutation.isPending || lockout.isLocked) return;
     setServerError(null);
     resendMutation.mutate({
       email: formData.email.trim(),
@@ -268,6 +256,7 @@ export const RegisterPage: React.FC = () => {
         />
 
         <AuthError message={serverError} />
+        <LockoutNotice seconds={lockout.secondsLeft} />
 
         <form onSubmit={handleOtpSubmit} className="flex flex-col gap-6" noValidate>
           <OtpCodeField
@@ -281,7 +270,7 @@ export const RegisterPage: React.FC = () => {
               }
             }}
             error={validationErrors.otp}
-            hint="The code expires in 10 minutes."
+            hint={<OtpExpiryHint expired={otp.expired} seconds={otp.expiresIn} />}
           />
 
           {otpDisabled && (
@@ -299,7 +288,12 @@ export const RegisterPage: React.FC = () => {
             </div>
           )}
 
-          <Button type="submit" size="lg" className="w-full" disabled={otpCode.length !== 6 || verifyMutation.isPending}>
+          <Button
+            type="submit"
+            size="lg"
+            className="w-full"
+            disabled={otpCode.length !== 6 || verifyMutation.isPending || otp.expired || lockout.isLocked}
+          >
             {verifyMutation.isPending && <Spinner data-icon="inline-start" />}
             Verify and activate account
           </Button>
@@ -325,11 +319,11 @@ export const RegisterPage: React.FC = () => {
             variant="ghost"
             size="sm"
             className="-mr-3 text-accent hover:text-accent"
-            disabled={cooldown > 0 || resendMutation.isPending}
+            disabled={otp.cooldown > 0 || resendMutation.isPending || lockout.isLocked}
             onClick={handleResend}
           >
             <RefreshCw data-icon="inline-start" aria-hidden="true" className={resendMutation.isPending ? "animate-spin" : undefined} />
-            {cooldown > 0 ? `Resend code in ${cooldown}s` : "Resend code"}
+            {otp.cooldown > 0 ? `Resend code in ${otp.cooldown}s` : "Resend code"}
           </Button>
         </div>
       </div>
@@ -344,6 +338,7 @@ export const RegisterPage: React.FC = () => {
         />
 
         <AuthError message={serverError} />
+        <LockoutNotice seconds={lockout.secondsLeft} />
         {claimable && (
           <p role="alert" className="rounded-lg border border-border bg-muted p-4 text-base text-foreground">
             A MEGS office already set up an account for this number.{" "}
