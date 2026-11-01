@@ -192,6 +192,3 @@ describe("TALayout Navigation & Account Menu", () => {
     expect(accountButton.getAttribute("aria-expanded")).toBe("false");
   });
 });
-
-
-
