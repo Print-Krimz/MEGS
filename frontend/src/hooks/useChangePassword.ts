@@ -74,6 +74,7 @@ export function useChangePassword({ mode, onDone }: UseChangePasswordOptions) {
 
   const [codeSentTo, setCodeSentTo] = useState<string | null>(null);
   const timers = useOtpTimers();
+  const startTimers = timers.start;
 
   const codeMutation = useMutation({
     mutationFn: authApi.requestPasswordChangeCode,
@@ -117,7 +118,9 @@ export function useChangePassword({ mode, onDone }: UseChangePasswordOptions) {
     setErrors({});
     setServerError(null);
     setCodeSentTo(null);
-  }, []);
+    const past = new Date(0).toISOString();
+    startTimers({ expiresAt: past, resendAvailableAt: past });
+  }, [startTimers]);
 
   const submit = (event?: FormEvent) => {
     event?.preventDefault();

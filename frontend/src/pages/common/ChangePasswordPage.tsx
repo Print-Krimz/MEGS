@@ -71,12 +71,20 @@ export const ChangePasswordPage: React.FC = () => {
           />
 
           <div className="flex flex-col gap-2">
-            <Button type="button" variant="outline" size="lg" className="w-full" onClick={sendCode} disabled={isSendingCode || cooldown > 0}>
-              {isSendingCode && <Spinner data-icon="inline-start" />}
-              {codeSentTo ? CHANGE_PASSWORD_COPY.resendCode : CHANGE_PASSWORD_COPY.sendCode}
-              {cooldown > 0 && <CountdownText seconds={cooldown} />}
-            </Button>
-            {codeSentTo && <p className="text-sm text-muted-foreground">We sent a code to {codeSentTo}.</p>}
+            <div className="flex items-center gap-3">
+              <Button type="button" variant="outline" size="lg" className="flex-1" onClick={sendCode} disabled={isSendingCode || cooldown > 0}>
+                {isSendingCode && <Spinner data-icon="inline-start" />}
+                {codeSentTo ? CHANGE_PASSWORD_COPY.resendCode : CHANGE_PASSWORD_COPY.sendCode}
+              </Button>
+              {cooldown > 0 && (
+                <span className="text-sm text-muted-foreground">
+                  <CountdownText seconds={cooldown} />
+                </span>
+              )}
+            </div>
+            <div role="status" className="text-sm text-muted-foreground">
+              {codeSentTo && `We sent a code to ${codeSentTo}.`}
+            </div>
           </div>
 
           {(codeSentTo || errors.otp) && (

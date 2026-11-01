@@ -76,11 +76,19 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ open, 
           />
 
           <div className="space-y-2">
-            <Button type="button" variant="outline" size="sm" onClick={sendCode} loading={isSendingCode} disabled={cooldown > 0}>
-              {codeSentTo ? CHANGE_PASSWORD_COPY.resendCode : CHANGE_PASSWORD_COPY.sendCode}
-              {cooldown > 0 && <> <CountdownText seconds={cooldown} /></>}
-            </Button>
-            {codeSentTo && <p className="text-sm text-slate-600">We sent a code to {codeSentTo}.</p>}
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={sendCode} loading={isSendingCode} disabled={cooldown > 0}>
+                {codeSentTo ? CHANGE_PASSWORD_COPY.resendCode : CHANGE_PASSWORD_COPY.sendCode}
+              </Button>
+              {cooldown > 0 && (
+                <span className="text-sm text-slate-600">
+                  <CountdownText seconds={cooldown} />
+                </span>
+              )}
+            </div>
+            <div role="status" className="text-sm text-slate-600">
+              {codeSentTo && `We sent a code to ${codeSentTo}.`}
+            </div>
           </div>
 
           {(codeSentTo || errors.otp) && (
