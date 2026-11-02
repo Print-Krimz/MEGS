@@ -73,14 +73,14 @@ export const METRICS: Record<MetricKey, MetricDefinition> = {
   backoutsAfterClientReview: metric(
     "backoutsAfterClientReview",
     "Backed out after client review",
-    "Candidates who left once the client had seen them.",
+    "Candidates who left after the client reviewed them.",
     "In these dates",
     "count"
   ),
   withdrawals: metric(
     "withdrawals",
     "Backed out before client review",
-    "Candidates who left before the client saw them.",
+    "Candidates who left before the client reviewed them.",
     "In these dates",
     "count"
   ),
@@ -104,7 +104,7 @@ export const METRICS: Record<MetricKey, MetricDefinition> = {
   activeApplicants: metric(
     "activeApplicants",
     "Active applicants",
-    "Candidates in the pipeline now, from application to before start.",
+    "Candidates in the pipeline today, from application to start.",
     "Right now",
     "count"
   ),
@@ -123,7 +123,7 @@ export const BACKOUT_REASON_LABELS: Record<string, string> = {
   CLIENT_CANCELLED_REQUEST: "Client cancelled the request",
   CLIENT_WITHDREW_SELECTION: "Client withdrew the selection",
   POSITION_FILLED: "Position already filled",
-  AGENCY_PROCESSING_DELAY: "Processing delay on our side",
+  AGENCY_PROCESSING_DELAY: "MEGS processing delay",
   OTHER: "Other reason",
 };
 

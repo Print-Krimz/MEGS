@@ -109,7 +109,7 @@ const CANDIDATE_STATUS_LABEL: Record<CandidateStatus, string> = {
   CLOSED_OPENING: "Job post closed",
   AWAITING_START: "Waiting to start",
 };
-const PARTY_LABEL: Record<string, string> = { APPLICANT: "Applicant", CLIENT: "Client", AGENCY: "MEGS (agency)" };
+const PARTY_LABEL: Record<string, string> = { APPLICANT: "Applicant", CLIENT: "Client", AGENCY: "Agency" };
 const POST_SELECTION = ["CLIENT_ENDORSEMENT", "FINAL_INTERVIEW", "COMPLIANCE", "CONTRACT_SIGNING", "DEPLOYED"];
 
 // ─────────────────────────────────────────────
@@ -137,12 +137,12 @@ async function describeFilters(filters: AnalyticsFilterDto, requestedBy: Request
   const parts = [`Dates: ${manilaDateString(start)} to ${manilaDateString(end)}`];
   if (filters.clientId) parts.push(`Client: ${client?.name ?? "not available"}`);
   if (filters.mrfId) parts.push(`Client request: ${request?.title ?? "not available"}`);
-  if (filters.jobPostingId) parts.push(`Job post: ${job?.title ?? "not available"}`);
+  if (filters.jobPostingId) parts.push(`Job opening: ${job?.title ?? "not available"}`);
   if (admin) {
     const name = recruiter ? resolveUserName(recruiter) : null;
     parts.push(filters.recruiterId ? `Recruiter: ${name ?? "not available"}` : "All recruiters");
   } else {
-    parts.push("Only your own records");
+    parts.push("Only your own requests and candidates");
   }
   return parts.join(" | ");
 }
@@ -189,7 +189,7 @@ function requestsSection(result: ReportResult, admin: boolean): Section {
     { header: "Seats open", key: "open", weight: 44, align: "right" as const },
     { header: "In process", key: "pipeline", weight: 48, align: "right" as const },
     { header: "Overdue", key: "overdue", weight: 38, align: "right" as const },
-    { header: "Total applicants", key: "applicants", weight: 56, align: "right" as const },
+    { header: "Total candidates", key: "applicants", weight: 56, align: "right" as const },
     { header: "Status", key: "status", weight: 62, align: "center" as const, badge: true },
     { header: "Due date", key: "due", weight: 58, align: "center" as const },
     { header: "What to check", key: "attention", weight: 95 },
@@ -197,7 +197,7 @@ function requestsSection(result: ReportResult, admin: boolean): Section {
   return {
     sheet: "Client requests",
     title: "Client requests",
-    note: "Requests still open, plus any filled in these dates. In process = applicants still going through the stages. Overdue = applicants who waited longer than the days allowed. Due date = when the client wants the seats filled.",
+    note: "Requests still open, plus any filled in these dates. In process means candidates still moving through the stages. Overdue = applicants who waited longer than the days allowed. Due date = when the client wants the seats filled.",
     columns,
     rows: result.requests.map((r) => ({
       title: clean(r.title),
@@ -220,18 +220,18 @@ function overdueSection(detail: DeliveryDetail, admin: boolean): Section {
   return {
     sheet: "Overdue candidates",
     title: "Overdue candidates",
-    note: "Candidates past the days allowed for their stage. \"Sure\" cases come first. \"Estimated\" means no stage change was recorded, so days are counted from the application date and may be higher than the real wait.",
+    note: "Candidates past the days allowed for their stage. Candidates with a recorded wait come first. Estimated means no stage change was recorded, so days count from the application date and may be higher than the real wait.",
     columns: [
-      { header: "Applicant", key: "candidate", weight: 120 },
-      { header: "Job post", key: "job", weight: 115 },
+      { header: "Candidate", key: "candidate", weight: 120 },
+      { header: "Job opening", key: "job", weight: 115 },
       { header: "Client", key: "client", weight: 95 },
       ...(admin ? [{ header: "Recruiter", key: "recruiter", weight: 90 }] : []),
       { header: "Current stage", key: "stage", weight: 90 },
       { header: "Days in this stage", key: "days", weight: 60, align: "right" as const },
       { header: "Days allowed", key: "limit", weight: 52, align: "right" as const },
       { header: "Days over", key: "over", weight: 48, align: "right" as const },
-      { header: "How sure", key: "basis", weight: 90 },
-      { header: "Level", key: "urgency", weight: 60, align: "center" as const, badge: true },
+      { header: "Wait recorded or estimated", key: "basis", weight: 90 },
+      { header: "Urgency", key: "urgency", weight: 60, align: "center" as const, badge: true },
     ],
     rows: detail.overdue.map((o) => ({
       candidate: clean(o.candidateName),
@@ -252,12 +252,12 @@ function stageSection(result: ReportResult): Section {
   return {
     sheet: "Candidates by stage",
     title: "Candidates by stage",
-    note: "In stage now, overdue, and days are right now. Estimated = no stage change recorded, so counted from the application date. Typical days = the middle value (half took less, half took more); with fewer than 5 candidates it shows Not enough data. Entered and backed out are in these dates.",
+    note: "In stage now, overdue, and days are right now. Estimated = no stage change recorded, so counted from the application date. Typical days is the middle value: half waited less, half waited more. With fewer than 5 candidates it shows Not enough data. Entered and backed out are in these dates.",
     columns: [
       { header: "Stage", key: "stage", weight: 120 },
       { header: "In stage now", key: "inStage", weight: 50, align: "right" },
       { header: "Overdue", key: "overdue", weight: 45, align: "right" },
-      { header: "Estimated overdue", key: "estimated", weight: 50, align: "right" },
+      { header: "Overdue, estimated", key: "estimated", weight: 50, align: "right" },
       { header: "Typical days", key: "median", weight: 55, align: "right" },
       { header: "Average days", key: "avg", weight: 55, align: "right" },
       { header: "Days allowed", key: "limit", weight: 65, align: "right" },
@@ -284,19 +284,19 @@ function recruiterSections(result: ReportResult): Section[] {
     {
       sheet: "Recruiters",
       title: "Each recruiter's work",
-      note: "Active applicants, overdue, and seats are right now. Estimated overdue = no stage change recorded, so counted from the application date. Sent to client, starts, and backouts are in these dates. A rate or typical time based on fewer than 5 cases shows Not enough data (n = the number of cases).",
+      note: "Active applicants, overdue, and seats are right now. Estimated overdue = no stage change recorded, so counted from the application date. Sent to client, starts, and backouts are in these dates. A rate or typical time based on fewer than 5 cases shows Not enough data, with the case count in brackets.",
       columns: [
         { header: "Recruiter", key: "name", weight: 110 },
-        { header: "Active applicants", key: "active", weight: 52, align: "right" },
+        { header: "Active candidates", key: "active", weight: 52, align: "right" },
         { header: "Overdue", key: "overdue", weight: 40, align: "right" },
-        { header: "Estimated overdue", key: "estimated", weight: 44, align: "right" },
+        { header: "Overdue, estimated", key: "estimated", weight: 44, align: "right" },
         { header: "Open requests", key: "open", weight: 52, align: "right" },
         { header: "Seats needed", key: "seats", weight: 46, align: "right" },
         { header: "Seats filled", key: "filled", weight: 46, align: "right" },
         { header: "Seats filled (%)", key: "fill", weight: 52, align: "right" },
         { header: "Sent to client", key: "sent", weight: 48, align: "right" },
         { header: "New starts", key: "newStarts", weight: 50, align: "right" },
-        { header: "Returning starts", key: "redeploy", weight: 58, align: "right" },
+        { header: "Redeployed starts", key: "redeploy", weight: 58, align: "right" },
         { header: "Backed out", key: "backouts", weight: 48, align: "right" },
         { header: "Backout rate (%)", key: "backoutRate", weight: 56, align: "right" },
         { header: "Days to fill", key: "days", weight: 52, align: "right" },
@@ -328,7 +328,7 @@ function closureSections(result: ReportResult): Section[] {
     {
       sheet: "Closed applications",
       title: "Closed applications",
-      note: "Applications closed in these dates. Rejected means we turned the applicant down. Backed out means the applicant dropped out. Talent pool and Archive are what was decided for the applicant afterwards. Not recorded is for older records closed before this choice existed.",
+      note: "Applications closed in these dates. Rejected means we turned the applicant down. Backed out means the applicant dropped out. Talent pool and Archive are what was decided for the applicant afterwards. Not recorded means the record was closed before this choice was added.",
       columns: [
         { header: "Outcome", key: "outcome", weight: 120 },
         { header: "Total", key: "total", weight: 60, align: "right" },
@@ -365,8 +365,8 @@ function backoutSection(detail: DeliveryDetail, admin: boolean): Section {
     columns: [
       { header: "Date", key: "date", weight: 52, align: "center" },
       { header: "When", key: "type", weight: 78 },
-      { header: "Applicant", key: "candidate", weight: 100 },
-      { header: "Job post", key: "job", weight: 100 },
+      { header: "Candidate", key: "candidate", weight: 100 },
+      { header: "Job opening", key: "job", weight: 100 },
       { header: "Client", key: "client", weight: 85 },
       { header: "Client request", key: "request", weight: 100 },
       { header: "Stage", key: "stage", weight: 80 },
@@ -403,8 +403,8 @@ function candidatesSection(detail: DeliveryDetail, admin: boolean): Section {
     note: "Everyone still going through the stages right now. All rows except \"Waiting to start\" add up to the Active applicants number.",
     columns: [
       { header: "Application no.", key: "id", weight: 52, align: "center" },
-      { header: "Applicant", key: "candidate", weight: 115 },
-      { header: "Job post", key: "job", weight: 115 },
+      { header: "Candidate", key: "candidate", weight: 115 },
+      { header: "Job opening", key: "job", weight: 115 },
       { header: "Client", key: "client", weight: 95 },
       { header: "Client request", key: "request", weight: 110 },
       ...(admin ? [{ header: "Recruiter", key: "recruiter", weight: 90 }] : []),
@@ -455,9 +455,9 @@ async function receivedSection(filters: AnalyticsFilterDto, requestedBy: Request
     note: "Every application received in these dates, whatever its stage today. Someone who applied more than once appears once per application.",
     columns: [
       { header: "Application no.", key: "id", weight: 55, align: "center" },
-      { header: "Applicant", key: "candidate", weight: 130 },
+      { header: "Candidate", key: "candidate", weight: 130 },
       { header: "Email", key: "email", weight: 140 },
-      { header: "Job post", key: "job", weight: 130 },
+      { header: "Job opening", key: "job", weight: 130 },
       { header: "Client", key: "client", weight: 100 },
       { header: "Client request", key: "request", weight: 120 },
       { header: "Stage today", key: "status", weight: 90, align: "center", badge: true },
