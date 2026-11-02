@@ -1088,14 +1088,16 @@ async function withLastActivity(stuck: { items: StuckCandidate[]; total: number 
     where: { applicationId: { in: ids } },
     orderBy: { createdAt: "desc" },
     distinct: ["applicationId"],
-    select: { applicationId: true, createdAt: true, reason: true },
+    select: { applicationId: true, createdAt: true, reason: true, actorId: true, application: { select: { userId: true } } },
   });
   const latest = new Map(decisions.map((d) => [d.applicationId, d]));
   return {
     total: stuck.total,
     items: stuck.items.map((item) => {
       const d = latest.get(item.applicationId);
-      return d ? { ...item, lastActivityAt: d.createdAt.toISOString(), lastNote: tidyNote(d.reason) } : item;
+      // Automatic moves (e.g. match scoring) are recorded under the applicant's own id; only staff wording is a note.
+      const note = d && d.actorId !== d.application.userId ? tidyNote(d.reason) : null;
+      return d ? { ...item, lastActivityAt: d.createdAt.toISOString(), lastNote: note } : item;
     }),
   };
 }

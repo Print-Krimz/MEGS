@@ -151,6 +151,8 @@ export function wireWorld(m: Record<string, any>, w: World) {
       applicationId,
       createdAt: new Date(Date.UTC(2026, 9, 1 + (i % 20))),
       reason: i % 2 ? `Note ${i}` : null,
+      actorId: "ta-1",
+      application: { userId: `applicant-${applicationId}` },
     }));
   });
   m.backoutFindMany.mockResolvedValue(w.backouts);

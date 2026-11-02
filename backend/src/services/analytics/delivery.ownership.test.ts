@@ -284,10 +284,18 @@ describe("what needs attention", () => {
     mocks.applicationFindMany.mockResolvedValue([
       app({ id: 1, status: "FINAL_INTERVIEW" }),
       app({ id: 2, status: "FINAL_INTERVIEW" }),
+      app({ id: 3, status: "FINAL_INTERVIEW" }),
     ]);
+    mocks.decisionGroupBy.mockResolvedValue([decisionInto(1, "FINAL_INTERVIEW"), decisionInto(2, "FINAL_INTERVIEW"), decisionInto(3, "FINAL_INTERVIEW")]);
     const long = `  Called   the client\n and waited ${"x".repeat(200)}`;
     mocks.decisionFindMany.mockImplementation(async (args: any) =>
-      args?.where?.applicationId?.in ? [{ applicationId: 1, createdAt: new Date("2026-10-30T08:00:00Z"), reason: long }] : []
+      args?.where?.applicationId?.in
+        ? [
+            { applicationId: 1, createdAt: new Date("2026-10-30T08:00:00Z"), reason: long, actorId: "ta-1", application: { userId: "applicant-1" } },
+            // Automatic scoring is recorded under the applicant's own id: its time counts, its wording is not a note.
+            { applicationId: 3, createdAt: new Date("2026-10-29T08:00:00Z"), reason: "Match score (41.1) resulted in categorization: REVIEW", actorId: "applicant-3", application: { userId: "applicant-3" } },
+          ]
+        : []
     );
     const { stuck } = await getAdminDelivery({ range: "7d" });
     const byId = new Map(stuck.map((s) => [s.applicationId, s]));
@@ -298,9 +306,11 @@ describe("what needs attention", () => {
     // No decision: falls back to when the stage was entered, with no note.
     expect(byId.get(2)?.lastActivityAt).toBe("2026-01-01T00:00:00.000Z");
     expect(byId.get(2)?.lastNote).toBeNull();
+    expect(byId.get(3)?.lastActivityAt).toBe("2026-10-29T08:00:00.000Z");
+    expect(byId.get(3)?.lastNote).toBeNull();
     const lookups = mocks.decisionFindMany.mock.calls.filter(([a]) => a?.where?.applicationId?.in);
     expect(lookups).toHaveLength(1);
-    expect(lookups[0][0].where.applicationId.in.sort()).toEqual([1, 2]);
+    expect(lookups[0][0].where.applicationId.in.sort()).toEqual([1, 2, 3]);
   });
 
   it("skips the last-activity query when nothing is overdue", async () => {
