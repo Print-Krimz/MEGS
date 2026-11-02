@@ -5,7 +5,7 @@ interface AnalyticsPanelProps {
   /** Anchor id so the "needs attention" strip can scroll to this section. */
   id?: string;
   title: string;
-  /** Explains the panel. Shown behind an (i) next to the title, not as a line of text under it. */
+  /** Explains the panel. Behind an (i) next to the title by default; a visible caption under the header in the "reports" tone. */
   subtitle?: string;
   aside?: React.ReactNode;
   children: React.ReactNode;
@@ -37,10 +37,11 @@ export const AnalyticsPanel: React.FC<AnalyticsPanelProps> = ({ id, title, subti
       <div className={`px-3.5 py-2.5 border-b ${reports ? "border-slate-200 bg-white" : "border-navy-line bg-navy-soft"} flex items-center justify-between gap-3`}>
         <div className="min-w-0 flex items-center gap-2">
           <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
-          {subtitle && <InfoTip label={title}>{subtitle}</InfoTip>}
+          {subtitle && !reports && <InfoTip label={title}>{subtitle}</InfoTip>}
         </div>
         {aside && <div className="shrink-0 text-xs text-slate-600">{aside}</div>}
       </div>
+      {reports && subtitle && <p className="border-b border-slate-200 px-3.5 py-2 text-xs font-sans text-slate-600">{subtitle}</p>}
       {children}
     </section>
   );

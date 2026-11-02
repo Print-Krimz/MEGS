@@ -84,10 +84,10 @@ describe("StagePipeline", () => {
 
   it("names every stage with its count and overdue total, and never flags Deployed", () => {
     render(<StagePipeline rows={rows} />);
-    expect(screen.getByRole("group", { name: "Requirements: 54 in stage, 26 overdue" })).toBeDefined();
+    expect(screen.getByRole("group", { name: "Requirements, 54, 26 overdue" })).toBeDefined();
     expect(screen.getByText(/26 overdue/)).toBeDefined();
-    expect(screen.getByRole("group", { name: "Final interview: 4 in stage, 3 overdue" })).toBeDefined();
-    expect(screen.getByRole("group", { name: "Deployed: 2 in stage" })).toBeDefined();
+    expect(screen.getByRole("group", { name: "Final interview, 4, 3 overdue" })).toBeDefined();
+    expect(screen.getByRole("group", { name: "Deployed, 2" })).toBeDefined();
     expect(screen.getByRole("img", { name: "Requirements: within limit 28, overdue 26" })).toBeDefined();
     expect(screen.queryByText(/Watch|Bottleneck|by age only|Show period details/)).toBeNull();
     // Without onSelectStage nothing is a button
@@ -125,10 +125,18 @@ describe("StagePipeline", () => {
     expect(screen.getByText("Client answers: 3 approved")).toBeDefined();
   });
 
+  it("names each stage row from its visible text and puts the footer on the View as table row", () => {
+    const { container } = render(<StagePipeline rows={rows} footer={<p>Client answers: 3 approved</p>} />);
+    expect(screen.getByRole("group", { name: /^Requirements, 54, 26 overdue/ })).toBeDefined();
+    expect(screen.getByText("Candidates in each stage today.")).toBeDefined();
+    const footer = screen.getByText("Client answers: 3 approved");
+    expect(footer.closest("div")?.parentElement).toBe(container.querySelector("details")?.parentElement);
+  });
+
   it("lets a backed-up stage be chosen to list its candidates", () => {
     const onSelect = vi.fn();
     render(<StagePipeline rows={rows} onSelectStage={onSelect} />);
-    fireEvent.click(screen.getByRole("button", { name: "Requirements: 54 in stage, 26 overdue. Show these candidates" }));
+    fireEvent.click(screen.getByRole("button", { name: "Requirements, 54, 26 overdue. Show these candidates" }));
     expect(onSelect).toHaveBeenCalledWith("COMPLIANCE");
     // Deployed has no limit, so it cannot be overdue and is not a button
     expect(screen.queryByRole("button", { name: /Deployed/ })).toBeNull();

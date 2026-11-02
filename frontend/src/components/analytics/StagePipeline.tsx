@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "@tanstack/react-router";
 import type { StageTableRow } from "../../lib/types/analytics.types";
 import type { ApplicationStatus } from "../../lib/types/enums";
-import { TEXT_LOSS, WORKLOAD } from "../../lib/chart-palette";
+import { BAR_PRIMARY, TEXT_LOSS, WORKLOAD } from "../../lib/chart-palette";
 import { formatSampled } from "../../lib/analytics-format";
 import { DataTableToggle, StackedBar } from "./chart-primitives";
 import { AnalyticsPanel } from "./AnalyticsPanel";
@@ -18,7 +18,7 @@ interface StagePipelineProps {
 }
 
 /** The one bar colour (the navy token). Colour carries nothing the stage name does not; only overdue is red. */
-const BAR = "#0B315D";
+const BAR = BAR_PRIMARY;
 
 const overdueText = (row: StageTableRow) =>
   row.overdueEstimated > 0 ? `${row.overdue} + ${row.overdueEstimated} estimated` : String(row.overdue);
@@ -42,15 +42,15 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
   return (
     <AnalyticsPanel tone="reports" id="stage-pipeline" title="Candidates by stage">
       {empty ? (
-        <p className="p-4 text-center text-xs text-slate-500 font-sans">No candidates are in the pipeline and none moved in this period.</p>
+        <p className="p-4 text-center text-xs text-slate-600 font-sans">No candidates in the pipeline and none moved in these dates.</p>
       ) : (
         <div className="p-3.5">
-          <p className="mb-1.5 text-xs font-sans text-slate-600">In each stage now, from application to start.</p>
+          <p className="mb-1.5 text-xs font-sans text-slate-600">Candidates in each stage today.</p>
           <ol>
             {rows.map((row, i) => {
               const late = row.stage === "DEPLOYED" ? 0 : row.overdue + row.overdueEstimated;
               const name = row.label;
-              const summary = `${name}: ${row.inStageNow} in stage${late > 0 ? `, ${late} overdue` : ""}`;
+              const summary = `${name}, ${row.inStageNow}${late > 0 ? `, ${late} overdue` : ""}`;
               const link = linkStages && row.stage !== "APPLIED" && row.stage !== "DEPLOYED";
               const pick = !link && !!onSelectStage && late > 0;
               const label = link || pick ? `${summary}. Show these candidates` : summary;
@@ -94,7 +94,9 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
               );
             })}
           </ol>
+          <div className="flex flex-wrap items-start justify-between gap-x-4">
           <DataTableToggle
+            className="min-w-[10rem] flex-1"
             caption="Exact counts and waits for each stage"
             columns={["Stage", "Entered", "In stage", "Overdue", "Typical wait", "Days allowed", "Backed out"]}
             rows={rows.map((r) => ({
@@ -110,9 +112,11 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
               ],
             }))}
           />
+          {footer && <div className="mt-3 flex min-h-11 items-center text-xs font-sans text-slate-700 md:min-h-8">{footer}</div>}
+          </div>
         </div>
       )}
-      {footer && <div className="border-t border-navy-line px-3.5 py-2.5 text-xs font-sans text-slate-700">{footer}</div>}
+      {footer && empty && <div className="border-t border-navy-line px-3.5 py-2.5 text-xs font-sans text-slate-700">{footer}</div>}
     </AnalyticsPanel>
   );
 };

@@ -188,13 +188,20 @@ describe("Analytics Components Test Suite", () => {
     expect(screen.getByRole("heading", { name: "Why people backed out" })).toBeDefined();
     expect(screen.getByText("Before client review").nextElementSibling?.textContent).toContain("1");
     expect(screen.getByText("After client review").nextElementSibling?.textContent).toContain("3");
-    expect(screen.getByText("of which 1 no-shows")).toBeDefined();
+    expect(screen.getByText("of which 1 no-show")).toBeDefined();
     expect(screen.queryByText("No-shows")).toBeNull();
     expect(screen.getByRole("img", { name: /Who backed out: Applicant 3, Client 1/ })).toBeDefined();
     expect(screen.getByText("Applicant").parentElement?.textContent).toContain("3");
     expect(screen.getAllByText("Accepted another job offer").length).toBeGreaterThan(0);
     for (const gone of ["By client", "By request", "By stage", "Latest"]) expect(screen.queryByText(gone)).toBeNull();
     expect(screen.queryByText(/Client answers/)).toBeNull();
+  });
+
+  it("uses plural no-shows, a visible caption and no (i) button", () => {
+    render(<BackoutPanel data={{ ...backouts, noShows: 2 }} />);
+    expect(screen.getByText("of which 2 no-shows")).toBeDefined();
+    expect(screen.getByText(/A client turning someone down is not a backout/)).toBeDefined();
+    expect(screen.queryByRole("button", { name: /Why people backed out/ })).toBeNull();
   });
 
   it("hides the no-show line at zero, the party bar at zero, and caps reasons at five", () => {
@@ -209,7 +216,7 @@ describe("Analytics Components Test Suite", () => {
   it("shows an empty state when nothing was recorded", () => {
     const empty: BackoutSummary = { ...backouts, withdrawals: 0, backouts: 0, byStage: [], topReasons: [], recent: [] };
     render(<BackoutPanel data={empty} />);
-    expect(screen.getByText(/None recorded in this period/)).toBeDefined();
+    expect(screen.getByText(/Nobody backed out in these dates/)).toBeDefined();
   });
 
   const teamRow = (id: string, name: string, over: Partial<TeamRow> = {}): TeamRow => ({
@@ -369,12 +376,24 @@ describe("Analytics Components Test Suite", () => {
     const { container } = render(<LineChart title="Results over time" points={linePoints(4)} series={lineSeries} />);
     expect(container.querySelectorAll("svg path")).toHaveLength(2);
     expect(container.querySelectorAll("svg circle").length).toBe(8);
-    expect(screen.getByText("Starts 0")).toBeDefined();
-    expect(screen.getByText("Backouts 4")).toBeDefined();
+    expect(screen.queryByText("Starts 0")).toBeNull();
+    expect(screen.queryByText("Backouts 4")).toBeNull();
+    expect(screen.getByRole("list", { name: "Legend" }).textContent).toContain("Backouts");
     const summary = container.querySelector("p.sr-only")?.textContent ?? "";
     expect(summary).toContain("Starts: 6 in total, highest 3 on Oct 13.");
     expect(summary).toContain("Backouts: 4 in total.");
     expect(screen.getByText("View as table")).toBeDefined();
+  });
+
+  it("has a fixed height, real-size text and a caption instead of an (i)", () => {
+    const { container } = render(<LineChart title="Results over time" subtitle="Daily." points={linePoints(4)} series={lineSeries} />);
+    const svg = container.querySelector("svg") as SVGSVGElement;
+    expect(svg.getAttribute("height")).toBe("240");
+    expect(svg.getAttribute("viewBox")).toBe(`0 0 ${svg.getAttribute("width")} 240`);
+    expect(svg.getAttribute("preserveAspectRatio")).toBeNull();
+    expect(svg.querySelector("text")?.getAttribute("font-size")).toBe("11");
+    expect(screen.getByText("Daily.")).toBeDefined();
+    expect(screen.queryByRole("button", { name: /Results over time/ })).toBeNull();
   });
 
   it("draws no markers with fewer than three points", () => {
@@ -509,13 +528,13 @@ describe("Analytics Components Test Suite", () => {
     ];
     const onSelect = vi.fn();
     const { unmount } = render(<StagePipeline rows={rows} onSelectStage={onSelect} />);
-    fireEvent.click(screen.getByRole("button", { name: "Requirements: 4 in stage, 1 overdue. Show these candidates" }));
+    fireEvent.click(screen.getByRole("button", { name: "Requirements, 4, 1 overdue. Show these candidates" }));
     expect(onSelect).toHaveBeenCalledWith("COMPLIANCE");
     // A stage with nothing overdue is not a button
-    expect(screen.getByRole("group", { name: "Final interview: 2 in stage" })).toBeDefined();
+    expect(screen.getByRole("group", { name: "Final interview, 2" })).toBeDefined();
     unmount();
     render(<StagePipeline rows={rows} linkStages />);
-    expect(screen.getByRole("link", { name: "Final interview: 2 in stage. Show these candidates" })).toBeDefined();
+    expect(screen.getByRole("link", { name: "Final interview, 2. Show these candidates" })).toBeDefined();
     expect(within(screen.getByRole("link", { name: /Requirements/ })).getByRole("img", { name: /within limit 3, overdue 1/ })).toBeDefined();
   });
 });

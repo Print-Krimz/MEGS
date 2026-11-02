@@ -109,6 +109,9 @@ export const TREND = {
 } as const;
 
 /** Neutral single-series bar, for ranked lists with no category (top reasons, request progress). */
+/** The one bar colour for primary marks (the navy token). */
+export const BAR_PRIMARY = "#0B315D";
+
 export const NEUTRAL_MARK = "#4B5563";
 
 export type HealthKey = "onTrack" | "watch" | "atRisk" | "bottleneck" | "overdue" | "filled";

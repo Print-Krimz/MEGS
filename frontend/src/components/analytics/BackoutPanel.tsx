@@ -25,10 +25,10 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, rangeLabel }) 
     <AnalyticsPanel tone="reports"
       id="backouts"
       title="Why people backed out"
-      subtitle={`Recorded ${rangeLabel ?? "in this period"}. Client declines are not backouts.`}
+      subtitle={`Recorded ${rangeLabel ?? "in these dates"}. A client turning someone down is not a backout.`}
     >
       {total === 0 ? (
-        <p className="px-3.5 py-3 text-xs text-slate-500 font-sans">None recorded in this period.</p>
+        <p className="px-3.5 py-3 text-xs text-slate-600 font-sans">Nobody backed out in these dates.</p>
       ) : (
         <div className="p-3.5 space-y-4">
           <div>
@@ -40,7 +40,7 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, rangeLabel }) 
               <div title="Candidates who left once the client had reviewed them, up to their start date">
                 <dt className="text-xs font-semibold text-slate-600">After client review</dt>
                 <dd className={`text-2xl font-bold tabular-nums ${TEXT_LOSS}`}><AnimatedNumber value={data.backouts} /></dd>
-                {data.noShows > 0 && <dd className="text-xs text-slate-600 font-sans tabular-nums">of which {data.noShows} no-shows</dd>}
+                {data.noShows > 0 && <dd className="text-xs text-slate-600 font-sans tabular-nums">of which {data.noShows} {data.noShows === 1 ? "no-show" : "no-shows"}</dd>}
               </div>
             </dl>
           </div>
@@ -76,7 +76,7 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, rangeLabel }) 
                       <span className="tabular-nums text-slate-700">{r.count}</span>
                     </div>
                     <div className="mt-0.5">
-                      <BarMark label={r.label} value={r.count} max={maxReason} pct={`of ${total}`} color={NEUTRAL_MARK} heightClass="h-2" focusable animate />
+                      <BarMark label={r.label} value={r.count} max={maxReason} pct={`of ${total}`} color={NEUTRAL_MARK} heightClass="h-1.5" focusable animate />
                     </div>
                   </li>
                 ))}

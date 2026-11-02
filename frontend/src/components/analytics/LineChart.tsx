@@ -1,5 +1,5 @@
-import React from "react";
-import { TREND } from "../../lib/chart-palette";
+import React, { useEffect, useRef, useState } from "react";
+import { BAR_PRIMARY, TREND } from "../../lib/chart-palette";
 import { AnalyticsPanel } from "./AnalyticsPanel";
 import { DataTableToggle } from "./chart-primitives";
 
@@ -18,21 +18,20 @@ interface LineChartProps {
   points: LineChartPoint[];
   /** Two at most. The first is drawn navy, the second red. */
   series: LineChartSeries[];
-  /** Explains the chart behind the (i) next to the title. */
+  /** A caption under the title. */
   subtitle?: string;
   id?: string;
   emptyText?: string;
 }
 
 /** Navy for the first series, the loss red for the second. Each line is also named at its last point. */
-const SERIES_COLORS = ["#0B315D", TREND.backouts] as const;
+const SERIES_COLORS = [BAR_PRIMARY, TREND.backouts] as const;
 
-const W = 480;
-const H = 200;
-const M = { top: 14, right: 78, bottom: 26, left: 30 };
-const PLOT_W = W - M.left - M.right;
+/** Fixed height and real pixel text: only the width follows the container, so the chart is the same height at every screen width. */
+const H = 240;
+const DEFAULT_W = 640;
+const M = { top: 16, right: 16, bottom: 28, left: 36 };
 const PLOT_H = H - M.top - M.bottom;
-const MIN_LABEL_GAP = 13;
 
 /** Round the top of the scale up to a value that gives whole-number gridlines. */
 const niceMax = (max: number): number => {
@@ -53,14 +52,28 @@ const summarise = (points: LineChartPoint[], s: LineChartSeries): string => {
 };
 
 /**
- * Hand-built SVG line chart for up to two series over time. Markers appear with three or more points, or when there is only one (a lone point has no line). Each line
- * is named at its last point; a one-sentence summary is for screen readers; exact values are under View as table.
+ * Hand-built SVG line chart for up to two series over time. Markers appear with three or more points, or when there is only one (a lone point has no line). The legend names each line; a one-sentence summary is for screen readers; exact values are under View as table.
  * Nothing animates, so reduced-motion needs no special case.
  */
-export const LineChart: React.FC<LineChartProps> = ({ title, points, series, subtitle, id, emptyText = "Nothing recorded in this period." }) => {
+export const LineChart: React.FC<LineChartProps> = ({ title, points, series, subtitle, id, emptyText = "Nothing recorded in these dates." }) => {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const [W, setW] = useState(DEFAULT_W);
   const shown = series.slice(0, 2);
   const totals = shown.map((s) => points.reduce((sum, p) => sum + (p.values[s.key] ?? 0), 0));
   const isEmpty = points.length === 0 || totals.every((t) => t === 0);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const measure = () => {
+      const w = Math.round(el.clientWidth);
+      if (w > 0) setW(w);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isEmpty]);
+  const PLOT_W = Math.max(40, W - M.left - M.right);
   const top = niceMax(Math.max(1, ...points.flatMap((p) => shown.map((s) => p.values[s.key] ?? 0))));
   const x = (i: number) => M.left + (points.length <= 1 ? PLOT_W / 2 : (i / (points.length - 1)) * PLOT_W);
   const y = (v: number) => M.top + PLOT_H - (v / top) * PLOT_H;
@@ -70,23 +83,14 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
   const every = Math.max(1, Math.ceil((points.length - 1) / 4));
   const xLabelIdx = points.map((_, i) => i).filter((i) => i === points.length - 1 || (i % every === 0 && points.length - 1 - i >= every / 2));
 
-  // End labels: keep them apart when the last values are close.
-  const endY = shown.map((s) => y(points[points.length - 1]?.values[s.key] ?? 0));
-  if (shown.length === 2 && Math.abs(endY[0] - endY[1]) < MIN_LABEL_GAP) {
-    const mid = (endY[0] + endY[1]) / 2;
-    const upper = endY[0] <= endY[1] ? 0 : 1;
-    endY[upper] = mid - MIN_LABEL_GAP / 2;
-    endY[1 - upper] = mid + MIN_LABEL_GAP / 2;
-  }
-
   const summary = shown.map((s) => summarise(points, s)).join(" ");
 
   return (
     <AnalyticsPanel tone="reports" id={id} title={title} subtitle={subtitle} className="h-full flex flex-col">
       {isEmpty ? (
-        <p className="px-3.5 py-3 text-xs text-slate-500 font-sans">{emptyText}</p>
+        <p className="px-3.5 py-3 text-xs text-slate-600 font-sans">{emptyText}</p>
       ) : (
-        <div className="p-3.5 flex-1">
+        <div ref={wrapRef} className="p-3.5 flex-1">
           <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-sans text-slate-700" aria-label="Legend">
             {shown.map((s, i) => (
               <li key={s.key} className="flex items-center gap-1.5">
@@ -95,7 +99,7 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
               </li>
             ))}
           </ul>
-          <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img" aria-label={title}>
+          <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block h-60 w-full max-w-full" role="img" aria-label={title}>
             <title>{title}</title>
             {ticks.map((t) => (
               <g key={t}>
@@ -110,9 +114,8 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
                 {points[i].label}
               </text>
             ))}
-            {shown.map((s, si) => {
+            {shown.map((s, si) => ({ s, si })).reverse().map(({ s, si }) => {
               const d = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)} ${y(p.values[s.key] ?? 0).toFixed(1)}`).join(" ");
-              const last = points[points.length - 1]?.values[s.key] ?? 0;
               return (
                 <g key={s.key}>
                   <path d={d} fill="none" stroke={SERIES_COLORS[si]} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
@@ -122,9 +125,6 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
                         <title>{`${p.label}, ${s.label}: ${p.values[s.key] ?? 0}`}</title>
                       </circle>
                     ))}
-                  <text x={x(points.length - 1) + 8} y={endY[si] + 4} fontSize={11} fontWeight={600} fill={SERIES_COLORS[si]}>
-                    {`${s.label} ${last}`}
-                  </text>
                 </g>
               );
             })}
