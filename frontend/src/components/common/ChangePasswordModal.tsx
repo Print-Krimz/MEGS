@@ -56,17 +56,25 @@ export const ChangePasswordModal: React.FC<ChangePasswordModalProps> = ({ open, 
               error={errors.otp}
               hint={<OtpExpiryHint expired={expired} seconds={expiresIn} />}
               autoFocus
+              compact
             />
-            <div className="flex items-center gap-3">
-              <Button type="button" variant="outline" size="sm" onClick={resendCode} loading={isSendingCode} disabled={cooldown > 0}>
-                {CHANGE_PASSWORD_COPY.resendCode}
-              </Button>
-              {cooldown > 0 && (
-                <span className="text-sm text-slate-600">
-                  <CountdownText seconds={cooldown} />
+            <p className="text-sm text-slate-600">
+              Didn&apos;t get it?{" "}
+              {cooldown > 0 ? (
+                <span>
+                  Send a new code in <CountdownText seconds={cooldown} />
                 </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={resendCode}
+                  disabled={isSendingCode}
+                  className="font-medium text-slate-900 underline underline-offset-2 hover:text-slate-700 disabled:opacity-50"
+                >
+                  {CHANGE_PASSWORD_COPY.resendCode}
+                </button>
               )}
-            </div>
+            </p>
           </div>
         ) : (
           <>

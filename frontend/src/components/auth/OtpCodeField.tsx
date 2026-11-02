@@ -12,6 +12,8 @@ interface OtpCodeFieldProps {
   hint?: React.ReactNode;
   autoFocus?: boolean;
   disabled?: boolean;
+  /** Input-height slots for dashboard dialogs; the auth pages keep the taller default. */
+  compact?: boolean;
 }
 
 /** Six-slot one-time code entry. Numeric only, paste-friendly, autofill-friendly. */
@@ -24,6 +26,7 @@ export const OtpCodeField: React.FC<OtpCodeFieldProps> = ({
   hint,
   autoFocus,
   disabled,
+  compact,
 }) => {
   const errorId = `${id}-error`;
   const hintId = `${id}-hint`;
@@ -50,7 +53,7 @@ export const OtpCodeField: React.FC<OtpCodeFieldProps> = ({
               key={i}
               index={i}
               data-invalid={error ? true : undefined}
-              className="h-14 flex-1 data-[invalid=true]:border-destructive rounded-md border text-xl font-semibold first:rounded-md first:border-l last:rounded-md"
+              className={`${compact ? "h-11 border-slate-300 text-lg" : "h-14 text-xl"} flex-1 data-[invalid=true]:border-destructive rounded-md border font-semibold first:rounded-md first:border-l last:rounded-md`}
             />
           ))}
         </InputOTPGroup>
