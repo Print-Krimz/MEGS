@@ -139,14 +139,18 @@ export interface TeamRow {
   openRequisitions: number;
   requestedSeats: number;
   filledSeats: number;
-  fillRate: number;
+  fillRate: number | null;
   sentToClient: number;
   newStarts: number;
   redeployStarts: number;
   placed: number;
   backouts: number;
-  backoutRate: number;
+  backoutRate: number | null;
+  /** Backouts plus starts that came from an application: the sample behind backoutRate. */
+  backoutRateBase: number;
   medianDaysToFill: number | null;
+  /** Starts with a recorded fill time: the sample behind medianDaysToFill. */
+  daysToFillSample: number;
 }
 
 /** Why an open request has nothing moving: it has no opening, no applicants, or only first-stage applicants. */
@@ -1229,7 +1233,7 @@ async function computeAdminDelivery(
     fetchRequests(filters, owner, start, end),
   ]);
 
-  const requests = assembleRequests(fetched.mrfs, snapshot, backoutRecords, now);
+  const rawRequests = assembleRequests(fetched.mrfs, snapshot, backoutRecords, now);
   const staleFilled = fetched.staleFilled;
   const postSelection = backoutRecords.filter((b) => POST_SELECTION_STAGES.includes(b.stage));
 
@@ -1239,7 +1243,7 @@ async function computeAdminDelivery(
     ...snapshot.map((s) => s.ownerId),
     ...placements.map((p) => p.ownerId),
     ...backoutRecords.map((b) => b.ownerId),
-    ...requests.map((r) => r.ownerId),
+    ...rawRequests.map((r) => r.ownerId),
     ...endorsements.map((e) => jobOwnerId(e.application.jobPosting)),
     ...(filters.recruiterId ? [filters.recruiterId] : []),
   ].filter((id): id is string => id !== null);
@@ -1252,6 +1256,11 @@ async function computeAdminDelivery(
   const names = new Map<string, string>(people.map((u) => [u.id, personName(u)]));
   names.set(UNASSIGNED, UNASSIGNED_NAME);
 
+  // A request assigned to a non-recruiter shows as unassigned, not under that person's name.
+  const requests = rawRequests.map((r) =>
+    r.ownerId !== null && nonTaIds.has(r.ownerId) ? { ...r, ownerId: null, ownerName: UNASSIGNED_NAME } : r
+  );
+
   const keys = new Set<string>(filters.recruiterId ? [keyOf(filters.recruiterId)] : ownerIds.map(keyOf));
   keys.delete(UNASSIGNED);
 
@@ -1261,13 +1270,15 @@ async function computeAdminDelivery(
       const mine = placements.filter((p) => keyOf(p.ownerId) === key);
       const reqs = requests.filter((r) => keyOf(r.ownerId) === key);
       const lost = postSelection.filter((b) => keyOf(b.ownerId) === key).length;
-      const fill = median(mine.map((p) => p.daysToFill).filter((n): n is number => n !== null));
-      const sent = new Set(
+            const sent = new Set(
         endorsements.filter((e) => keyOf(jobOwnerId(e.application.jobPosting)) === key).map((e) => e.applicationId)
       ).size;
       const requestedSeats = reqs.reduce((t, r) => t + r.headcount, 0);
       const filledSeats = reqs.reduce((t, r) => t + Math.min(r.filled, r.headcount), 0);
       const redeployStarts = mine.filter((p) => p.isRedeployment).length;
+      const backoutRateBase = lost + mine.filter((p) => p.hasApplication).length;
+      const fillTimes = mine.map((p) => p.daysToFill).filter((n): n is number => n !== null);
+      const fill = median(fillTimes);
       return {
         recruiterId: key,
         name: names.get(key) ?? "Unknown",
@@ -1277,14 +1288,16 @@ async function computeAdminDelivery(
         openRequisitions: reqs.filter((r) => r.health !== "FILLED").length,
         requestedSeats,
         filledSeats,
-        fillRate: percent(filledSeats, requestedSeats),
+        fillRate: sampled(percent(filledSeats, requestedSeats), requestedSeats),
         sentToClient: sent,
         newStarts: mine.length - redeployStarts,
         redeployStarts,
         placed: mine.length,
         backouts: lost,
-        backoutRate: percent(lost, lost + mine.filter((p) => p.hasApplication).length),
-        medianDaysToFill: fill === null ? null : round1(fill),
+        backoutRate: sampled(percent(lost, backoutRateBase), backoutRateBase),
+        backoutRateBase,
+        medianDaysToFill: fill === null ? null : sampled(round1(fill), fillTimes.length),
+        daysToFillSample: fillTimes.length,
       };
     })
     // Hide TAs with nothing to show; always keep the one being filtered on.
