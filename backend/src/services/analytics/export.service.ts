@@ -106,7 +106,7 @@ const CANDIDATE_STATUS_LABEL: Record<CandidateStatus, string> = {
   OVERDUE: "Overdue",
   OVERDUE_BY_AGE: "Estimated overdue",
   ON_TIME: "On time",
-  CLOSED_OPENING: "Job post closed",
+  CLOSED_OPENING: "Job opening closed",
   AWAITING_START: "Waiting to start",
 };
 const PARTY_LABEL: Record<string, string> = { APPLICANT: "Applicant", CLIENT: "Client", AGENCY: "Agency" };
@@ -242,7 +242,7 @@ function overdueSection(detail: DeliveryDetail, admin: boolean): Section {
       days: o.daysInStage,
       limit: o.slaDays,
       over: o.daysOver,
-      basis: o.estimated ? "Estimated (from application date)" : "Sure (stage change recorded)",
+      basis: o.estimated ? "Estimated from application date" : "Recorded",
       urgency: o.urgency === "critical" ? "Critical" : "Overdue",
     })),
   };
@@ -284,10 +284,10 @@ function recruiterSections(result: ReportResult): Section[] {
     {
       sheet: "Recruiters",
       title: "Each recruiter's work",
-      note: "Active applicants, overdue, and seats are right now. Estimated overdue = no stage change recorded, so counted from the application date. Sent to client, starts, and backouts are in these dates. A rate or typical time based on fewer than 5 cases shows Not enough data, with the case count in brackets.",
+      note: "Active applicants, overdue, and seats are right now. Overdue, estimated = no stage change recorded, so counted from the application date. Sent to client, starts, and backouts are in these dates. A rate or typical time based on fewer than 5 cases shows Not enough data, with the number of cases in parentheses.",
       columns: [
         { header: "Recruiter", key: "name", weight: 110 },
-        { header: "Active candidates", key: "active", weight: 52, align: "right" },
+        { header: "Active applicants", key: "active", weight: 52, align: "right" },
         { header: "Overdue", key: "overdue", weight: 40, align: "right" },
         { header: "Overdue, estimated", key: "estimated", weight: 44, align: "right" },
         { header: "Open requests", key: "open", weight: 52, align: "right" },
@@ -503,7 +503,7 @@ function startsSection(detail: DeliveryDetail, admin: boolean): Section {
       worker: clean(s.workerName),
       client: clean(s.clientName),
       request: clean(s.mrfTitle ?? "No client request"),
-      type: s.isRedeployment ? "Returning" : "New",
+      type: s.isRedeployment ? "Redeployed" : "New",
       recruiter: clean(s.recruiterName),
       site: clean(s.site ?? ""),
       status: sentenceCase(s.status),

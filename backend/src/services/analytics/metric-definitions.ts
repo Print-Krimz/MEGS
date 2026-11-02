@@ -123,7 +123,7 @@ export const BACKOUT_REASON_LABELS: Record<string, string> = {
   CLIENT_CANCELLED_REQUEST: "Client cancelled the request",
   CLIENT_WITHDREW_SELECTION: "Client withdrew the selection",
   POSITION_FILLED: "Position already filled",
-  AGENCY_PROCESSING_DELAY: "MEGS processing delay",
+  AGENCY_PROCESSING_DELAY: "Processing delay on our side",
   OTHER: "Other reason",
 };
 

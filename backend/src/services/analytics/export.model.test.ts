@@ -237,6 +237,8 @@ describe("report models use the screen's words", () => {
     for (const model of [await __reportModels.buildPipelineModel(admin, {}), await __reportModels.buildDeploymentModel(admin, {})]) {
       for (const s of model.sections) {
         for (const text of [s.title, s.sheet, s.note ?? "", ...s.columns.map((c) => c.header)]) expect(text).not.toMatch(retired);
+        const cells = s.rows.flatMap((r: any) => Object.values(r)).filter((v): v is string => typeof v === "string");
+        for (const text of cells) expect(text).not.toMatch(/Sure|Returning|Job post/);
       }
     }
   });
