@@ -1,5 +1,5 @@
 import React from "react";
-import { Camera } from "lucide-react";
+import { Camera, Lock } from "lucide-react";
 import { Button } from "../../../../components/ui";
 import { Checkbox } from "../../../../components/shadcn/checkbox";
 import { isTouchDevice, shrinkImage } from "../../../../lib/camera-capture";
@@ -149,7 +149,10 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
           {profile?.resumeUrl && <Button type="button" variant="outline" size="sm" onClick={onViewPdf}>View PDF</Button>}
         </div>
         <div className="mt-4 border-t border-[#D9E2EC] pt-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[#0B315D]">Data privacy</p>
+          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[#0B315D]">
+            <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+            Data privacy
+          </p>
           <div className="mt-2 flex items-start gap-3">
             <Checkbox
               id="resume-privacy-consent"
@@ -190,7 +193,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
             {resumeUploadPending ? "Reading your resume…" : profile?.resumeUrl ? "Replace resume" : "Upload resume"}
           </label>
           {isTouchDevice() && (
-            <label className="inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md border border-[#D9E2EC] bg-white px-4 text-xs sm:text-sm font-medium text-[#0B315D] hover:bg-[#EAF0F7] focus-within:ring-2 focus-within:ring-[#0B315D] focus-within:ring-offset-2 transition-colors">
+            <label className="inline-flex min-h-11 shrink-0 cursor-pointer has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 items-center justify-center gap-2 rounded-md border border-[#D9E2EC] bg-white px-4 text-xs sm:text-sm font-medium text-[#0B315D] hover:bg-[#EAF0F7] focus-within:ring-2 focus-within:ring-[#0B315D] focus-within:ring-offset-2 transition-colors">
               <input
                 data-testid="resume-autofill-camera-input"
                 type="file"

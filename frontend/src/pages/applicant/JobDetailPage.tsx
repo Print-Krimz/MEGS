@@ -152,6 +152,9 @@ export const JobDetailPage: React.FC = () => {
   const applyErrorMessage = (err: any): string => {
     const errorMsg = formatErrorMessage(err);
     const lower = errorMsg.toLowerCase();
+    if (lower.includes("data privacy notice")) {
+      return "Before attaching a resume, agree to the Data Privacy Notice on your Profile page (Overview tab).";
+    }
     if (err?.status === 403 || lower.includes("deployed") || lower.includes("active assignment") || lower.includes("restricted")) {
       return lower.includes("deployed") || lower.includes("assignment")
         ? errorMsg

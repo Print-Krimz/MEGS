@@ -98,6 +98,7 @@ export const applicantSchema = {
     body: z.object({ accept: resumeMergeAccept }).strict(),
   }),
   emptyUploadBody: z.object({ body: z.object({}).strict().optional() }),
+  privacyConsent: z.object({ body: z.object({}).strict().optional() }),
   upsertProfile: z.object({
     body: z.object({
       firstName: requiredProfileName("First Name", "First name is required."),
