@@ -214,12 +214,13 @@ function SettingsContent({ userId, sessionGeneration, identityRef, refreshUser }
       : "Two-step verification status is unavailable.";
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="space-y-6">
       {pageHeader}
       {settingsQuery.isError && (
         <ErrorState compact subject="account settings" error={settingsQuery.error} onRetry={() => void settingsQuery.refetch()} />
       )}
 
+      <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-2">
       <section aria-labelledby="account-information-heading" className="space-y-2">
         <h2 id="account-information-heading" className="text-base font-semibold text-slate-900">Profile</h2>
         <div className={panelClass}>
@@ -263,6 +264,7 @@ function SettingsContent({ userId, sessionGeneration, identityRef, refreshUser }
         </div>
       </section>
 
+      <div className="space-y-6">
       <section aria-labelledby="security-heading" className="space-y-2">
         <h2 id="security-heading" className="text-base font-semibold text-slate-900">Security</h2>
         <dl className={`${panelClass} divide-y divide-slate-200`}>
@@ -305,6 +307,8 @@ function SettingsContent({ userId, sessionGeneration, identityRef, refreshUser }
           )}
         </nav>
       </section>
+      </div>
+      </div>
 
       {dirtyGuard.discardDialog}
       {passwordOpen && (
