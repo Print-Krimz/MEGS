@@ -1,4 +1,5 @@
 import React from "react";
+import { TREND } from "../../../lib/chart-palette";
 import { AnalyticsPanel } from "./AnalyticsPanel";
 import { DataTableToggle } from "./chart-primitives";
 
@@ -24,7 +25,7 @@ interface LineChartProps {
 }
 
 /** Navy for the first series, the loss red for the second. Each line is also named at its last point. */
-const SERIES_COLORS = ["#0B315D", "#C8102E"] as const;
+const SERIES_COLORS = ["#0B315D", TREND.backouts] as const;
 
 const W = 480;
 const H = 200;
@@ -37,7 +38,8 @@ const MIN_LABEL_GAP = 13;
 const niceMax = (max: number): number => {
   if (max <= 4) return Math.max(max, 1);
   const step = 10 ** Math.floor(Math.log10(max));
-  return Math.ceil(max / step) * step;
+  const top = Math.ceil(max / step) * step;
+  return top % 2 === 0 ? top : top + 1;
 };
 
 const summarise = (points: LineChartPoint[], s: LineChartSeries): string => {
@@ -51,7 +53,7 @@ const summarise = (points: LineChartPoint[], s: LineChartSeries): string => {
 };
 
 /**
- * Hand-built SVG line chart for up to two series over time. Markers appear only with three or more points. Each line
+ * Hand-built SVG line chart for up to two series over time. Markers appear with three or more points, or when there is only one (a lone point has no line). Each line
  * is named at its last point; a one-sentence summary is for screen readers; exact values are under View as table.
  * Nothing animates, so reduced-motion needs no special case.
  */
@@ -114,7 +116,7 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
               return (
                 <g key={s.key}>
                   <path d={d} fill="none" stroke={SERIES_COLORS[si]} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
-                  {points.length >= 3 &&
+                  {(points.length >= 3 || points.length === 1) &&
                     points.map((p, i) => (
                       <circle key={i} cx={x(i)} cy={y(p.values[s.key] ?? 0)} r={3} fill="#FFFFFF" stroke={SERIES_COLORS[si]} strokeWidth={1.5}>
                         <title>{`${p.label}, ${s.label}: ${p.values[s.key] ?? 0}`}</title>

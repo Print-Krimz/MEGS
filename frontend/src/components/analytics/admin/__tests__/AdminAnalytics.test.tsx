@@ -380,6 +380,18 @@ describe("Analytics Components Test Suite", () => {
     expect(container.querySelectorAll("svg circle")).toHaveLength(0);
   });
 
+  it("keeps the axis to whole numbers when the maximum is 7", () => {
+    const pts = [{ label: "A", values: { starts: 7, backouts: 1 } }, { label: "B", values: { starts: 2, backouts: 0 } }];
+    const { container } = render(<LineChart title="Results over time" points={pts} series={lineSeries} />);
+    const ticks = Array.from(container.querySelectorAll("svg text.tabular-nums")).map((n) => n.textContent ?? "");
+    expect(ticks).toEqual(["0", "4", "8"]);
+  });
+
+  it("draws a marker per series for a single point", () => {
+    const { container } = render(<LineChart title="Results over time" points={[{ label: "Oct 13", values: { starts: 2, backouts: 1 } }]} series={lineSeries} />);
+    expect(container.querySelectorAll("svg circle")).toHaveLength(2);
+  });
+
   it("shows an empty state instead of an empty chart", () => {
     const empty = linePoints(4).map((p) => ({ ...p, values: { starts: 0, backouts: 0 } }));
     const { container } = render(<LineChart title="Results over time" points={empty} series={lineSeries} emptyText="No starts or backouts in this period." />);

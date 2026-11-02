@@ -40,9 +40,9 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, rangeLabel }) 
               <div title="Candidates who left once the client had reviewed them, up to their start date">
                 <dt className="text-xs font-semibold text-slate-600">After client review</dt>
                 <dd className={`text-2xl font-bold tabular-nums ${TEXT_LOSS}`}><AnimatedNumber value={data.backouts} /></dd>
+                {data.noShows > 0 && <dd className="text-xs text-slate-600 font-sans tabular-nums">of which {data.noShows} no-shows</dd>}
               </div>
             </dl>
-            {data.noShows > 0 && <p className="mt-1 text-xs text-slate-600 font-sans tabular-nums">of which {data.noShows} no-shows</p>}
           </div>
 
           {partyTotal > 0 && (
@@ -76,7 +76,7 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, rangeLabel }) 
                       <span className="tabular-nums text-slate-700">{r.count}</span>
                     </div>
                     <div className="mt-0.5">
-                      <BarMark label={r.label} value={r.count} max={maxReason} pct={`${Math.round((r.count / total) * 100)}% of all`} color={NEUTRAL_MARK} heightClass="h-2" focusable />
+                      <BarMark label={r.label} value={r.count} max={maxReason} pct={`of ${total}`} color={NEUTRAL_MARK} heightClass="h-2" focusable />
                     </div>
                   </li>
                 ))}
