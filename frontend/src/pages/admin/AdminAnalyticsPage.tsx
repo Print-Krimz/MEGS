@@ -199,6 +199,14 @@ export const AdminAnalyticsPage: React.FC = () => {
       </p>
 
       <div className={`space-y-5 transition-opacity ${dashboardQuery.isFetching ? "opacity-70" : ""}`}>
+      <AttentionStrip
+        items={[
+          { key: "critical", count: kpis.criticalCandidates, label: plural(kpis.criticalCandidates, "critical wait"), href: "#operations", onSelect: () => showWaiting({ urgency: "critical" }) },
+          { key: "late", count: kpis.lateRequests, label: `overdue or at-risk ${plural(kpis.lateRequests, "request")}`, href: "#operations", onSelect: () => showRequests("LATE") },
+          { key: "stale", count: kpis.staleFilledRequisitions, label: `${plural(kpis.staleFilledRequisitions, "request")} filled with no start`, href: "#requests-note", tone: "watch", onSelect: () => showRequests("ALL") },
+        ]}
+      />
+
       {isEmpty ? (
         <div className="border border-slate-300 bg-white p-6 text-center text-sm font-sans text-slate-700">
           <p>Nothing recorded for these dates. Try a longer range.</p>
@@ -214,13 +222,6 @@ export const AdminAnalyticsPage: React.FC = () => {
         </div>
       ) : (
         <>
-          <AttentionStrip
-            items={[
-              { key: "critical", count: kpis.criticalCandidates, label: plural(kpis.criticalCandidates, "critical wait"), href: "#operations", onSelect: () => showWaiting({ urgency: "critical" }) },
-              { key: "late", count: kpis.lateRequests, label: `overdue or at-risk ${plural(kpis.lateRequests, "request")}`, href: "#operations", onSelect: () => showRequests("LATE") },
-              { key: "stale", count: kpis.staleFilledRequisitions, label: `${plural(kpis.staleFilledRequisitions, "request")} filled with no start`, href: "#requests-note", tone: "watch", onSelect: () => showRequests("ALL") },
-            ]}
-          />
 
           <section aria-label="Headline numbers">
             <h2 className="sr-only">Headline numbers</h2>

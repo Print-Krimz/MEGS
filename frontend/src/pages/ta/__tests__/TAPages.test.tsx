@@ -878,6 +878,20 @@ describe("Talent Acquisition Interface Suite", () => {
     renderWithClient(<AnalyticsPage />);
     expect(await screen.findByText("Nothing recorded for these dates. Try a longer range.")).toBeDefined();
     expect(screen.queryByText("Candidates by stage")).toBeNull();
-    expect(screen.queryByRole("region", { name: "Needs action" })).toBeNull();
+    expect(screen.getByRole("region", { name: "Needs action" })).toBeDefined();
+  });
+
+  it("keeps the tasks chip when nothing else is recorded but tasks are waiting", async () => {
+    const base = await taApi.getDashboardSummary();
+    vi.mocked(taApi.getDashboardSummary).mockResolvedValueOnce({
+      ...base,
+      kpis: { ...base.kpis, activeApplicants: 0, placementsStarted: 0, requisitions: { ...base.kpis.requisitions, total: 0 } },
+      requests: [],
+      backouts: { ...base.backouts, backouts: 0, withdrawals: 0 },
+      pendingActionsTotal: 4,
+    } as never);
+    renderWithClient(<AnalyticsPage />);
+    expect(await screen.findByText(/Nothing recorded for these dates/)).toBeDefined();
+    expect(screen.getByRole("link", { name: /4\s*tasks waiting on you/ })).toBeDefined();
   });
 });

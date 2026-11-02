@@ -106,11 +106,23 @@ describe("AdminAnalyticsPage", () => {
     expect(await screen.findByText("Nothing recorded for these dates. Try a longer range.")).toBeDefined();
     expect(screen.queryByText("Candidates by stage")).toBeNull();
     expect(screen.queryByText("Why people backed out")).toBeNull();
-    // Zero tiles and the strip are skipped so zeros do not read as results.
-    expect(screen.queryByRole("region", { name: "Needs action" })).toBeNull();
+    // Zero tiles are skipped so zeros do not read as results; the action strip stays.
+    expect(screen.getByRole("region", { name: "Needs action" })).toBeDefined();
     expect(screen.queryByRole("region", { name: "Headline numbers" })).toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Last 30 days" }).at(-1)!);
     expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ search: expect.objectContaining({ range: "30d" }) }));
+  });
+
+  it("keeps a non-zero filled-with-no-start chip when nothing else is recorded", async () => {
+    vi.mocked(adminApi.getDashboardSummary).mockResolvedValue({
+      ...DASHBOARD,
+      kpis: { ...DASHBOARD.kpis, activeApplicants: 0, placementsStarted: 0, requisitions: { ...DASHBOARD.kpis.requisitions, total: 0 }, criticalCandidates: 0, lateRequests: 0, staleFilledRequisitions: 3 },
+      requests: [],
+      backouts: { ...DASHBOARD.backouts, backouts: 0, withdrawals: 0 },
+    } as never);
+    renderPage();
+    expect(await screen.findByText(/Nothing recorded for these dates/)).toBeDefined();
+    expect(screen.getByRole("link", { name: /3\s*requests filled with no start/ })).toBeDefined();
   });
 
   it("shows No seats when no seats were requested, and Not enough data (n=N) in small type for a hidden rate", async () => {

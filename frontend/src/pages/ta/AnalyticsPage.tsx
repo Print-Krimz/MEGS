@@ -170,6 +170,15 @@ export const AnalyticsPage: React.FC = () => {
       </p>
 
       <div className={`space-y-5 transition-opacity ${dashboardQuery.isFetching ? "opacity-70" : ""}`}>
+        <AttentionStrip
+          items={[
+            { key: "overdue", count: kpis.overdueTotal, label: plural(kpis.overdueTotal, "overdue candidate"), href: "#operations", onSelect: () => showWaiting({}) },
+            // The Overview already lists the tasks, so this chip goes there instead of repeating them here.
+            { key: "tasks", count: data.pendingActionsTotal, label: `${plural(data.pendingActionsTotal, "task")} waiting on you`, href: "/ta", tone: "watch", onSelect: () => void navigate({ to: "/ta" }) },
+            { key: "late", count: kpis.lateRequests, label: `${plural(kpis.lateRequests, "request")} overdue or at risk`, href: "#operations", onSelect: () => showRequests("LATE") },
+          ]}
+        />
+
         {isEmpty ? (
           <div className="border border-slate-300 bg-white p-6 text-center text-sm font-sans text-slate-700">
             <p>Nothing recorded for these dates. Try a longer range.</p>
@@ -185,14 +194,6 @@ export const AnalyticsPage: React.FC = () => {
           </div>
         ) : (
           <>
-            <AttentionStrip
-              items={[
-                { key: "overdue", count: kpis.overdueTotal, label: plural(kpis.overdueTotal, "overdue candidate"), href: "#operations", onSelect: () => showWaiting({}) },
-                // The Overview already lists the tasks, so this chip goes there instead of repeating them here.
-                { key: "tasks", count: data.pendingActionsTotal, label: `${plural(data.pendingActionsTotal, "task")} waiting on you`, href: "/ta", tone: "watch", onSelect: () => void navigate({ to: "/ta" }) },
-                { key: "late", count: kpis.lateRequests, label: `${plural(kpis.lateRequests, "request")} overdue or at risk`, href: "#operations", onSelect: () => showRequests("LATE") },
-              ]}
-            />
 
             <section aria-label="Headline numbers">
               <h2 className="sr-only">Headline numbers</h2>
