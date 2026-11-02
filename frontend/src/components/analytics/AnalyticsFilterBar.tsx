@@ -44,6 +44,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
 }) => {
   const moreFiltersId = useId();
   const rangeErrorId = useId();
+  const dateNoteId = useId();
   const [showMoreFilters, setShowMoreFilters] = useState(false);
   // Only the custom dates are held back: they apply once both are chosen and valid. Everything else applies at once.
   const [customOpen, setCustomOpen] = useState(filters.range === "custom");
@@ -224,6 +225,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
         {/* Phones: one select keeps the bar to a single row */}
         <select
           aria-label="Date range"
+          aria-describedby={dateNoteId}
           value={customOpen ? "custom" : (filters.range ?? "7d")}
           onChange={(e) => handleRangePreset(e.target.value as AnalyticsDateRangePreset)}
           className="min-h-11 w-full min-w-0 border border-slate-300 bg-white px-2 text-sm font-semibold text-slate-800 md:hidden"
@@ -235,7 +237,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
           ))}
         </select>
 
-        <div className="hidden flex-wrap items-center gap-1.5 md:flex">
+        <div role="group" aria-label="Date range" aria-describedby={dateNoteId} className="hidden flex-wrap items-center gap-1.5 md:flex">
           <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 mr-2">
             <CalendarIcon className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
             <span>Date range</span>
@@ -286,6 +288,11 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
             </Button>
           )}
         </div>
+
+        {/* Full width, so it sits on its own line under the date controls */}
+        <p id={dateNoteId} className="col-span-2 w-full text-xs text-slate-600">
+          Dates apply to “In these dates”, Results over time and Why people backed out. “Right now” figures are live.
+        </p>
       </div>
 
       {/* Custom dates apply once both are chosen and valid */}

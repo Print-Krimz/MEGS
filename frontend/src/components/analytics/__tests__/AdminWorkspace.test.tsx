@@ -18,9 +18,13 @@ import type { RequestRow, StageTableRow, StuckCandidate, TeamRow } from "../../.
 afterEach(cleanup);
 
 describe("formatRecruiterName", () => {
-  it("shows a real name or the full email as stored, never a shortened form", () => {
+  it("shows a plain name as stored and splits an email into name and full address", () => {
     expect(formatRecruiterName("Alice Recruiter")).toEqual({ label: "Alice Recruiter" });
-    expect(formatRecruiterName("ta-201-1790159306112@megs.com")).toEqual({ label: "ta-201-1790159306112@megs.com" });
+    expect(formatRecruiterName("ta-201-1790159306112@megs.com")).toEqual({
+      label: "ta-201-1790159306112",
+      email: "ta-201-1790159306112@megs.com",
+      full: "ta-201-1790159306112@megs.com",
+    });
     const labels = ["ta-201-1790119570618@megs.com", "ta-201-1790116860612@megs.com"].map((e) => formatRecruiterName(e).label);
     expect(new Set(labels).size).toBe(2);
   });

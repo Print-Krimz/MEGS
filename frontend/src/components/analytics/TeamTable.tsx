@@ -37,7 +37,8 @@ const COLUMNS: { key: SortKey; label: string }[] = [
 const sortValue = (row: TeamRow, key: SortKey): string | number | null => {
   switch (key) {
     case "name":
-      return formatRecruiterName(row.name).label.toLowerCase();
+      // Sorts by the stored name, not the shown label, so an email sorts by the whole address.
+      return row.name.trim().toLowerCase();
     case "overdue":
       // The cell shows verified + estimated, so the sort uses the same total.
       return row.overdue + row.overdueEstimated;
@@ -151,20 +152,22 @@ export const TeamTable = React.memo(function TeamTable({
             <tbody className="divide-y divide-slate-100">
               {pageRows.map((row) => {
                 const selected = row.recruiterId === selectedRecruiterId;
-                const label = formatRecruiterName(row.name).label;
+                const { label, email } = formatRecruiterName(row.name);
                 const action = selected ? "Show all recruiters" : "Filter the page to this recruiter";
+                const spokenName = email ? `${label}, ${email}` : label;
                 return (
                   <tr key={row.recruiterId} className={selected ? "bg-navy-soft" : undefined}>
                     <th scope="row" className="px-3 py-2 text-left font-sans font-medium whitespace-nowrap">
                       <button
                         type="button"
                         aria-pressed={selected}
-                        aria-label={`${label}. ${action}`}
+                        aria-label={`${spokenName}. ${action}`}
                         title={action}
                         onClick={() => onSelectRecruiter(selected ? undefined : row.recruiterId)}
                         className="min-h-9 text-left text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
                         {label}
+                        {email && <span className="block text-xs font-normal text-slate-500 truncate">{email}</span>}
                       </button>
                     </th>
                     <td className={`${TD} font-semibold text-slate-950`}>{row.active}</td>

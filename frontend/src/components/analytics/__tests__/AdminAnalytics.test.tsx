@@ -207,6 +207,15 @@ describe("Analytics Components Test Suite", () => {
     expect(watch.className).not.toContain("bg-[#FDF1F2]");
   });
 
+  it("gives a watch item with a count the amber look, and an empty list only the nothing line", () => {
+    const { unmount } = render(<AttentionStrip items={[{ key: "a", count: 3, label: "tasks waiting on you", href: "#y", tone: "watch" }]} />);
+    expect(screen.getByRole("link", { name: /3\s*tasks waiting on you/ }).className).toContain("bg-[#FFF4DC]");
+    unmount();
+    render(<AttentionStrip items={[]} />);
+    expect(screen.getByText("Nothing needs action right now.")).toBeDefined();
+    expect(screen.queryByRole("link")).toBeNull();
+  });
+
   it("handles recruiter filter selection and active chip display", () => {
     const handleChange = vi.fn();
     render(
