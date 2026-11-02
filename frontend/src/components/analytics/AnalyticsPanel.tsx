@@ -10,7 +10,7 @@ interface AnalyticsPanelProps {
   aside?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
-  /** Content only: no frame or header. For panels that sit inside another container, such as a tab. */
+  /** Content only: no frame. For panels inside another container, such as a tab. Keeps a hidden h2 and the subtitle as a visible caption. */
   bare?: boolean;
 }
 
@@ -18,11 +18,13 @@ interface AnalyticsPanelProps {
 export const AnalyticsPanel: React.FC<AnalyticsPanelProps> = ({ id, title, subtitle, aside, children, className = "", bare = false }) =>
   bare ? (
     <div id={id} className={`scroll-mt-4 ${className}`}>
+      <h2 className="sr-only">{title}</h2>
+      {subtitle && <p className="border-b border-slate-200 px-3.5 py-2 text-xs font-sans text-slate-600">{subtitle}</p>}
       {children}
     </div>
   ) : (
-    <section id={id} className={`scroll-mt-4 rounded-md border border-navy-line bg-white ${className}`}>
-      <div className="px-3.5 py-2.5 border-b border-navy-line bg-navy-soft flex items-center justify-between gap-3">
+    <section id={id} className={`scroll-mt-4 rounded-md border border-slate-300 bg-white ${className}`}>
+      <div className="px-3.5 py-2.5 border-b border-slate-200 bg-white flex items-center justify-between gap-3">
         <div className="min-w-0 flex items-center gap-2">
           <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
           {subtitle && <InfoTip label={title}>{subtitle}</InfoTip>}

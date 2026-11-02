@@ -1,5 +1,5 @@
 import React from "react";
-import { TREND } from "../../../lib/chart-palette";
+import { TREND } from "../../lib/chart-palette";
 import { AnalyticsPanel } from "./AnalyticsPanel";
 import { DataTableToggle } from "./chart-primitives";
 

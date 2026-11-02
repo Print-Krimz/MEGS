@@ -10,7 +10,7 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
-import { AnalyticsFilterBar } from "../../index";
+import { AnalyticsFilterBar } from "../index";
 import { AnalyticsKpi, AttentionStrip, KpiGroup, KpiRow, BackoutPanel, LineChart, RequestProgressList, StagePipeline, StuckList, TeamTable } from "../index";
 import { AnimatedNumber } from "../motion";
 import type {
@@ -20,7 +20,7 @@ import type {
   StageTableRow,
   StuckCandidate,
   TeamRow,
-} from "../../../../lib/types/analytics.types";
+} from "../../../lib/types/analytics.types";
 
 describe("Analytics Components Test Suite", () => {
   afterEach(() => {

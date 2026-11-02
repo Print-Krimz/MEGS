@@ -12,8 +12,8 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 import { OperationsWorkspace, RequestProgressList, StagePipeline, StuckList, TeamTable } from "../index";
-import { formatRecruiterName } from "../../../../lib/recruiter-label";
-import type { RequestRow, StageTableRow, StuckCandidate, TeamRow } from "../../../../lib/types/analytics.types";
+import { formatRecruiterName } from "../../../lib/recruiter-label";
+import type { RequestRow, StageTableRow, StuckCandidate, TeamRow } from "../../../lib/types/analytics.types";
 
 afterEach(cleanup);
 

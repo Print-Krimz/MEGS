@@ -9,7 +9,7 @@ import {
   EmptyState,
 } from "../../components/common";
 import { Button } from "../../components/ui";
-import { AnalyticsPanel, KpiRow } from "../../components/analytics";
+import { AnalyticsPanel, KpiStrip } from "../../components/analytics";
 import { BarMark } from "../../components/analytics/chart-primitives";
 import { BarChart3, RotateCcw } from "lucide-react";
 
@@ -113,11 +113,11 @@ export const ScoringQualityPage: React.FC = () => {
         }
       />
 
-      <KpiRow columns="lg:grid-cols-3">
+      <KpiStrip columns="lg:grid-cols-3">
         <Kpi label="Candidates scored" value={totalCalculated} />
         <Kpi label="Average match score" value={metric(m.averageFitScore, 1)} detail={`Lowest ${metric(m.minFitScore)} · highest ${metric(m.maxFitScore)}`} />
         <Kpi label="Candidates ready for matching" value={metric(m.coveragePercentage)} />
-      </KpiRow>
+      </KpiStrip>
 
       <AnalyticsPanel title="Score distribution" aside={`${totalCalculated} candidates`}>
         <ul className="divide-y divide-slate-200">

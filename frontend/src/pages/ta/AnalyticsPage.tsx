@@ -4,8 +4,9 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import { formatSampled } from "../../lib/analytics-format";
 import { PageHeader, LoadingState, ErrorState } from "../../components/common";
-import { AnalyticsFilterBar, ExportMenu } from "../../components/analytics";
 import {
+  AnalyticsFilterBar,
+  ExportMenu,
   AnalyticsKpi,
   AttentionStrip,
   BackoutPanel,
@@ -15,8 +16,8 @@ import {
   RequestProgressList,
   StagePipeline,
   StuckList,
-} from "../../components/analytics/admin";
-import type { RequestHealthFilter } from "../../components/analytics/admin";
+} from "../../components/analytics";
+import type { RequestHealthFilter } from "../../components/analytics";
 import { filtersToSearch, parseTAReportSearch, searchToFilters, type AdminReportSearch } from "../../lib/admin-report-search";
 import type { AnalyticsFilterState } from "../../lib/types/analytics.types";
 import { formatDate } from "../../lib/utils";

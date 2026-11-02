@@ -4,9 +4,9 @@ import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { formatSampled } from "../../lib/analytics-format";
 import { adminApi } from "../../lib/api/admin.api";
 import { PageHeader, LoadingState, ErrorState } from "../../components/common";
-import { AnalyticsFilterBar, ExportMenu } from "../../components/analytics";
-// Admin Reports uses its own status-first versions; the TA Reports page keeps the originals.
 import {
+  AnalyticsFilterBar,
+  ExportMenu,
   AnalyticsKpi,
   AttentionStrip,
   BackoutPanel,
@@ -18,8 +18,8 @@ import {
   StagePipeline,
   StuckList,
   TeamTable,
-} from "../../components/analytics/admin";
-import type { RequestHealthFilter } from "../../components/analytics/admin";
+} from "../../components/analytics";
+import type { RequestHealthFilter } from "../../components/analytics";
 import {
   filtersToSearch,
   parseAdminReportSearch,

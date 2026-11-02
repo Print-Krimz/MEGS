@@ -59,15 +59,14 @@ export function OperationsWorkspace<K extends string>({ tabs, active, onChange, 
                 selected ? "bg-white text-slate-950 border-b-2 border-b-navy -mb-px" : "text-slate-600 hover:bg-slate-200"
               }`}
             >
-              <span className={tab.shortLabel ? "hidden sm:inline" : undefined}>{tab.label}</span>
-              {tab.shortLabel && <span className="sm:hidden">{tab.shortLabel}</span>}{" "}
+              {tab.shortLabel ?? tab.label}{" "}
               {showCounts && <span className="ml-1 tabular-nums text-xs font-normal">{tab.count}</span>}
             </button>
           );
         })}
       </div>
       {tabs.map((tab) => (
-        <div key={tab.key} role="tabpanel" id={`${id}-panel-${tab.key}`} aria-labelledby={`${id}-tab-${tab.key}`} hidden={tab.key !== active}>
+        <div key={tab.key} role="tabpanel" id={`${id}-panel-${tab.key}`} aria-labelledby={`${id}-tab-${tab.key}`} hidden={tab.key !== active} tabIndex={-1} className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
           {tab.content}
         </div>
       ))}
