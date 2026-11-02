@@ -8,7 +8,7 @@ import {
 } from "@tanstack/react-router";
 import type { QueryClient } from "@tanstack/react-query";
 import type { AuthContextType } from "./context/AuthContext";
-import { parseAdminReportSearch, type AdminReportSearch } from "./lib/admin-report-search";
+import { parseAdminReportSearch, parseTAReportSearch, type AdminReportSearch } from "./lib/admin-report-search";
 import { getHomePath, landingRedirectPending, markLandingRedirected } from "./lib/home-path";
 import { ApplicationStatus, PIPELINE_FILTER_STAGES, Role } from "./lib/types/enums";
 
@@ -599,6 +599,7 @@ export const taWorkforceRoute = createRoute({
 export const taAnalyticsRoute = createRoute({
   getParentRoute: () => taLayoutRoute,
   path: "/ta/analytics",
+  validateSearch: (search: Record<string, unknown>): AdminReportSearch => parseTAReportSearch(search),
   component: AnalyticsPage,
 });
 

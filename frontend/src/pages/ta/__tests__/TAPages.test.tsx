@@ -322,7 +322,7 @@ vi.mock("../../../lib/api/ta.api", () => ({
         requisitions: { total: 2, open: 2, overdue: 0, atRisk: 1, filled: 0 },
         placementsStarted: 3, newStarts: 2, redeployStarts: 1, medianDaysToFill: 6, daysToFillSample: 3,
         backoutsAfterClientReview: 1, backoutRate: 25, backoutRateBase: 4,
-        activeApplicants: 22, overdueCandidates: 2, overdueEstimated: 1, closedOpenings: 0, staleFilledRequisitions: 0, criticalCandidates: 0, unlinkedApplicants: 0,
+        activeApplicants: 22, overdueCandidates: 2, overdueEstimated: 1, overdueTotal: 3, lateRequests: 1, closedOpenings: 0, staleFilledRequisitions: 0, criticalCandidates: 0, unlinkedApplicants: 0,
       },
       requests: [
         {
@@ -389,6 +389,7 @@ vi.mock("../../../lib/api/employees.api", () => ({
 
 // Mock router Link
 const routerSearch = vi.hoisted(() => ({ value: {} as Record<string, unknown> }));
+const navigateMock = vi.hoisted(() => vi.fn());
 vi.mock("@tanstack/react-router", () => ({
   useSearch: () => routerSearch.value,
   useBlocker: () => ({ status: "idle" }),
@@ -397,7 +398,7 @@ vi.mock("@tanstack/react-router", () => ({
       {children}
     </a>
   ),
-  useNavigate: () => vi.fn(),
+  useNavigate: () => navigateMock,
   useParams: () => ({ applicationId: "1", jobId: "10", mrfId: "1001", clientId: "1", deploymentId: "501", employeeId: "88" }),
 }));
 
@@ -792,18 +793,90 @@ describe("Talent Acquisition Interface Suite", () => {
     expect(await screen.findByRole("heading", { name: "Employee records" })).toBeDefined();
   });
 
-  it("renders AnalyticsPage with the stage table, pending actions and export menu", async () => {
+  it("renders AnalyticsPage in the recruiter's question order with the export menu", async () => {
     renderWithClient(<AnalyticsPage />);
     expect(await screen.findByRole("heading", { name: "Reports" })).toBeDefined();
-    expect(await screen.findByText("Candidates by stage")).toBeDefined();
-    const card = await screen.findByRole("listitem", { name: /^Requirements: 4 in stage, 0 overdue/ });
-    expect(within(card).getByRole("link").getAttribute("href")).toContain("/ta/applications");
-    expect(await screen.findByRole("button", { name: "Show period details" })).toBeDefined();
-    expect(await screen.findByText("Schedule Screening")).toBeDefined();
-    // The KPI row and the TA's own requests are there, and there is no "my requisitions only" switch
-    expect((await screen.findAllByText("Active applicants")).length).toBeGreaterThan(0);
-    expect(await screen.findByText("Batch 1 Electricians")).toBeDefined();
-    expect(screen.queryByRole("checkbox", { name: /My requisitions only/i })).toBeNull();
+    await screen.findByText("Candidates by stage");
+    const names = screen.getAllByRole("heading", { level: 2, hidden: true }).map((h) => h.textContent);
+    const order = ["Needs action", "Headline numbers", "Candidates by stage", "Overdue candidates", "Client requests", "Why people backed out"].map((n) => names.indexOf(n));
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
+    expect(screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent).slice(0, 2)).toEqual(["Right now", "In these dates"]);
+    expect(screen.getByText("Days to fill: 6 days")).toBeDefined();
+    expect(screen.getAllByText("Backout rate").length).toBeGreaterThan(0);
     expect(await screen.findByText("Export")).toBeDefined();
+    expect(screen.queryByRole("checkbox", { name: /My requisitions only/i })).toBeNull();
+  });
+
+  it("shows the same overdue number on the tile and the chip", async () => {
+    renderWithClient(<AnalyticsPage />);
+    const chip = await screen.findByRole("link", { name: /3\s*overdue candidates/ });
+    expect(chip).toBeDefined();
+    const tile = within(screen.getByRole("region", { name: "Right now" })).getByRole("link", { name: /Overdue candidates/ });
+    expect(tile.textContent).toContain("3");
+    expect(tile.textContent).toContain("1 estimated from application date");
+  });
+
+  it("drops the stage chart, closed applications, pending work and the Now / In period chips", async () => {
+    renderWithClient(<AnalyticsPage />);
+    await screen.findByText("Candidates by stage");
+    expect(screen.queryByText(/Stage progress/)).toBeNull();
+    expect(screen.queryByText(/Closed applications/)).toBeNull();
+    expect(screen.queryByText(/Pending work/)).toBeNull();
+    expect(screen.queryByText("In period")).toBeNull();
+    expect(screen.queryByRole("tab", { name: /Pending/ })).toBeNull();
+    expect(screen.getByText("Client answers: 3 accepted · 1 declined")).toBeDefined();
+  });
+
+  it("links the tasks chip to the Overview and the late requests chip to the requests tab", async () => {
+    navigateMock.mockClear();
+    renderWithClient(<AnalyticsPage />);
+    fireEvent.click(await screen.findByRole("link", { name: /1\s*task waiting on you/ }));
+    expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ to: "/ta" }));
+    fireEvent.click(screen.getByRole("link", { name: /1\s*request overdue or at risk/ }));
+    expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ to: "/ta/analytics", search: expect.objectContaining({ tab: "requests", health: "LATE" }) }));
+  });
+
+  it("opens Client requests from ?tab=requests", async () => {
+    routerSearch.value = { tab: "requests" };
+    renderWithClient(<AnalyticsPage />);
+    expect((await screen.findByRole("tab", { name: /Client requests/ })).getAttribute("aria-selected")).toBe("true");
+    expect(await screen.findByText("Batch 1 Electricians")).toBeDefined();
+  });
+
+  it("ignores recruiterId in the URL and never sends it", async () => {
+    routerSearch.value = { recruiterId: "ta-9", tab: "recruiters", clientId: "1" };
+    vi.mocked(taApi.getDashboardSummary).mockClear();
+    renderWithClient(<AnalyticsPage />);
+    await screen.findByText("Candidates by stage");
+    expect(taApi.getDashboardSummary).toHaveBeenCalledWith(expect.objectContaining({ clientId: 1 }), expect.anything());
+    for (const [filters] of vi.mocked(taApi.getDashboardSummary).mock.calls) expect(filters).not.toHaveProperty("recruiterId");
+    expect(screen.queryByRole("tab", { name: /Recruiters/ })).toBeNull();
+    expect(screen.getByRole("tab", { name: /Overdue candidates/ }).getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("says nothing needs action when every count is zero", async () => {
+    const base = await taApi.getDashboardSummary();
+    vi.mocked(taApi.getDashboardSummary).mockResolvedValueOnce({
+      ...base,
+      kpis: { ...base.kpis, overdueTotal: 0, overdueCandidates: 0, overdueEstimated: 0, lateRequests: 0 },
+      pendingActionsTotal: 0,
+    } as never);
+    renderWithClient(<AnalyticsPage />);
+    await screen.findByText("Candidates by stage");
+    expect(within(screen.getByRole("region", { name: "Needs action" })).getByText("Nothing needs action right now.")).toBeDefined();
+  });
+
+  it("shows one page-level empty state when nothing is recorded for the dates", async () => {
+    const base = await taApi.getDashboardSummary();
+    vi.mocked(taApi.getDashboardSummary).mockResolvedValueOnce({
+      ...base,
+      kpis: { ...base.kpis, activeApplicants: 0, placementsStarted: 0, requisitions: { ...base.kpis.requisitions, total: 0 } },
+      requests: [],
+      backouts: { ...base.backouts, backouts: 0, withdrawals: 0 },
+    } as never);
+    renderWithClient(<AnalyticsPage />);
+    expect(await screen.findByText("Nothing recorded for these dates.")).toBeDefined();
+    expect(screen.queryByText("Candidates by stage")).toBeNull();
   });
 });

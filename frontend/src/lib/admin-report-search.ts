@@ -105,3 +105,10 @@ export const readReportReturnState = (state: unknown): AdminReportSearch => {
   if (!state || typeof state !== "object") return {};
   return parseAdminReportSearch((state as Record<string, unknown>)[ADMIN_REPORT_STATE_KEY]);
 };
+
+/** The recruiter Reports page shows only the signed-in recruiter's work: no recruiter filter and no Recruiters tab. */
+export const parseTAReportSearch = (input: unknown): AdminReportSearch => {
+  const { recruiterId: _recruiterId, ...rest } = parseAdminReportSearch(input);
+  if (rest.tab === "recruiters") delete rest.tab;
+  return rest;
+};

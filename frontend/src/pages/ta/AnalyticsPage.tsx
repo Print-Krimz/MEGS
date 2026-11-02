@@ -1,39 +1,89 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
+import { formatSampled } from "../../lib/analytics-format";
 import { PageHeader, LoadingState, ErrorState } from "../../components/common";
+import { AnalyticsFilterBar, ExportMenu } from "../../components/analytics";
 import {
-  AnalyticsFilterBar,
   AnalyticsKpi,
   AttentionStrip,
   BackoutPanel,
-  ClosurePanel,
-  DropOffChart,
-  ExportMenu,
+  KpiGroup,
   KpiRow,
   OperationsWorkspace,
-  PendingActionsWidget,
   RequestProgressList,
   StagePipeline,
   StuckList,
-} from "../../components/analytics";
-import { PhoneCollapse } from "../../components/ta/overview/PhoneCollapse";
-import type { RequestHealthFilter } from "../../components/analytics";
+} from "../../components/analytics/admin";
+import type { RequestHealthFilter } from "../../components/analytics/admin";
+import { filtersToSearch, parseTAReportSearch, searchToFilters, type AdminReportSearch } from "../../lib/admin-report-search";
 import type { AnalyticsFilterState } from "../../lib/types/analytics.types";
 import { formatDate } from "../../lib/utils";
 import { TA_COPY } from "../../lib/ta-copy";
 
+const plural = (count: number, word: string) => (count === 1 ? word : `${word}s`);
+
+const KPI_DEFINITIONS = [
+  { label: "Overdue candidates", definition: "Candidates past the days allowed for their stage, including ones estimated from application date." },
+  { label: "Open requests", definition: "Requests still needing workers." },
+  { label: "Starts", definition: "Workers who started work." },
+  { label: "Days to fill", definition: "Typical days from request opened to worker start." },
+  { label: "Backout rate", definition: "Workers who backed out after client review, out of those plus starts." },
+];
+
 const rangeText = (start: string, end: string) => `${formatDate(start)} to ${formatDate(end)}`;
 
-type WorkspaceKey = "pending" | "waiting" | "requests";
+type WorkspaceKey = "waiting" | "requests";
 type WaitingFocus = { urgency?: "ALL" | "critical"; stage?: string; nonce: number };
 type RequestFocus = { health: RequestHealthFilter; nonce: number };
 
+const scrollToWorkspace = () => setTimeout(() => document.getElementById("operations")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+
 export const AnalyticsPage: React.FC = () => {
-  const [filters, setFilters] = useState<AnalyticsFilterState>({ range: "7d" });
-  const [tab, setTab] = useState<WorkspaceKey>("pending");
-  const [waitingFocus, setWaitingFocus] = useState<WaitingFocus>();
-  const [requestFocus, setRequestFocus] = useState<RequestFocus>();
+  const navigate = useNavigate();
+  const rawSearch = useSearch({ strict: false });
+  // recruiterId and the Recruiters tab are dropped here: this page is always the signed-in recruiter's own work.
+  const search = useMemo(() => parseTAReportSearch(rawSearch), [rawSearch]);
+  const { range, startDate, endDate, clientId, mrfId, jobPostingId } = search;
+  const filters = useMemo(
+    () => searchToFilters({ range, startDate, endDate, clientId, mrfId, jobPostingId }),
+    [range, startDate, endDate, clientId, mrfId, jobPostingId],
+  );
+  const [tab, setTabState] = useState<WorkspaceKey>(search.tab === "requests" ? "requests" : "waiting");
+  useEffect(() => setTabState(search.tab === "requests" ? "requests" : "waiting"), [search.tab]);
+  const [nonce, setNonce] = useState(0);
+  // After a chip or tile opens a tab, focus moves to that panel so a keyboard or screen reader user lands on the list.
+  const [focusRequest, setFocusRequest] = useState<{ tab: WorkspaceKey; id: number } | null>(null);
+  useEffect(() => {
+    if (!focusRequest) return;
+    document.getElementById(`operations-panel-${focusRequest.tab}`)?.focus({ preventScroll: true });
+  }, [focusRequest]);
+  const { urgency, stage, health } = search;
+  const waitingFocus = useMemo<WaitingFocus | undefined>(() => (urgency || stage ? { urgency, stage, nonce } : undefined), [urgency, stage, nonce]);
+  const requestFocus = useMemo<RequestFocus | undefined>(() => (health ? { health, nonce } : undefined), [health, nonce]);
+  const searchRef = useRef(search);
+  searchRef.current = search;
+
+  const update = useCallback(
+    (patch: Partial<AdminReportSearch>, replace = false) => {
+      void navigate({
+        to: "/ta/analytics",
+        search: parseTAReportSearch({ ...searchRef.current, ...patch }) as never,
+        replace,
+      });
+    },
+    [navigate],
+  );
+  const setFilters = (next: AnalyticsFilterState) => update({ ...filtersToSearch(next), health: undefined, urgency: undefined, stage: undefined });
+  const setTab = (key: WorkspaceKey) => {
+    setTabState(key);
+    requestAnimationFrame(() =>
+      setTimeout(() => {
+        if (window.location.pathname === "/ta/analytics") update({ tab: key }, true);
+      }, 0),
+    );
+  };
 
   const dashboardQuery = useQuery({
     queryKey: ["ta", "analytics", "dashboard", filters],
@@ -43,12 +93,16 @@ export const AnalyticsPage: React.FC = () => {
   });
 
   const showWaiting = (focus: Omit<WaitingFocus, "nonce">) => {
-    setWaitingFocus((prev) => ({ ...focus, nonce: (prev?.nonce ?? 0) + 1 }));
-    setTab("waiting");
+    setNonce((n) => n + 1);
+    setTabState("waiting");
+    setFocusRequest({ tab: "waiting", id: nonce + 1 });
+    update({ tab: "waiting", urgency: focus.urgency, stage: focus.stage, health: undefined });
   };
-  const showRequests = (health: RequestHealthFilter) => {
-    setRequestFocus((prev) => ({ health, nonce: (prev?.nonce ?? 0) + 1 }));
-    setTab("requests");
+  const showRequests = (next: RequestHealthFilter) => {
+    setNonce((n) => n + 1);
+    setTabState("requests");
+    setFocusRequest({ tab: "requests", id: nonce + 1 });
+    update({ tab: "requests", health: next, urgency: undefined, stage: undefined });
   };
 
   const asOf = dashboardQuery.dataUpdatedAt
@@ -77,8 +131,9 @@ export const AnalyticsPage: React.FC = () => {
       <div className="space-y-5">
         {header}
         <AnalyticsFilterBar filters={filters} onChange={setFilters} showClientFilter />
-        <LoadingState variant="cards" />
-        <LoadingState variant="table" rows={6} />
+        <div className="h-11 animate-pulse border border-slate-300 bg-white" aria-hidden="true" />
+        <LoadingState variant="cards" rows={4} className="lg:grid-cols-4" />
+        <LoadingState variant="table" rows={4} />
       </div>
     );
   }
@@ -96,10 +151,11 @@ export const AnalyticsPage: React.FC = () => {
   const data = dashboardQuery.data;
   const { kpis } = data;
   const label = rangeText(data.dateRange.startDate, data.dateRange.endDate);
-  const noCandidates = data.requests.filter((r) => r.attention === "NO_OPENING" || r.attention === "NO_APPLICANTS").length;
+  const isEmpty =
+    kpis.activeApplicants === 0 && kpis.requisitions.total === 0 && kpis.placementsStarted === 0 && data.backouts.backouts === 0 && data.backouts.withdrawals === 0;
   const staleNote =
     kpis.staleFilledRequisitions > 0
-      ? `${kpis.staleFilledRequisitions} of your requests ${kpis.staleFilledRequisitions === 1 ? "is" : "are"} marked filled with no placement behind ${kpis.staleFilledRequisitions === 1 ? "it" : "them"}. ${kpis.staleFilledRequisitions === 1 ? "It is" : "They are"} left out of the seat counts.`
+      ? `${kpis.staleFilledRequisitions} marked filled with no placement. Left out of seat counts.`
       : undefined;
 
   return (
@@ -108,110 +164,91 @@ export const AnalyticsPage: React.FC = () => {
 
       <AnalyticsFilterBar filters={filters} onChange={setFilters} options={data.filterOptions} showClientFilter />
 
-      <p role="status" aria-live="polite" className={dashboardQuery.isFetching ? "text-xs text-slate-500 font-sans" : "sr-only"}>
-        {dashboardQuery.isFetching ? "Updating the numbers…" : ""}
+      <p role="status" aria-live="polite" className="sr-only">
+        {dashboardQuery.isFetching ? "Updating the numbers" : ""}
       </p>
 
-      <KpiRow columns="md:grid-cols-5">
-        <AnalyticsKpi
-          label="Active applicants"
-          kind="now"
-          value={kpis.activeApplicants}
-          detail={kpis.unlinkedApplicants > 0 ? `${kpis.unlinkedApplicants} on openings with no request` : "In the pipeline now"}
-          definition="Candidates on your openings who are between application and start, not yet deployed."
-          to="/ta/applications"
+      <div className={`space-y-5 transition-opacity ${dashboardQuery.isFetching ? "opacity-70" : ""}`}>
+        <AttentionStrip
+          items={[
+            { key: "overdue", count: kpis.overdueTotal, label: plural(kpis.overdueTotal, "overdue candidate"), href: "#operations", onSelect: () => showWaiting({}) },
+            // The Overview already lists the tasks, so this chip goes there instead of repeating them here.
+            { key: "tasks", count: data.pendingActionsTotal, label: `${plural(data.pendingActionsTotal, "task")} waiting on you`, href: "/ta", onSelect: () => void navigate({ to: "/ta" }) },
+            { key: "late", count: kpis.lateRequests, label: `${plural(kpis.lateRequests, "request")} overdue or at risk`, href: "#operations", onSelect: () => showRequests("LATE") },
+          ]}
         />
-        <AnalyticsKpi
-          label="Open requests"
-          kind="now"
-          value={kpis.requisitions.open}
-          detail={`${kpis.filledSeats} of ${kpis.requestedSeats} seats filled`}
-          definition="Your client requests that still have seats to fill."
-          to="/ta/mrfs"
-        />
-        <AnalyticsKpi
-          label="Overdue candidates"
-          kind="now"
-          value={kpis.overdueCandidates}
-          detail={kpis.overdueEstimated > 0 ? `+${kpis.overdueEstimated} by application age only` : "Past their stage limit"}
-          definition="Candidates who have waited longer than the allowed days for their stage."
-          tone={kpis.overdueCandidates > 0 ? "alert" : "default"}
-          anchor="operations"
-          onActivate={() => showWaiting({})}
-        />
-        <AnalyticsKpi
-          label="Starts"
-          kind="period"
-          value={kpis.placementsStarted}
-          detail={`${kpis.newStarts} new · ${kpis.redeployStarts} redeployed`}
-          definition="Workers whose actual start date falls in the selected dates."
-          to="/ta/deployments"
-        />
-        <AnalyticsKpi
-          label="Backouts"
-          kind="period"
-          value={kpis.backoutsAfterClientReview}
-          detail={`${data.backouts.withdrawals} withdrew before client review`}
-          definition="Candidates who left after the client reviewed them, in the selected dates."
-          tone={kpis.backoutsAfterClientReview > 0 ? "alert" : "default"}
-          anchor="backouts"
-        />
-      </KpiRow>
 
-      <AttentionStrip
-        items={[
-          { id: "waiting", label: "candidates past their stage limit", singular: "candidate past their stage limit", count: data.stuckTotal, target: "operations", tone: "alert", onSelect: () => showWaiting({}) },
-          { id: "pending", label: "tasks waiting on you", singular: "task waiting on you", count: data.pendingActionsTotal, target: "operations", tone: "warn", onSelect: () => setTab("pending") },
-          { id: "late", label: "requests past their target date", singular: "request past its target date", count: kpis.requisitions.overdue, target: "operations", tone: "alert", onSelect: () => showRequests("OVERDUE") },
-          { id: "empty", label: "open requests with no candidates", singular: "open request with no candidates", count: noCandidates, target: "operations", tone: "warn", onSelect: () => showRequests("NONE") },
-        ]}
-      />
+        <section aria-label="Headline numbers">
+          <h2 className="sr-only">Headline numbers</h2>
+          <KpiRow definitions={KPI_DEFINITIONS}>
+            <KpiGroup label="Right now">
+              <AnalyticsKpi
+                label="Overdue candidates"
+                value={kpis.overdueTotal}
+                detail={`${kpis.overdueEstimated} estimated from application date`}
+                href="#operations"
+                onClick={() => showWaiting({})}
+              />
+              {/* No link: the request list also holds filled requests, so its count would not match this tile. */}
+              <AnalyticsKpi label="Open requests" value={kpis.requisitions.open} detail={`${kpis.filledSeats} of ${kpis.requestedSeats} seats filled`} />
+            </KpiGroup>
+            <KpiGroup label="In these dates">
+              {/* No link: /ta/deployments does not accept dates or request filters. */}
+              <AnalyticsKpi
+                label="Starts"
+                value={kpis.placementsStarted}
+                detail={`Days to fill: ${formatSampled(kpis.medianDaysToFill, kpis.daysToFillSample, "days")}`}
+              />
+              <AnalyticsKpi
+                label="Backout rate"
+                value={formatSampled(kpis.backoutRate, kpis.backoutRateBase, "%")}
+                detail={`${kpis.backoutsAfterClientReview} of ${kpis.backoutRateBase} backed out after client review`}
+                href="#backouts"
+              />
+            </KpiGroup>
+          </KpiRow>
+        </section>
 
-      <StagePipeline rows={data.stageTable} rangeLabel={label} linkStages />
+        {isEmpty ? (
+          <p className="border border-slate-300 bg-white p-6 text-center text-sm font-sans text-slate-700">Nothing recorded for these dates.</p>
+        ) : (
+          <>
+            <StagePipeline
+              rows={data.stageTable}
+              footer={`Client answers: ${data.clientDecisions.accepted} accepted · ${data.clientDecisions.declined} declined`}
+              onSelectStage={(picked) => {
+                showWaiting({ stage: picked });
+                scrollToWorkspace();
+              }}
+            />
 
-      <div className="grid grid-cols-1 items-start gap-5 md:grid-cols-12">
-        <PhoneCollapse title="Stage progress" className="md:col-span-12 lg:col-span-7">
-          <DropOffChart rows={data.dropOff} rangeLabel={label} />
-        </PhoneCollapse>
-        <PhoneCollapse title="Withdrawals and backouts" targetId="backouts" className="md:col-span-12 lg:col-span-5">
-          <BackoutPanel data={data.backouts} clientDecisions={data.clientDecisions} rangeLabel={label} showRecent compact />
-        </PhoneCollapse>
+            <OperationsWorkspace<WorkspaceKey>
+              active={tab}
+              onChange={setTab}
+              tabs={[
+                {
+                  key: "waiting",
+                  label: "Overdue candidates",
+                  shortLabel: "Overdue",
+                  count: data.stuckTotal,
+                  content: (
+                    <StuckList bare viewer="ta" showRecruiter={false} title="Overdue candidates" rows={data.stuck} total={data.stuckTotal} closedOpenings={kpis.closedOpenings} focus={waitingFocus} />
+                  ),
+                },
+                {
+                  key: "requests",
+                  label: "Client requests",
+                  shortLabel: "Requests",
+                  count: data.requests.length,
+                  content: <RequestProgressList bare rows={data.requests} linkTo="/ta/mrfs/$mrfId" showOwner={false} note={staleNote} focus={requestFocus} />,
+                },
+              ]}
+            />
+
+            <BackoutPanel data={data.backouts} rangeLabel={label} />
+          </>
+        )}
       </div>
-
-      {data.closures && (
-        <PhoneCollapse title="Closed applications">
-          <ClosurePanel data={data.closures} rangeLabel={label} />
-        </PhoneCollapse>
-      )}
-
-      <OperationsWorkspace<WorkspaceKey>
-        active={tab}
-        onChange={setTab}
-        showCounts={false}
-        tabs={[
-          {
-            key: "pending",
-            label: "Pending work",
-            shortLabel: "Pending",
-            count: data.pendingActionsTotal,
-            content: <PendingActionsWidget bare actions={data.pendingActions} total={data.pendingActionsTotal} />,
-          },
-          {
-            key: "waiting",
-            label: "Overdue candidates",
-            shortLabel: "Overdue",
-            count: data.stuckTotal,
-            content: <StuckList bare viewer="ta" rows={data.stuck} total={data.stuckTotal} closedOpenings={kpis.closedOpenings} focus={waitingFocus} />,
-          },
-          {
-            key: "requests",
-            label: "Client requests",
-            shortLabel: "Requests",
-            count: data.requests.length,
-            content: <RequestProgressList bare rows={data.requests} linkTo="/ta/mrfs/$mrfId" showOwner={false} note={staleNote} focus={requestFocus} />,
-          },
-        ]}
-      />
     </div>
   );
 };
