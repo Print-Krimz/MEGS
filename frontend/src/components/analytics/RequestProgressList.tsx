@@ -163,7 +163,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                       to={linkTo}
                       params={{ mrfId: String(row.mrfId) }}
                       {...(linkState ? { state: linkState as never } : {})}
-                      className="truncate text-sm font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                      className="truncate text-sm font-semibold text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                     >
                       {row.title}
                     </Link>
@@ -178,7 +178,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                     ) : (
                       <>
                         <span className="tabular-nums text-slate-600">{slaText(row)}</span>
-                        <span className={`border px-1.5 py-0.5 font-semibold ${style.badge}`}>{style.label}</span>
+                        <span className={`px-1.5 py-0.5 font-semibold ${style.badge.replace(/border-\S+/g, "")}`}>{style.label}</span>
                       </>
                     )}
                   </div>

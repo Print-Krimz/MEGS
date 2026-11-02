@@ -55,11 +55,13 @@ describe("OperationsWorkspace", () => {
     expect((screen.getByLabelText("first search") as HTMLInputElement).value).toBe("welder");
   });
 
-  it("shows the short label on the tab and keeps the full label and count as its name", () => {
+  it("names the tab from its visible text and shows the short label only below md", () => {
     render(<OperationsWorkspace tabs={[{ key: "r", label: "Client requests", shortLabel: "Requests", count: 4, content: <p>x</p> }]} active="r" onChange={vi.fn()} />);
-    const tab = screen.getByRole("tab", { name: "Client requests 4" });
-    expect(tab.textContent).toContain("Requests");
-    expect(tab.textContent).not.toContain("Client requests");
+    const tab = screen.getByRole("tab");
+    expect(tab.hasAttribute("aria-label")).toBe(false);
+    expect(screen.getByText("Requests").className).toContain("md:hidden");
+    expect(screen.getByText("Client requests").className).toContain("md:inline");
+    expect(tab.textContent).toContain("4");
   });
 
   it("moves between tabs with the arrow keys", () => {
@@ -220,17 +222,34 @@ describe("admin lists", () => {
     render(<TeamTable rows={rows} onSelectRecruiter={vi.fn()} />);
     const header = (name: string) => screen.getByRole("columnheader", { name });
     expect(header("Overdue").getAttribute("aria-sort")).toBe("descending");
-    expect(header("Active").getAttribute("aria-sort")).toBe("none");
+    expect(header("Active").hasAttribute("aria-sort")).toBe(false);
     const order = () => screen.getAllByRole("row").slice(1).map((r) => within(r).getAllByRole("rowheader")[0].textContent);
     expect(order()).toEqual(["Alice", "Bea", "Cy"]);
 
     fireEvent.click(within(header("Active")).getByRole("button"));
     expect(header("Active").getAttribute("aria-sort")).toBe("descending");
-    expect(header("Overdue").getAttribute("aria-sort")).toBe("none");
+    expect(header("Overdue").hasAttribute("aria-sort")).toBe(false);
     expect(order()).toEqual(["Bea", "Cy", "Alice"]);
     fireEvent.click(within(header("Active")).getByRole("button"));
     expect(header("Active").getAttribute("aria-sort")).toBe("ascending");
     expect(order()).toEqual(["Alice", "Cy", "Bea"]);
+  });
+
+  it("TeamTable Overdue sort uses verified plus estimated, as the cell shows", () => {
+    const rows = [team("a", "Alice", { overdue: 3 }), team("b", "Bea", { overdue: 1, overdueEstimated: 5 }), team("c", "Cy", { overdue: 2 })];
+    render(<TeamTable rows={rows} onSelectRecruiter={vi.fn()} />);
+    const order = () => screen.getAllByRole("row").slice(1).map((r) => within(r).getAllByRole("rowheader")[0].textContent);
+    const button = within(screen.getByRole("columnheader", { name: /Overdue/ })).getByRole("button");
+    fireEvent.click(button);
+    expect(order()).toEqual(["Cy", "Alice", "Bea"]);
+    fireEvent.click(button);
+    expect(order()).toEqual(["Bea", "Alice", "Cy"]);
+  });
+
+  it("StuckList in-text links are underlined and closed openings sit in the caption", () => {
+    render(<StuckList rows={[stuck(1)]} total={1} closedOpenings={2} />);
+    expect(screen.getByRole("link", { name: "Candidate 1" }).className).toContain("underline");
+    expect(screen.getByText(/2 more on closed openings/).closest("p")?.textContent).toContain("longest wait first");
   });
 
   it("TeamTable shows the two overdue counts, a sampled rate, and says what a name click does", () => {
@@ -270,8 +289,8 @@ describe("admin lists", () => {
   it("StuckList has no recruiter select, badges Critical or Overdue, and says when a wait is estimated", () => {
     render(<StuckList rows={[stuck(1, { urgency: "critical" }), stuck(2, { estimated: true })]} total={2} />);
     expect(screen.queryByLabelText("Recruiter")).toBeNull();
-    expect(screen.getByText("Critical", { selector: "span.border" })).toBeDefined();
-    expect(screen.getByText("Overdue", { selector: "span.border" })).toBeDefined();
+    expect(screen.getByText("Critical", { selector: "span.shrink-0" })).toBeDefined();
+    expect(screen.getByText("Overdue", { selector: "span.shrink-0" })).toBeDefined();
     expect(screen.getByText(/estimated from application date/)).toBeDefined();
   });
 

@@ -38,6 +38,9 @@ const sortValue = (row: TeamRow, key: SortKey): string | number | null => {
   switch (key) {
     case "name":
       return formatRecruiterName(row.name).label.toLowerCase();
+    case "overdue":
+      // The cell shows verified + estimated, so the sort uses the same total.
+      return row.overdue + row.overdueEstimated;
     case "seats":
       return row.fillRate;
     case "backoutRate":
@@ -119,15 +122,15 @@ export const TeamTable = React.memo(function TeamTable({
       ) : (
         <div className="max-h-[32rem] overflow-auto">
           <table className="w-full min-w-[46rem] text-sm">
-            <thead className="sticky top-0 z-10 bg-white">
-              <tr className="border-b border-slate-200">
+            <thead className="sticky top-0 z-10 bg-white shadow-[inset_0_-1px_0_var(--color-slate-200)]">
+              <tr>
                 {COLUMNS.map((col) => {
                   const active = shown.key === col.key;
                   return (
                     <th
                       key={col.key}
                       scope="col"
-                      aria-sort={active ? (shown.dir === "asc" ? "ascending" : "descending") : "none"}
+                      aria-sort={active ? (shown.dir === "asc" ? "ascending" : "descending") : undefined}
                       className={`px-3 py-1 text-xs font-semibold text-slate-600 whitespace-nowrap ${col.key === "name" ? "text-left min-w-40" : "text-right"}`}
                     >
                       <button

@@ -3,7 +3,7 @@ import React, { useRef } from "react";
 export interface WorkspaceTab<K extends string = string> {
   key: K;
   label: string;
-  /** Shorter wording for a phone, where three full labels do not fit. The full label is still the accessible name. */
+  /** Shorter wording for a phone, where three full labels do not fit. From md up the full label shows. */
   shortLabel?: string;
   /** Number shown on the tab, e.g. how many records it lists. */
   count: number;
@@ -49,7 +49,6 @@ export function OperationsWorkspace<K extends string>({ tabs, active, onChange, 
               type="button"
               role="tab"
               id={`${id}-tab-${tab.key}`}
-              aria-label={showCounts ? `${tab.label} ${tab.count}` : tab.label}
               aria-selected={selected}
               aria-controls={`${id}-panel-${tab.key}`}
               tabIndex={selected ? 0 : -1}
@@ -59,7 +58,14 @@ export function OperationsWorkspace<K extends string>({ tabs, active, onChange, 
                 selected ? "bg-white text-slate-950 border-b-2 border-b-navy -mb-px" : "text-slate-600 hover:bg-slate-200"
               }`}
             >
-              {tab.shortLabel ?? tab.label}{" "}
+              {tab.shortLabel ? (
+                <>
+                  <span className="md:hidden">{tab.shortLabel}</span>
+                  <span className="hidden md:inline">{tab.label}</span>
+                </>
+              ) : (
+                tab.label
+              )}{" "}
               {showCounts && <span className="ml-1 tabular-nums text-xs font-normal">{tab.count}</span>}
             </button>
           );

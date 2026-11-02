@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import type { StuckCandidate } from "../../lib/types/analytics.types";
 import { formatRecruiterName } from "../../lib/recruiter-label";
 import { AnalyticsPanel } from "./AnalyticsPanel";
-import { HEALTH_CHIP, TEXT_AMBER, TEXT_LOSS, WAIT } from "../../lib/chart-palette";
+import { TEXT_AMBER, TEXT_LOSS, WAIT } from "../../lib/chart-palette";
 import { PaginationBar } from "./PaginationBar";
 import { StackedBar } from "./chart-primitives";
 
@@ -30,8 +30,8 @@ interface StuckListProps {
 }
 
 const URGENCY = {
-  critical: { label: "Critical", badge: HEALTH_CHIP.overdue.className },
-  overdue: { label: "Overdue", badge: HEALTH_CHIP.atRisk.className },
+  critical: { label: "Critical", badge: "bg-[#FDF1F2] text-[#B42318]" },
+  overdue: { label: "Overdue", badge: "bg-[#FFF4DC] text-[#7A4800]" },
 } as const;
 
 const SELECT =
@@ -103,7 +103,7 @@ export const StuckList = React.memo(function StuckList({
   };
 
   return (
-    <AnalyticsPanel tone="reports" id={id} title={title} subtitle={subtitle} bare={bare} aside={<span className="tabular-nums">{total} waiting</span>}>
+    <AnalyticsPanel tone="reports" id={id} title={title} subtitle={closedOpenings > 0 ? `${subtitle} ${closedOpenings} more on closed openings.` : subtitle} bare={bare} aside={<span className="tabular-nums">{total} waiting</span>}>
       {rows.length > 0 && (
         <div className="flex flex-wrap items-end gap-x-4 gap-y-2 border-b border-slate-200 px-3.5 py-2.5">
           <div role="group" aria-label="Filter by urgency" className="flex gap-1.5">
@@ -147,13 +147,13 @@ export const StuckList = React.memo(function StuckList({
               <li key={r.applicationId} className="px-3 py-2.5">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-2">
-                    <span className={`shrink-0 px-1.5 py-0.5 text-xs font-semibold border ${style.badge}`}>{style.label}</span>
+                    <span className={`shrink-0 px-1.5 py-0.5 text-xs font-semibold ${style.badge}`}>{style.label}</span>
                     {admin ? (
                       <Link
                         to="/admin/applications/$applicationId"
                         params={{ applicationId: String(r.applicationId) }}
                         {...(linkState ? { state: linkState as never } : {})}
-                        className="truncate text-sm font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                        className="truncate text-sm font-semibold text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
                         {r.candidateName}
                       </Link>
@@ -161,7 +161,7 @@ export const StuckList = React.memo(function StuckList({
                       <Link
                         to="/ta/applications/$applicationId"
                         params={{ applicationId: String(r.applicationId) }}
-                        className="truncate text-sm font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                        className="truncate text-sm font-semibold text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
                         {r.candidateName}
                       </Link>
@@ -178,13 +178,13 @@ export const StuckList = React.memo(function StuckList({
                     <strong>{r.daysInStage}</strong> of {r.slaDays} days
                   </span>
                 </div>
-                <p className="mt-1 truncate text-xs text-slate-600 font-sans">
+                <p className="mt-1 text-xs sm:truncate text-slate-600 font-sans">
                   {r.mrfId !== null ? (
                     <Link
                       to={admin ? "/admin/mrfs/$mrfId" : "/ta/mrfs/$mrfId"}
                       params={{ mrfId: String(r.mrfId) }}
                       {...(admin && linkState ? { state: linkState as never } : {})}
-                      className="text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                      className="text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                     >
                       {r.jobTitle}
                     </Link>
@@ -202,11 +202,8 @@ export const StuckList = React.memo(function StuckList({
       )}
 
       <PaginationBar page={currentPage} pageSize={pageSize} total={visible.length} onPageChange={setPage} noun="candidates" />
-      {(total > rows.length || closedOpenings > 0) && (
-        <p className="border-t border-slate-200 px-3.5 py-2.5 text-xs text-slate-600 font-sans">
-          {total > rows.length && `Top ${rows.length} of ${total}. `}
-          {closedOpenings > 0 && `${closedOpenings} more on closed openings.`}
-        </p>
+      {total > rows.length && (
+        <p className="border-t border-slate-200 px-3.5 py-2.5 text-xs text-slate-600 font-sans">{`Top ${rows.length} of ${total}.`}</p>
       )}
     </AnalyticsPanel>
   );
