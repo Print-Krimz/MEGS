@@ -41,11 +41,11 @@ describe("Analytics Components Test Suite", () => {
       />
     );
 
-    expect(screen.getByText("Last 30 days")).toBeDefined();
-    expect(screen.getByText("Last 7 days")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Last 30 days" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Last 7 days" })).toBeDefined();
 
     // A preset applies at once; there is nothing left to apply.
-    fireEvent.click(screen.getByText("Last 30 days"));
+    fireEvent.click(screen.getByRole("button", { name: "Last 30 days" }));
     expect(handleChange).toHaveBeenCalledWith(expect.objectContaining({ range: "30d" }));
     expect(handleChange).toHaveBeenCalledTimes(1);
 
@@ -84,7 +84,7 @@ describe("Analytics Components Test Suite", () => {
   it("applies a custom range at once when both dates are chosen and in order, with no Apply step", () => {
     const handleChange = vi.fn();
     render(<AnalyticsFilterBar filters={{ range: "7d" }} onChange={handleChange} options={mockOptions} />);
-    fireEvent.click(screen.getByText("Custom range"));
+    fireEvent.click(screen.getByRole("button", { name: "Custom range" }));
     expect(screen.queryByRole("button", { name: /Apply filters/i })).toBeNull();
     expect(screen.getByRole("alert").textContent).toMatch(/start and an end date/);
 
@@ -97,7 +97,7 @@ describe("Analytics Components Test Suite", () => {
   it("does not apply a custom range longer than 366 days, counting both ends, and links the error to both dates", () => {
     const handleChange = vi.fn();
     render(<AnalyticsFilterBar filters={{ range: "7d" }} onChange={handleChange} options={mockOptions} />);
-    fireEvent.click(screen.getByText("Custom range"));
+    fireEvent.click(screen.getByRole("button", { name: "Custom range" }));
 
     // 2024 is a leap year: 2024-01-01 to 2024-12-31 is exactly 366 days counting both ends, which is allowed.
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2024-01-01" } });
@@ -187,10 +187,38 @@ describe("Analytics Components Test Suite", () => {
     fireEvent.click(screen.getByRole("button", { name: "Export" }));
     fireEvent.click(screen.getByRole("button", { name: "Starts and backouts (Excel)" }));
     expect(onExport).toHaveBeenCalledWith("deployments", "xlsx");
-    const busy = screen.getByRole("button", { name: "Preparing..." }) as HTMLButtonElement;
-    expect(busy.disabled).toBe(true);
+    const busy = screen.getByRole("button", { name: "Preparing" }) as HTMLButtonElement;
+    expect(busy.getAttribute("aria-disabled")).toBe("true");
+    expect(busy.disabled).toBe(false);
+    expect(screen.getByRole("status").textContent).toBe("Preparing the report");
+    fireEvent.click(busy);
+    expect(busy.getAttribute("aria-expanded")).toBe("false");
     finish(new Blob(["x"]));
-    await waitFor(() => expect((screen.getByRole("button", { name: "Export" }) as HTMLButtonElement).disabled).toBe(false));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Export" }).getAttribute("aria-disabled")).toBe("false"));
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByRole("button", { name: "Export" })));
+    expect(screen.getByRole("status").textContent).toBe("");
+  });
+
+  it("keeps the date range in one select on phones, with the same labels and URL state", () => {
+    const handleChange = vi.fn();
+    render(<AnalyticsFilterBar filters={{ range: "7d" }} onChange={handleChange} options={mockOptions} />);
+    const select = screen.getByRole("combobox", { name: "Date range" }) as HTMLSelectElement;
+    expect(select.value).toBe("7d");
+    expect(select.className).toContain("min-h-11");
+    expect(Array.from(select.options).map((o) => o.textContent)).toEqual(["Last 7 days", "Last 30 days", "Last 90 days", "Custom range"]);
+    fireEvent.change(select, { target: { value: "90d" } });
+    expect(handleChange).toHaveBeenCalledWith(expect.objectContaining({ range: "90d", startDate: undefined, endDate: undefined }));
+    fireEvent.change(select, { target: { value: "custom" } });
+    expect(screen.getByLabelText("From")).toBeDefined();
+    expect(handleChange).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives the chip remove button a 24px target, larger on phones", () => {
+    render(<AnalyticsFilterBar filters={{ range: "30d" }} onChange={vi.fn()} options={mockOptions} />);
+    const remove = screen.getByRole("button", { name: "Remove Date filter" });
+    expect(remove.className).toContain("min-h-6");
+    expect(remove.className).toContain("min-w-6");
+    expect(remove.className).toContain("max-md:min-h-11");
   });
 
   it("hides the extra filters again when asked", () => {

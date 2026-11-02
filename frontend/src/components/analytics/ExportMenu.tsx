@@ -47,6 +47,7 @@ export const ExportMenu: React.FC<ExportMenuProps> = ({ onExport, fileNamePrefix
   }, [open]);
 
   const run = async (report: ReportKind, format: ReportFormat) => {
+    if (busy) return;
     setOpen(false);
     setBusy(true);
     setError(null);
@@ -61,9 +62,11 @@ export const ExportMenu: React.FC<ExportMenuProps> = ({ onExport, fileNamePrefix
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch {
-      setError("We could not download that report. Please try again.");
+      setError("The report did not download. Try again.");
     } finally {
       setBusy(false);
+      // The toggle stays in the tab order; hand focus back once the download is done.
+      requestAnimationFrame(() => toggleRef.current?.focus());
     }
   };
 
@@ -74,13 +77,18 @@ export const ExportMenu: React.FC<ExportMenuProps> = ({ onExport, fileNamePrefix
         type="button"
         aria-expanded={open}
         aria-controls={panelId}
-        disabled={busy}
-        onClick={() => setOpen((current) => !current)}
-        className="inline-flex min-h-11 md:min-h-10 cursor-pointer items-center gap-2 rounded-md border border-navy-line bg-white px-4 text-sm font-medium text-navy hover:bg-navy-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+        aria-disabled={busy}
+        onClick={() => {
+          if (!busy) setOpen((current) => !current);
+        }}
+        className="inline-flex min-h-11 md:min-h-10 cursor-pointer items-center gap-2 rounded-md border border-navy-line bg-white px-4 text-sm font-medium text-navy hover:bg-navy-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 aria-disabled:cursor-not-allowed aria-disabled:opacity-60"
       >
         <Download className="h-4 w-4" aria-hidden="true" />
-        {busy ? "Preparing..." : "Export"}
+        {busy ? "Preparing" : "Export"}
       </button>
+      <span role="status" className="sr-only">
+        {busy ? "Preparing the report" : ""}
+      </span>
       {open && (
         <div id={panelId} className="absolute right-0 z-20 mt-1 w-64 border border-slate-300 bg-white py-1 shadow-md">
           <p className="px-3 py-1.5 text-xs text-slate-600">Uses the dates and filters above.</p>

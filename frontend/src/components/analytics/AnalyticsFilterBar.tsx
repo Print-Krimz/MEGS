@@ -28,6 +28,13 @@ const customRangeProblem = (startDate: string, endDate: string): string | null =
         ? "Choose a date range of 366 days or fewer."
         : null;
 
+const PRESETS = [
+  { key: "7d", label: "Last 7 days" },
+  { key: "30d", label: "Last 30 days" },
+  { key: "90d", label: "Last 90 days" },
+  { key: "custom", label: "Custom range" },
+] as const;
+
 export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
   filters,
   onChange,
@@ -213,21 +220,28 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
       </p>
 
       {/* Top row: date range presets and actions */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-2.5 border-b border-slate-200">
-        <div className="flex flex-wrap items-center gap-1.5">
+      <div className="grid grid-cols-[1fr_auto] items-center gap-2 pb-2.5 border-b border-slate-200 md:flex md:flex-wrap md:justify-between md:gap-3">
+        {/* Phones: one select keeps the bar to a single row */}
+        <select
+          aria-label="Date range"
+          value={customOpen ? "custom" : (filters.range ?? "7d")}
+          onChange={(e) => handleRangePreset(e.target.value as AnalyticsDateRangePreset)}
+          className="min-h-11 w-full min-w-0 border border-slate-300 bg-white px-2 text-sm font-semibold text-slate-800 md:hidden"
+        >
+          {PRESETS.map((preset) => (
+            <option key={preset.key} value={preset.key}>
+              {preset.label}
+            </option>
+          ))}
+        </select>
+
+        <div className="hidden flex-wrap items-center gap-1.5 md:flex">
           <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 mr-2">
             <CalendarIcon className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
             <span>Date range</span>
           </div>
 
-          {(
-            [
-              { key: "7d", label: "Last 7 days" },
-              { key: "30d", label: "Last 30 days" },
-              { key: "90d", label: "Last 90 days" },
-              { key: "custom", label: "Custom range" },
-            ] as const
-          ).map((preset) => {
+          {PRESETS.map((preset) => {
             const isActive = customOpen ? preset.key === "custom" : filters.range === preset.key;
             return (
               <button
@@ -235,7 +249,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
                 type="button"
                 onClick={() => handleRangePreset(preset.key)}
                 aria-pressed={isActive}
-                className={`min-h-11 md:min-h-9 pointer-coarse:min-h-11 px-2.5 py-1 text-sm font-semibold border transition-colors cursor-pointer ${
+                className={`md:min-h-9 pointer-coarse:min-h-11 px-2.5 py-1 text-sm font-semibold border transition-colors cursor-pointer ${
                   isActive
                     ? "bg-slate-900 text-white border-slate-900"
                     : "bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100"
@@ -333,7 +347,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
                 }
                 onChange(next);
               }}
-              placeholder="All Clients"
+              placeholder="All clients"
               clearable={true}
               size="sm"
             />
@@ -410,7 +424,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
               <button
                 type="button"
                 onClick={() => handleRemoveFilter(chip.key)}
-                className="relative hover:text-rose-700 text-slate-500 font-bold ml-0.5 cursor-pointer pointer-coarse:before:absolute pointer-coarse:before:-inset-3.5 pointer-coarse:before:content-['']"
+                className="relative inline-flex min-h-6 min-w-6 items-center justify-center max-md:min-h-11 max-md:min-w-11 hover:text-rose-700 text-slate-500 font-bold ml-0.5 cursor-pointer pointer-coarse:before:absolute pointer-coarse:before:-inset-3.5 pointer-coarse:before:content-['']"
                 title={`Remove ${chip.label} filter`}
                 aria-label={`Remove ${chip.label} filter`}
               >
