@@ -198,11 +198,11 @@ export const StuckList = React.memo(function StuckList({
                     </span>
                     <button
                       type="button"
-                      aria-label={`Preview ${r.candidateName}`}
+                      aria-label={`Quick view: ${r.candidateName}`}
                       onClick={() => setPreviewId(r.applicationId)}
                       className="inline-flex min-h-11 items-center px-1 text-xs font-semibold text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9"
                     >
-                      Preview
+                      Quick view
                     </button>
                   </div>
                 </div>

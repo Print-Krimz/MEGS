@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { useState } from "react";
+import { useState, type ReactElement } from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
 
@@ -11,11 +11,23 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
-import { OperationsWorkspace, RequestProgressList, StagePipeline, StuckList, TeamTable } from "../index";
+const apiMocks = vi.hoisted(() => ({ admin: vi.fn(), ta: vi.fn() }));
+vi.mock("../../../lib/api/admin.api", () => ({ adminApi: { getApplication: apiMocks.admin } }));
+vi.mock("../../../lib/api/ta.api", () => ({ taApi: { getApplication: apiMocks.ta } }));
+
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { OperationsWorkspace,RequestProgressList, StagePipeline, StuckList, TeamTable } from "../index";
 import { formatRecruiterName } from "../../../lib/recruiter-label";
 import type { RequestRow, StageTableRow, StuckCandidate, TeamRow } from "../../../lib/types/analytics.types";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  apiMocks.admin.mockReset();
+  apiMocks.ta.mockReset();
+});
+
+const renderWithQuery = (ui: ReactElement) =>
+  render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{ui}</QueryClientProvider>);
 
 describe("formatRecruiterName", () => {
   it("shows a plain name as stored and splits an email into name and full address", () => {
@@ -342,9 +354,10 @@ describe("admin lists", () => {
       stuck(2, { candidateName: "Ben", clientName: "Globex" }),
       stuck(3, { candidateName: "Cy", clientName: "Acme" }),
     ];
-    render(<StuckList rows={rows} total={3} />);
+    apiMocks.admin.mockResolvedValue({});
+    renderWithQuery(<StuckList rows={rows} total={3} />);
     fireEvent.change(screen.getByRole("searchbox", { name: /Search/ }), { target: { value: "acme" } });
-    fireEvent.click(screen.getByRole("button", { name: "Preview Ana" }));
+    fireEvent.click(screen.getByRole("button", { name: "Quick view: Ana" }));
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByRole("heading", { name: "Ana" })).toBeDefined();
     expect(within(dialog).getByText("1 of 2")).toBeDefined();
@@ -359,10 +372,38 @@ describe("admin lists", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("StuckList Preview links a recruiter's record to the TA page", () => {
-    render(<StuckList rows={[stuck(7)]} total={1} viewer="ta" showRecruiter={false} />);
-    fireEvent.click(screen.getByRole("button", { name: "Preview Candidate 7" }));
+  it("StuckList Quick view links a recruiter's record to the TA page", () => {
+    apiMocks.ta.mockResolvedValue({});
+    renderWithQuery(<StuckList rows={[stuck(7)]} total={1} viewer="ta" showRecruiter={false} />);
+    fireEvent.click(screen.getByRole("button", { name: "Quick view: Candidate 7" }));
     expect(within(screen.getByRole("dialog")).getByRole("link", { name: "Open record" }).getAttribute("href")).toBe("/ta/applications/7");
+  });
+
+  it("StuckList Quick view shows the candidate's contact details and match score from the record", async () => {
+    apiMocks.ta.mockResolvedValue({
+      id: 7,
+      createdAt: "2026-10-01T00:00:00.000Z",
+      candidateFitScore: 81.6,
+      user: { email: "ana@example.com", applicantProfile: { mobileNumber: "09171234567" } },
+    });
+    renderWithQuery(<StuckList rows={[stuck(7)]} total={1} viewer="ta" showRecruiter={false} />);
+    fireEvent.click(screen.getByRole("button", { name: "Quick view: Candidate 7" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText("Loading profile…")).toBeDefined();
+    expect((await within(dialog).findByRole("link", { name: "ana@example.com" })).getAttribute("href")).toBe("mailto:ana@example.com");
+    expect(within(dialog).getByRole("link", { name: "09171234567" }).getAttribute("href")).toBe("tel:09171234567");
+    expect(within(dialog).getByText("82")).toBeDefined();
+    expect(apiMocks.ta).toHaveBeenCalledWith("7");
+  });
+
+  it("StuckList Quick view keeps the row facts and offers Retry when the profile fails", async () => {
+    apiMocks.ta.mockRejectedValue(new Error("boom"));
+    renderWithQuery(<StuckList rows={[stuck(7, { lastNote: "Called client" })]} total={1} viewer="ta" showRecruiter={false} />);
+    fireEvent.click(screen.getByRole("button", { name: "Quick view: Candidate 7" }));
+    const dialog = screen.getByRole("dialog");
+    expect(await within(dialog).findByText("Could not load the profile.")).toBeDefined();
+    expect(within(dialog).getByRole("button", { name: "Retry" })).toBeDefined();
+    expect(within(dialog).getByText("Called client")).toBeDefined();
   });
 
   it("StuckList in-text links are underlined and closed openings sit in the caption", () => {

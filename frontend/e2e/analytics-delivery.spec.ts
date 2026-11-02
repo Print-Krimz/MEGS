@@ -506,6 +506,14 @@ async function setup(page: Page, role: Role, dashboard: unknown, opts: { fail?: 
     }
   );
   await mockShell(page, role === "admin" ? adminUser : taUser);
+  // Quick view loads the candidate record; a test that needs real data registers its own route later, which wins.
+  await page.route(
+    (url) => /^\/api\/(ta|admin)\/applications\/\d+$/.test(url.pathname),
+    (route) =>
+      route.fulfill(
+        json({ id: 1, createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-02T00:00:00.000Z", user: { email: "candidate@example.com", applicantProfile: { mobileNumber: "09170000000" } } })
+      )
+  );
   await page.route(
     (url) => url.pathname === p.dashboard,
     (route) =>

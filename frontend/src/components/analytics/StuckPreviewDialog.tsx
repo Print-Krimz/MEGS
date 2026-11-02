@@ -1,5 +1,9 @@
 import React from "react";
 import { Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import { adminApi } from "../../lib/api/admin.api";
+import { taApi } from "../../lib/api/ta.api";
+import type { Application } from "../../lib/types/application.types";
 import type { StuckCandidate } from "../../lib/types/analytics.types";
 import { daysAgoText } from "../../lib/analytics-format";
 import { formatRecruiterName } from "../../lib/recruiter-label";
@@ -28,7 +32,45 @@ const Fact: React.FC<{ label: string; children: React.ReactNode }> = ({ label, c
   </div>
 );
 
-/** Read-only look at one overdue candidate, with Previous and Next through the filtered list. No changes are made here. */
+/** Contact and match details from the same record the full page shows. Row facts above still work if this fails. */
+const CandidateProfile: React.FC<{ applicationId: number; viewer: "admin" | "ta" }> = ({ applicationId, viewer }) => {
+  const id = String(applicationId);
+  const query = useQuery({
+    queryKey: [viewer, "application", id],
+    queryFn: () => (viewer === "admin" ? adminApi.getApplication(id) : taApi.getApplication(id)),
+    staleTime: 30_000,
+  });
+  const app = query.data as Application | undefined;
+  const email = app?.user?.email;
+  const phone = app?.user?.applicantProfile?.mobileNumber;
+  const score = app ? (app.candidateFitScore ?? app.aiScore) : null;
+  const linkCls = "font-medium text-navy underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+
+  return (
+    <section aria-label="Candidate" className="mb-3 border border-slate-200 bg-slate-50 px-3 py-2">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600">Candidate</h3>
+      {query.isLoading ? (
+        <p className="py-2 text-sm text-slate-600">Loading profile…</p>
+      ) : query.isError || !app ? (
+        <div className="flex flex-wrap items-center gap-3 py-2 text-sm text-slate-800">
+          <span role="alert">Could not load the profile.</span>
+          <button type="button" onClick={() => query.refetch()} className={`${BUTTON} border-slate-300 bg-white text-slate-700 hover:bg-slate-100`}>
+            Retry
+          </button>
+        </div>
+      ) : (
+        <dl className="divide-y divide-slate-200">
+          <Fact label="Email">{email ? <a href={`mailto:${email}`} className={linkCls}>{email}</a> : "Not provided"}</Fact>
+          <Fact label="Phone">{phone ? <a href={`tel:${phone}`} className={linkCls}>{phone}</a> : "Not provided"}</Fact>
+          <Fact label="Applied">{formatDate(app.createdAt)}</Fact>
+          {score != null && <Fact label="Match score">{Math.round(score)}</Fact>}
+        </dl>
+      )}
+    </section>
+  );
+};
+
+/** Quick look at one overdue candidate: row facts plus the candidate's contact details, with Previous and Next through the filtered list. No changes are made here. */
 export const StuckPreviewDialog: React.FC<StuckPreviewDialogProps> = ({ rows, openId, onSelect, onClose, viewer, showRecruiter, linkState }) => {
   const index = openId === null ? -1 : rows.findIndex((r) => r.applicationId === openId);
   const row = index === -1 ? null : rows[index];
@@ -40,6 +82,7 @@ export const StuckPreviewDialog: React.FC<StuckPreviewDialogProps> = ({ rows, op
     <Dialog open={row !== null} onClose={onClose} size="md" title={row?.candidateName ?? "Candidate"} description={row ? `${row.jobTitle}${row.clientName ? ` · ${row.clientName}` : ""}` : undefined}>
       {row && (
         <>
+          <CandidateProfile key={row.applicationId} applicationId={row.applicationId} viewer={viewer} />
           <dl className="divide-y divide-slate-200">
             <Fact label="Stage">{row.stageLabel}</Fact>
             <Fact label="In this stage">
