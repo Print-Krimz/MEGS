@@ -11,7 +11,7 @@ import {
   type RequestAttention,
   type TADeliveryResult,
 } from "./delivery.service.js";
-import { STAGE_ROWS, manilaDayDiff, stageRowFor } from "./metric-definitions.js";
+import { METRICS, STAGE_ROWS, backoutReasonLabel, manilaDayDiff, stageRowFor, type MetricDefinition, type MetricKey } from "./metric-definitions.js";
 import { manilaDateString } from "../../schemas/field-limits.js";
 import { ownedWhere } from "../ta/ownership.js";
 import { getReportMetadata, type ReportMetadata, type ReportRoleScope } from "./report-theme.js";
@@ -64,7 +64,7 @@ interface Kpi {
   label: string;
   value: string | number;
   detail: string;
-  basis: "As of today" | "Within the dates";
+  basis: MetricDefinition["window"];
   definition: string;
 }
 
@@ -96,15 +96,15 @@ const stageLabelOf = (status: string): string => {
   return row ? STAGE_ROWS.find((r) => r.key === row)!.label : sentenceCase(status);
 };
 
-const HEALTH_LABEL = { OVERDUE: "Past due date", AT_RISK: "Due soon", ON_TRACK: "On track", FILLED: "Completed" } as const;
+const HEALTH_LABEL = { OVERDUE: "Overdue", AT_RISK: "At risk", ON_TRACK: "On track", FILLED: "Filled" } as const;
 const ATTENTION_LABEL: Record<Exclude<RequestAttention, null>, string> = {
   NO_OPENING: "No job post yet",
   NO_APPLICANTS: "No applicants yet",
   FIRST_STAGE_ONLY: "No one past first screening",
 };
 const CANDIDATE_STATUS_LABEL: Record<CandidateStatus, string> = {
-  OVERDUE: "Late",
-  OVERDUE_BY_AGE: "Maybe late",
+  OVERDUE: "Overdue",
+  OVERDUE_BY_AGE: "Estimated overdue",
   ON_TIME: "On time",
   CLOSED_OPENING: "Job post closed",
   AWAITING_START: "Waiting to start",
@@ -150,53 +150,33 @@ async function describeFilters(filters: AnalyticsFilterDto, requestedBy: Request
 // ─────────────────────────────────────────────
 // KPI and table definitions (shared by PDF and Excel)
 // ─────────────────────────────────────────────
-function kpisFor(result: ReportResult, admin: boolean, extra: Kpi[] = []): Kpi[] {
+/** A KPI whose label, window and definition come from the shared METRICS, so the screen and the report cannot drift. */
+const metricKpi = (key: MetricKey, value: string | number, detail: string): Kpi => {
+  const m = METRICS[key];
+  return { label: m.label, value, detail, basis: m.window, definition: m.definition };
+};
+
+/** Same five-case rule as the screen: a rate or typical time with fewer than MIN_SAMPLE cases is not printed as a number. */
+const notEnoughData = (n: number): string => `Not enough data (n=${n})`;
+const valueOrNote = (value: number | null, n: number, format: (v: number) => string | number = (v) => v): string | number =>
+  value === null ? notEnoughData(n) : format(value);
+const pct = (v: number): string => `${v}%`;
+
+function kpisFor(result: ReportResult): Kpi[] {
   const k = result.kpis;
-  const list: Kpi[] = [
-    {
-      label: "Applicants in process",
-      value: k.activeApplicants,
-      detail: k.unlinkedApplicants > 0 ? `${k.unlinkedApplicants} applied to a job post with no client request` : "Still being processed today",
-      basis: "As of today",
-      definition: "People who applied and are still going through the steps. People already hired and waiting to start are not included.",
-    },
-    {
-      label: "Open client requests",
-      value: k.requisitions.open,
-      detail: `${k.filledSeats} of ${k.requestedSeats} slots filled (${k.fillRate}%)`,
-      basis: "As of today",
-      definition: "Client requests that still have slots to fill. A slot counts as filled once someone is hired for it.",
-    },
-    {
-      label: "Late applicants",
-      value: k.overdueCandidates,
-      detail: k.overdueEstimated > 0 ? `+${k.overdueEstimated} maybe late` : "Waited longer than allowed",
-      basis: "As of today",
-      definition: "Applicants who have stayed in one step longer than the allowed number of days. \"Maybe late\" means we only know their application date, so the wait is a guess.",
-    },
-    {
-      label: "Workers who started",
-      value: k.placementsStarted,
-      detail: `${k.newStarts} new, ${k.redeployStarts} returning`,
-      basis: "Within the dates",
-      definition: "Workers who actually started work within the dates. A returning worker sent to a new client is counted once.",
-    },
-    {
-      label: "Backed out after client review",
-      value: k.backoutsAfterClientReview,
-      detail: `${k.backoutsAfterClientReview} of ${k.backoutRateBase} (${k.backoutRate}%)`,
-      basis: "Within the dates",
-      definition: "Applicants who backed out after the client already saw them, compared with those people plus the workers who started.",
-    },
-    {
-      label: "Withdrew before client review",
-      value: result.backouts.withdrawals,
-      detail: `${result.backouts.noShows} did not show up`,
-      basis: "Within the dates",
-      definition: "Applicants who withdrew before the client saw them. Applicants the client turned down are not counted here.",
-    },
+  return [
+    metricKpi(
+      "activeApplicants",
+      k.activeApplicants,
+      k.unlinkedApplicants > 0 ? `${k.unlinkedApplicants} applied to a job post with no client request` : "Still being processed today"
+    ),
+    metricKpi("openRequests", k.requisitions.open, `${k.filledSeats} of ${k.requestedSeats} seats filled. ${k.lateRequests} overdue or at risk`),
+    metricKpi("overdueCandidates", k.overdueTotal, `${k.overdueCandidates} sure, ${k.overdueEstimated} estimated from application date`),
+    metricKpi("starts", k.placementsStarted, `${k.newStarts} new, ${k.redeployStarts} returning`),
+    metricKpi("backoutsAfterClientReview", k.backoutsAfterClientReview, `${k.backoutsAfterClientReview} of ${k.backoutRateBase} (backouts plus starts)`),
+    metricKpi("backoutRate", valueOrNote(k.backoutRate, k.backoutRateBase, pct), `${k.backoutsAfterClientReview} of ${k.backoutRateBase}`),
+    metricKpi("withdrawals", result.backouts.withdrawals, `${result.backouts.noShows} did not show up`),
   ];
-  return [...list, ...extra];
 }
 
 function requestsSection(result: ReportResult, admin: boolean): Section {
@@ -204,11 +184,11 @@ function requestsSection(result: ReportResult, admin: boolean): Section {
     { header: "Client request", key: "title", weight: 120 },
     { header: "Client", key: "client", weight: 95 },
     ...(admin ? [{ header: "Recruiter", key: "owner", weight: 90 }] : []),
-    { header: "Slots needed", key: "headcount", weight: 46, align: "right" as const },
-    { header: "Slots filled", key: "filled", weight: 46, align: "right" as const },
-    { header: "Slots open", key: "open", weight: 44, align: "right" as const },
+    { header: "Seats needed", key: "headcount", weight: 46, align: "right" as const },
+    { header: "Seats filled", key: "filled", weight: 46, align: "right" as const },
+    { header: "Seats open", key: "open", weight: 44, align: "right" as const },
     { header: "In process", key: "pipeline", weight: 48, align: "right" as const },
-    { header: "Late", key: "overdue", weight: 38, align: "right" as const },
+    { header: "Overdue", key: "overdue", weight: 38, align: "right" as const },
     { header: "Total applicants", key: "applicants", weight: 56, align: "right" as const },
     { header: "Status", key: "status", weight: 62, align: "center" as const, badge: true },
     { header: "Due date", key: "due", weight: 58, align: "center" as const },
@@ -217,12 +197,12 @@ function requestsSection(result: ReportResult, admin: boolean): Section {
   return {
     sheet: "Client requests",
     title: "Client requests",
-    note: "Requests still open, plus any completed within the dates. In process = applicants still going through the steps. Late = applicants who waited too long. Due date = when the client wants the slots filled.",
+    note: "Requests still open, plus any filled within the dates. In process = applicants still going through the steps. Overdue = applicants who waited longer than the days allowed. Due date = when the client wants the seats filled.",
     columns,
     rows: result.requests.map((r) => ({
       title: clean(r.title),
       client: clean(r.clientName),
-      owner: clean(r.ownerName),
+      owner: r.ownerId === null ? "No recruiter assigned" : clean(r.ownerName),
       headcount: r.headcount,
       filled: r.filled,
       open: r.openSeats,
@@ -238,18 +218,18 @@ function requestsSection(result: ReportResult, admin: boolean): Section {
 
 function overdueSection(detail: DeliveryDetail, admin: boolean): Section {
   return {
-    sheet: "Late applicants",
-    title: "Late applicants",
-    note: "Applicants who stayed in one step longer than allowed. \"Sure\" cases come first. \"Maybe late\" means no step change was recorded, so days are counted from the application date and may be higher than the real wait.",
+    sheet: "Overdue candidates",
+    title: "Overdue candidates",
+    note: "Candidates past the days allowed for their stage. \"Sure\" cases come first. \"Estimated\" means no stage change was recorded, so days are counted from the application date and may be higher than the real wait.",
     columns: [
       { header: "Applicant", key: "candidate", weight: 120 },
       { header: "Job post", key: "job", weight: 115 },
       { header: "Client", key: "client", weight: 95 },
       ...(admin ? [{ header: "Recruiter", key: "recruiter", weight: 90 }] : []),
-      { header: "Current step", key: "stage", weight: 90 },
-      { header: "Days in this step", key: "days", weight: 60, align: "right" as const },
+      { header: "Current stage", key: "stage", weight: 90 },
+      { header: "Days in this stage", key: "days", weight: 60, align: "right" as const },
       { header: "Days allowed", key: "limit", weight: 52, align: "right" as const },
-      { header: "Days late", key: "over", weight: 48, align: "right" as const },
+      { header: "Days over", key: "over", weight: 48, align: "right" as const },
       { header: "How sure", key: "basis", weight: 90 },
       { header: "Level", key: "urgency", weight: 60, align: "center" as const, badge: true },
     ],
@@ -262,26 +242,26 @@ function overdueSection(detail: DeliveryDetail, admin: boolean): Section {
       days: o.daysInStage,
       limit: o.slaDays,
       over: o.daysOver,
-      basis: o.estimated ? "Maybe late (based on application date)" : "Sure (step change recorded)",
-      urgency: o.urgency === "critical" ? "Very late" : "Late",
+      basis: o.estimated ? "Estimated (from application date)" : "Sure (stage change recorded)",
+      urgency: o.urgency === "critical" ? "Critical" : "Overdue",
     })),
   };
 }
 
 function stageSection(result: ReportResult): Section {
   return {
-    sheet: "Time per step",
-    title: "How long each step takes",
-    note: "People now, late, and days are as of today. Maybe late = no step change recorded, so counted from the application date. Usual days = the middle value (half took less, half took more). Moved in and backed out are within the dates.",
+    sheet: "Candidates by stage",
+    title: "Candidates by stage",
+    note: "In stage now, overdue, and days are right now. Estimated = no stage change recorded, so counted from the application date. Typical days = the middle value (half took less, half took more); with fewer than 5 candidates it shows Not enough data. Entered and backed out are in these dates.",
     columns: [
-      { header: "Step", key: "stage", weight: 120 },
-      { header: "People now", key: "inStage", weight: 50, align: "right" },
-      { header: "Late", key: "overdue", weight: 45, align: "right" },
-      { header: "Maybe late", key: "estimated", weight: 50, align: "right" },
-      { header: "Usual days", key: "median", weight: 55, align: "right" },
+      { header: "Stage", key: "stage", weight: 120 },
+      { header: "In stage now", key: "inStage", weight: 50, align: "right" },
+      { header: "Overdue", key: "overdue", weight: 45, align: "right" },
+      { header: "Estimated overdue", key: "estimated", weight: 50, align: "right" },
+      { header: "Typical days", key: "median", weight: 55, align: "right" },
       { header: "Average days", key: "avg", weight: 55, align: "right" },
       { header: "Days allowed", key: "limit", weight: 65, align: "right" },
-      { header: "Moved in", key: "entered", weight: 50, align: "right" },
+      { header: "Entered", key: "entered", weight: 50, align: "right" },
       { header: "Backed out", key: "backedOut", weight: 55, align: "right" },
     ],
     rows: result.stageTable.map((s) => ({
@@ -289,8 +269,8 @@ function stageSection(result: ReportResult): Section {
       inStage: s.inStageNow,
       overdue: s.stage === "DEPLOYED" ? null : s.overdue,
       estimated: s.stage === "DEPLOYED" ? null : s.overdueEstimated,
-      median: s.medianDaysInStage,
-      avg: s.avgDaysInStage,
+      median: valueOrNote(s.medianDaysInStage, s.typicalWaitSample),
+      avg: valueOrNote(s.avgDaysInStage, s.typicalWaitSample),
       limit: s.stage === "DEPLOYED" ? "No limit" : s.stage === "CLIENT_ENDORSEMENT" ? "Depends on client" : s.slaDays,
       entered: s.entered,
       backedOut: s.backedOut,
@@ -304,22 +284,22 @@ function recruiterSections(result: ReportResult): Section[] {
     {
       sheet: "Recruiters",
       title: "Each recruiter's work",
-      note: "Applicants, late, and slots are as of today. Maybe late = no step change recorded, so counted from the application date. Sent to client, started, and backed out are within the dates. Usual days to fill = the middle value.",
+      note: "Active applicants, overdue, and seats are right now. Estimated overdue = no stage change recorded, so counted from the application date. Sent to client, starts, and backouts are in these dates. A rate or typical time based on fewer than 5 cases shows Not enough data (n = the number of cases).",
       columns: [
         { header: "Recruiter", key: "name", weight: 110 },
-        { header: "Applicants in process", key: "active", weight: 52, align: "right" },
-        { header: "Late", key: "overdue", weight: 40, align: "right" },
-        { header: "Maybe late", key: "estimated", weight: 44, align: "right" },
-        { header: "Open client requests", key: "open", weight: 52, align: "right" },
-        { header: "Slots needed", key: "seats", weight: 46, align: "right" },
-        { header: "Slots filled", key: "filled", weight: 46, align: "right" },
-        { header: "% filled", key: "fill", weight: 42, align: "right" },
+        { header: "Active applicants", key: "active", weight: 52, align: "right" },
+        { header: "Overdue", key: "overdue", weight: 40, align: "right" },
+        { header: "Estimated overdue", key: "estimated", weight: 44, align: "right" },
+        { header: "Open requests", key: "open", weight: 52, align: "right" },
+        { header: "Seats needed", key: "seats", weight: 46, align: "right" },
+        { header: "Seats filled", key: "filled", weight: 46, align: "right" },
+        { header: "Seats filled (%)", key: "fill", weight: 52, align: "right" },
         { header: "Sent to client", key: "sent", weight: 48, align: "right" },
-        { header: "New workers started", key: "newStarts", weight: 50, align: "right" },
-        { header: "Returning workers started", key: "redeploy", weight: 58, align: "right" },
+        { header: "New starts", key: "newStarts", weight: 50, align: "right" },
+        { header: "Returning starts", key: "redeploy", weight: 58, align: "right" },
         { header: "Backed out", key: "backouts", weight: 48, align: "right" },
-        { header: "% backed out", key: "backoutRate", weight: 50, align: "right" },
-        { header: "Usual days to fill", key: "days", weight: 52, align: "right" },
+        { header: "Backout rate (%)", key: "backoutRate", weight: 56, align: "right" },
+        { header: "Days to fill", key: "days", weight: 52, align: "right" },
       ],
       rows: team.map((t) => ({
         name: clean(t.name),
@@ -329,13 +309,13 @@ function recruiterSections(result: ReportResult): Section[] {
         open: t.openRequisitions,
         seats: t.requestedSeats,
         filled: t.filledSeats,
-        fill: t.fillRate,
+        fill: valueOrNote(t.fillRate, t.requestedSeats),
         sent: t.sentToClient,
         newStarts: t.newStarts,
         redeploy: t.redeployStarts,
         backouts: t.backouts,
-        backoutRate: t.backoutRate,
-        days: t.medianDaysToFill,
+        backoutRate: valueOrNote(t.backoutRate, t.backoutRateBase),
+        days: valueOrNote(t.medianDaysToFill, t.daysToFillSample),
       })),
     },
   ];
@@ -379,9 +359,9 @@ function closureSections(result: ReportResult): Section[] {
 
 function backoutSection(detail: DeliveryDetail, admin: boolean): Section {
   return {
-    sheet: "People who backed out",
-    title: "People who backed out",
-    note: "Everyone who backed out or withdrew within the dates. \"After client review\" means they backed out after the client had already seen them. \"Before client review\" means they withdrew earlier. Applicants the client turned down are not listed here.",
+    sheet: "Withdrawals and backouts",
+    title: "Withdrawals and backouts",
+    note: "Everyone who left in these dates. \"Backed out after client review\" means they left once the client had seen them. \"Backed out before client review\" means they left earlier. Candidates the client turned down are not listed here.",
     columns: [
       { header: "Date", key: "date", weight: 52, align: "center" },
       { header: "When", key: "type", weight: 78 },
@@ -399,14 +379,14 @@ function backoutSection(detail: DeliveryDetail, admin: boolean): Section {
     ],
     rows: detail.backouts.map((b) => ({
       date: date(b.occurredAt),
-      type: POST_SELECTION.includes(b.stage) ? "After client review" : "Before client review",
+      type: POST_SELECTION.includes(b.stage) ? "Backed out after client review" : "Backed out before client review",
       candidate: clean(b.candidateName),
       job: clean(b.jobTitle),
       client: clean(b.clientName ?? ""),
       request: clean(b.mrfTitle ?? ""),
       stage: stageLabelOf(b.stage),
       party: PARTY_LABEL[b.party] ?? b.party,
-      reason: sentenceCase(b.reason),
+      reason: backoutReasonLabel(b.reason),
       noShow: b.reason === "NO_SHOW" ? "Yes" : "",
       recruiter: clean(b.recruiterName),
       recordedBy: clean(b.recordedBy),
@@ -417,10 +397,10 @@ function backoutSection(detail: DeliveryDetail, admin: boolean): Section {
 
 function candidatesSection(detail: DeliveryDetail, admin: boolean): Section {
   return {
-    sheet: "Applicants in process",
+    sheet: "Active applicants",
     inPdf: false,
-    title: "Applicants in process today",
-    note: "Everyone still going through the steps today. All rows except \"Waiting to start\" add up to the Applicants in process number.",
+    title: "Active applicants right now",
+    note: "Everyone still going through the stages right now. All rows except \"Waiting to start\" add up to the Active applicants number.",
     columns: [
       { header: "Application no.", key: "id", weight: 52, align: "center" },
       { header: "Applicant", key: "candidate", weight: 115 },
@@ -503,9 +483,9 @@ async function receivedSection(filters: AnalyticsFilterDto, requestedBy: Request
 
 function startsSection(detail: DeliveryDetail, admin: boolean): Section {
   return {
-    sheet: "Workers who started",
-    title: "Workers who started within the dates",
-    note: "Workers who actually started work within the dates. Days to fill = calendar days from the client request to the worker's first day.",
+    sheet: "Starts",
+    title: "Starts in these dates",
+    note: "Workers who started work in these dates. Days to fill = calendar days from the client request to the worker's first day.",
     columns: [
       { header: "Start date", key: "started", weight: 55, align: "center" },
       { header: "Worker", key: "worker", weight: 120 },
@@ -558,7 +538,7 @@ async function awaitingStartSection(filters: AnalyticsFilterDto, requestedBy: Re
   return {
     sheet: "Waiting to start",
     title: "Hired, waiting to start",
-    note: "People already hired who have not started work yet, as of today. They fill a slot but are not counted as started.",
+    note: "People already hired who have not started work yet, right now. They fill a seat but are not counted as started.",
     columns: [
       { header: "Worker", key: "worker", weight: 130 },
       { header: "Client", key: "client", weight: 120 },
@@ -607,7 +587,7 @@ async function buildPipelineModel(requestedBy: Requester, filters: AnalyticsFilt
     candidatesSection(detail, admin),
     received,
   ];
-  return { kpis: kpisFor(result, admin), sections, filterSummary };
+  return { kpis: kpisFor(result), sections, filterSummary };
 }
 
 async function buildDeploymentModel(requestedBy: Requester, filters: AnalyticsFilterDto): Promise<ReportModel> {
@@ -615,42 +595,28 @@ async function buildDeploymentModel(requestedBy: Requester, filters: AnalyticsFi
   const awaiting = await awaitingStartSection(filters, requestedBy, admin, new Date());
   const k = result.kpis;
   const kpis: Kpi[] = [
+    metricKpi("starts", k.placementsStarted, `${k.newStarts} new, ${k.redeployStarts} returning`),
+    metricKpi("seatsFilled", valueOrNote(k.fillRate, k.requestedSeats, pct), `${k.filledSeats} of ${k.requestedSeats} seats`),
     {
-      label: "Workers who started",
-      value: k.placementsStarted,
-      detail: `${k.newStarts} new, ${k.redeployStarts} returning`,
-      basis: "Within the dates",
-      definition: "Workers who actually started work within the dates. A returning worker sent to a new client is counted once.",
+      label: "Seats still open",
+      value: k.openSeats,
+      detail: `${k.requisitions.open} open client requests`,
+      basis: "Right now",
+      definition: "Seats the client asked for that no one has been hired for yet.",
     },
-    {
-      label: "Slots filled",
-      value: `${k.fillRate}%`,
-      detail: `${k.filledSeats} of ${k.requestedSeats} slots`,
-      basis: "As of today",
-      definition: "Slots with someone hired, out of all slots on open requests and requests completed within the dates.",
-    },
-    { label: "Slots still open", value: k.openSeats, detail: `${k.requisitions.open} open client requests`, basis: "As of today", definition: "Slots the client asked for that no one has been hired for yet." },
     {
       label: "Hired, waiting to start",
       value: awaiting.rows.length,
       detail: "Hired but not started yet",
-      basis: "As of today",
-      definition: "People already hired who fill a slot but have not had their first day of work yet.",
+      basis: "Right now",
+      definition: "People already hired who fill a seat but have not had their first day of work yet.",
     },
-    {
-      label: "Usual days to fill",
-      value: k.medianDaysToFill === null ? "—" : k.medianDaysToFill,
-      detail: k.daysToFillSample === 0 ? "No starts linked to a request" : `Middle value of ${k.daysToFillSample} ${k.daysToFillSample === 1 ? "worker" : "workers"}`,
-      basis: "Within the dates",
-      definition: "Calendar days from the client request to the worker's first day, using the middle value. 0 means the same day.",
-    },
-    {
-      label: "Backed out after client review",
-      value: k.backoutRateBase === 0 ? "—" : `${k.backoutRate}%`,
-      detail: `${k.backoutsAfterClientReview} of ${k.backoutRateBase}`,
-      basis: "Within the dates",
-      definition: "Applicants who backed out after the client already saw them, compared with those people plus the workers who started.",
-    },
+    metricKpi(
+      "daysToFill",
+      valueOrNote(k.medianDaysToFill, k.daysToFillSample),
+      k.daysToFillSample === 0 ? "No starts linked to a request" : `Typical of ${k.daysToFillSample} ${k.daysToFillSample === 1 ? "worker" : "workers"}`
+    ),
+    metricKpi("backoutRate", valueOrNote(k.backoutRate, k.backoutRateBase, pct), `${k.backoutsAfterClientReview} of ${k.backoutRateBase}`),
   ];
   return { kpis, sections: [startsSection(detail, admin), awaiting, requestsSection(result, admin)], filterSummary };
 }
@@ -693,7 +659,7 @@ async function writePdf(meta: ReportMetadata, model: ReportModel): Promise<Buffe
   // Nothing is shortened: long labels and cells wrap onto extra lines so every word stays readable.
   renderSummaryKPIs(
     doc,
-    model.kpis.map((k) => ({ label: k.label, value: k.value, subtext: k.detail }))
+    model.kpis.map((k) => ({ label: k.label, value: k.value, subtext: k.detail, basis: k.basis, definition: k.definition }))
   );
 
   const longLists: string[] = [];
@@ -732,7 +698,7 @@ async function writeXlsx(meta: ReportMetadata, model: ReportModel): Promise<Buff
     { header: "What we count", key: "label", minWidth: 28 },
     { header: "Number", key: "value", minWidth: 12, align: "right" },
     { header: "Details", key: "detail", minWidth: 36 },
-    { header: "Counted", key: "basis", minWidth: 16, align: "center" },
+    { header: "Time window", key: "basis", minWidth: 16, align: "center" },
     { header: "What it means", key: "definition", minWidth: 60 },
   ];
   applyTableHeaders(worksheet, 8, kpiColumns);

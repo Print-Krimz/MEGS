@@ -17,6 +17,10 @@ export interface KPIItem {
   label: string;
   value: string | number;
   subtext?: string;
+  /** Time window the number covers, printed under the value. */
+  basis?: string;
+  /** One-line meaning of the number, printed small at the bottom of the card. */
+  definition?: string;
 }
 
 export interface CreateHRDocumentOptions {
@@ -129,9 +133,13 @@ export function renderSummaryKPIs(doc: PDFKit.PDFDocument, kpis: KPIItem[]): voi
   };
   const labelHeight = Math.max(...kpis.slice(0, count).map((k) => heightOf(k.label.toUpperCase(), "Helvetica-Bold", 7)));
   const detailHeight = Math.max(0, ...kpis.slice(0, count).map((k) => (k.subtext ? heightOf(k.subtext, "Helvetica", 6.5) : 0)));
+  const definitionHeight = Math.max(0, ...kpis.slice(0, count).map((k) => (k.definition ? heightOf(k.definition, "Helvetica-Oblique", 6) : 0)));
+  const hasBasis = kpis.slice(0, count).some((k) => k.basis);
   const valueY = startY + 6 + labelHeight + 2;
-  const detailY = valueY + 16;
-  const cardHeight = detailY - startY + detailHeight + 6;
+  const basisY = valueY + 16;
+  const detailY = basisY + (hasBasis ? 10 : 0);
+  const definitionY = detailY + detailHeight + (detailHeight > 0 ? 3 : 0);
+  const cardHeight = definitionY - startY + definitionHeight + 6;
 
   kpis.slice(0, count).forEach((kpi, idx) => {
     const cardX = margin + idx * (cardWidth + cardGap);
@@ -144,9 +152,17 @@ export function renderSummaryKPIs(doc: PDFKit.PDFDocument, kpis: KPIItem[]): voi
     doc.font("Helvetica-Bold").fontSize(12).fillColor(HR_THEME.colors.primaryNavy);
     doc.text(String(kpi.value), cardX + 8, valueY, { width: inner });
 
+    if (kpi.basis) {
+      doc.font("Helvetica-Bold").fontSize(6.5).fillColor(HR_THEME.colors.textSecondary);
+      doc.text(kpi.basis, cardX + 8, basisY, { width: inner });
+    }
     if (kpi.subtext) {
       doc.font("Helvetica").fontSize(6.5).fillColor(HR_THEME.colors.textMuted);
       doc.text(kpi.subtext, cardX + 8, detailY, { width: inner });
+    }
+    if (kpi.definition) {
+      doc.font("Helvetica-Oblique").fontSize(6).fillColor(HR_THEME.colors.textMuted);
+      doc.text(kpi.definition, cardX + 8, definitionY, { width: inner });
     }
   });
 
