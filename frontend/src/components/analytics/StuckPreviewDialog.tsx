@@ -175,8 +175,8 @@ export const StuckPreviewDialog: React.FC<StuckPreviewDialogProps> = ({ rows, op
     <Dialog open={row !== null} onClose={onClose} size="md" title={row?.candidateName ?? "Candidate"} description={row ? `${row.jobTitle}${row.clientName ? ` · ${row.clientName}` : ""}` : undefined}>
       {row && (
         <>
-          <CandidateProfile key={row.applicationId} applicationId={row.applicationId} viewer={viewer} />
-          {!admin && <NextStep key={row.applicationId} applicationId={row.applicationId} />}
+          <CandidateProfile key={`profile-${row.applicationId}`} applicationId={row.applicationId} viewer={viewer} />
+          {!admin && <NextStep key={`next-${row.applicationId}`} applicationId={row.applicationId} />}
           <dl className="divide-y divide-slate-200">
             <Fact label="Stage">{row.stageLabel}</Fact>
             <Fact label="In this stage">
