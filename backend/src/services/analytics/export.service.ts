@@ -157,7 +157,8 @@ const metricKpi = (key: MetricKey, value: string | number, detail: string): Kpi 
 };
 
 /** Same five-case rule as the screen: a rate or typical time with fewer than MIN_SAMPLE cases is not printed as a number. */
-const notEnoughData = (n: number): string => `Not enough data (n=${n})`;
+// Same words as the screen (frontend/src/lib/analytics-format.ts sampleNote).
+const notEnoughData = (n: number): string => (n === 0 ? "No data yet" : `Too few to show (${n} ${n === 1 ? "case" : "cases"})`);
 const valueOrNote = (value: number | null, n: number, format: (v: number) => string | number = (v) => v): string | number =>
   value === null ? notEnoughData(n) : format(value);
 const pct = (v: number): string => `${v}%`;
@@ -252,7 +253,7 @@ function stageSection(result: ReportResult): Section {
   return {
     sheet: "Candidates by stage",
     title: "Candidates by stage",
-    note: "In stage now, overdue, and days are right now. Estimated = no stage change recorded, so counted from the application date. Typical days is the middle value: half waited less, half waited more. With fewer than 5 candidates it shows Not enough data. Entered and backed out are in these dates.",
+    note: "In stage now, overdue, and days are right now. Estimated = no stage change recorded, so counted from the application date. Typical days is the middle value: half waited less, half waited more. With fewer than 5 candidates it shows Too few to show, or No data yet when there are none. Entered and backed out are in these dates.",
     columns: [
       { header: "Stage", key: "stage", weight: 120 },
       { header: "In stage now", key: "inStage", weight: 50, align: "right" },
@@ -284,7 +285,7 @@ function recruiterSections(result: ReportResult): Section[] {
     {
       sheet: "Recruiters",
       title: "Each recruiter's work",
-      note: "Active applicants, overdue, and seats are right now. Overdue, estimated = no stage change recorded, so counted from the application date. Sent to client, starts, and backouts are in these dates. A rate or typical time based on fewer than 5 cases shows Not enough data, with the number of cases in parentheses.",
+      note: "Active applicants, overdue, and seats are right now. Overdue, estimated = no stage change recorded, so counted from the application date. Sent to client, starts, and backouts are in these dates. A rate or typical time based on fewer than 5 cases shows Too few to show, with the number of cases in parentheses, or No data yet when there are none.",
       columns: [
         { header: "Recruiter", key: "name", weight: 110 },
         { header: "Active applicants", key: "active", weight: 52, align: "right" },

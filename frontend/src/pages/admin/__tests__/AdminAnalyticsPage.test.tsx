@@ -135,8 +135,8 @@ describe("AdminAnalyticsPage", () => {
     expect(seats.textContent).toContain("No seats");
     expect(seats.textContent).toContain("No open requests");
     const rate = screen.getByRole("link", { name: /Backout rate/ });
-    expect(rate.textContent).toContain("Not enough data (n=3)");
-    expect(rate.querySelector(".text-base")?.textContent).toBe("Not enough data (n=3)");
+    expect(rate.textContent).toContain("Too few to show (3 cases)");
+    expect(rate.querySelector(".text-base")?.textContent).toBe("Too few to show (3 cases)");
   });
 
   it("marks the stale-request chip as a watch item and uses plain wording", async () => {

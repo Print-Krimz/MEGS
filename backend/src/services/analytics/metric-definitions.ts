@@ -22,7 +22,7 @@ export const STAGE_ROWS: { key: StageRowKey; label: string; slaDays: number }[] 
   { key: "DEPLOYED", label: "Deployed", slaDays: 7 },
 ];
 
-/** Rates and typical times need at least this many cases; fewer is shown as "Not enough data". */
+/** Rates and typical times need at least this many cases; fewer is shown as "Too few to show (N cases)", and none as "No data yet". */
 export const MIN_SAMPLE = 5;
 
 /** The value, or null when it rests on fewer than MIN_SAMPLE cases. */

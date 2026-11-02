@@ -64,11 +64,11 @@ describe("HR PDF Report Builder Engine", () => {
       return (original as any)(text, ...rest);
     };
     renderSummaryKPIs(doc, [
-      { label: "Backout rate", value: "Not enough data (n=3)", subtext: "1 of 3", basis: "In these dates", definition: "Workers who backed out after client review, out of those plus starts." },
+      { label: "Backout rate", value: "Too few to show (3 cases)", subtext: "1 of 3", basis: "In these dates", definition: "Workers who backed out after client review, out of those plus starts." },
     ]);
     expect(printed).toContain("In these dates");
     expect(printed).toContain("Workers who backed out after client review, out of those plus starts.");
-    expect(printed).toContain("Not enough data (n=3)");
+    expect(printed).toContain("Too few to show (3 cases)");
   });
 
   it("handles multi-page table wrapping by adding pages and repeating table headers", async () => {

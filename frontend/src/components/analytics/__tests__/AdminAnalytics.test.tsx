@@ -178,7 +178,7 @@ describe("Analytics Components Test Suite", () => {
   it("renders words in small type and numbers, percents and days as headlines", () => {
     render(
       <>
-        <AnalyticsKpi label="A" value="Not enough data (n=2)" detail="d" />
+        <AnalyticsKpi label="A" value="Too few to show (2 cases)" detail="d" />
         <AnalyticsKpi label="B" value="No seats" />
         <AnalyticsKpi label="C" value="62.5%" />
         <AnalyticsKpi label="D" value="12 days" />
@@ -294,7 +294,7 @@ describe("Analytics Components Test Suite", () => {
 
   it("says how few records stand behind a rate instead of showing a fake one", () => {
     render(<TeamTable rows={[teamRow("ta-1", "Alice Recruiter", { active: 3 })]} onSelectRecruiter={vi.fn()} />);
-    expect(screen.getByRole("row", { name: /Alice Recruiter/ }).textContent).toContain("Not enough data (n=0)");
+    expect(screen.getByRole("row", { name: /Alice Recruiter/ }).textContent).toContain("No data yet");
   });
 
   it("shows seats filled with counts and the percentage, and the workload next to results", () => {

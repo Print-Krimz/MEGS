@@ -6,7 +6,7 @@ import { scrollToId } from "../../lib/scroll-to";
 
 interface AnalyticsKpiProps {
   label: string;
-  /** A number (or "NN%") counts up when it loads or changes. Any other text, such as "Not enough data (n=3)", shows as is. */
+  /** A number (or "NN%") counts up when it loads or changes. Any other text, such as "Too few to show (3 cases)", shows as is. */
   value: number | string;
   /** The counts behind the number, e.g. "14 of 30 seats". A few words. */
   detail?: string;
@@ -38,7 +38,7 @@ const renderValue = (value: number | string) => {
 
 /** One headline number: label, value, one detail line. What it means is under "How these are counted". */
 export const AnalyticsKpi: React.FC<AnalyticsKpiProps> = ({ label, value, detail, tone = "default", href, onClick }) => {
-  // Words ("Not enough data (n=3)", "No seats") read as an absence, so they sit below headline numbers in size.
+  // Words ("Too few to show (3 cases)", "No seats") read as an absence, so they sit below headline numbers in size.
   const text = typeof value === "string" && !/^-?\d[\d.,]*\s?(%|days?)?$/.test(value);
   const body = (
     <>

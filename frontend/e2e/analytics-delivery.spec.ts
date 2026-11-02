@@ -663,24 +663,24 @@ test.describe("Team leader reports (/admin/analytics)", () => {
     await expect(page.getByText("Typical days from request opened to worker start.")).toBeVisible();
   });
 
-  test("a rate under five samples reads Not enough data (n=4), and five samples show the number", async ({ page }) => {
+  test("a rate under five samples reads Too few to show (4 cases), and five samples show the number", async ({ page }) => {
     await setup(page, "admin", smallAdmin);
     await page.goto("/admin/analytics");
     await expectReportsLoaded(page);
 
     const period = page.getByRole("region", { name: "In these dates" });
-    await expect(period.getByRole("link", { name: /^Backout rate/ })).toContainText("Not enough data (n=4)");
+    await expect(period.getByRole("link", { name: /^Backout rate/ })).toContainText("Too few to show (4 cases)");
     await expect(period.getByRole("link", { name: /^Backout rate/ })).toContainText("3 of 4 backed out after client review");
     // Days to fill has five starts behind it, so the number shows.
     await expect(period.getByText("18.5 days")).toBeVisible();
 
     const team = await openTab(page, /^Recruiters/);
-    await expect(team.getByRole("row", { name: /Bob Recruiter/ })).toContainText("Not enough data (n=4)");
+    await expect(team.getByRole("row", { name: /Bob Recruiter/ })).toContainText("Too few to show (4 cases)");
     await expect(team.getByRole("row", { name: /Alice Recruiter/ })).toContainText("33.3%");
 
     const stages = page.locator("#stage-pipeline");
     await stages.getByText("View as table").click();
-    await expect(stages.getByRole("row", { name: /Client review/ })).toContainText("Not enough data (n=4)");
+    await expect(stages.getByRole("row", { name: /Client review/ })).toContainText("Too few to show (4 cases)");
     await expect(stages.getByRole("row", { name: /Requirements/ })).toContainText("8 days");
   });
 
@@ -1136,15 +1136,15 @@ test.describe("Recruiter reports (/ta/analytics)", () => {
     await expect(page.getByRole("link", { name: /^Open requests/ })).toHaveCount(0);
   });
 
-  test("a rate under five samples reads Not enough data (n=4)", async ({ page }) => {
+  test("a rate under five samples reads Too few to show (4 cases)", async ({ page }) => {
     await setup(page, "recruiter", smallTa);
     await page.goto("/ta/analytics");
     await expectReportsLoaded(page);
-    await expect(page.getByRole("region", { name: "In these dates" }).getByRole("link", { name: /^Backout rate/ })).toContainText("Not enough data (n=4)");
+    await expect(page.getByRole("region", { name: "In these dates" }).getByRole("link", { name: /^Backout rate/ })).toContainText("Too few to show (4 cases)");
     await expect(page.getByText("Days to fill: 18.5 days")).toBeVisible();
     const stages = page.locator("#stage-pipeline");
     await stages.getByText("View as table").click();
-    await expect(stages.getByRole("row", { name: /Client review/ })).toContainText("Not enough data (n=4)");
+    await expect(stages.getByRole("row", { name: /Client review/ })).toContainText("Too few to show (4 cases)");
   });
 
   test("the attention chips open the matching list with its filter", async ({ page }) => {
