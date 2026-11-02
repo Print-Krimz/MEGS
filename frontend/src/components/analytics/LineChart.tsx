@@ -90,7 +90,7 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
       {isEmpty ? (
         <p className="px-3.5 py-3 text-xs text-slate-600 font-sans">{emptyText}</p>
       ) : (
-        <div ref={wrapRef} className="p-3.5 flex-1">
+        <div className="p-3.5 flex-1">
           <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-sans text-slate-700" aria-label="Legend">
             {shown.map((s, i) => (
               <li key={s.key} className="flex items-center gap-1.5">
@@ -99,6 +99,7 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
               </li>
             ))}
           </ul>
+          <div ref={wrapRef} className="w-full">
           <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block h-60 w-full max-w-full" role="img" aria-label={title}>
             <title>{title}</title>
             {ticks.map((t) => (
@@ -129,6 +130,7 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
               );
             })}
           </svg>
+          </div>
           <p className="sr-only">{summary}</p>
           <DataTableToggle
             caption={title}
