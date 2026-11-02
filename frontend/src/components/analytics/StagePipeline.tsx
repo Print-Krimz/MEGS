@@ -40,7 +40,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
   const maxInStage = Math.max(1, ...rows.map((r) => r.inStageNow));
 
   return (
-    <AnalyticsPanel id="stage-pipeline" title="Candidates by stage">
+    <AnalyticsPanel tone="reports" id="stage-pipeline" title="Candidates by stage">
       {empty ? (
         <p className="p-4 text-center text-xs text-slate-500 font-sans">No candidates are in the pipeline and none moved in this period.</p>
       ) : (

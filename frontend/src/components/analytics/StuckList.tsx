@@ -103,7 +103,7 @@ export const StuckList = React.memo(function StuckList({
   };
 
   return (
-    <AnalyticsPanel id={id} title={title} subtitle={subtitle} bare={bare} aside={<span className="tabular-nums">{total} waiting</span>}>
+    <AnalyticsPanel tone="reports" id={id} title={title} subtitle={subtitle} bare={bare} aside={<span className="tabular-nums">{total} waiting</span>}>
       {rows.length > 0 && (
         <div className="flex flex-wrap items-end gap-x-4 gap-y-2 border-b border-slate-200 px-3.5 py-2.5">
           <div role="group" aria-label="Filter by urgency" className="flex gap-1.5">

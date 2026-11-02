@@ -22,7 +22,7 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, rangeLabel }) 
   const maxReason = Math.max(1, ...reasons.map((r) => r.count));
 
   return (
-    <AnalyticsPanel
+    <AnalyticsPanel tone="reports"
       id="backouts"
       title="Why people backed out"
       subtitle={`Recorded ${rangeLabel ?? "in this period"}. Client declines are not backouts.`}
@@ -76,7 +76,7 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, rangeLabel }) 
                       <span className="tabular-nums text-slate-700">{r.count}</span>
                     </div>
                     <div className="mt-0.5">
-                      <BarMark label={r.label} value={r.count} max={maxReason} pct={`of ${total}`} color={NEUTRAL_MARK} heightClass="h-2" focusable />
+                      <BarMark label={r.label} value={r.count} max={maxReason} pct={`of ${total}`} color={NEUTRAL_MARK} heightClass="h-2" focusable animate />
                     </div>
                   </li>
                 ))}

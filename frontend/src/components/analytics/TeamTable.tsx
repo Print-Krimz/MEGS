@@ -97,7 +97,7 @@ export const TeamTable = React.memo(function TeamTable({
   };
 
   return (
-    <AnalyticsPanel id="recruiter-table" title="Recruiters" subtitle={subtitle} bare={bare}>
+    <AnalyticsPanel tone="reports" id="recruiter-table" title="Recruiters" subtitle={subtitle} bare={bare}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 px-3.5 py-2.5">
         <label className="flex items-center gap-2 text-xs text-slate-700">
           <span className="text-xs font-semibold text-slate-600">Search</span>

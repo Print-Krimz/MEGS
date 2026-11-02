@@ -82,7 +82,7 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
   const summary = shown.map((s) => summarise(points, s)).join(" ");
 
   return (
-    <AnalyticsPanel id={id} title={title} subtitle={subtitle} className="h-full flex flex-col">
+    <AnalyticsPanel tone="reports" id={id} title={title} subtitle={subtitle} className="h-full flex flex-col">
       {isEmpty ? (
         <p className="px-3.5 py-3 text-xs text-slate-500 font-sans">{emptyText}</p>
       ) : (

@@ -30,15 +30,18 @@ interface BarMarkProps {
   className?: string;
   /** Position in a list, for the first-load stagger. */
   index?: number;
+  /** Grow the fill from zero on first load. Off by default. */
+  animate?: boolean;
 }
 
 /**
  * Horizontal bar. Announced as one image: "{label}: {value} ({pct})". The native tooltip repeats it.
  * The fill is anchored at the left edge; only the data end is rounded.
  */
-export const BarMark: React.FC<BarMarkProps> = ({ label, value, max, color, pct, hatched, heightClass = "h-3", focusable, className = "", index = 0 }) => {
+export const BarMark: React.FC<BarMarkProps> = ({ label, value, max, color, pct, hatched, heightClass = "h-3", focusable, className = "", index = 0, animate = false }) => {
   const share = max > 0 ? Math.min(100, (value / max) * 100) : 0;
   const text = `${label}: ${value} (${pct ?? pctText(value, max)})`;
+  const fillStyle = { width: `${share}%`, minWidth: value > 0 ? 3 : 0, ...(hatched ? hatchStyle(color) : { backgroundColor: color }) };
   return (
     <div
       role="img"
@@ -48,11 +51,15 @@ export const BarMark: React.FC<BarMarkProps> = ({ label, value, max, color, pct,
       className={`${heightClass} w-full overflow-hidden rounded-r-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${className}`}
       style={{ backgroundColor: CHART_TRACK }}
     >
-      <GrowFill
-        index={index}
-        className="h-full rounded-r-[3px] motion-safe:transition-[width] motion-safe:duration-300 motion-safe:ease-out"
-        style={{ width: `${share}%`, minWidth: value > 0 ? 3 : 0, ...(hatched ? hatchStyle(color) : { backgroundColor: color }) }}
-      />
+      {animate ? (
+        <GrowFill
+          index={index}
+          className="h-full rounded-r-[3px] motion-safe:transition-[width] motion-safe:duration-300 motion-safe:ease-out"
+          style={fillStyle}
+        />
+      ) : (
+        <div className="h-full rounded-r-[3px]" style={fillStyle} />
+      )}
     </div>
   );
 };

@@ -103,7 +103,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
   const pageRows = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
-    <AnalyticsPanel
+    <AnalyticsPanel tone="reports"
       id="client-requests"
       title="Client requests"
       subtitle="Open requests and any filled this period, most urgent first."
