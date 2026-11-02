@@ -59,8 +59,10 @@ export interface StageTableRow {
   overdueEstimated: number;
   entered: number;
   backedOut: number;
+  /** Null when typicalWaitSample is under 5. */
   avgDaysInStage: number | null;
   medianDaysInStage: number | null;
+  typicalWaitSample: number;
   slaDays: number;
 }
 
@@ -94,7 +96,7 @@ export interface BackoutSummary {
   backouts: number;
   byParty: { APPLICANT: number; CLIENT: number; AGENCY: number };
   byStage: { stage: StageRowKey; label: string; APPLICANT: number; CLIENT: number; AGENCY: number; total: number }[];
-  topReasons: { reason: string; count: number }[];
+  topReasons: { reason: string; label: string; count: number }[];
   /** Backouts recorded as NO_SHOW. Also counted by stage above. */
   noShows: number;
   byClient: { clientName: string; count: number }[];
@@ -108,6 +110,7 @@ export interface BackoutSummary {
     stage: string;
     party: "APPLICANT" | "CLIENT" | "AGENCY";
     reason: string;
+    reasonLabel: string;
     occurredAt: string;
   }[];
 }
@@ -118,8 +121,8 @@ export interface ClientDecisions {
 }
 
 export interface DeliveryKpis {
-  /** Now: seats filled across the requisitions in scope. */
-  fillRate: number;
+  /** Now: seats filled across the requisitions in scope. n = requestedSeats. */
+  fillRate: number | null;
   filledSeats: number;
   requestedSeats: number;
   openSeats: number;
@@ -133,8 +136,13 @@ export interface DeliveryKpis {
   daysToFillSample: number;
   /** In period: left at or after client review. Rate = backouts / (backouts + starts that came from an application). */
   backoutsAfterClientReview: number;
-  backoutRate: number;
+  /** n = backoutRateBase. */
+  backoutRate: number | null;
   backoutRateBase: number;
+  /** Open requests that are overdue or at risk. */
+  lateRequests: number;
+  /** overdueCandidates + overdueEstimated. */
+  overdueTotal: number;
   /** Now: candidates in the pipeline. */
   activeApplicants: number;
   overdueCandidates: number;
@@ -158,14 +166,16 @@ export interface TeamRow {
   openRequisitions: number;
   requestedSeats: number;
   filledSeats: number;
-  fillRate: number;
+  fillRate: number | null;
   sentToClient: number;
   newStarts: number;
   redeployStarts: number;
   placed: number;
   backouts: number;
-  backoutRate: number;
+  backoutRate: number | null;
+  backoutRateBase: number;
   medianDaysToFill: number | null;
+  daysToFillSample: number;
 }
 
 /** Why an open request has nothing moving: no opening posted, no applicants, or only first-stage applicants. */
@@ -208,6 +218,7 @@ export type TrendGranularity = "day" | "week" | "month";
 export interface TrendPoint {
   start: string;
   label: string;
+  starts: number;
   newStarts: number;
   redeployStarts: number;
   /** Left after the client saw the candidate. */

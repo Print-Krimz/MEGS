@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { formatSampled } from "../../lib/analytics-format";
 import { adminApi } from "../../lib/api/admin.api";
 import { PageHeader, LoadingState, ErrorState } from "../../components/common";
 import { AnalyticsFilterBar, ExportMenu } from "../../components/analytics";
@@ -179,7 +180,7 @@ export const AdminAnalyticsPage: React.FC = () => {
       <KpiRow columns="md:grid-cols-5" caption={periodCaption}>
         <AnalyticsKpi
           label="Seats filled"
-          value={kpis.requestedSeats === 0 ? "—" : `${kpis.fillRate}%`}
+          value={formatSampled(kpis.fillRate, kpis.requestedSeats, "%")}
           detail={`${kpis.filledSeats} of ${kpis.requestedSeats} seats · ${kpis.openSeats} open`}
           definition="Seats held by a placement, out of seats requested."
           anchor="operations"
@@ -203,16 +204,15 @@ export const AdminAnalyticsPage: React.FC = () => {
         />
         <AnalyticsKpi
           label="Days to fill"
-          value={kpis.medianDaysToFill === null ? "—" : kpis.medianDaysToFill}
+          value={formatSampled(kpis.medianDaysToFill, kpis.daysToFillSample, "days")}
           detail={kpis.daysToFillSample === 0 ? "No starts" : `Median, ${kpis.daysToFillSample} ${kpis.daysToFillSample === 1 ? "start" : "starts"}`}
           definition="Days from request opened to worker start."
         />
         <AnalyticsKpi
           label="Backout rate"
-          value={kpis.backoutRateBase === 0 ? "—" : `${kpis.backoutRate}%`}
+          value={formatSampled(kpis.backoutRate, kpis.backoutRateBase, "%")}
           detail={`${kpis.backoutsAfterClientReview} of ${kpis.backoutRateBase}`}
           definition="Backouts after client review, out of those plus starts."
-          tone={kpis.backoutRate >= 20 ? "alert" : "default"}
           anchor="backouts"
         />
       </KpiRow>

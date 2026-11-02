@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import type { StageTableRow } from "../../../lib/types/analytics.types";
 import type { ApplicationStatus } from "../../../lib/types/enums";
 import { TEXT_LOSS, WORKLOAD, stageColor } from "../../../lib/chart-palette";
+import { formatSampled } from "../../../lib/analytics-format";
 import { analyticsStageLabel } from "../stage-label";
 import { DataTableToggle, StackedBar } from "./chart-primitives";
 import { AnalyticsPanel } from "./AnalyticsPanel";
@@ -98,7 +99,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, rangeLabel, 
                 r.inStageNow,
                 r.overdue,
                 r.overdueEstimated,
-                r.medianDaysInStage === null ? "None" : `${r.medianDaysInStage} ${r.medianDaysInStage === 1 ? "day" : "days"}`,
+                formatSampled(r.medianDaysInStage, r.typicalWaitSample, "days"),
                 limitText(r),
                 r.backedOut,
               ],

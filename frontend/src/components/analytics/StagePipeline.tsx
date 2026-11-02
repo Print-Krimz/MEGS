@@ -4,6 +4,7 @@ import type { StageTableRow } from "../../lib/types/analytics.types";
 import type { ApplicationStatus } from "../../lib/types/enums";
 import { AlertTriangle, Eye } from "lucide-react";
 import { HEALTH_CHIP, TEXT_LOSS, TEXT_AMBER, WORKLOAD, hatchStyle, stageColor } from "../../lib/chart-palette";
+import { formatSampled } from "../../lib/analytics-format";
 import { analyticsStageLabel } from "./stage-label";
 import { BarMark, DataTableToggle } from "./chart-primitives";
 import { AnalyticsPanel } from "./AnalyticsPanel";
@@ -94,7 +95,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, rangeLabel, 
                       </span>
                     )}
                   </span>
-                  <span className="block text-xs tabular-nums text-slate-600">{row.medianDaysInStage === null ? "No one waiting" : `Typical wait: ${row.medianDaysInStage} ${row.medianDaysInStage === 1 ? "day" : "days"}`}</span>
+                  <span className="block text-xs tabular-nums text-slate-600">{`Typical wait: ${formatSampled(row.medianDaysInStage, row.typicalWaitSample, "days")}`}</span>
                   {pressure !== "none" && (
                     <span className={`mt-1.5 inline-flex items-center gap-1 border px-1.5 py-px text-xs font-semibold ${HEALTH_CHIP[pressure].className}`}>
                       {pressure === "bottleneck" ? <AlertTriangle className="h-3 w-3" aria-hidden="true" /> : <Eye className="h-3 w-3" aria-hidden="true" />}

@@ -84,7 +84,7 @@ export const TeamWorkloadChart: React.FC<TeamWorkloadChartProps> = ({ rows, sele
               const onTime = Math.max(0, row.active - row.overdue - row.overdueEstimated);
               const selected = row.recruiterId === selectedRecruiterId;
               const who = formatRecruiterName(row.name);
-              const seats = row.requestedSeats === 0 ? "no seats" : `${row.filledSeats}/${row.requestedSeats} seats (${Math.round(row.fillRate)}%)`;
+              const seats = row.requestedSeats === 0 ? "no seats" : `${row.filledSeats}/${row.requestedSeats} seats (${row.fillRate === null ? "not enough data" : `${Math.round(row.fillRate)}%`})`;
               const summary = `${who.label}: ${row.active} active candidates, ${row.overdue} overdue, ${row.overdueEstimated} overdue by application age only. ${row.filledSeats} of ${row.requestedSeats} seats filled.`;
               return (
                 <li

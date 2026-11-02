@@ -114,7 +114,7 @@ export const AdminDashboard: React.FC = () => {
             <MetricValue query={teamQuery}>{data => <><Value tone={data.stuckTotal > 0 ? "alert" : "default"}>{data.stuckTotal}</Value><Caption>Past their stage limit</Caption></>}</MetricValue>
           </MetricTile>
           <MetricTile label="Open seats" to="/admin/analytics">
-            <MetricValue query={teamQuery}>{data => <><Value>{data.kpis.openSeats}</Value><Caption>{data.kpis.fillRate}% filled</Caption></>}</MetricValue>
+            <MetricValue query={teamQuery}>{data => <><Value>{data.kpis.openSeats}</Value><Caption>{data.kpis.fillRate === null ? "No seats requested" : `${data.kpis.fillRate}% filled`}</Caption></>}</MetricValue>
           </MetricTile>
           <MetricTile label="Requests at risk" to="/admin/analytics">
             <MetricValue query={teamQuery}>{data => <><Value tone={data.kpis.requisitions.overdue > 0 ? "alert" : "default"}>{data.kpis.requisitions.overdue + data.kpis.requisitions.atRisk}</Value><Caption>{data.kpis.requisitions.overdue} overdue · {data.kpis.requisitions.atRisk} at risk</Caption></>}</MetricValue>
@@ -156,7 +156,7 @@ export const AdminDashboard: React.FC = () => {
               <li key={row.recruiterId} className="flex items-center justify-between gap-3 px-3.5 py-2.5 text-sm">
                 <div className="min-w-0">
                   <p className="truncate font-semibold text-slate-950" title={row.name}>{row.name}</p>
-                  <p className="text-xs text-slate-600 tabular-nums">{row.active} active · {row.fillRate}% filled</p>
+                  <p className="text-xs text-slate-600 tabular-nums">{row.active} active · {row.fillRate === null ? "no seats requested" : `${row.fillRate}% filled`}</p>
                 </div>
                 <span className={`shrink-0 text-xs font-medium tabular-nums ${row.overdue > 0 ? "text-rose-700" : "text-slate-600"}`}>{row.overdue} overdue</span>
               </li>

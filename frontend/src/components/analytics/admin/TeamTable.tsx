@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import type { TeamRow } from "../../../lib/types/analytics.types";
+import { formatSampled } from "../../../lib/analytics-format";
 import { formatRecruiterName } from "../../../lib/recruiter-label";
 import { AnalyticsPanel } from "./AnalyticsPanel";
 import { TEXT_LOSS, TEXT_AMBER } from "../../../lib/chart-palette";
@@ -130,7 +131,7 @@ export const TeamTable = React.memo(function TeamTable({ rows, rangeLabel, selec
                       ) : (
                         <>
                           {row.filledSeats} of {row.requestedSeats}
-                          <span className="block text-xs text-slate-500">{row.fillRate}%</span>
+                          <span className="block text-xs text-slate-500">{formatSampled(row.fillRate, row.requestedSeats, "%")}</span>
                         </>
                       )}
                     </td>
@@ -147,10 +148,10 @@ export const TeamTable = React.memo(function TeamTable({ rows, rangeLabel, selec
                       {row.backouts}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-slate-700">
-                      {row.placed + row.backouts === 0 ? "—" : `${row.backoutRate}%`}
+                      {formatSampled(row.backoutRate, row.backoutRateBase, "%")}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-slate-700">
-                      {row.medianDaysToFill === null ? "—" : row.medianDaysToFill}
+                      {formatSampled(row.medianDaysToFill, row.daysToFillSample, "days")}
                     </td>
                   </tr>
                 );
