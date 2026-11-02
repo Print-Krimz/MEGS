@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import type { StuckCandidate } from "../../lib/types/analytics.types";
 import { formatRecruiterName } from "../../lib/recruiter-label";
 import { AnalyticsPanel } from "./AnalyticsPanel";
-import { TEXT_AMBER, TEXT_LOSS, WAIT } from "../../lib/chart-palette";
+import { STAGE_RAMP, TEXT_AMBER, TEXT_LOSS, WAIT } from "../../lib/chart-palette";
 import { PaginationBar } from "./PaginationBar";
 import { StackedBar } from "./chart-primitives";
 import { StuckPreviewDialog } from "./StuckPreviewDialog";
@@ -87,7 +87,12 @@ export const StuckList = React.memo(function StuckList({
     setPage(1);
   }, [focus?.nonce, focus?.urgency, focus?.stage]);
 
-  const stages = useMemo(() => [...new Map(rows.map((r) => [r.stage, r.stageLabel])).entries()], [rows]);
+  // A stage picked from the chart may have no row in the loaded list (only the longest waits load); keep it selectable so the select shows the real filter.
+  const stages = useMemo(() => {
+    const byStage = new Map<string, string>(rows.map((r) => [r.stage, r.stageLabel]));
+    if (stage !== "ALL" && !byStage.has(stage)) byStage.set(stage, STAGE_RAMP.find((s) => s.key === stage)?.label ?? stage);
+    return [...byStage.entries()];
+  }, [rows, stage]);
   const criticalCount = rows.filter((r) => r.urgency === "critical").length;
 
   const needle = query.trim().toLowerCase();

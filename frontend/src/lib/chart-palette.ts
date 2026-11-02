@@ -30,7 +30,8 @@ export const CHART_SURFACE = "#F6F7F9";
 /** Frame colours for plots: kept recessive, still >= 3:1 where they carry meaning (axis labels use TEXT). */
 export const CHART_GRID = "#DDE2E9";
 export const CHART_AXIS_TEXT = "#4B5563";
-export const CHART_TRACK = "#EDF0F4";
+// Empty part of a bar: dark enough to read as a track on the white panels, still clearly lighter than any fill.
+export const CHART_TRACK = "#E1E6ED";
 
 /** Ordinal stage ramp, light to deep. Keyed by the backend stage enum used in Reports rows. */
 export const STAGE_RAMP = [
@@ -95,7 +96,7 @@ export const WORKLOAD = {
 
 /** Waiting bars: the time inside the limit is a plain pale baseline, only the time past it is coloured. */
 export const WAIT = {
-  withinLimit: "#CDD3DC",
+  withinLimit: "#9AA5B4",
   late: "#B87A0A",
   critical: "#C0392B",
 } as const;
