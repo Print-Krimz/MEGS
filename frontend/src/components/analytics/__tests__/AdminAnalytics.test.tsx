@@ -594,13 +594,13 @@ describe("Analytics Components Test Suite", () => {
     ];
     const onSelect = vi.fn();
     const { unmount } = render(<StagePipeline rows={rows} onSelectStage={onSelect} />);
-    fireEvent.click(screen.getByRole("button", { name: "Requirements, 4 · 1 overdue. Show these candidates" }));
+    fireEvent.click(screen.getByRole("button", { name: "Requirements, 4 · 1 overdue (25%). Show these candidates" }));
     expect(onSelect).toHaveBeenCalledWith("COMPLIANCE");
     // A stage with nothing overdue is not a button
     expect(screen.getByRole("group", { name: "Final interview, 2" })).toBeDefined();
     unmount();
     render(<StagePipeline rows={rows} linkStages />);
     expect(screen.getByRole("link", { name: "Final interview, 2. Show these candidates" })).toBeDefined();
-    expect(within(screen.getByRole("link", { name: /Requirements/ })).getByRole("img", { name: /within limit 3, overdue 1/ })).toBeDefined();
+    expect(within(screen.getByRole("link", { name: /Requirements/ })).getByRole("img", { name: /on track 3, overdue 1/ })).toBeDefined();
   });
 });

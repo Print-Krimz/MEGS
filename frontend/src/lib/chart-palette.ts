@@ -111,22 +111,8 @@ export const TREND = {
 /** The one bar colour for primary marks (the navy token). */
 export const BAR_PRIMARY = "#0B315D";
 
-/**
- * Reports "Candidates by stage": one distinct, deep hue per stage so the bars stand apart from the navy staff theme.
- * Red is left out (it means overdue). Green sits on Deployed, which is never overdue, so green never touches red
- * (they fail deuteranopia side by side). Validated with dataviz validate_palette.js on light: lightness, chroma,
- * normal-vision and contrast (all >= 3:1) pass; teal/olive sit in the CVD warn band, so each row keeps its name,
- * count, "N overdue" text, a 2px gap and the View as table fallback.
- */
-export const REPORT_STAGE_COLORS: Record<string, string> = {
-  APPLIED: "#3A6FB0",
-  INITIAL_SCREENING: "#B57F1F",
-  CLIENT_ENDORSEMENT: "#008A7E",
-  FINAL_INTERVIEW: "#8E4F96",
-  COMPLIANCE: "#7A8A1F",
-  CONTRACT_SIGNING: "#5A55B5",
-  DEPLOYED: "#3E8C4F",
-};
+/** On-track part of the Reports stage bars: a mid blue that stays clear of the dark navy staff theme and of red. */
+export const BAR_ON_TRACK = "#3A6FB0";
 
 /** Neutral single-series bar, for ranked lists with no category (top reasons, request progress). */
 export const NEUTRAL_MARK = "#4B5563";

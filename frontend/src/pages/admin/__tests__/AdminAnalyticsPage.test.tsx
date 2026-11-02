@@ -178,7 +178,7 @@ describe("AdminAnalyticsPage", () => {
 
   it("names the stage row and opens the waiting list from it, with short tab names", async () => {
     renderPage();
-    const row = await screen.findByRole("button", { name: "Requirements, 5 · 2 overdue. Show these candidates" });
+    const row = await screen.findByRole("button", { name: "Requirements, 5 · 2 overdue (40%). Show these candidates" });
     fireEvent.click(row);
     expect(screen.getByRole("tab", { name: /Overdue candidates 0$/ }).getAttribute("aria-selected")).toBe("true");
     expect(within(screen.getByRole("tablist")).getByText("Requests")).toBeDefined();

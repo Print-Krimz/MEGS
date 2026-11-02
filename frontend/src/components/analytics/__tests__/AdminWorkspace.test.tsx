@@ -86,23 +86,57 @@ describe("StagePipeline", () => {
 
   it("names every stage with its count and overdue total, and never flags Deployed", () => {
     render(<StagePipeline rows={rows} />);
-    expect(screen.getByRole("group", { name: "Requirements, 54 · 26 overdue" })).toBeDefined();
+    expect(screen.getByRole("group", { name: "Requirements, 54 · 26 overdue (48%)" })).toBeDefined();
     expect(screen.getByText(/26 overdue/)).toBeDefined();
-    expect(screen.getByRole("group", { name: "Final interview, 4 · 3 overdue" })).toBeDefined();
+    expect(screen.getByRole("group", { name: "Final interview, 4 · 3 overdue (75%)" })).toBeDefined();
     expect(screen.getByRole("group", { name: "Deployed, 2" })).toBeDefined();
-    expect(screen.getByRole("img", { name: "Requirements: within limit 28, overdue 26" })).toBeDefined();
+    expect(screen.getByRole("img", { name: "Requirements: on track 28, overdue 26" })).toBeDefined();
     expect(screen.queryByText(/Watch|Bottleneck|by age only|Show period details/)).toBeNull();
     // Without onSelectStage nothing is a button
     expect(screen.queryByRole("button", { name: /Show these candidates/ })).toBeNull();
   });
 
-  it("gives each stage its own colour and keeps the overdue part red", () => {
+  const fills = (name: string) =>
+    Array.from(screen.getByRole("img", { name }).querySelectorAll<HTMLElement>(".flex > div")).map((d) => d.style.backgroundColor);
+
+  it("uses one on-track colour on every stage and keeps the overdue part red", () => {
     render(<StagePipeline rows={rows} />);
-    const colours = (name: string) =>
-      Array.from(screen.getByRole("img", { name }).querySelectorAll<HTMLElement>(".flex > div")).map((d) => d.style.backgroundColor);
-    // Requirements is olive, Submitted is blue; neither is the navy theme colour.
-    expect(colours("Requirements: within limit 28, overdue 26")).toEqual(["rgb(122, 138, 31)", "rgb(200, 16, 46)"]);
-    expect(colours("Submitted: within limit 29, overdue 1")[0]).toBe("rgb(58, 111, 176)");
+    expect(fills("Requirements: on track 28, overdue 26")).toEqual(["rgb(58, 111, 176)", "rgb(200, 16, 46)"]);
+    expect(fills("Submitted: on track 29, overdue 1")[0]).toBe("rgb(58, 111, 176)");
+    expect(fills("Final interview: on track 1, overdue 3")[0]).toBe("rgb(58, 111, 176)");
+    expect(fills("Deployed: on track 2")).toEqual(["rgb(58, 111, 176)"]);
+  });
+
+  it("keeps overdue inside the stage total and shows its share", () => {
+    const { container } = render(
+      <StagePipeline rows={[stage("COMPLIANCE", "Requirements", { inStageNow: 19, overdue: 10 }), stage("APPLIED", "Submitted", { inStageNow: 38 })]} />,
+    );
+    expect(screen.getByText(/10 overdue \(53%\)/)).toBeDefined();
+    const bars = Array.from(container.querySelectorAll<HTMLElement>('[role="img"]'));
+    // Every bar is scaled to the largest stage (38): 19 fills half, 38 fills all
+    expect((bars[0].firstElementChild as HTMLElement).style.width).toBe("50%");
+    expect((bars[1].firstElementChild as HTMLElement).style.width).toBe("100%");
+    const parts = Array.from(bars[0].querySelectorAll<HTMLElement>(".flex > div")).map((d) => d.style.flexGrow);
+    expect(parts).toEqual(["9", "10"]);
+  });
+
+  it("caps overdue at the stage count and shows an empty track for a stage with no one", () => {
+    const { container } = render(
+      <StagePipeline rows={[stage("COMPLIANCE", "Requirements", { inStageNow: 5, overdue: 4, overdueEstimated: 3 }), stage("FINAL_INTERVIEW", "Final interview", { inStageNow: 0 })]} />,
+    );
+    expect(screen.getByRole("group", { name: "Requirements, 5 · 5 overdue (100%)" })).toBeDefined();
+    expect(fills("Requirements: overdue 5")).toEqual(["rgb(200, 16, 46)"]);
+    const empty = screen.getByRole("img", { name: "Final interview: none" });
+    expect(empty.querySelectorAll(".flex > div").length).toBe(0);
+    expect((empty.firstElementChild as HTMLElement).style.width).toBe("0%");
+    expect(container.textContent).not.toContain("0 overdue");
+  });
+
+  it("explains the colours with words as well as swatches", () => {
+    render(<StagePipeline rows={rows} />);
+    const legend = screen.getByTestId("stage-legend");
+    expect(within(legend).getByText("On track")).toBeDefined();
+    expect(within(legend).getByText("Overdue")).toBeDefined();
   });
 
   it("holds the exact values behind View as table, with a sampled typical wait", () => {
@@ -130,8 +164,8 @@ describe("StagePipeline", () => {
 
   it("names each stage row from its visible text and puts the footer on the View as table row", () => {
     const { container } = render(<StagePipeline rows={rows} footer={<p>Client answers: 3 approved</p>} />);
-    expect(screen.getByRole("group", { name: /^Requirements, 54 · 26 overdue/ })).toBeDefined();
-    expect(screen.getByText("Candidates in each stage today.")).toBeDefined();
+    expect(screen.getByRole("group", { name: /^Requirements, 54 · 26 overdue \(48%\)/ })).toBeDefined();
+    expect(screen.getByText(/How many candidates are in each stage right now/)).toBeDefined();
     const footer = screen.getByText("Client answers: 3 approved");
     expect(footer.closest("div")?.parentElement).toBe(container.querySelector("details")?.parentElement);
   });
@@ -139,7 +173,7 @@ describe("StagePipeline", () => {
   it("lets a backed-up stage be chosen to list its candidates", () => {
     const onSelect = vi.fn();
     render(<StagePipeline rows={rows} onSelectStage={onSelect} />);
-    fireEvent.click(screen.getByRole("button", { name: "Requirements, 54 · 26 overdue. Show these candidates" }));
+    fireEvent.click(screen.getByRole("button", { name: "Requirements, 54 · 26 overdue (48%). Show these candidates" }));
     expect(onSelect).toHaveBeenCalledWith("COMPLIANCE");
     // Deployed has no limit, so it cannot be overdue and is not a button
     expect(screen.queryByRole("button", { name: /Deployed/ })).toBeNull();

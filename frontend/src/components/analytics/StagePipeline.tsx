@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "@tanstack/react-router";
 import type { StageTableRow } from "../../lib/types/analytics.types";
 import type { ApplicationStatus } from "../../lib/types/enums";
-import { BAR_PRIMARY, REPORT_STAGE_COLORS, TEXT_LOSS, WORKLOAD } from "../../lib/chart-palette";
+import { BAR_ON_TRACK, TEXT_LOSS, WORKLOAD } from "../../lib/chart-palette";
 import { formatSampled } from "../../lib/analytics-format";
 import { DataTableToggle, StackedBar } from "./chart-primitives";
 import { AnalyticsPanel } from "./AnalyticsPanel";
@@ -17,8 +17,11 @@ interface StagePipelineProps {
   footer?: React.ReactNode;
 }
 
-/** Each stage has its own hue so the bars stand apart from the navy theme; overdue is always red. */
-const barColor = (stage: string) => REPORT_STAGE_COLORS[stage] ?? BAR_PRIMARY;
+/** Overdue candidates are part of the stage total, never added on top; Deployed has no limit so it is never overdue. */
+const overdueIn = (row: StageTableRow) =>
+  row.stage === "DEPLOYED" ? 0 : Math.min(row.inStageNow, Math.max(0, row.overdue + row.overdueEstimated));
+
+const overduePct = (late: number, total: number) => `${Math.round((late / total) * 100)}%`;
 
 const overdueText = (row: StageTableRow) =>
   row.overdueEstimated > 0 ? `${row.overdue} + ${row.overdueEstimated} estimated` : String(row.overdue);
@@ -32,8 +35,9 @@ const limitText = (row: StageTableRow) =>
 const ROW_GRID = "grid grid-cols-[7.5rem_minmax(0,1fr)_7.5rem] items-center gap-x-3 sm:grid-cols-[9rem_minmax(0,1fr)_7.5rem]";
 
 /**
- * The pipeline from application to start as one bar per stage, in one colour. The bar is how many candidates are in
- * the stage now; the part past the limit sits at the end in red, with the word. Exact values are under View as table.
+ * The pipeline from application to start as one bar per stage. The full bar is how many candidates are in the stage
+ * now (every bar on the same scale); the part past the limit is red, the rest is the on-track blue. Exact values are
+ * under View as table.
  */
 export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStage, linkStages = false, footer }) => {
   const empty = rows.every((r) => r.inStageNow === 0 && r.entered === 0 && r.backedOut === 0);
@@ -45,12 +49,26 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
         <p className="p-4 text-center text-xs text-slate-600 font-sans">No candidates in the pipeline and none moved in these dates.</p>
       ) : (
         <div className="p-3.5">
-          <p className="mb-1.5 text-xs font-sans text-slate-600">Candidates in each stage today.</p>
+          <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs font-sans text-slate-600">
+            <p>How many candidates are in each stage right now. Red is the part past the stage&apos;s days allowed.</p>
+            <div className="flex items-center gap-3" data-testid="stage-legend">
+              {[
+                ["On track", BAR_ON_TRACK],
+                ["Overdue", WORKLOAD.overdue],
+              ].map(([name, color]) => (
+                <span key={name} className="flex items-center gap-1">
+                  <span aria-hidden="true" className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: color }} />
+                  {name}
+                </span>
+              ))}
+            </div>
+          </div>
           <ol>
             {rows.map((row, i) => {
-              const late = row.stage === "DEPLOYED" ? 0 : row.overdue + row.overdueEstimated;
+              const late = overdueIn(row);
               const name = row.label;
-              const summary = `${name}, ${row.inStageNow}${late > 0 ? ` · ${late} overdue` : ""}`;
+              const share = late > 0 ? `${late} overdue (${overduePct(late, row.inStageNow)})` : "";
+              const summary = `${name}, ${row.inStageNow}${share ? ` · ${share}` : ""}`;
               const link = linkStages && row.stage !== "APPLIED" && row.stage !== "DEPLOYED";
               const pick = !link && !!onSelectStage && late > 0;
               const label = link || pick ? `${summary}. Show these candidates` : summary;
@@ -63,13 +81,13 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
                     heightClass="h-3"
                     max={maxInStage}
                     segments={[
-                      { key: "ok", label: "within limit", value: row.inStageNow - late, color: barColor(row.stage) },
+                      { key: "ok", label: "on track", value: Math.max(0, row.inStageNow - late), color: BAR_ON_TRACK },
                       { key: "late", label: "overdue", value: late, color: WORKLOAD.overdue },
                     ]}
                   />
                   <span className="whitespace-nowrap text-right text-xs font-sans tabular-nums text-slate-700">
                     <strong className="text-slate-950">{row.inStageNow}</strong>
-                    {late > 0 && <span className={`font-semibold ${TEXT_LOSS}`}> · {late} overdue</span>}
+                    {late > 0 && <span className={`font-semibold ${TEXT_LOSS}`}> · {share}</span>}
                   </span>
                 </>
               );
