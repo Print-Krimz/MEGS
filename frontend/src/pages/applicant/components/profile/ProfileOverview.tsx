@@ -1,6 +1,7 @@
 import React from "react";
 import { Camera, Lock } from "lucide-react";
-import { Button } from "../../../../components/ui";
+import { Button, Dialog } from "../../../../components/ui";
+import { PrivacyNoticeSections } from "../../../../components/public/PrivacyNoticeSections";
 import { Checkbox } from "../../../../components/shadcn/checkbox";
 import { isTouchDevice, shrinkImage } from "../../../../lib/camera-capture";
 import { ProfileHealthMeter } from "../../../../components/applicant/ProfileHealthMeter";
@@ -49,6 +50,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
   skills,
 }) => {
   const [isDragging, setIsDragging] = React.useState(false);
+  const [privacyNoticeOpen, setPrivacyNoticeOpen] = React.useState(false);
   const fullName = [profile?.firstName, profile?.middleName, profile?.lastName].filter(Boolean).join(" ") || "Your candidate profile";
 
   const handleDragOver = (e: React.DragEvent<HTMLElement>) => {
@@ -163,7 +165,14 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
             />
             <label htmlFor="resume-privacy-consent" className="text-sm leading-relaxed text-[#102A43]">
               I have read and understood the{" "}
-              <a href="/privacy" target="_blank" rel="noreferrer" className="font-semibold text-[#0B315D] underline underline-offset-2">Data Privacy Notice</a>{" "}
+              <button
+                type="button"
+                onClick={() => setPrivacyNoticeOpen(true)}
+                aria-haspopup="dialog"
+                className="rounded font-semibold text-[#0B315D] underline underline-offset-2 hover:text-[#082747] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+              >
+                Data Privacy Notice
+              </button>{" "}
               and I consent to MEGS collecting and processing my personal information from my job application. I understand that my uploaded resume is read by Google's Gemini AI service to fill in my profile automatically.
               {!privacyConsented && <span aria-hidden="true" className="text-red-600"> *</span>}
             </label>
@@ -272,6 +281,27 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
         </div>
       </dl>
     </section>
+
+    <Dialog
+      open={privacyNoticeOpen}
+      onClose={() => setPrivacyNoticeOpen(false)}
+      title="Data Privacy Notice"
+      size="lg"
+      closeOnBackdrop
+    >
+      <PrivacyNoticeSections headingLevel="h3" />
+      <div className="mt-5 flex flex-col-reverse gap-3 border-t border-[#D9E2EC] pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <a
+          href="/privacy"
+          target="_blank"
+          rel="noreferrer"
+          className="min-h-11 inline-flex items-center rounded text-sm font-semibold text-[#0B315D] underline underline-offset-2 hover:text-[#082747] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+        >
+          View full Privacy Notice<span className="sr-only"> (opens in a new tab)</span>
+        </a>
+        <Button type="button" variant="outline" onClick={() => setPrivacyNoticeOpen(false)}>Close</Button>
+      </div>
+    </Dialog>
   </div>
   );
 };

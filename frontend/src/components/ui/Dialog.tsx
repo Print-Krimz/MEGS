@@ -12,6 +12,8 @@ export interface DialogProps {
   className?: string;
   bodyClassName?: string;
   overflowVisible?: boolean;
+  /** Clicking the dimmed area closes the dialog. Off by default so forms are never lost to a stray click. */
+  closeOnBackdrop?: boolean;
   /** For dialogs that render their own heading instead of `title`. */
   ariaLabelledBy?: string;
   ariaDescribedBy?: string;
@@ -152,6 +154,7 @@ export const Dialog: React.FC<DialogProps> = ({
   className,
   bodyClassName,
   overflowVisible,
+  closeOnBackdrop,
   ariaLabelledBy,
   ariaDescribedBy,
 }) => {
@@ -176,6 +179,7 @@ export const Dialog: React.FC<DialogProps> = ({
       aria-modal="true"
       aria-labelledby={title ? titleId : ariaLabelledBy}
       aria-describedby={description ? descriptionId : ariaDescribedBy}
+      onMouseDown={closeOnBackdrop ? (e) => { if (e.target === e.currentTarget) onClose(); } : undefined}
     >
       <div
         ref={dialogRef}
