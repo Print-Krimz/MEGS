@@ -19,10 +19,12 @@ interface OperationsWorkspaceProps<K extends string> {
   showCounts?: boolean;
   /** Anchor id for scrolling to the workspace. */
   id?: string;
+  /** Shown above the tabs, so it stays visible whichever tab is open. */
+  banner?: React.ReactNode;
 }
 
 /** One framed workspace with a tab for each long list, so the page does not stack three lists one under another. */
-export function OperationsWorkspace<K extends string>({ tabs, active, onChange, showCounts = true, id = "operations" }: OperationsWorkspaceProps<K>) {
+export function OperationsWorkspace<K extends string>({ tabs, active, onChange, showCounts = true, id = "operations", banner }: OperationsWorkspaceProps<K>) {
   const refs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const onKeyDown = (event: React.KeyboardEvent, index: number) => {
@@ -37,6 +39,7 @@ export function OperationsWorkspace<K extends string>({ tabs, active, onChange, 
 
   return (
     <section id={id} aria-label="Operations workspace" className="scroll-mt-4 border border-slate-300 bg-white">
+      {banner}
       <div role="tablist" aria-label="Lists to work through" className="flex overflow-x-auto border-b border-slate-300 bg-slate-100">
         {tabs.map((tab, index) => {
           const selected = tab.key === active;

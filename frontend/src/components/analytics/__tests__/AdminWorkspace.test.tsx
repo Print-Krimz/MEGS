@@ -303,6 +303,32 @@ describe("admin lists", () => {
     expect(screen.getByRole("link", { name: "Candidate 2" })).toBeDefined();
   });
 
+  it("StuckList search filters by candidate, job, client and recruiter, and says when nothing matches", () => {
+    const rows = [
+      stuck(1, { candidateName: "Maria Santos", clientName: "Acme", jobTitle: "Welder", recruiterName: "Alice" }),
+      stuck(2, { candidateName: "Juan Cruz", clientName: "Globex", jobTitle: "Driver", recruiterName: "Bea" }),
+    ];
+    render(<StuckList rows={rows} total={2} />);
+    const box = screen.getByRole("searchbox", { name: /Search/ });
+    fireEvent.change(box, { target: { value: "maria" } });
+    expect(screen.getByRole("link", { name: "Maria Santos" })).toBeDefined();
+    expect(screen.queryByRole("link", { name: "Juan Cruz" })).toBeNull();
+    fireEvent.change(box, { target: { value: "globex" } });
+    expect(screen.getByRole("link", { name: "Juan Cruz" })).toBeDefined();
+    fireEvent.change(box, { target: { value: "DRIVER" } });
+    expect(screen.getByRole("link", { name: "Juan Cruz" })).toBeDefined();
+    fireEvent.change(box, { target: { value: "alice" } });
+    expect(screen.getByRole("link", { name: "Maria Santos" })).toBeDefined();
+    fireEvent.change(box, { target: { value: "zzz" } });
+    expect(screen.getByText("No overdue candidates match “zzz”.")).toBeDefined();
+  });
+
+  it("StuckList search ignores the recruiter when the recruiter is not shown", () => {
+    render(<StuckList rows={[stuck(1, { recruiterName: "Alice" })]} total={1} showRecruiter={false} />);
+    fireEvent.change(screen.getByRole("searchbox", { name: /Search/ }), { target: { value: "alice" } });
+    expect(screen.getByText("No overdue candidates match “alice”.")).toBeDefined();
+  });
+
   it("StuckList in-text links are underlined and closed openings sit in the caption", () => {
     render(<StuckList rows={[stuck(1)]} total={1} closedOpenings={2} />);
     expect(screen.getByRole("link", { name: "Candidate 1" }).className).toContain("underline");

@@ -246,6 +246,27 @@ describe("AdminAnalyticsPage", () => {
     expect(screen.getByRole("tab", { name: /Client requests/ }).getAttribute("aria-selected")).toBe("true");
   });
 
+  it("shows a recruiter banner above the tabs and Clear removes the recruiter filter", async () => {
+    searchMock.value = { recruiterId: "ta-1" };
+    vi.mocked(adminApi.getDashboardSummary).mockResolvedValue({
+      ...DASHBOARD,
+      filterOptions: { ...DASHBOARD.filterOptions, recruiters: [{ id: "ta-1", email: "alice@x.com", name: "Alice Reyes" }] },
+    } as never);
+    renderPage();
+    const banner = await screen.findByText(/Filtered by recruiter/);
+    expect(banner.closest("[role=status]")?.textContent).toContain("Alice Reyes");
+    navigateMock.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Clear recruiter filter" }));
+    const call = navigateMock.mock.calls[0][0];
+    expect(call.search.recruiterId).toBeUndefined();
+  });
+
+  it("shows no recruiter banner without a recruiter filter", async () => {
+    renderPage();
+    await screen.findByText("Candidates by stage");
+    expect(screen.queryByText(/Filtered by recruiter/)).toBeNull();
+  });
+
   it("falls back to the default report when the search is invalid", async () => {
     searchMock.value = { range: "forever", clientId: "abc", tab: "nope", health: "x" };
     renderPage();

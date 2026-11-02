@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "@tanstack/react-router";
+import { ChevronRight } from "lucide-react";
 import type { StageTableRow } from "../../lib/types/analytics.types";
 import type { ApplicationStatus } from "../../lib/types/enums";
 import { BAR_ON_TRACK, TEXT_LOSS, WORKLOAD } from "../../lib/chart-palette";
@@ -32,7 +33,7 @@ const waitText = (row: StageTableRow) =>
 const limitText = (row: StageTableRow) =>
   row.stage === "DEPLOYED" ? "None" : row.stage === "CLIENT_ENDORSEMENT" ? "Set per client" : `${row.slaDays} days`;
 
-const ROW_GRID = "grid grid-cols-[7.5rem_minmax(0,1fr)_7.5rem] items-center gap-x-3 sm:grid-cols-[9rem_minmax(0,1fr)_7.5rem]";
+const ROW_GRID = "grid grid-cols-[7.5rem_minmax(0,1fr)_7.5rem] items-center gap-x-3 sm:grid-cols-[9rem_minmax(0,1fr)_13rem]";
 
 /**
  * The pipeline from application to start as one bar per stage. The full bar is how many candidates are in the stage
@@ -88,6 +89,12 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
                   <span className="whitespace-nowrap text-right text-xs font-sans tabular-nums text-slate-700">
                     <strong className="text-slate-950">{row.inStageNow}</strong>
                     {late > 0 && <span className={`font-semibold ${TEXT_LOSS}`}> · {share}</span>}
+                    {pick && (
+                      <span aria-hidden="true" className="ml-1 inline-flex items-center text-xs font-semibold text-navy">
+                        <span className="hidden sm:inline">Show</span>
+                        <ChevronRight size={14} className="shrink-0" />
+                      </span>
+                    )}
                   </span>
                 </>
               );
@@ -100,7 +107,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
                       {content}
                     </Link>
                   ) : pick ? (
-                    <button type="button" aria-label={label} onClick={() => onSelectStage?.(row.stage)} className={`${frame} ${hover}`}>
+                    <button type="button" aria-label={label} onClick={() => onSelectStage?.(row.stage)} className={`${frame} ${hover} cursor-pointer`}>
                       {content}
                     </button>
                   ) : (

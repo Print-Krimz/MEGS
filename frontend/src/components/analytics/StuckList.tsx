@@ -71,24 +71,30 @@ export const StuckList = React.memo(function StuckList({
   const [urgency, setUrgency] = useState<"ALL" | "critical">("ALL");
   const [stage, setStage] = useState("ALL");
   const [page, setPage] = useState(1);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     if (!focus) return;
     setUrgency(focus.urgency ?? "ALL");
     setStage(focus.stage ?? "ALL");
+    setQuery("");
     setPage(1);
   }, [focus?.nonce, focus?.urgency, focus?.stage]);
 
   const stages = useMemo(() => [...new Map(rows.map((r) => [r.stage, r.stageLabel])).entries()], [rows]);
   const criticalCount = rows.filter((r) => r.urgency === "critical").length;
 
+  const needle = query.trim().toLowerCase();
   const visible = useMemo(
     () =>
       rows.filter(
         (r) =>
-          (urgency === "ALL" || r.urgency === "critical") && (stage === "ALL" || r.stage === stage)
+          (urgency === "ALL" || r.urgency === "critical") &&
+          (stage === "ALL" || r.stage === stage) &&
+          (!needle ||
+            [r.candidateName, r.jobTitle, r.clientName, withRecruiter ? r.recruiterName : ""].some((v) => (v ?? "").toLowerCase().includes(needle)))
       ),
-    [rows, urgency, stage]
+    [rows, urgency, stage, needle, withRecruiter]
   );
 
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
@@ -131,13 +137,28 @@ export const StuckList = React.memo(function StuckList({
               ))}
             </select>
           </label>
+          <label className="flex w-full items-center gap-2 text-xs text-slate-700 sm:ml-auto sm:w-auto">
+            <span className="text-xs font-semibold text-slate-600">Search</span>
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setPage(1);
+              }}
+              placeholder={withRecruiter ? "Candidate, job, client or recruiter" : "Candidate, job or client"}
+              className="min-h-9 w-full border border-slate-300 bg-white px-2.5 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:w-56"
+            />
+          </label>
         </div>
       )}
 
       {rows.length === 0 ? (
         <p className="p-6 text-center text-xs text-slate-500 font-sans">No one is past the days allowed.</p>
       ) : pageRows.length === 0 ? (
-        <p className="p-6 text-center text-xs text-slate-500 font-sans">No match. Change the filters.</p>
+        <p className="p-6 text-center text-xs text-slate-500 font-sans">
+          {needle ? `No overdue candidates match “${query.trim()}”.` : "No match. Change the filters."}
+        </p>
       ) : (
         <ul className="divide-y divide-slate-200">
           {pageRows.map((r, i) => {

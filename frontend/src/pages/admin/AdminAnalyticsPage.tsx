@@ -30,6 +30,8 @@ import {
 import type { AnalyticsFilterState } from "../../lib/types/analytics.types";
 import { formatDate } from "../../lib/utils";
 import { scrollToId } from "../../lib/scroll-to";
+import { formatRecruiterName } from "../../lib/recruiter-label";
+import { X } from "lucide-react";
 
 const plural = (count: number, word: string) => (count === 1 ? word : `${word}s`);
 
@@ -183,6 +185,13 @@ export const AdminAnalyticsPage: React.FC = () => {
   const data = dashboardQuery.data;
   const { kpis } = data;
   const label = rangeText(data.dateRange.startDate, data.dateRange.endDate);
+  const recruiterName = filters.recruiterId
+    ? formatRecruiterName(
+        data.filterOptions.recruiters.find((r) => r.id === filters.recruiterId)?.name ||
+          data.team.find((t) => t.recruiterId === filters.recruiterId)?.name ||
+          data.filterOptions.recruiters.find((r) => r.id === filters.recruiterId)?.email
+      ).label
+    : "";
   // Each count uses the same predicate and the same rows as the list it opens, so N here is N rows there.
   const isEmpty =
     kpis.activeApplicants === 0 && kpis.requisitions.total === 0 && kpis.placementsStarted === 0 && data.backouts.backouts === 0 && data.backouts.withdrawals === 0;
@@ -279,6 +288,24 @@ export const AdminAnalyticsPage: React.FC = () => {
           />
 
           <OperationsWorkspace<WorkspaceKey>
+            banner={
+              filters.recruiterId ? (
+                <div role="status" className="flex items-center justify-between gap-3 border-b border-navy-line bg-navy-soft px-3 py-2 text-xs text-slate-800">
+                  <span>
+                    Filtered by recruiter: <strong>{recruiterName}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Clear recruiter filter"
+                    onClick={() => selectRecruiter(undefined)}
+                    className="inline-flex min-h-11 items-center gap-1 px-2 font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9"
+                  >
+                    <X size={14} aria-hidden="true" />
+                    Clear
+                  </button>
+                </div>
+              ) : undefined
+            }
             active={tab}
             onChange={setTab}
             tabs={[
