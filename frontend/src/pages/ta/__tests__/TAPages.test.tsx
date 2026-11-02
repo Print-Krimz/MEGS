@@ -825,7 +825,7 @@ describe("Talent Acquisition Interface Suite", () => {
     expect(screen.queryByText(/Pending work/)).toBeNull();
     expect(screen.queryByText("In period")).toBeNull();
     expect(screen.queryByRole("tab", { name: /Pending/ })).toBeNull();
-    expect(screen.getByText("Client answers: 3 accepted · 1 declined")).toBeDefined();
+    expect(screen.getByText("Client answers: 3 accepted, 1 declined")).toBeDefined();
   });
 
   it("links the tasks chip to the Overview and the late requests chip to the requests tab", async () => {
@@ -876,7 +876,8 @@ describe("Talent Acquisition Interface Suite", () => {
       backouts: { ...base.backouts, backouts: 0, withdrawals: 0 },
     } as never);
     renderWithClient(<AnalyticsPage />);
-    expect(await screen.findByText("Nothing recorded for these dates.")).toBeDefined();
+    expect(await screen.findByText("Nothing recorded for these dates. Try a longer range.")).toBeDefined();
     expect(screen.queryByText("Candidates by stage")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Needs action" })).toBeNull();
   });
 });

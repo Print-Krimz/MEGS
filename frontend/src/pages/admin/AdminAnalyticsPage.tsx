@@ -37,6 +37,8 @@ const KPI_DEFINITIONS = [
   { label: "Starts", definition: "Workers who started work." },
   { label: "Days to fill", definition: "Typical days from request opened to worker start." },
   { label: "Backout rate", definition: "Workers who backed out after client review, out of those plus starts." },
+  { label: "Critical wait", definition: "Overdue by twice the days allowed or more." },
+  { label: "Overdue request", definition: "Open request past its target date, or due within 7 days with too few candidates." },
 ];
 
 const rangeText = (start: string, end: string) => `${formatDate(start)} to ${formatDate(end)}`;
@@ -131,9 +133,14 @@ export const AdminAnalyticsPage: React.FC = () => {
     update({ tab: "requests", health, urgency: undefined, stage: undefined });
   };
 
+  const asOf = dashboardQuery.dataUpdatedAt
+    ? `As of ${new Date(dashboardQuery.dataUpdatedAt).toLocaleString("en-PH", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}`
+    : undefined;
+
   const header = (
     <PageHeader
       title="Reports"
+      description={asOf}
       flush
       breadcrumbs={[{ label: "Administration", href: "/admin" }, { label: "Reports" }]}
       actions={
@@ -154,7 +161,7 @@ export const AdminAnalyticsPage: React.FC = () => {
         <AnalyticsFilterBar filters={filters} onChange={setFilters} showClientFilter showRecruiterFilter />
         <div className="h-11 animate-pulse border border-slate-300 bg-white" aria-hidden="true" />
         <LoadingState variant="cards" rows={4} className="lg:grid-cols-4" />
-        <LoadingState variant="cards" rows={2} className="md:grid-cols-2 lg:grid-cols-2" />
+        <div className="h-60 animate-pulse border border-slate-300 bg-white" aria-hidden="true" />
         <LoadingState variant="table" rows={4} />
       </div>
     );
@@ -192,55 +199,66 @@ export const AdminAnalyticsPage: React.FC = () => {
       </p>
 
       <div className={`space-y-5 transition-opacity ${dashboardQuery.isFetching ? "opacity-70" : ""}`}>
-      <AttentionStrip
-        items={[
-          { key: "critical", count: kpis.criticalCandidates, label: plural(kpis.criticalCandidates, "critical wait"), href: "#operations", onSelect: () => showWaiting({ urgency: "critical" }) },
-          { key: "late", count: kpis.lateRequests, label: `overdue or at-risk ${plural(kpis.lateRequests, "request")}`, href: "#operations", onSelect: () => showRequests("LATE") },
-          { key: "stale", count: kpis.staleFilledRequisitions, label: `${plural(kpis.staleFilledRequisitions, "request")} marked filled with no start`, href: "#requests-note", onSelect: () => showRequests("ALL") },
-        ]}
-      />
-
-      <section aria-label="Headline numbers">
-        <h2 className="sr-only">Headline numbers</h2>
-        <KpiRow definitions={KPI_DEFINITIONS}>
-          <KpiGroup label="Right now">
-            <AnalyticsKpi
-              label="Seats filled"
-              value={formatSampled(kpis.fillRate, kpis.requestedSeats, "%")}
-              detail={`${kpis.filledSeats} of ${kpis.requestedSeats} seats · ${kpis.openSeats} open`}
-              href="#operations"
-              onClick={() => showRequests("ALL")}
-            />
-          </KpiGroup>
-          <KpiGroup label="In these dates">
-            <AnalyticsKpi
-              label="Starts"
-              value={kpis.placementsStarted}
-              detail={`${kpis.newStarts} new · ${kpis.redeployStarts} redeployed`}
-              href="#trend"
-            />
-            <AnalyticsKpi
-              label="Days to fill"
-              value={formatSampled(kpis.medianDaysToFill, kpis.daysToFillSample, "days")}
-              detail={kpis.daysToFillSample === 0 ? "No starts" : `Median, ${kpis.daysToFillSample} ${kpis.daysToFillSample === 1 ? "start" : "starts"}`}
-            />
-            <AnalyticsKpi
-              label="Backout rate"
-              value={formatSampled(kpis.backoutRate, kpis.backoutRateBase, "%")}
-              detail={`${kpis.backoutsAfterClientReview} of ${kpis.backoutRateBase} backed out after client review`}
-              href="#backouts"
-            />
-          </KpiGroup>
-        </KpiRow>
-      </section>
-
       {isEmpty ? (
-        <p className="border border-slate-300 bg-white p-6 text-center text-sm font-sans text-slate-700">Nothing recorded for these dates.</p>
+        <div className="border border-slate-300 bg-white p-6 text-center text-sm font-sans text-slate-700">
+          <p>Nothing recorded for these dates. Try a longer range.</p>
+          {filters.range === "7d" && (
+            <button
+              type="button"
+              onClick={() => setFilters({ ...filters, range: "30d" })}
+              className="mt-3 inline-flex min-h-11 items-center border border-navy px-3 text-xs font-semibold text-navy hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9"
+            >
+              Last 30 days
+            </button>
+          )}
+        </div>
       ) : (
         <>
+          <AttentionStrip
+            items={[
+              { key: "critical", count: kpis.criticalCandidates, label: plural(kpis.criticalCandidates, "critical wait"), href: "#operations", onSelect: () => showWaiting({ urgency: "critical" }) },
+              { key: "late", count: kpis.lateRequests, label: `overdue or at-risk ${plural(kpis.lateRequests, "request")}`, href: "#operations", onSelect: () => showRequests("LATE") },
+              { key: "stale", count: kpis.staleFilledRequisitions, label: `${plural(kpis.staleFilledRequisitions, "request")} filled with no start`, href: "#requests-note", tone: "watch", onSelect: () => showRequests("ALL") },
+            ]}
+          />
+
+          <section aria-label="Headline numbers">
+            <h2 className="sr-only">Headline numbers</h2>
+            <KpiRow definitions={KPI_DEFINITIONS}>
+              <KpiGroup label="Right now">
+                <AnalyticsKpi
+                  label="Seats filled"
+                  value={kpis.requestedSeats === 0 ? "No seats" : formatSampled(kpis.fillRate, kpis.requestedSeats, "%")}
+                  detail={kpis.requestedSeats === 0 ? "No open requests" : `${kpis.filledSeats} of ${kpis.requestedSeats} filled · ${kpis.openSeats} open`}
+                  href="#operations"
+                  onClick={() => showRequests("ALL")}
+                />
+              </KpiGroup>
+              <KpiGroup label="In these dates">
+                <AnalyticsKpi
+                  label="Starts"
+                  value={kpis.placementsStarted}
+                  detail={`${kpis.newStarts} new · ${kpis.redeployStarts} redeployed`}
+                  href="#trend"
+                />
+                <AnalyticsKpi
+                  label="Days to fill"
+                  value={formatSampled(kpis.medianDaysToFill, kpis.daysToFillSample, "days")}
+                  detail={kpis.daysToFillSample === 0 ? "No starts" : `Typical, from ${kpis.daysToFillSample} ${kpis.daysToFillSample === 1 ? "start" : "starts"}`}
+                />
+                <AnalyticsKpi
+                  label="Backout rate"
+                  value={formatSampled(kpis.backoutRate, kpis.backoutRateBase, "%")}
+                  detail={`${kpis.backoutsAfterClientReview} of ${kpis.backoutRateBase} backed out after client review`}
+                  href="#backouts"
+                />
+              </KpiGroup>
+            </KpiRow>
+          </section>
+
           <StagePipeline
             rows={data.stageTable}
-            footer={`Client answers: ${data.clientDecisions.accepted} accepted · ${data.clientDecisions.declined} declined`}
+            footer={`Client answers: ${data.clientDecisions.accepted} accepted, ${data.clientDecisions.declined} declined`}
             onSelectStage={(stage) => {
               showWaiting({ stage });
               scrollToWorkspace();
@@ -250,10 +268,10 @@ export const AdminAnalyticsPage: React.FC = () => {
           <LineChart
             id="trend"
             title="Results over time"
-            subtitle={`${data.trend.granularity === "day" ? "Daily" : data.trend.granularity === "week" ? "Weekly" : "Monthly"}, ${label}. Backouts are people who left after the client reviewed them.`}
+            subtitle={`${data.trend.granularity === "day" ? "Daily" : data.trend.granularity === "week" ? "Weekly" : "Monthly"}. Backouts are people who left after the client reviewed them.`}
             points={data.trend.points.map((p) => ({ label: p.label, values: { starts: p.starts, backouts: p.backouts } }))}
-            series={[{ key: "starts", label: "Starts" }, { key: "backouts", label: "Backouts" }]}
-            emptyText="No starts or backouts in this period."
+            series={[{ key: "starts", label: "Starts" }, { key: "backouts", label: "Backed out" }]}
+            emptyText="No starts or backouts in these dates."
           />
 
           <OperationsWorkspace<WorkspaceKey>

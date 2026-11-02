@@ -145,10 +145,66 @@ describe("Analytics Components Test Suite", () => {
     expect(container.querySelectorAll("details")).toHaveLength(1);
     const details = container.querySelector("details") as HTMLDetailsElement;
     expect(details.open).toBe(false);
-    expect(details.querySelector("summary")?.textContent).toBe("How these are counted");
+    expect(details.querySelector("summary")?.textContent).toContain("How these are counted");
     expect(details.textContent).toContain("Typical days from request opened to worker start.");
     expect(container.querySelector("[role=tooltip]")).toBeNull();
     expect(screen.queryByRole("button", { name: /About/ })).toBeNull();
+  });
+
+  it("lays every tile out in one equal-width grid, with each group spanning its tile count", () => {
+    const { container } = render(
+      <KpiRow definitions={[]}>
+        <KpiGroup label="Right now">
+          <AnalyticsKpi label="Seats filled" value="40%" />
+        </KpiGroup>
+        <KpiGroup label="In these dates">
+          <AnalyticsKpi label="Starts" value={5} />
+          <AnalyticsKpi label="Days to fill" value="4 days" />
+          <AnalyticsKpi label="Backout rate" value="17%" />
+        </KpiGroup>
+      </KpiRow>
+    );
+    const row = container.firstElementChild!.firstElementChild as HTMLElement;
+    expect(row.className).toContain("grid");
+    expect(row.className).toContain("md:grid-cols-4");
+    expect(row.className).not.toContain("flex");
+    expect(screen.getByRole("region", { name: "Right now" }).className).toContain("md:col-span-1");
+    expect(screen.getByRole("region", { name: "In these dates" }).className).toContain("md:col-span-3");
+    const summary = container.querySelector("summary")!;
+    expect(summary.className).toContain("underline");
+    expect(summary.querySelector("[aria-hidden=true]")).not.toBeNull();
+  });
+
+  it("renders words in small type and numbers, percents and days as headlines", () => {
+    render(
+      <>
+        <AnalyticsKpi label="A" value="Not enough data (n=2)" detail="d" />
+        <AnalyticsKpi label="B" value="No seats" />
+        <AnalyticsKpi label="C" value="62.5%" />
+        <AnalyticsKpi label="D" value="12 days" />
+        <AnalyticsKpi label="E" value={7} />
+      </>
+    );
+    const sizeOf = (label: string) => screen.getByText(label).nextElementSibling as HTMLElement;
+    expect(sizeOf("A").className).toContain("text-base");
+    expect(sizeOf("B").className).toContain("text-base");
+    for (const l of ["C", "D", "E"]) expect(sizeOf(l).className).toContain("text-3xl");
+    expect(screen.getByText("d").className).toContain("text-balance");
+  });
+
+  it("gives watch chips the amber look and overdue chips the red look", () => {
+    render(
+      <AttentionStrip
+        items={[
+          { key: "a", count: 2, label: "critical waits", href: "#x" },
+          { key: "b", count: 1, label: "tasks waiting on you", href: "#y", tone: "watch" },
+        ]}
+      />
+    );
+    expect(screen.getByRole("link", { name: /critical waits/ }).className).toContain("bg-[#FDF1F2]");
+    const watch = screen.getByRole("link", { name: /tasks waiting on you/ });
+    expect(watch.className).toContain("bg-[#FFF4DC]");
+    expect(watch.className).not.toContain("bg-[#FDF1F2]");
   });
 
   it("handles recruiter filter selection and active chip display", () => {

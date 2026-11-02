@@ -103,10 +103,39 @@ describe("AdminAnalyticsPage", () => {
     };
     vi.mocked(adminApi.getDashboardSummary).mockResolvedValue(none as never);
     renderPage();
-    expect(await screen.findByText("Nothing recorded for these dates.")).toBeDefined();
+    expect(await screen.findByText("Nothing recorded for these dates. Try a longer range.")).toBeDefined();
     expect(screen.queryByText("Candidates by stage")).toBeNull();
     expect(screen.queryByText("Why people backed out")).toBeNull();
-    expect(screen.getByRole("region", { name: "Needs action" })).toBeDefined();
+    // Zero tiles and the strip are skipped so zeros do not read as results.
+    expect(screen.queryByRole("region", { name: "Needs action" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Headline numbers" })).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Last 30 days" }).at(-1)!);
+    expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ search: expect.objectContaining({ range: "30d" }) }));
+  });
+
+  it("shows No seats when no seats were requested, and Not enough data (n=N) in small type for a hidden rate", async () => {
+    vi.mocked(adminApi.getDashboardSummary).mockResolvedValue({
+      ...DASHBOARD,
+      kpis: { ...DASHBOARD.kpis, requestedSeats: 0, filledSeats: 0, openSeats: 0, fillRate: null, backoutRate: null, backoutRateBase: 3, backoutsAfterClientReview: 1 },
+    } as never);
+    renderPage();
+    const seats = (await screen.findAllByRole("link", { name: /Seats filled/ }))[0];
+    expect(seats.textContent).toContain("No seats");
+    expect(seats.textContent).toContain("No open requests");
+    const rate = screen.getByRole("link", { name: /Backout rate/ });
+    expect(rate.textContent).toContain("Not enough data (n=3)");
+    expect(rate.querySelector(".text-base")?.textContent).toBe("Not enough data (n=3)");
+  });
+
+  it("marks the stale-request chip as a watch item and uses plain wording", async () => {
+    vi.mocked(adminApi.getDashboardSummary).mockResolvedValue({ ...DASHBOARD, kpis: { ...DASHBOARD.kpis, staleFilledRequisitions: 2 } } as never);
+    renderPage();
+    const stale = await screen.findByRole("link", { name: /requests filled with no start/ });
+    const critical = screen.getByRole("link", { name: /critical waits/ });
+    expect(stale.className).toContain("bg-[#FFF4DC]");
+    expect(critical.className).toContain("bg-[#FDF1F2]");
+    expect(screen.getByText("Typical, from 5 starts")).toBeDefined();
+    expect(screen.getByText("Client answers: 0 accepted, 0 declined")).toBeDefined();
   });
 
   it("does not colour the backout rate red at 33%", async () => {
@@ -181,7 +210,7 @@ describe("AdminAnalyticsPage", () => {
   it("lists requests marked filled with no start in the strip and opens the requests tab", async () => {
     vi.mocked(adminApi.getDashboardSummary).mockResolvedValue({ ...DASHBOARD, kpis: { ...DASHBOARD.kpis, staleFilledRequisitions: 2 } } as never);
     renderPage();
-    fireEvent.click(await screen.findByRole("link", { name: /2\s*requests marked filled with no start/ }));
+    fireEvent.click(await screen.findByRole("link", { name: /2\s*requests filled with no start/ }));
     expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ search: expect.objectContaining({ tab: "requests" }) }));
   });
 

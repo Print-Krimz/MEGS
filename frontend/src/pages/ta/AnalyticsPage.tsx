@@ -170,53 +170,63 @@ export const AnalyticsPage: React.FC = () => {
       </p>
 
       <div className={`space-y-5 transition-opacity ${dashboardQuery.isFetching ? "opacity-70" : ""}`}>
-        <AttentionStrip
-          items={[
-            { key: "overdue", count: kpis.overdueTotal, label: plural(kpis.overdueTotal, "overdue candidate"), href: "#operations", onSelect: () => showWaiting({}) },
-            // The Overview already lists the tasks, so this chip goes there instead of repeating them here.
-            { key: "tasks", count: data.pendingActionsTotal, label: `${plural(data.pendingActionsTotal, "task")} waiting on you`, href: "/ta", onSelect: () => void navigate({ to: "/ta" }) },
-            { key: "late", count: kpis.lateRequests, label: `${plural(kpis.lateRequests, "request")} overdue or at risk`, href: "#operations", onSelect: () => showRequests("LATE") },
-          ]}
-        />
-
-        <section aria-label="Headline numbers">
-          <h2 className="sr-only">Headline numbers</h2>
-          <KpiRow definitions={KPI_DEFINITIONS}>
-            <KpiGroup label="Right now">
-              <AnalyticsKpi
-                label="Overdue candidates"
-                value={kpis.overdueTotal}
-                detail={`${kpis.overdueEstimated} estimated from application date`}
-                href="#operations"
-                onClick={() => showWaiting({})}
-              />
-              {/* No link: the request list also holds filled requests, so its count would not match this tile. */}
-              <AnalyticsKpi label="Open requests" value={kpis.requisitions.open} detail={`${kpis.filledSeats} of ${kpis.requestedSeats} seats filled`} />
-            </KpiGroup>
-            <KpiGroup label="In these dates">
-              {/* No link: /ta/deployments does not accept dates or request filters. */}
-              <AnalyticsKpi
-                label="Starts"
-                value={kpis.placementsStarted}
-                detail={`Days to fill: ${formatSampled(kpis.medianDaysToFill, kpis.daysToFillSample, "days")}`}
-              />
-              <AnalyticsKpi
-                label="Backout rate"
-                value={formatSampled(kpis.backoutRate, kpis.backoutRateBase, "%")}
-                detail={`${kpis.backoutsAfterClientReview} of ${kpis.backoutRateBase} backed out after client review`}
-                href="#backouts"
-              />
-            </KpiGroup>
-          </KpiRow>
-        </section>
-
         {isEmpty ? (
-          <p className="border border-slate-300 bg-white p-6 text-center text-sm font-sans text-slate-700">Nothing recorded for these dates.</p>
+          <div className="border border-slate-300 bg-white p-6 text-center text-sm font-sans text-slate-700">
+            <p>Nothing recorded for these dates. Try a longer range.</p>
+            {filters.range === "7d" && (
+              <button
+                type="button"
+                onClick={() => setFilters({ ...filters, range: "30d" })}
+                className="mt-3 inline-flex min-h-11 items-center border border-navy px-3 text-xs font-semibold text-navy hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9"
+              >
+                Last 30 days
+              </button>
+            )}
+          </div>
         ) : (
           <>
+            <AttentionStrip
+              items={[
+                { key: "overdue", count: kpis.overdueTotal, label: plural(kpis.overdueTotal, "overdue candidate"), href: "#operations", onSelect: () => showWaiting({}) },
+                // The Overview already lists the tasks, so this chip goes there instead of repeating them here.
+                { key: "tasks", count: data.pendingActionsTotal, label: `${plural(data.pendingActionsTotal, "task")} waiting on you`, href: "/ta", tone: "watch", onSelect: () => void navigate({ to: "/ta" }) },
+                { key: "late", count: kpis.lateRequests, label: `${plural(kpis.lateRequests, "request")} overdue or at risk`, href: "#operations", onSelect: () => showRequests("LATE") },
+              ]}
+            />
+
+            <section aria-label="Headline numbers">
+              <h2 className="sr-only">Headline numbers</h2>
+              <KpiRow definitions={KPI_DEFINITIONS}>
+                <KpiGroup label="Right now">
+                  <AnalyticsKpi
+                    label="Overdue candidates"
+                    value={kpis.overdueTotal}
+                    detail={`${kpis.overdueEstimated} estimated from application date`}
+                    href="#operations"
+                    onClick={() => showWaiting({})}
+                  />
+                  {/* No link: the request list also holds filled requests, so its count would not match this tile. */}
+                  <AnalyticsKpi label="Open requests" value={kpis.requisitions.open} detail={`${kpis.filledSeats} of ${kpis.requestedSeats} seats filled`} />
+                </KpiGroup>
+                <KpiGroup label="In these dates">
+                  {/* No link: /ta/deployments does not accept dates or request filters. */}
+                  <AnalyticsKpi
+                    label="Starts"
+                    value={kpis.placementsStarted}
+                    detail={`Days to fill: ${formatSampled(kpis.medianDaysToFill, kpis.daysToFillSample, "days")}`}
+                  />
+                  <AnalyticsKpi
+                    label="Backout rate"
+                    value={formatSampled(kpis.backoutRate, kpis.backoutRateBase, "%")}
+                    detail={`${kpis.backoutsAfterClientReview} of ${kpis.backoutRateBase} backed out after client review`}
+                    href="#backouts"
+                  />
+                </KpiGroup>
+              </KpiRow>
+            </section>
             <StagePipeline
               rows={data.stageTable}
-              footer={`Client answers: ${data.clientDecisions.accepted} accepted · ${data.clientDecisions.declined} declined`}
+              footer={`Client answers: ${data.clientDecisions.accepted} accepted, ${data.clientDecisions.declined} declined`}
               onSelectStage={(picked) => {
                 showWaiting({ stage: picked });
                 scrollToWorkspace();
