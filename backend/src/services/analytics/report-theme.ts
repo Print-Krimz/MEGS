@@ -87,22 +87,22 @@ export function getReportMetadata(opts: ReportMetadataOptions): ReportMetadata {
     codePrefix = "MEGS-TA";
     if (opts.reportType === "PIPELINE") {
       typeCode = "PIP";
-      title = "MEGS — Applicant Progress Report (Recruiter)";
+      title = "MEGS — Candidates by stage (Recruiter)";
       filenameBase = `MEGS_TA_Candidate_Pipeline_Report_${dateHyphenated}`;
     } else if (opts.reportType === "DEPLOYMENT") {
       typeCode = "DEP";
-      title = "MEGS — Worker Start Report (Recruiter)";
+      title = "MEGS — Starts and backouts (Recruiter)";
       filenameBase = `MEGS_TA_Deployment_Report_${dateHyphenated}`;
     }
   } else {
     codePrefix = "MEGS-ADM";
     if (opts.reportType === "PIPELINE") {
       typeCode = "PIP";
-      title = "MEGS — Applicant Progress Report (Admin)";
+      title = "MEGS — Candidates by stage (Admin)";
       filenameBase = `MEGS_Admin_Workforce_Pipeline_Report_${dateHyphenated}`;
     } else if (opts.reportType === "DEPLOYMENT") {
       typeCode = "DEP";
-      title = "MEGS — Worker Start Report (Admin)";
+      title = "MEGS — Starts and backouts (Admin)";
       filenameBase = `MEGS_Admin_Deployment_Governance_${dateHyphenated}`;
     } else if (opts.reportType === "AUDIT") {
       typeCode = "AUD";
