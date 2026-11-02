@@ -169,10 +169,11 @@ export const AnalyticsPage: React.FC = () => {
       <AnalyticsFilterBar filters={filters} onChange={setFilters} options={data.filterOptions} showClientFilter />
 
       <p role="status" aria-live="polite" className="sr-only">
-        {dashboardQuery.isFetching ? "Updating the numbers" : ""}
+        {dashboardQuery.isPlaceholderData ? "Updating the numbers" : ""}
       </p>
 
-      <div className={`space-y-5 transition-opacity ${dashboardQuery.isFetching ? "opacity-70" : ""}`}>
+      {/* Dim only while a filter change loads (old numbers on screen), not on a quiet background refresh. */}
+      <div className={`space-y-5 transition-opacity ${dashboardQuery.isPlaceholderData ? "opacity-70" : ""}`}>
         <AttentionStrip
           items={[
             { key: "overdue", count: kpis.overdueTotal, label: plural(kpis.overdueTotal, "overdue candidate"), href: "#operations", onSelect: () => showWaiting({ urgency: "ALL" }) },
