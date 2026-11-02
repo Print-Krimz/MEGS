@@ -11,7 +11,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 import { AnalyticsFilterBar } from "../../index";
-import { AnalyticsKpi, AttentionStrip, KpiGroup, KpiRow, BackoutPanel, PlacementTrendChart, RequestProgressList, StagePipeline, StuckList, TeamTable, TeamWorkloadChart } from "../index";
+import { AnalyticsKpi, AttentionStrip, KpiGroup, KpiRow, BackoutPanel, LineChart, RequestProgressList, StagePipeline, StuckList, TeamTable } from "../index";
 import { AnimatedNumber } from "../motion";
 import type {
   AnalyticsFilterOptions,
@@ -20,7 +20,6 @@ import type {
   StageTableRow,
   StuckCandidate,
   TeamRow,
-  Trend,
 } from "../../../../lib/types/analytics.types";
 
 describe("Analytics Components Test Suite", () => {
@@ -173,7 +172,7 @@ describe("Analytics Components Test Suite", () => {
     backouts: 3,
     byParty: { APPLICANT: 3, CLIENT: 1, AGENCY: 0 },
     byStage: [{ stage: "COMPLIANCE", label: "Requirements", APPLICANT: 2, CLIENT: 1, AGENCY: 0, total: 3 }],
-    topReasons: [{ reason: "ACCEPTED_OTHER_OFFER", count: 2 }],
+    topReasons: [{ reason: "ACCEPTED_OTHER_OFFER", label: "Accepted another job offer", count: 2 }],
     noShows: 2,
     byClient: [{ clientName: "Acme", count: 3 }, { clientName: "Beta", count: 1 }],
     byRequest: [{ mrfId: 9, title: "10x Electricians", clientName: "Acme", count: 3 }],
@@ -182,31 +181,32 @@ describe("Analytics Components Test Suite", () => {
     ],
   };
 
-  it("renders backout totals, reasons and links the latest backouts to the application", () => {
-    render(<BackoutPanel data={backouts} showRecent showStageBars />);
+  it("shows one panel: two counts, no-shows as a line, who backed out in text, and reasons by label", () => {
+    render(<BackoutPanel data={{ ...backouts, noShows: 1 }} />);
+    expect(screen.getByRole("heading", { name: "Why people backed out" })).toBeDefined();
+    expect(screen.getByText("Before client review").nextElementSibling?.textContent).toContain("1");
+    expect(screen.getByText("After client review").nextElementSibling?.textContent).toContain("3");
+    expect(screen.getByText("of which 1 no-shows")).toBeDefined();
+    expect(screen.queryByText("No-shows")).toBeNull();
+    expect(screen.getByRole("img", { name: /Who backed out: Applicant 3, Client 1/ })).toBeDefined();
+    expect(screen.getByText("Applicant").parentElement?.textContent).toContain("3");
     expect(screen.getAllByText("Accepted another job offer").length).toBeGreaterThan(0);
-    expect(screen.getByLabelText(/Requirements: 2 applicant, 1 client, 0 agency/)).toBeDefined();
-    expect(screen.getByRole("link", { name: "Juan Dela Cruz" }).getAttribute("href")).toBe("/ta/applications/77");
-    expect(screen.getByRole("link", { name: "View request" }).getAttribute("href")).toBe("/ta/mrfs/9");
-    // Counts come with percentages: 3 of 4 pulled out were applicants
-    expect(screen.getByText("3 (75%)")).toBeDefined();
+    for (const gone of ["By client", "By request", "By stage", "Latest"]) expect(screen.queryByText(gone)).toBeNull();
+    expect(screen.queryByText(/Client answers/)).toBeNull();
   });
 
-  it("shows no-shows on their own and which clients and requests the backouts hit", () => {
-    render(<BackoutPanel data={backouts} />);
-    expect(screen.getByText("No-shows").nextElementSibling?.textContent).toContain("2");
-    expect(screen.getByText("By client")).toBeDefined();
-    expect(screen.getByText("10x Electricians")).toBeDefined();
-  });
-
-  it("reports client answers apart from backouts", () => {
-    render(<BackoutPanel data={backouts} clientDecisions={{ accepted: 15, declined: 2 }} />);
-    expect(screen.getByText(/Client answers/).textContent).toMatch(/15 accepted · 2 declined/);
+  it("hides the no-show line at zero, the party bar at zero, and caps reasons at five", () => {
+    const reasons = Array.from({ length: 7 }, (_, i) => ({ reason: `R${i}`, label: `Reason ${i}`, count: 7 - i }));
+    render(<BackoutPanel data={{ ...backouts, noShows: 0, byParty: { APPLICANT: 0, CLIENT: 0, AGENCY: 0 }, topReasons: reasons }} />);
+    expect(screen.queryByText(/no-shows/)).toBeNull();
+    expect(screen.queryByText("Who backed out")).toBeNull();
+    expect(screen.getByText("Reason 4")).toBeDefined();
+    expect(screen.queryByText("Reason 5")).toBeNull();
   });
 
   it("shows an empty state when nothing was recorded", () => {
     const empty: BackoutSummary = { ...backouts, withdrawals: 0, backouts: 0, byStage: [], topReasons: [], recent: [] };
-    render(<BackoutPanel data={empty} showRecent showStageBars />);
+    render(<BackoutPanel data={empty} />);
     expect(screen.getByText(/None recorded in this period/)).toBeDefined();
   });
 
@@ -240,12 +240,6 @@ describe("Analytics Components Test Suite", () => {
     expect(text).toContain("40%");
     expect(text).toContain("+2 est.");
     expect(text).toContain("3 new · 2 redeploy");
-  });
-
-  it("shows the full email when a recruiter has no name", () => {
-    const rows = [teamRow("ta-201", "ta-201-1790159306112@megs.com", { active: 5 })];
-    render(<TeamWorkloadChart rows={rows} onSelectRecruiter={vi.fn()} />);
-    expect(screen.getByRole("button", { name: "ta-201-1790159306112@megs.com" })).toBeDefined();
   });
 
   it("lists only what needs action, each scrolling to its section", async () => {
@@ -364,24 +358,33 @@ describe("Analytics Components Test Suite", () => {
     expect(screen.getByText(/No match\. Change the status or search/)).toBeDefined();
   });
 
-  const trend = (over: Partial<Trend> = {}): Trend => ({
-    granularity: "week",
-    points: Array.from({ length: 5 }, (_, i) => ({
-      start: `2026-09-${String(14 + i * 7).padStart(2, "0")}`,
-      label: `W${i + 1}`,
-      newStarts: i === 4 ? 3 : 0,
-      redeployStarts: i === 4 ? 1 : 0,
-      backouts: i === 4 ? 1 : 0,
-      withdrawals: i === 4 ? 2 : 0,
-    })),
-    ...over,
+  const linePoints = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({ label: `Oct ${13 + i}`, values: { starts: i === 0 ? 3 : i === 1 ? 3 : 0, backouts: i === n - 1 ? 4 : 0 } }));
+  const lineSeries = [{ key: "starts", label: "Starts" }, { key: "backouts", label: "Backouts" }];
+
+  it("draws two lines, names each at its end, and gives a hidden summary", () => {
+    const { container } = render(<LineChart title="Results over time" points={linePoints(4)} series={lineSeries} />);
+    expect(container.querySelectorAll("svg path")).toHaveLength(2);
+    expect(container.querySelectorAll("svg circle").length).toBe(8);
+    expect(screen.getByText("Starts 0")).toBeDefined();
+    expect(screen.getByText("Backouts 4")).toBeDefined();
+    const summary = container.querySelector("p.sr-only")?.textContent ?? "";
+    expect(summary).toContain("Starts: 6 in total, highest 3 on Oct 13.");
+    expect(summary).toContain("Backouts: 4 in total.");
+    expect(screen.getByText("View as table")).toBeDefined();
+  });
+
+  it("draws no markers with fewer than three points", () => {
+    const { container } = render(<LineChart title="Results over time" points={linePoints(2)} series={lineSeries} />);
+    expect(container.querySelectorAll("svg path")).toHaveLength(2);
+    expect(container.querySelectorAll("svg circle")).toHaveLength(0);
   });
 
   it("shows an empty state instead of an empty chart", () => {
-    const empty = trend({ points: trend().points.map((p) => ({ ...p, newStarts: 0, redeployStarts: 0, backouts: 0, withdrawals: 0 })) });
-    render(<PlacementTrendChart trend={empty} />);
-    expect(screen.getByText(/No starts, backouts or withdrawals in this period/)).toBeDefined();
-    expect(screen.queryByRole("img")).toBeNull();
+    const empty = linePoints(4).map((p) => ({ ...p, values: { starts: 0, backouts: 0 } }));
+    const { container } = render(<LineChart title="Results over time" points={empty} series={lineSeries} emptyText="No starts or backouts in this period." />);
+    expect(screen.getByText(/No starts or backouts in this period/)).toBeDefined();
+    expect(container.querySelector("svg")).toBeNull();
   });
 
   it("highlights requests with nothing moving and filters to the ones with no candidates", () => {

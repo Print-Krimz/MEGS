@@ -86,7 +86,7 @@ describe("AdminAnalyticsPage", () => {
     const stages = screen.getByText("Candidates by stage");
     const attention = screen.getByRole("region", { name: "Needs action" });
     const workspace = screen.getByRole("region", { name: "Operations workspace" });
-    const backouts = screen.getByText("Withdrawals and backouts");
+    const backouts = screen.getByText("Why people backed out");
     expect(before(kpi, stages)).toBe(true);
     expect(before(stages, attention)).toBe(true);
     expect(before(attention, workspace)).toBe(true);

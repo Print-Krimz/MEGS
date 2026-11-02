@@ -13,12 +13,11 @@ import {
   KpiGroup,
   KpiRow,
   OperationsWorkspace,
-  PlacementTrendChart,
+  LineChart,
   RequestProgressList,
   StagePipeline,
   StuckList,
   TeamTable,
-  TeamWorkloadChart,
 } from "../../components/analytics/admin";
 import type { RequestHealthFilter } from "../../components/analytics/admin";
 import {
@@ -234,10 +233,14 @@ export const AdminAnalyticsPage: React.FC = () => {
         }}
       />
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-stretch">
-        <TeamWorkloadChart rows={data.team} selectedRecruiterId={filters.recruiterId} onSelectRecruiter={selectRecruiter} />
-        <PlacementTrendChart trend={data.trend} rangeLabel={label} />
-      </div>
+      <LineChart
+        id="trend"
+        title="Results over time"
+        subtitle={`${data.trend.granularity === "day" ? "Daily" : data.trend.granularity === "week" ? "Weekly" : "Monthly"}, ${label}. Backouts are people who left after the client reviewed them.`}
+        points={data.trend.points.map((p) => ({ label: p.label, values: { starts: p.starts, backouts: p.backouts } }))}
+        series={[{ key: "starts", label: "Starts" }, { key: "backouts", label: "Backouts" }]}
+        emptyText="No starts or backouts in this period."
+      />
 
       <AttentionStrip
         items={[
@@ -276,7 +279,7 @@ export const AdminAnalyticsPage: React.FC = () => {
         ]}
       />
 
-      <BackoutPanel data={data.backouts} clientDecisions={data.clientDecisions} rangeLabel={label} showStageBars compact />
+      <BackoutPanel data={data.backouts} rangeLabel={label} />
       </div>
     </div>
   );
