@@ -12,7 +12,7 @@ import {
   addReference, deleteReference,
   addAsset, deleteAsset,
   uploadPhoto, uploadResume,
-  getResumeProposal, applyResumeMerge
+  getResumeProposal, applyResumeMerge, acceptPrivacyConsent
 } from '../../controllers/applicant/applicant.controller.js';
 
 const router = Router();
@@ -40,6 +40,7 @@ router.delete("/profile/references/:id", validate(applicantSchema.idParams), del
 router.post("/profile/assets", upload.single("file"), validate(applicantSchema.addAsset), addAsset);
 router.delete("/profile/assets/:id", validate(applicantSchema.idParams), deleteAsset);
 router.post("/profile/photo", uploadImage.single("file"), validate(applicantSchema.emptyUploadBody), uploadPhoto);
+router.post("/profile/privacy-consent", acceptPrivacyConsent);
 router.post("/profile/resume", upload.single("file"), validate(applicantSchema.emptyUploadBody), uploadResume);
 router.get("/profile/resume/proposal", getResumeProposal);
 router.post("/profile/resume/:parseId/apply", validate(applicantSchema.applyResumeMerge), applyResumeMerge);

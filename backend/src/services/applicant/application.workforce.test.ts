@@ -12,7 +12,7 @@ vi.mock("../../utils/audit.js", () => ({ logAudit: vi.fn() }));
 vi.mock("../../utils/notification.js", () => ({ notifyJobOwner: vi.fn(async () => 0), notifyOwner: vi.fn(async () => 0), sendNotification: vi.fn(), sendRoleNotification: vi.fn() }));
 vi.mock("../../workers/resume.worker.js", () => ({ enqueueResumeAnalysis: mocks.enqueue, enqueueResumeSideTask: mocks.sideTask, trackFitRevalidation: vi.fn() }));
 vi.mock("../scoring/scoring-configuration.service.js", () => ({ revalidateApplication: mocks.revalidate }));
-vi.mock("./applicant.service.js", () => ({ ensureApplicantProfile: mocks.ensureApplicantProfile, updateProfileResumeService: mocks.updateResume, processResumeExtractionService: vi.fn(), applyExtractedProfileService: vi.fn() }));
+vi.mock("./applicant.service.js", () => ({ ensureApplicantProfile: mocks.ensureApplicantProfile, PRIVACY_CONSENT_REQUIRED_MESSAGE: "consent required", updateProfileResumeService: mocks.updateResume, processResumeExtractionService: vi.fn(), applyExtractedProfileService: vi.fn() }));
 vi.mock("./resume-merge.service.js", () => ({ parseResumeToProposal: mocks.parse, fillBlanksFromParse: mocks.fill }));
 vi.mock("../ta/ta.compliance.service.js", () => ({ generateComplianceRequirementsFromMRF: mocks.generate, reuseValidSameClientDocuments: mocks.reuse }));
 import { fetchJobDetails, getActiveDeploymentStatus, fetchMyDocuments, submitApplicationService } from "./application.service.js";
@@ -27,7 +27,7 @@ beforeEach(() => {
   mocks.updateResume.mockResolvedValue(undefined); mocks.parseCount.mockResolvedValue(0);
   mocks.upload.mockResolvedValue({ url: "/api/documents/9/download", documentId: 9, sha256: "abc" });
   mocks.parse.mockResolvedValue({ id: 5, status: "PARSED" }); mocks.fill.mockResolvedValue(undefined);
-  mocks.ensureApplicantProfile.mockResolvedValue({ id: 3, resumeUrl: "private-resume" });
+  mocks.ensureApplicantProfile.mockResolvedValue({ id: 3, resumeUrl: "private-resume", dataPrivacyConsentAt: new Date() });
   mocks.application.create.mockImplementation(async ({ data }) => ({ id: 22, createdAt: new Date(), ...data }));
 });
 describe("returning worker application contract", () => {

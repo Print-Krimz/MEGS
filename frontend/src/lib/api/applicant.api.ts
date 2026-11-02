@@ -97,6 +97,9 @@ export const applicantApi = {
   uploadPhoto: (formData: FormData) =>
     api.upload<{ photoUrl: string }>("/api/applicants/profile/photo", formData),
 
+  acceptPrivacyConsent: () =>
+    api.post<{ dataPrivacyConsentAt: string }>("/api/applicants/profile/privacy-consent", {}),
+
   uploadResume: (formData: FormData) =>
     api.upload<ResumeUploadResult>("/api/applicants/profile/resume", formData),
 

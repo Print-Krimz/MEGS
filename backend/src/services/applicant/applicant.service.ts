@@ -62,6 +62,20 @@ export const ensureApplicantProfile = async (userId: string) => {
   return profile;
 };
 
+export const PRIVACY_NOTICE_VERSION = "2026-11";
+
+export const PRIVACY_CONSENT_REQUIRED_MESSAGE =
+  "Agree to the Data Privacy Notice before uploading a resume.";
+
+export const recordPrivacyConsent = async (userId: string) => {
+  await ensureApplicantProfile(userId);
+  return prisma.applicantProfile.update({
+    where: { userId },
+    data: { dataPrivacyConsentAt: new Date(), dataPrivacyConsentVersion: PRIVACY_NOTICE_VERSION },
+    select: { dataPrivacyConsentAt: true, dataPrivacyConsentVersion: true },
+  });
+};
+
 export const getApplicantProfile = async (userId: string, requesterRole: string = "APPLICANT") => {
   let profile = await prisma.applicantProfile.findUnique({
     where: { userId },

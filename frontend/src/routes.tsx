@@ -41,6 +41,7 @@ const SetupAccountPage = lazyRouteComponent(() => import("./pages/auth/SetupAcco
 const ClaimAccountPage = lazyRouteComponent(() => import("./pages/auth/ClaimAccountPage"), "ClaimAccountPage");
 const TrackPage = lazyRouteComponent(() => import("./pages/public/TrackPage"), "TrackPage");
 const OfferPage = lazyRouteComponent(() => import("./pages/public/OfferPage"), "OfferPage");
+const PrivacyPage = lazyRouteComponent(() => import("./pages/public/PrivacyPage"), "PrivacyPage");
 const CheckInPage = lazyRouteComponent(() => import("./pages/public/CheckInPage"), "CheckInPage");
 
 const ApplicantDashboard = lazyRouteComponent(() => import("./pages/applicant/ApplicantDashboard"), "ApplicantDashboard");
@@ -243,6 +244,12 @@ export const offerRoute = createRoute({
   path: "/offer/$id",
   validateSearch: parsePublicTokenSearch,
   component: OfferPage,
+});
+
+export const privacyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/privacy",
+  component: PrivacyPage,
 });
 
 // Self check-in from the MEGS poster QR, then the applicant's own status link.
@@ -718,6 +725,7 @@ const routeTree = rootRoute.addChildren([
   forbiddenRoute,
   trackRoute,
   offerRoute,
+  privacyRoute,
   checkInRoute,
   checkInStatusRoute,
   authLayoutRoute.addChildren([

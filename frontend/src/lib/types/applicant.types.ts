@@ -101,6 +101,7 @@ export interface ApplicantProfile {
   tin?: string | null;
   photoUrl?: string | null;
   resumeUrl?: string | null;
+  dataPrivacyConsentAt?: string | null;
   professionalSummary?: string | null;
   additionalNotes?: string | null;
   tattooStatus?: "NONE" | "NON_VISIBLE" | "VISIBLE" | string | null;

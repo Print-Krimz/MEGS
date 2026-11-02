@@ -117,6 +117,9 @@ export const LandingFooter: React.FC = () => {
           <p>
             © {currentYear} MAR Employment for Good Services Inc. (MEGS). All rights reserved.
           </p>
+          <Link to="/privacy" className={cn(footerLink, "text-sm")}>
+            <span className={drawLink}>Data Privacy Notice</span>
+          </Link>
         </div>
       </div>
     </footer>

@@ -1,6 +1,7 @@
 import React from "react";
 import { Camera } from "lucide-react";
 import { Button } from "../../../../components/ui";
+import { Checkbox } from "../../../../components/shadcn/checkbox";
 import { isTouchDevice, shrinkImage } from "../../../../lib/camera-capture";
 import { ProfileHealthMeter } from "../../../../components/applicant/ProfileHealthMeter";
 import type { ApplicantProfile } from "../../../../lib/types/applicant.types";
@@ -16,6 +17,9 @@ export interface ProfileOverviewProps {
   photoUploadPending: boolean;
   onResumeFile: (file: File) => void;
   resumeUploadPending: boolean;
+  privacyConsented: boolean;
+  privacyConsentPending: boolean;
+  onPrivacyConsent: () => void;
   pendingResumeCount: number;
   onViewPdf: () => void;
   onReviewResume: () => void;
@@ -34,6 +38,9 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
   photoUploadPending,
   onResumeFile,
   resumeUploadPending,
+  privacyConsented,
+  privacyConsentPending,
+  onPrivacyConsent,
   pendingResumeCount,
   onViewPdf,
   onReviewResume,
@@ -47,7 +54,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
   const handleDragOver = (e: React.DragEvent<HTMLElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!resumeUploadPending) {
+    if (!resumeUploadPending && privacyConsented) {
       e.dataTransfer.dropEffect = "copy";
       if (!isDragging) {
         setIsDragging(true);
@@ -68,7 +75,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    if (resumeUploadPending) return;
+    if (resumeUploadPending || !privacyConsented) return;
     const file = e.dataTransfer.files?.[0];
     if (file) {
       onResumeFile(file);
@@ -141,18 +148,36 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
           </div>
           {profile?.resumeUrl && <Button type="button" variant="outline" size="sm" onClick={onViewPdf}>View PDF</Button>}
         </div>
+        <div className="mt-4 border-t border-[#D9E2EC] pt-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[#0B315D]">Data privacy</p>
+          <div className="mt-2 flex items-start gap-3">
+            <Checkbox
+              id="resume-privacy-consent"
+              checked={privacyConsented}
+              disabled={privacyConsented || privacyConsentPending}
+              onCheckedChange={(checked) => { if (checked === true) onPrivacyConsent(); }}
+              className="mt-0.5"
+            />
+            <label htmlFor="resume-privacy-consent" className="text-sm leading-relaxed text-[#102A43]">
+              I have read and understood the{" "}
+              <a href="/privacy" target="_blank" rel="noreferrer" className="font-semibold text-[#0B315D] underline underline-offset-2">Data Privacy Notice</a>{" "}
+              and I consent to MEGS collecting and processing my personal information from my job application. I understand that my uploaded resume is read by Google's Gemini AI service to fill in my profile automatically.
+              {!privacyConsented && <span aria-hidden="true" className="text-red-600"> *</span>}
+            </label>
+          </div>
+        </div>
         <div className="mt-4 flex flex-col gap-3 border-t border-[#D9E2EC] pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 text-sm text-[#102A43]">
             <p className="font-semibold">{profile?.resumeUrl ? "Resume on file" : "No resume uploaded yet"}</p>
             <p className="mt-1 text-xs text-[#486581]">PDF, DOCX, or Image (PNG, JPG, WEBP) up to 5 MB. Existing profile details stay unchanged when MEGS fills empty fields.</p>
           </div>
-          <label className="inline-flex min-h-11 applicant-touch:min-h-11 md:min-h-9 shrink-0 cursor-pointer items-center justify-center rounded-md bg-[#0B315D] px-4 text-xs sm:text-sm font-medium text-white hover:bg-[#082747] focus-within:ring-2 focus-within:ring-[#0B315D] focus-within:ring-offset-2 transition-colors">
+          <label className="inline-flex min-h-11 applicant-touch:min-h-11 md:min-h-9 shrink-0 cursor-pointer has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 items-center justify-center rounded-md bg-[#0B315D] px-4 text-xs sm:text-sm font-medium text-white hover:bg-[#082747] focus-within:ring-2 focus-within:ring-[#0B315D] focus-within:ring-offset-2 transition-colors">
             <input
               data-testid="resume-autofill-upload-input"
               type="file"
               accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,image/png,image/jpeg,image/webp"
               className="sr-only"
-              disabled={resumeUploadPending}
+              disabled={resumeUploadPending || !privacyConsented}
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 event.target.value = "";
@@ -172,7 +197,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
                 accept="image/*"
                 capture="environment"
                 className="sr-only"
-                disabled={resumeUploadPending}
+                disabled={resumeUploadPending || !privacyConsented}
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   event.target.value = "";

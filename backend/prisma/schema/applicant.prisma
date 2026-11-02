@@ -47,6 +47,10 @@ model ApplicantProfile {
   // Centralized Default Resume — system remembers the last resume uploaded
   resumeUrl String?
 
+  // Data Privacy consent (resume is read by Gemini); version = notice text the applicant agreed to
+  dataPrivacyConsentAt      DateTime?
+  dataPrivacyConsentVersion String?
+
   // Professional Summary
   professionalSummary String?
 

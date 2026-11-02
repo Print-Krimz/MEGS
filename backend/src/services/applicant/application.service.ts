@@ -9,6 +9,7 @@ import { enqueueResumeAnalysis, enqueueResumeSideTask, trackFitRevalidation } fr
 import { revalidateApplication } from "../scoring/scoring-configuration.service.js";
 import {
   ensureApplicantProfile,
+  PRIVACY_CONSENT_REQUIRED_MESSAGE,
   updateProfileResumeService,
 } from './applicant.service.js';
 import { fillBlanksFromParse, parseResumeToProposal } from './resume-merge.service.js';
@@ -243,6 +244,7 @@ export const submitApplicationService = async (jobId: number, userId: string, fi
 
   if (file) {
     const profile = await ensureApplicantProfile(userId);
+    if (!profile.dataPrivacyConsentAt) throw new Error(PRIVACY_CONSENT_REQUIRED_MESSAGE);
     let uploaded: Awaited<ReturnType<typeof uploadFileToSupabaseWithInfo>>;
     try {
       uploaded = await uploadFileToSupabaseWithInfo("applicant-assets", userId, file);

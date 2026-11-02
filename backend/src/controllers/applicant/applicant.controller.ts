@@ -18,7 +18,9 @@ import {
   updateProfilePhotoService,
   updateProfileResumeService,
   ensureApplicantProfile,
-  applyExtractedProfileService
+  applyExtractedProfileService,
+  PRIVACY_CONSENT_REQUIRED_MESSAGE,
+  recordPrivacyConsent
 } from '../../services/applicant/applicant.service.js';
 import {
   applyMergeDecision,
@@ -188,8 +190,9 @@ export const uploadResume = async (req: Request, res: Response): Promise<void> =
     const file = req.file;
     if (!file) { sendError(res, "No file provided", 400); return; }
 
-    const uploaded = await uploadFileToSupabaseWithInfo("applicant-assets", req.user!.id, file);
     const profile = await ensureApplicantProfile(req.user!.id);
+    if (!profile.dataPrivacyConsentAt) { sendError(res, PRIVACY_CONSENT_REQUIRED_MESSAGE, 403); return; }
+    const uploaded = await uploadFileToSupabaseWithInfo("applicant-assets", req.user!.id, file);
     // Read the resume first so the request is not held up behind the scoring queue that a resume change starts.
     const parse = await parseResumeToProposal({
       profileId: profile.id,
@@ -217,6 +220,14 @@ export const uploadResume = async (req: Request, res: Response): Promise<void> =
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 500;
     sendError(res, error.message, statusCode);
+  }
+};
+
+export const acceptPrivacyConsent = async (req: Request, res: Response): Promise<void> => {
+  try {
+    sendSuccess(res, "Consent saved", await recordPrivacyConsent(req.user!.id));
+  } catch (error: any) {
+    sendError(res, error.message, 500);
   }
 };
 

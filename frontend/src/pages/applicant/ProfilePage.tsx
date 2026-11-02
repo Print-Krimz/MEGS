@@ -568,6 +568,12 @@ export const ProfilePage: React.FC = () => {
     },
   });
 
+  const privacyConsentMutation = useMutation({
+    mutationFn: applicantApi.acceptPrivacyConsent,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["applicant", "profile"] }),
+    onError: (err: any) => setFeedback({ type: "error", message: "Could not save your consent: " + formatErrorMessage(err) }),
+  });
+
   const applyResumeMutation = useMutation({
     mutationFn: ({ parseId, accept }: { parseId: number; accept: ResumeAccept }) =>
       applicantApi.applyResumeProposal(parseId, accept),
@@ -1101,6 +1107,9 @@ export const ProfilePage: React.FC = () => {
               photoUploadPending={uploadPhotoMutation.isPending}
               onResumeFile={handleResumeFile}
               resumeUploadPending={uploadResumeMutation.isPending}
+              privacyConsented={Boolean(profile?.dataPrivacyConsentAt)}
+              privacyConsentPending={privacyConsentMutation.isPending}
+              onPrivacyConsent={() => privacyConsentMutation.mutate()}
               pendingResumeCount={reviewProposal ? countActionable(reviewProposal.proposal) : 0}
               onViewPdf={() => {
                 if (profile?.resumeUrl) {
