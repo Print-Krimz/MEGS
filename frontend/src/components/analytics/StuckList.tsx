@@ -77,6 +77,7 @@ export const StuckList = React.memo(function StuckList({
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const [previewId, setPreviewId] = useState<number | null>(null);
+  const [previewMove, setPreviewMove] = useState(false);
 
   useEffect(() => {
     if (!focus) return;
@@ -202,10 +203,26 @@ export const StuckList = React.memo(function StuckList({
                     <span className={`text-xs font-semibold tabular-nums ${r.urgency === "critical" ? TEXT_LOSS : TEXT_AMBER}`}>
                       {r.daysOver} {r.daysOver === 1 ? "day" : "days"} over
                     </span>
+                    {!admin && (
+                      <button
+                        type="button"
+                        aria-label={`Move stage: ${r.candidateName}`}
+                        onClick={() => {
+                          setPreviewMove(true);
+                          setPreviewId(r.applicationId);
+                        }}
+                        className="inline-flex min-h-11 items-center px-1 text-xs font-semibold text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9"
+                      >
+                        Move stage
+                      </button>
+                    )}
                     <button
                       type="button"
                       aria-label={`Quick view: ${r.candidateName}`}
-                      onClick={() => setPreviewId(r.applicationId)}
+                      onClick={() => {
+                        setPreviewMove(false);
+                        setPreviewId(r.applicationId);
+                      }}
                       className="inline-flex min-h-11 items-center px-1 text-xs font-semibold text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9"
                     >
                       Quick view
@@ -259,6 +276,7 @@ export const StuckList = React.memo(function StuckList({
       <StuckPreviewDialog
         rows={visible}
         openId={previewId}
+        focusMove={previewMove}
         onSelect={setPreviewId}
         onClose={() => setPreviewId(null)}
         viewer={viewer}

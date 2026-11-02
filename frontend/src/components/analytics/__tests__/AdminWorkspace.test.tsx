@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { useState, type ReactElement } from "react";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup, within } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, within, waitFor } from "@testing-library/react";
 
 vi.mock("@tanstack/react-router", () => ({
   Link: ({ children, to, params, ...props }: any) => (
@@ -414,6 +414,19 @@ describe("admin lists", () => {
       fireEvent.click(screen.getByRole("button", { name: "Quick view: Candidate 7" }));
       return screen.getByRole("dialog");
     };
+
+    it("opens from the row's Move stage button with focus on the note", async () => {
+      apiMocks.ta.mockResolvedValue(compliance);
+      renderWithQuery(<StuckList rows={[stuck(7)]} total={1} viewer="ta" showRecruiter={false} />);
+      fireEvent.click(screen.getByRole("button", { name: "Move stage: Candidate 7" }));
+      const note = await within(screen.getByRole("dialog")).findByLabelText("Note (optional)");
+      await waitFor(() => expect(document.activeElement).toBe(note));
+    });
+
+    it("gives Admin no Move stage button", () => {
+      renderWithQuery(<StuckList rows={[stuck(7)]} total={1} viewer="admin" showRecruiter />);
+      expect(screen.queryByRole("button", { name: /^Move stage/ })).toBeNull();
+    });
 
     it("moves a recruiter's candidate with the typed note", async () => {
       apiMocks.ta.mockResolvedValue(compliance);

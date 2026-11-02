@@ -24,6 +24,8 @@ interface StuckPreviewDialogProps {
   viewer: "admin" | "ta";
   showRecruiter: boolean;
   linkState?: Record<string, unknown>;
+  /** Opened from a row's "Move stage" button: focus goes straight to the Next step section. */
+  focusMove?: boolean;
 }
 
 const BUTTON =
@@ -82,7 +84,7 @@ const DIRECT_MOVES = {
 } as const;
 
 /** Recruiter only. Same stage rules as the record page; moves that need a dialog or schedule stay on the record. */
-const NextStep: React.FC<{ applicationId: number }> = ({ applicationId }) => {
+const NextStep: React.FC<{ applicationId: number; autoFocus?: boolean }> = ({ applicationId, autoFocus }) => {
   const id = String(applicationId);
   const queryClient = useQueryClient();
   const query = useQuery({
@@ -93,6 +95,8 @@ const NextStep: React.FC<{ applicationId: number }> = ({ applicationId }) => {
   const [note, setNote] = React.useState("");
   const [movedTo, setMovedTo] = React.useState<string | null>(null);
   const statusRef = React.useRef<HTMLParagraphElement>(null);
+  const sectionRef = React.useRef<HTMLElement>(null);
+  const noteRef = React.useRef<HTMLTextAreaElement>(null);
 
   const move = useMutation({
     mutationFn: (data: { status: ApplicationStatus; reason?: string }) => taApi.updateApplicationStatus(id, data),
@@ -110,6 +114,11 @@ const NextStep: React.FC<{ applicationId: number }> = ({ applicationId }) => {
     if (movedTo) statusRef.current?.focus();
   }, [movedTo]);
 
+  const loaded = !!query.data;
+  React.useEffect(() => {
+    if (autoFocus && loaded) (noteRef.current ?? sectionRef.current)?.focus();
+  }, [autoFocus, loaded]);
+
   const app = query.data as Application | undefined;
   if (!app) return null;
   const actions = getStageActions(app, deriveApplicationFlags(app));
@@ -118,7 +127,7 @@ const NextStep: React.FC<{ applicationId: number }> = ({ applicationId }) => {
   const pending = actions.find((a) => a.kind === "status");
 
   return (
-    <section aria-label="Next step" className="mb-3 border border-slate-200 px-3 py-2">
+    <section ref={sectionRef} tabIndex={-1} aria-label="Next step" className="mb-3 border border-slate-200 px-3 py-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-focus">
       <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600">Next step</h3>
       {movedTo && (
         <p ref={statusRef} tabIndex={-1} role="status" className="py-1 text-sm text-slate-900 focus:outline-none">
@@ -130,6 +139,7 @@ const NextStep: React.FC<{ applicationId: number }> = ({ applicationId }) => {
           <label className="block text-xs font-semibold text-slate-600">
             Note (optional)
             <textarea
+              ref={noteRef}
               value={note}
               maxLength={500}
               rows={2}
@@ -164,7 +174,7 @@ const NextStep: React.FC<{ applicationId: number }> = ({ applicationId }) => {
 };
 
 /** Quick look at one overdue candidate: row facts plus the candidate's contact details, with Previous and Next through the filtered list. A recruiter can also move the candidate on one stage. */
-export const StuckPreviewDialog: React.FC<StuckPreviewDialogProps> = ({ rows, openId, onSelect, onClose, viewer, showRecruiter, linkState }) => {
+export const StuckPreviewDialog: React.FC<StuckPreviewDialogProps> = ({ rows, openId, onSelect, onClose, viewer, showRecruiter, linkState, focusMove = false }) => {
   const index = openId === null ? -1 : rows.findIndex((r) => r.applicationId === openId);
   const row = index === -1 ? null : rows[index];
   const admin = viewer === "admin";
@@ -176,7 +186,7 @@ export const StuckPreviewDialog: React.FC<StuckPreviewDialogProps> = ({ rows, op
       {row && (
         <>
           <CandidateProfile key={`profile-${row.applicationId}`} applicationId={row.applicationId} viewer={viewer} />
-          {!admin && <NextStep key={`next-${row.applicationId}`} applicationId={row.applicationId} />}
+          {!admin && <NextStep key={`next-${row.applicationId}`} applicationId={row.applicationId} autoFocus={focusMove} />}
           <dl className="divide-y divide-slate-200">
             <Fact label="Stage">{row.stageLabel}</Fact>
             <Fact label="In this stage">
