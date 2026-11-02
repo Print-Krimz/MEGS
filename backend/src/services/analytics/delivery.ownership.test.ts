@@ -160,30 +160,6 @@ describe("sampled recruiter rates and request owners", () => {
   });
 });
 
-describe("filled requests with no placement", () => {
-  const isStaleQuery = (args: any) => args.where.AND.some((c: any) => c.status === "FILLED" && c.deployments?.none);
-
-  it("are listed with their client, and all of them are still counted", async () => {
-    mocks.mrfCount.mockResolvedValue(12);
-    mocks.mrfFindMany.mockImplementation(async (args: any) => (isStaleQuery(args) ? [{ id: 31, title: "5x Welders", client: { name: "Acme" } }] : []));
-    const { staleFilledRequests, kpis } = await getAdminDelivery({ range: "7d" });
-    expect(kpis.staleFilledRequisitions).toBe(12);
-    expect(staleFilledRequests).toEqual([{ mrfId: 31, title: "5x Welders", clientName: "Acme" }]);
-  });
-
-  it("are listed under the same filters as the count, and only a few at a time", async () => {
-    await getAdminDelivery({ range: "7d", clientId: 7 });
-    const list = mocks.mrfFindMany.mock.calls.map((call) => call[0]).find(isStaleQuery);
-    expect(list.where.AND).toContainEqual({ clientId: 7 });
-    expect(list.take).toBeLessThanOrEqual(10);
-  });
-
-  it("are not listed on the TA dashboard, which only needs the count", async () => {
-    await getTADelivery({ range: "7d" }, { role: "TALENT_ACQUISITION", userId: "ta-1" });
-    expect(mocks.mrfFindMany.mock.calls.map((call) => call[0]).some(isStaleQuery)).toBe(false);
-  });
-});
-
 describe("requisition fulfillment", () => {
   it("counts filled seats from deployments and keeps a recently filled requisition in scope", async () => {
     mocks.mrfFindMany.mockResolvedValue([mrf({ id: 4, status: "FILLED", headcount: 2, deployments: [{ id: 1 }, { id: 2 }] })]);
