@@ -66,7 +66,7 @@ export function OperationsWorkspace<K extends string>({ tabs, active, onChange, 
         })}
       </div>
       {tabs.map((tab) => (
-        <div key={tab.key} role="tabpanel" id={`${id}-panel-${tab.key}`} aria-labelledby={`${id}-tab-${tab.key}`} hidden={tab.key !== active}>
+        <div key={tab.key} role="tabpanel" id={`${id}-panel-${tab.key}`} aria-labelledby={`${id}-tab-${tab.key}`} hidden={tab.key !== active} tabIndex={-1} className="focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus">
           {tab.content}
         </div>
       ))}

@@ -66,10 +66,7 @@ export const AdminAnalyticsPage: React.FC = () => {
   const [focusRequest, setFocusRequest] = useState<{ tab: WorkspaceKey; id: number } | null>(null);
   useEffect(() => {
     if (!focusRequest) return;
-    const heading = document.querySelector<HTMLElement>(`#operations-panel-${focusRequest.tab} h2`);
-    if (!heading) return;
-    heading.tabIndex = -1;
-    heading.focus({ preventScroll: true });
+    document.getElementById(`operations-panel-${focusRequest.tab}`)?.focus({ preventScroll: true });
   }, [focusRequest]);
   const { urgency, stage, health } = search;
   // Memoized so a tab switch does not re-render the 1,000-row lists through new prop objects.
@@ -123,14 +120,14 @@ export const AdminAnalyticsPage: React.FC = () => {
   const showWaiting = (focus: Omit<WaitingFocus, "nonce">) => {
     setNonce((n) => n + 1);
     setTabState("waiting");
-    setFocusRequest({ tab: "waiting", id: Date.now() });
+    setFocusRequest({ tab: "waiting", id: nonce + 1 });
     update({ tab: "waiting", urgency: focus.urgency, stage: focus.stage, health: undefined });
   };
   /** Open the client requests with a status filter applied. */
   const showRequests = (health: RequestHealthFilter) => {
     setNonce((n) => n + 1);
     setTabState("requests");
-    setFocusRequest({ tab: "requests", id: Date.now() });
+    setFocusRequest({ tab: "requests", id: nonce + 1 });
     update({ tab: "requests", health, urgency: undefined, stage: undefined });
   };
 
@@ -265,10 +262,10 @@ export const AdminAnalyticsPage: React.FC = () => {
             tabs={[
               {
                 key: "waiting",
-                label: "Waiting",
-                shortLabel: "Waiting",
+                label: "Overdue candidates",
+                shortLabel: "Overdue",
                 count: data.stuckTotal,
-                content: <StuckList bare rows={data.stuck} total={data.stuckTotal} closedOpenings={kpis.closedOpenings} focus={waitingFocus} linkState={waitingReturn} />,
+                content: <StuckList bare title="Overdue candidates" rows={data.stuck} total={data.stuckTotal} closedOpenings={kpis.closedOpenings} focus={waitingFocus} linkState={waitingReturn} />,
               },
               {
                 key: "requests",
