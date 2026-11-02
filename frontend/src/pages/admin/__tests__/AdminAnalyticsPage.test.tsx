@@ -82,9 +82,9 @@ const before = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node
 describe("AdminAnalyticsPage", () => {
   it("orders the page: KPIs, stage chart, attention strip, lists, backouts", async () => {
     renderPage();
-    const kpi = (await screen.findByText("Seats filled")).closest("a,div,article") as HTMLElement;
+    const kpi = (await screen.findAllByText("Seats filled"))[0].closest("a,div,article") as HTMLElement;
     const stages = screen.getByText("Candidates by stage");
-    const attention = screen.getByRole("region", { name: "Needs attention" });
+    const attention = screen.getByRole("region", { name: "Needs action" });
     const workspace = screen.getByRole("region", { name: "Operations workspace" });
     const backouts = screen.getByText("Withdrawals and backouts");
     expect(before(kpi, stages)).toBe(true);
@@ -93,10 +93,11 @@ describe("AdminAnalyticsPage", () => {
     expect(before(workspace, backouts)).toBe(true);
   });
 
-  it("shows the period caption and no Now or In period tags", async () => {
+  it("groups the tiles by time base and has no Now or In period tags", async () => {
     renderPage();
-    expect((await screen.findByText(/Seats and late requests: today · Others:/)).textContent).toMatch(/Oct/);
-    expect(screen.queryByText("Now")).toBeNull();
+    expect(await screen.findByText("Right now")).toBeDefined();
+    expect(screen.getByText("In these dates")).toBeDefined();
+    expect(screen.getAllByText("How these are counted")).toHaveLength(1);
     expect(screen.queryByText("In period")).toBeNull();
   });
 
@@ -116,7 +117,7 @@ describe("AdminAnalyticsPage", () => {
     expect(screen.queryByText(/Nothing needs attention/)).toBeNull();
   });
 
-  it("hides the attention strip when nothing needs it and keeps the status text screen-reader only", async () => {
+  it("says nothing needs action when nothing does and keeps the status text screen-reader only", async () => {
     const calm = {
       ...DASHBOARD,
       kpis: { ...DASHBOARD.kpis, criticalCandidates: 0, requisitions: { ...DASHBOARD.kpis.requisitions, overdue: 0 } },
@@ -125,7 +126,7 @@ describe("AdminAnalyticsPage", () => {
     vi.mocked(adminApi.getDashboardSummary).mockResolvedValue(calm as never);
     renderPage();
     await screen.findByText("Candidates by stage");
-    expect(screen.queryByRole("region", { name: "Needs attention" })).toBeNull();
+    expect(within(screen.getByRole("region", { name: "Needs action" })).getByText("Nothing needs action right now.")).toBeDefined();
     expect(screen.queryByText(/Updating the numbers/)?.className ?? "sr-only").toContain("sr-only");
   });
 

@@ -11,7 +11,7 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 import { AnalyticsFilterBar } from "../../index";
-import { AnalyticsKpi, AttentionStrip, BackoutPanel, PlacementTrendChart, RequestProgressList, StagePipeline, StuckList, TeamTable, TeamWorkloadChart } from "../index";
+import { AnalyticsKpi, AttentionStrip, KpiGroup, KpiRow, BackoutPanel, PlacementTrendChart, RequestProgressList, StagePipeline, StuckList, TeamTable, TeamWorkloadChart } from "../index";
 import { AnimatedNumber } from "../motion";
 import type {
   AnalyticsFilterOptions,
@@ -132,15 +132,22 @@ describe("Analytics Components Test Suite", () => {
     expect(screen.getByRole("button", { name: "More filters" }).getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("explains a KPI behind an (i) and to screen readers, without a line of text on the card", () => {
-    render(<AnalyticsKpi label="Days to fill" kind="period" value={4} definition="Calendar days from the request being opened to the start." />);
-    const tip = screen.getByRole("button", { name: "About Days to fill" });
-    expect(tip.getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(tip);
-    expect(tip.getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByRole("tooltip").textContent).toMatch(/Calendar days from the request being opened/);
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(tip.getAttribute("aria-expanded")).toBe("false");
+  it("states definitions once in a closed disclosure, with no tooltips on tiles", () => {
+    const { container } = render(
+      <KpiRow definitions={[{ label: "Days to fill", definition: "Typical days from request opened to worker start." }]}>
+        <KpiGroup label="In these dates">
+          <AnalyticsKpi label="Days to fill" value="4 days" detail="Median, 6 starts" />
+        </KpiGroup>
+      </KpiRow>
+    );
+    expect(screen.getByText("In these dates")).toBeDefined();
+    expect(container.querySelectorAll("details")).toHaveLength(1);
+    const details = container.querySelector("details") as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    expect(details.querySelector("summary")?.textContent).toBe("How these are counted");
+    expect(details.textContent).toContain("Typical days from request opened to worker start.");
+    expect(container.querySelector("[role=tooltip]")).toBeNull();
+    expect(screen.queryByRole("button", { name: /About/ })).toBeNull();
   });
 
   it("handles recruiter filter selection and active chip display", () => {
@@ -176,7 +183,7 @@ describe("Analytics Components Test Suite", () => {
   };
 
   it("renders backout totals, reasons and links the latest backouts to the application", () => {
-    render(<BackoutPanel data={backouts} rangeLabel="this week" showRecent showStageBars />);
+    render(<BackoutPanel data={backouts} showRecent showStageBars />);
     expect(screen.getAllByText("Accepted another job offer").length).toBeGreaterThan(0);
     expect(screen.getByLabelText(/Requirements: 2 applicant, 1 client, 0 agency/)).toBeDefined();
     expect(screen.getByRole("link", { name: "Juan Dela Cruz" }).getAttribute("href")).toBe("/ta/applications/77");
@@ -186,20 +193,20 @@ describe("Analytics Components Test Suite", () => {
   });
 
   it("shows no-shows on their own and which clients and requests the backouts hit", () => {
-    render(<BackoutPanel data={backouts} rangeLabel="this week" />);
+    render(<BackoutPanel data={backouts} />);
     expect(screen.getByText("No-shows").nextElementSibling?.textContent).toContain("2");
     expect(screen.getByText("By client")).toBeDefined();
     expect(screen.getByText("10x Electricians")).toBeDefined();
   });
 
   it("reports client answers apart from backouts", () => {
-    render(<BackoutPanel data={backouts} clientDecisions={{ accepted: 15, declined: 2 }} rangeLabel="this week" />);
+    render(<BackoutPanel data={backouts} clientDecisions={{ accepted: 15, declined: 2 }} />);
     expect(screen.getByText(/Client answers/).textContent).toMatch(/15 accepted · 2 declined/);
   });
 
   it("shows an empty state when nothing was recorded", () => {
     const empty: BackoutSummary = { ...backouts, withdrawals: 0, backouts: 0, byStage: [], topReasons: [], recent: [] };
-    render(<BackoutPanel data={empty} rangeLabel="this week" showRecent showStageBars />);
+    render(<BackoutPanel data={empty} showRecent showStageBars />);
     expect(screen.getByText(/None recorded in this period/)).toBeDefined();
   });
 
@@ -211,23 +218,23 @@ describe("Analytics Components Test Suite", () => {
   it("selects a recruiter from the team table and toggles the selection off", () => {
     const rows = [teamRow("ta-1", "Alice Recruiter", { active: 14, overdue: 3, sentToClient: 5, placed: 4, backouts: 1, backoutRate: 20, medianDaysToFill: 12 })];
     const onSelect = vi.fn();
-    const { rerender } = render(<TeamTable rows={rows} rangeLabel="this week" onSelectRecruiter={onSelect} />);
+    const { rerender } = render(<TeamTable rows={rows} onSelectRecruiter={onSelect} />);
     fireEvent.click(screen.getByRole("button", { name: "Alice Recruiter" }));
     expect(onSelect).toHaveBeenCalledWith("ta-1");
 
-    rerender(<TeamTable rows={rows} rangeLabel="this week" selectedRecruiterId="ta-1" onSelectRecruiter={onSelect} />);
+    rerender(<TeamTable rows={rows} selectedRecruiterId="ta-1" onSelectRecruiter={onSelect} />);
     fireEvent.click(screen.getByRole("button", { name: "Alice Recruiter" }));
     expect(onSelect).toHaveBeenLastCalledWith(undefined);
   });
 
   it("shows a dash instead of a fake rate when a recruiter has no placements or backouts", () => {
-    render(<TeamTable rows={[teamRow("ta-1", "Alice Recruiter", { active: 3 })]} rangeLabel="this week" onSelectRecruiter={vi.fn()} />);
+    render(<TeamTable rows={[teamRow("ta-1", "Alice Recruiter", { active: 3 })]} onSelectRecruiter={vi.fn()} />);
     expect(screen.getByRole("row", { name: /Alice Recruiter/ }).textContent).toContain("—");
   });
 
   it("shows seats filled with counts and the percentage, and the workload next to results", () => {
     const rows = [teamRow("ta-1", "Alice Recruiter", { active: 14, overdue: 3, overdueEstimated: 2, openRequisitions: 4, requestedSeats: 30, filledSeats: 12, fillRate: 40, placed: 5, newStarts: 3, redeployStarts: 2 })];
-    render(<TeamTable rows={rows} rangeLabel="this week" onSelectRecruiter={vi.fn()} />);
+    render(<TeamTable rows={rows} onSelectRecruiter={vi.fn()} />);
     const text = screen.getByRole("row", { name: /Alice Recruiter/ }).textContent;
     expect(text).toContain("12 of 30");
     expect(text).toContain("40%");
@@ -241,7 +248,7 @@ describe("Analytics Components Test Suite", () => {
     expect(screen.getByRole("button", { name: "ta-201-1790159306112@megs.com" })).toBeDefined();
   });
 
-  it("lists only what needs attention, each scrolling to its section", async () => {
+  it("lists only what needs action, each scrolling to its section", async () => {
     const scroll = vi.fn();
     const target = document.createElement("div");
     target.id = "waiting-too-long";
@@ -250,11 +257,12 @@ describe("Analytics Components Test Suite", () => {
     render(
       <AttentionStrip
         items={[
-          { id: "a", label: "critical waits", count: 3, target: "waiting-too-long", tone: "alert" },
-          { id: "b", label: "overdue requests", count: 0, target: "client-requests", tone: "alert" },
+          { key: "a", label: "critical waits", count: 3, href: "#waiting-too-long" },
+          { key: "b", label: "overdue requests", count: 0, href: "#client-requests" },
         ]}
       />
     );
+    expect(screen.getByText("Needs action")).toBeDefined();
     expect(screen.queryByText(/overdue requests/)).toBeNull();
     fireEvent.click(screen.getByRole("link", { name: /3\s*critical waits/ }));
     await waitFor(() => expect(scroll).toHaveBeenCalled());
@@ -267,30 +275,34 @@ describe("Analytics Components Test Suite", () => {
     target.id = "operations";
     target.scrollIntoView = () => calls.push("scroll");
     document.body.appendChild(target);
-    render(<AttentionStrip items={[{ id: "a", label: "overdue requests", count: 7, target: "operations", tone: "alert", onSelect: () => calls.push("select") }]} />);
+    render(<AttentionStrip items={[{ key: "a", label: "overdue requests", count: 7, href: "#operations", onSelect: () => calls.push("select") }]} />);
     fireEvent.click(screen.getByRole("link", { name: /7\s*overdue requests/ }));
     await waitFor(() => expect(calls).toEqual(["select", "scroll"]));
     target.remove();
   });
 
-  it("renders nothing when every count is zero", () => {
-    const { container } = render(<AttentionStrip items={[{ id: "a", label: "critical waits", count: 0, target: "x", tone: "alert" }]} />);
-    expect(container.firstChild).toBeNull();
-    expect(screen.queryByText(/Needs attention/)).toBeNull();
+  it("says nothing needs action when every count is zero", () => {
+    render(<AttentionStrip items={[{ key: "a", label: "critical waits", count: 0, href: "#x" }]} />);
+    expect(screen.getByText("Nothing needs action right now.")).toBeDefined();
+    expect(screen.getByText("Needs action")).toBeDefined();
+    expect(screen.queryByText(/critical waits/)).toBeNull();
   });
 
-  it("makes a KPI card a link to the records behind it, or a jump to a section", () => {
-    const { rerender } = render(<AnalyticsKpi label="Active applicants" kind="now" value={5} definition="d" to="/ta/applications" />);
+  it("makes a KPI tile a link to the records behind it, a jump to a section, or plain", () => {
+    const { rerender } = render(<AnalyticsKpi label="Active applicants" value={5} href="/ta/applications" />);
     expect(screen.getByRole("link", { name: /Active applicants/ }).getAttribute("href")).toBe("/ta/applications");
-    rerender(<AnalyticsKpi label="Overdue candidates" kind="now" value={5} definition="d" anchor="waiting-too-long" />);
+    rerender(<AnalyticsKpi label="Overdue candidates" value={5} href="#waiting-too-long" />);
     expect(screen.getByRole("link", { name: /Overdue candidates/ }).getAttribute("href")).toBe("#waiting-too-long");
-    rerender(<AnalyticsKpi label="Days to fill" kind="period" value={5} definition="d" />);
+    rerender(<AnalyticsKpi label="Seats filled" value={5} onClick={() => {}} />);
+    expect(screen.getByRole("button", { name: /Seats filled/ })).toBeDefined();
+    rerender(<AnalyticsKpi label="Days to fill" value={5} />);
     expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
   });
 
   it("pages and searches a long recruiter list, and keeps a selected recruiter visible", () => {
     const rows = Array.from({ length: 23 }, (_, i) => teamRow(`ta-${i}`, `Recruiter ${String(i).padStart(2, "0")}`, { active: i + 1 }));
-    const { rerender } = render(<TeamTable rows={rows} rangeLabel="this week" onSelectRecruiter={vi.fn()} pageSize={10} />);
+    const { rerender } = render(<TeamTable rows={rows} onSelectRecruiter={vi.fn()} pageSize={10} />);
     expect(screen.getAllByRole("button", { name: /^Recruiter \d\d$/ })).toHaveLength(10);
     expect(screen.getByText("1 to 10 of 23 recruiters")).toBeDefined();
 
@@ -306,7 +318,7 @@ describe("Analytics Components Test Suite", () => {
     expect(screen.queryByRole("navigation", { name: "recruiters pages" })).toBeNull();
 
     // A selected recruiter stays listed even when the search does not match them
-    rerender(<TeamTable rows={rows} rangeLabel="this week" selectedRecruiterId="ta-3" onSelectRecruiter={vi.fn()} pageSize={10} />);
+    rerender(<TeamTable rows={rows} selectedRecruiterId="ta-3" onSelectRecruiter={vi.fn()} pageSize={10} />);
     expect(screen.getByRole("button", { name: "Recruiter 03" })).toBeDefined();
   });
 
@@ -367,7 +379,7 @@ describe("Analytics Components Test Suite", () => {
 
   it("shows an empty state instead of an empty chart", () => {
     const empty = trend({ points: trend().points.map((p) => ({ ...p, newStarts: 0, redeployStarts: 0, backouts: 0, withdrawals: 0 })) });
-    render(<PlacementTrendChart trend={empty} rangeLabel="this week" />);
+    render(<PlacementTrendChart trend={empty} />);
     expect(screen.getByText(/No starts, backouts or withdrawals in this period/)).toBeDefined();
     expect(screen.queryByRole("img")).toBeNull();
   });
@@ -427,12 +439,12 @@ describe("Analytics Components Test Suite", () => {
 
   it("links a TA's stage cards to their applications in that stage", () => {
     const rows: StageTableRow[] = [
-      { stage: "APPLIED", label: "New applications", inStageNow: 2, overdue: 0, overdueEstimated: 0, entered: 1, backedOut: 0, avgDaysInStage: 1, medianDaysInStage: 1, slaDays: 7 },
-      { stage: "COMPLIANCE", label: "Requirements", inStageNow: 4, overdue: 1, overdueEstimated: 0, entered: 2, backedOut: 0, avgDaysInStage: 5, medianDaysInStage: 5, slaDays: 14 },
+      { stage: "APPLIED", label: "New applications", inStageNow: 2, overdue: 0, overdueEstimated: 0, entered: 1, backedOut: 0, avgDaysInStage: 1, medianDaysInStage: 1, typicalWaitSample: 5, slaDays: 7 },
+      { stage: "COMPLIANCE", label: "Requirements", inStageNow: 4, overdue: 1, overdueEstimated: 0, entered: 2, backedOut: 0, avgDaysInStage: 5, medianDaysInStage: 5, typicalWaitSample: 5, slaDays: 14 },
     ];
-    render(<StagePipeline rows={rows} rangeLabel="this week" linkStages />);
+    render(<StagePipeline rows={rows} linkStages />);
     expect(screen.getByRole("link", { name: /Requirements/ }).getAttribute("href")).toContain("/ta/applications");
-    expect(screen.queryByRole("link", { name: /Submitted/ })).toBeNull();
+    expect(screen.queryByRole("link", { name: /New applications/ })).toBeNull();
   });
 
   it("filters the waiting list by urgency, stage and recruiter", () => {
@@ -469,7 +481,7 @@ describe("Analytics Components Test Suite", () => {
   });
 
   it("shows a KPI value without a Now or In period tag", () => {
-    const { container } = render(<AnalyticsKpi label="Active applicants" kind="now" value={7} definition="d" />);
+    const { container } = render(<AnalyticsKpi label="Active applicants" value={7} />);
     expect(screen.queryByText("Now")).toBeNull();
     expect(screen.queryByText("In period")).toBeNull();
     expect(container.textContent).toContain("7");
@@ -477,17 +489,17 @@ describe("Analytics Components Test Suite", () => {
 
   it("calls onSelectStage from a stage row button and shows the TA link rows", () => {
     const rows: StageTableRow[] = [
-      { stage: "COMPLIANCE", label: "Requirements", inStageNow: 4, overdue: 1, overdueEstimated: 0, entered: 2, backedOut: 0, avgDaysInStage: 5, medianDaysInStage: 5, slaDays: 14 },
-      { stage: "FINAL_INTERVIEW", label: "Final interview", inStageNow: 2, overdue: 0, overdueEstimated: 0, entered: 2, backedOut: 0, avgDaysInStage: 5, medianDaysInStage: 5, slaDays: 5 },
+      { stage: "COMPLIANCE", label: "Requirements", inStageNow: 4, overdue: 1, overdueEstimated: 0, entered: 2, backedOut: 0, avgDaysInStage: 5, medianDaysInStage: 5, typicalWaitSample: 5, slaDays: 14 },
+      { stage: "FINAL_INTERVIEW", label: "Final interview", inStageNow: 2, overdue: 0, overdueEstimated: 0, entered: 2, backedOut: 0, avgDaysInStage: 5, medianDaysInStage: 5, typicalWaitSample: 5, slaDays: 5 },
     ];
     const onSelect = vi.fn();
-    const { unmount } = render(<StagePipeline rows={rows} rangeLabel="this week" onSelectStage={onSelect} />);
+    const { unmount } = render(<StagePipeline rows={rows} onSelectStage={onSelect} />);
     fireEvent.click(screen.getByRole("button", { name: "Requirements: 4 in stage, 1 overdue. Show these candidates" }));
     expect(onSelect).toHaveBeenCalledWith("COMPLIANCE");
     // A stage with nothing overdue is not a button
     expect(screen.getByRole("group", { name: "Final interview: 2 in stage" })).toBeDefined();
     unmount();
-    render(<StagePipeline rows={rows} rangeLabel="this week" linkStages />);
+    render(<StagePipeline rows={rows} linkStages />);
     expect(screen.getByRole("link", { name: "Final interview: 2 in stage. Show these candidates" })).toBeDefined();
     expect(within(screen.getByRole("link", { name: /Requirements/ })).getByRole("img", { name: /within limit 3, overdue 1/ })).toBeDefined();
   });

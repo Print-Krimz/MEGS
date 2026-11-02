@@ -1,52 +1,62 @@
-import { HEALTH_CHIP } from "../../../lib/chart-palette";
 import React from "react";
+import { HEALTH_CHIP } from "../../../lib/chart-palette";
 
 export interface AttentionItem {
-  id: string;
-  label: string;
-  /** Wording for a count of exactly one, when it is not just the plural minus an s. */
-  singular?: string;
+  key: string;
   count: number;
-  /** Section id to scroll to. */
-  target: string;
-  tone: "alert" | "warn";
+  /** Already worded for the count, e.g. "critical wait" for 1 and "critical waits" for 3. */
+  label: string;
   /** Runs before scrolling, e.g. to open a tab and apply a filter. */
   onSelect?: () => void;
+  /** "#id" scrolls to that section of this page. */
+  href?: string;
 }
 
 interface AttentionStripProps {
   items: AttentionItem[];
 }
 
-const TONE = {
-  alert: `${HEALTH_CHIP.overdue.className} hover:bg-[#FBE3E6]`,
-  warn: `${HEALTH_CHIP.watch.className} hover:bg-navy-soft`,
-} as const;
+const CHIP = `min-h-11 md:min-h-9 inline-flex items-center gap-1.5 border px-2.5 text-xs font-semibold ${HEALTH_CHIP.overdue.className} hover:bg-[#FBE3E6] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus`;
 
-/** The few things a team leader should look at first. Each one scrolls to the section that lists the records. */
+/** What to act on first. Only items with a count show; each runs its action and scrolls to the records. */
 export const AttentionStrip: React.FC<AttentionStripProps> = ({ items }) => {
   const shown = items.filter((i) => i.count > 0);
-  if (shown.length === 0) return null;
   return (
-    <section aria-label="Needs attention" className="border border-navy-line bg-white rounded-md px-3.5 py-2.5">
+    <section aria-label="Needs action" className="rounded-md border border-navy-line bg-white px-3.5 py-2.5">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold text-slate-700">Needs attention</span>
-        {shown.map((item) => (
-          <a
-            key={item.id}
-            href={`#${item.target}`}
-            onClick={(event) => {
-              event.preventDefault();
-              item.onSelect?.();
-              // Let a newly opened tab render before scrolling to it.
-              setTimeout(() => document.getElementById(item.target)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
-            }}
-            className={`min-h-11 md:min-h-9 inline-flex items-center gap-1.5 border px-2.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${TONE[item.tone]}`}
-          >
-            <span className="tabular-nums text-sm">{item.count}</span>
-            {item.count === 1 ? item.singular ?? item.label : item.label}
-          </a>
-        ))}
+        <h2 className="text-xs font-semibold text-slate-700">Needs action</h2>
+        {shown.length === 0 && <p className="text-xs font-sans text-slate-600">Nothing needs action right now.</p>}
+        {shown.map((item) => {
+          const inner = (
+            <>
+              <span className="tabular-nums text-sm">{item.count}</span>
+              {item.label}
+            </>
+          );
+          const anchor = item.href?.startsWith("#") ? item.href.slice(1) : undefined;
+          if (!item.href && !item.onSelect) {
+            return (
+              <span key={item.key} className={CHIP}>
+                {inner}
+              </span>
+            );
+          }
+          return (
+            <a
+              key={item.key}
+              href={item.href ?? "#"}
+              onClick={(event) => {
+                event.preventDefault();
+                item.onSelect?.();
+                // Let a newly opened tab render before scrolling to it.
+                if (anchor) setTimeout(() => document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+              }}
+              className={CHIP}
+            >
+              {inner}
+            </a>
+          );
+        })}
       </div>
     </section>
   );

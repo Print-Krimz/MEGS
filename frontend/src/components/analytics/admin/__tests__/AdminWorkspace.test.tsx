@@ -72,20 +72,21 @@ describe("OperationsWorkspace", () => {
 
 describe("StagePipeline", () => {
   const stage = (key: string, label: string, over: Partial<StageTableRow>): StageTableRow => ({
-    stage: key as any, label, inStageNow: 0, overdue: 0, overdueEstimated: 0, entered: 0, backedOut: 0, avgDaysInStage: null, medianDaysInStage: null, slaDays: 7, ...over,
+    stage: key as any, label, inStageNow: 0, overdue: 0, overdueEstimated: 0, entered: 0, backedOut: 0, avgDaysInStage: null, medianDaysInStage: null, typicalWaitSample: 0, slaDays: 7, ...over,
   });
   const rows = [
-    stage("APPLIED", "New applications", { inStageNow: 30, overdue: 1, entered: 24, medianDaysInStage: 3 }),
-    stage("COMPLIANCE", "Requirements", { inStageNow: 54, overdue: 20, overdueEstimated: 6, backedOut: 3, medianDaysInStage: 8, slaDays: 14 }),
-    stage("FINAL_INTERVIEW", "Final interview", { inStageNow: 4, overdue: 3, medianDaysInStage: 9, slaDays: 5 }),
-    stage("DEPLOYED", "Awaiting start", { inStageNow: 2 }),
+    stage("APPLIED", "Submitted", { inStageNow: 30, overdue: 1, entered: 24, medianDaysInStage: 3, typicalWaitSample: 24 }),
+    stage("COMPLIANCE", "Requirements", { inStageNow: 54, overdue: 20, overdueEstimated: 6, backedOut: 3, medianDaysInStage: 8, typicalWaitSample: 40, slaDays: 14 }),
+    stage("FINAL_INTERVIEW", "Final interview", { inStageNow: 4, overdue: 3, medianDaysInStage: null, typicalWaitSample: 4, slaDays: 5 }),
+    stage("CONTRACT_SIGNING", "Contract signing", { inStageNow: 0 }),
+    stage("DEPLOYED", "Deployed", { inStageNow: 2 }),
   ];
 
-  it("names every stage with its count and overdue total, adding backed-up estimates, and never flags Deployed", () => {
-    render(<StagePipeline rows={rows} rangeLabel="this week" />);
+  it("names every stage with its count and overdue total, and never flags Deployed", () => {
+    render(<StagePipeline rows={rows} />);
     expect(screen.getByRole("group", { name: "Requirements: 54 in stage, 26 overdue" })).toBeDefined();
+    expect(screen.getByText(/26 overdue/)).toBeDefined();
     expect(screen.getByRole("group", { name: "Final interview: 4 in stage, 3 overdue" })).toBeDefined();
-    expect(screen.getByRole("group", { name: "Submitted: 30 in stage, 1 overdue" })).toBeDefined();
     expect(screen.getByRole("group", { name: "Deployed: 2 in stage" })).toBeDefined();
     expect(screen.getByRole("img", { name: "Requirements: within limit 28, overdue 26" })).toBeDefined();
     expect(screen.queryByText(/Watch|Bottleneck|by age only|Show period details/)).toBeNull();
@@ -93,24 +94,40 @@ describe("StagePipeline", () => {
     expect(screen.queryByRole("button", { name: /Show these candidates/ })).toBeNull();
   });
 
-  it("holds entered, typical wait, limit and backed out in a Details table", () => {
-    const { container } = render(<StagePipeline rows={rows} rangeLabel="this week" />);
+  it("draws every bar in one colour and the overdue part in red", () => {
+    render(<StagePipeline rows={rows} />);
+    const colours = (name: string) =>
+      Array.from(screen.getByRole("img", { name }).querySelectorAll<HTMLElement>(".flex > div")).map((d) => d.style.backgroundColor);
+    expect(colours("Requirements: within limit 28, overdue 26")).toEqual(["rgb(11, 49, 93)", "rgb(200, 16, 46)"]);
+    expect(colours("Submitted: within limit 29, overdue 1")[0]).toBe("rgb(11, 49, 93)");
+  });
+
+  it("holds the exact values behind View as table, with a sampled typical wait", () => {
+    const { container } = render(<StagePipeline rows={rows} />);
     const details = container.querySelector("details") as HTMLDetailsElement;
     expect(details.open).toBe(false);
-    expect(details.querySelector("summary")?.textContent).toBe("Details");
+    expect(details.querySelector("summary")?.textContent).toBe("View as table");
     const table = within(details).getByRole("table", { hidden: true });
     expect(within(table).getAllByRole("columnheader", { hidden: true }).map((h) => h.textContent)).toEqual([
-      "Stage", "Entered", "In stage", "Overdue", "Overdue by age", "Typical wait", "Limit", "Backed out",
+      "Stage", "Entered", "In stage", "Overdue", "Typical wait", "Days allowed", "Backed out",
     ]);
     const req = within(table).getByRole("row", { name: /Requirements/, hidden: true });
+    expect(req.textContent).toContain("20 + 6 estimated");
     expect(req.textContent).toContain("8 days");
     expect(req.textContent).toContain("14 days");
+    expect(within(table).getByRole("row", { name: /Final interview/, hidden: true }).textContent).toContain("Not enough data (n=4)");
+    expect(within(table).getByRole("row", { name: /Contract signing/, hidden: true }).textContent).toContain("No one in this stage");
     expect(within(table).getByRole("row", { name: /Deployed/, hidden: true }).textContent).toContain("None");
+  });
+
+  it("shows a footer under the rows when given one", () => {
+    render(<StagePipeline rows={rows} footer={<p>Client answers: 3 approved</p>} />);
+    expect(screen.getByText("Client answers: 3 approved")).toBeDefined();
   });
 
   it("lets a backed-up stage be chosen to list its candidates", () => {
     const onSelect = vi.fn();
-    render(<StagePipeline rows={rows} rangeLabel="this week" onSelectStage={onSelect} />);
+    render(<StagePipeline rows={rows} onSelectStage={onSelect} />);
     fireEvent.click(screen.getByRole("button", { name: "Requirements: 54 in stage, 26 overdue. Show these candidates" }));
     expect(onSelect).toHaveBeenCalledWith("COMPLIANCE");
     // Deployed has no limit, so it cannot be overdue and is not a button

@@ -10,6 +10,7 @@ import {
   AnalyticsKpi,
   AttentionStrip,
   BackoutPanel,
+  KpiGroup,
   KpiRow,
   OperationsWorkspace,
   PlacementTrendChart,
@@ -31,6 +32,16 @@ import {
 } from "../../lib/admin-report-search";
 import type { AnalyticsFilterState } from "../../lib/types/analytics.types";
 import { formatDate } from "../../lib/utils";
+
+const plural = (count: number, word: string) => (count === 1 ? word : `${word}s`);
+
+const KPI_DEFINITIONS = [
+  { label: "Seats filled", definition: "Seats held by a placement, out of seats requested." },
+  { label: "Late requests", definition: "Overdue is past the target date. At risk is due within 7 days with too few candidates." },
+  { label: "Starts", definition: "Workers whose start date falls in the selected dates." },
+  { label: "Days to fill", definition: "Days from request opened to worker start." },
+  { label: "Backout rate", definition: "Backouts after client review, out of those plus starts." },
+];
 
 const rangeText = (start: string, end: string) => `${formatDate(start)} to ${formatDate(end)}`;
 
@@ -164,7 +175,6 @@ export const AdminAnalyticsPage: React.FC = () => {
     kpis.staleFilledRequisitions > 0
       ? `${kpis.staleFilledRequisitions} marked filled with no placement. Left out of seat counts.`
       : undefined;
-  const periodCaption = `Seats and late requests: today · Others: ${label}`;
 
   return (
     <div className="space-y-5">
@@ -177,49 +187,47 @@ export const AdminAnalyticsPage: React.FC = () => {
       </p>
 
       <div className={`space-y-5 transition-opacity ${dashboardQuery.isFetching ? "opacity-70" : ""}`}>
-      <KpiRow columns="md:grid-cols-5" caption={periodCaption}>
-        <AnalyticsKpi
-          label="Seats filled"
-          value={formatSampled(kpis.fillRate, kpis.requestedSeats, "%")}
-          detail={`${kpis.filledSeats} of ${kpis.requestedSeats} seats · ${kpis.openSeats} open`}
-          definition="Seats held by a placement, out of seats requested."
-          anchor="operations"
-          onActivate={() => showRequests("ALL")}
-        />
-        <AnalyticsKpi
-          label="Late requests"
-          value={lateRequests}
-          detail={`${overdueRequests} overdue · ${atRiskRequests} at risk`}
-          definition="Overdue is past the target date. At risk is due within 7 days with too few candidates."
-          tone={overdueRequests > 0 ? "alert" : "default"}
-          anchor="operations"
-          onActivate={() => showRequests("LATE")}
-        />
-        <AnalyticsKpi
-          label="Starts"
-          value={kpis.placementsStarted}
-          detail={`${kpis.newStarts} new · ${kpis.redeployStarts} redeployed`}
-          definition="Workers whose start date falls in the selected dates."
-          anchor="trend"
-        />
-        <AnalyticsKpi
-          label="Days to fill"
-          value={formatSampled(kpis.medianDaysToFill, kpis.daysToFillSample, "days")}
-          detail={kpis.daysToFillSample === 0 ? "No starts" : `Median, ${kpis.daysToFillSample} ${kpis.daysToFillSample === 1 ? "start" : "starts"}`}
-          definition="Days from request opened to worker start."
-        />
-        <AnalyticsKpi
-          label="Backout rate"
-          value={formatSampled(kpis.backoutRate, kpis.backoutRateBase, "%")}
-          detail={`${kpis.backoutsAfterClientReview} of ${kpis.backoutRateBase}`}
-          definition="Backouts after client review, out of those plus starts."
-          anchor="backouts"
-        />
+      <KpiRow definitions={KPI_DEFINITIONS}>
+        <KpiGroup label="Right now">
+          <AnalyticsKpi
+            label="Seats filled"
+            value={formatSampled(kpis.fillRate, kpis.requestedSeats, "%")}
+            detail={`${kpis.filledSeats} of ${kpis.requestedSeats} seats · ${kpis.openSeats} open`}
+            href="#operations"
+            onClick={() => showRequests("ALL")}
+          />
+          <AnalyticsKpi
+            label="Late requests"
+            value={lateRequests}
+            detail={`${overdueRequests} overdue · ${atRiskRequests} at risk`}
+            tone={overdueRequests > 0 ? "alert" : "default"}
+            href="#operations"
+            onClick={() => showRequests("LATE")}
+          />
+        </KpiGroup>
+        <KpiGroup label="In these dates">
+          <AnalyticsKpi
+            label="Starts"
+            value={kpis.placementsStarted}
+            detail={`${kpis.newStarts} new · ${kpis.redeployStarts} redeployed`}
+            href="#trend"
+          />
+          <AnalyticsKpi
+            label="Days to fill"
+            value={formatSampled(kpis.medianDaysToFill, kpis.daysToFillSample, "days")}
+            detail={kpis.daysToFillSample === 0 ? "No starts" : `Median, ${kpis.daysToFillSample} ${kpis.daysToFillSample === 1 ? "start" : "starts"}`}
+          />
+          <AnalyticsKpi
+            label="Backout rate"
+            value={formatSampled(kpis.backoutRate, kpis.backoutRateBase, "%")}
+            detail={`${kpis.backoutsAfterClientReview} of ${kpis.backoutRateBase}`}
+            href="#backouts"
+          />
+        </KpiGroup>
       </KpiRow>
 
       <StagePipeline
         rows={data.stageTable}
-        rangeLabel={label}
         onSelectStage={(stage) => {
           showWaiting({ stage });
           scrollToWorkspace();
@@ -233,10 +241,10 @@ export const AdminAnalyticsPage: React.FC = () => {
 
       <AttentionStrip
         items={[
-          { id: "critical", label: "critical waits", singular: "critical wait", count: kpis.criticalCandidates, target: "operations", tone: "alert", onSelect: () => showWaiting({ urgency: "critical" }) },
-          { id: "late", label: "overdue requests", singular: "overdue request", count: overdueRequests, target: "operations", tone: "alert", onSelect: () => showRequests("OVERDUE") },
-          { id: "no-opening", label: "no opening", singular: "no opening", count: noOpening, target: "operations", tone: "warn", onSelect: () => showRequests("NO_OPENING") },
-          { id: "stale", label: "filled, no placement", singular: "filled, no placement", count: kpis.staleFilledRequisitions, target: "requests-note", tone: "warn", onSelect: () => showRequests("ALL") },
+          { key: "critical", count: kpis.criticalCandidates, label: plural(kpis.criticalCandidates, "critical wait"), href: "#operations", onSelect: () => showWaiting({ urgency: "critical" }) },
+          { key: "late", count: overdueRequests, label: plural(overdueRequests, "overdue request"), href: "#operations", onSelect: () => showRequests("OVERDUE") },
+          { key: "no-opening", count: noOpening, label: "no opening", href: "#operations", onSelect: () => showRequests("NO_OPENING") },
+          { key: "stale", count: kpis.staleFilledRequisitions, label: "filled, no placement", href: "#requests-note", onSelect: () => showRequests("ALL") },
         ]}
       />
 
