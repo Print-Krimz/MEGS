@@ -41,8 +41,9 @@ const SELECT =
   "min-h-9 border border-slate-300 bg-white px-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 /** Days in the stage as a bar: a pale baseline up to the limit, then only the days past it in colour. */
-const WaitBar: React.FC<{ row: number; r: StuckCandidate; color: string; index: number }> = ({ row: scale, r, color, index }) => (
+const WaitBar: React.FC<{ row: number; r: StuckCandidate; color: string; index: number; className?: string }> = ({ row: scale, r, color, index, className }) => (
   <StackedBar
+    className={className}
     label={`${r.stageLabel}, days in stage, limit ${r.slaDays} ${r.slaDays === 1 ? "day" : "days"}`}
     max={scale}
     heightClass="h-2"
@@ -206,10 +207,18 @@ export const StuckList = React.memo(function StuckList({
                     </button>
                   </div>
                 </div>
-                <div className="mt-1 grid grid-cols-[7rem_minmax(0,1fr)_auto] items-center gap-x-3 text-xs font-sans text-slate-700 sm:grid-cols-[9rem_minmax(0,1fr)_auto]">
-                  <span className="truncate font-semibold text-slate-900">{r.stageLabel}</span>
-                  <WaitBar row={scale} index={i} r={r} color={r.urgency === "critical" ? WAIT.critical : WAIT.late} />
-                  <span className="whitespace-nowrap tabular-nums">
+                {/* Fixed label column, so every bar starts and ends at the same place whatever its "N of M days" width.
+                    Phones: stage and days on one line, the bar full width under them. */}
+                <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-xs font-sans text-slate-700 sm:grid-cols-[9rem_minmax(0,1fr)_6.5rem] sm:gap-y-0">
+                  <span className="col-start-1 row-start-1 truncate font-semibold text-slate-900">{r.stageLabel}</span>
+                  <WaitBar
+                    className="col-span-2 row-start-2 sm:col-span-1 sm:col-start-2 sm:row-start-1"
+                    row={scale}
+                    index={i}
+                    r={r}
+                    color={r.urgency === "critical" ? WAIT.critical : WAIT.late}
+                  />
+                  <span className="col-start-2 row-start-1 whitespace-nowrap text-right tabular-nums sm:col-start-3">
                     <strong>{r.daysInStage}</strong> of {r.slaDays} days
                   </span>
                 </div>

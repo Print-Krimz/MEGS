@@ -33,7 +33,9 @@ const waitText = (row: StageTableRow) =>
 const limitText = (row: StageTableRow) =>
   row.stage === "DEPLOYED" ? "None" : row.stage === "CLIENT_ENDORSEMENT" ? "Set per client" : `${row.slaDays} days`;
 
-const ROW_GRID = "grid grid-cols-[7.5rem_minmax(0,1fr)_7.5rem] items-center gap-x-3 sm:grid-cols-[9rem_minmax(0,1fr)_13rem]";
+// Phones: name and count on one line, the bar full width under them. Wider screens: three aligned columns.
+const ROW_GRID = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 sm:grid-cols-[9rem_minmax(0,1fr)_13rem] sm:gap-y-0";
+const BAR_CELL = "col-span-2 row-start-2 sm:col-span-1 sm:col-start-2 sm:row-start-1";
 
 /**
  * The pipeline from application to start as one bar per stage. The full bar is how many candidates are in the stage
@@ -75,8 +77,9 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
               const label = link || pick ? `${summary}. Show these candidates` : summary;
               const content = (
                 <>
-                  <span className="truncate text-left text-xs font-semibold font-sans text-slate-900">{name}</span>
+                  <span className="col-start-1 row-start-1 truncate text-left text-xs font-semibold font-sans text-slate-900">{name}</span>
                   <StackedBar
+                    className={BAR_CELL}
                     label={name}
                     index={i}
                     heightClass="h-3"
@@ -86,7 +89,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
                       { key: "late", label: "overdue", value: late, color: WORKLOAD.overdue },
                     ]}
                   />
-                  <span className="whitespace-nowrap text-right text-xs font-sans tabular-nums text-slate-700">
+                  <span className="col-start-2 row-start-1 whitespace-nowrap text-right text-xs font-sans tabular-nums text-slate-700 sm:col-start-3">
                     <strong className="text-slate-950">{row.inStageNow}</strong>
                     {late > 0 && <span className={`font-semibold ${TEXT_LOSS}`}> · {share}</span>}
                     {pick && (
