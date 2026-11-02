@@ -85,7 +85,7 @@ describe("AdminAnalyticsPage", () => {
     await screen.findByText("Candidates by stage");
     const names = screen.getAllByRole("heading", { level: 2, hidden: true }).map((h) => h.textContent);
     const at = (name: string) => names.indexOf(name);
-    const order = ["Needs action", "Headline numbers", "Candidates by stage", "Results over time", "Waiting too long", "Client requests", "Recruiters", "Why people backed out"].map(at);
+    const order = ["Needs action", "Headline numbers", "Candidates by stage", "Results over time", "Overdue candidates", "Client requests", "Recruiters", "Why people backed out"].map(at);
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
     expect(screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual(["Right now", "In these dates"]);
@@ -98,6 +98,7 @@ describe("AdminAnalyticsPage", () => {
       ...DASHBOARD,
       kpis: { ...DASHBOARD.kpis, activeApplicants: 0, placementsStarted: 0, requisitions: { ...DASHBOARD.kpis.requisitions, total: 0 }, criticalCandidates: 0, lateRequests: 0 },
       requests: [],
+      backouts: { ...DASHBOARD.backouts, backouts: 0, withdrawals: 0 },
       stageTable: [stage("COMPLIANCE", "Requirements")],
     };
     vi.mocked(adminApi.getDashboardSummary).mockResolvedValue(none as never);
@@ -119,9 +120,10 @@ describe("AdminAnalyticsPage", () => {
   it("moves focus to the Waiting panel heading when the critical chip is chosen", async () => {
     renderPage();
     fireEvent.click(await screen.findByRole("link", { name: /2\s*critical waits/ }));
-    const heading = within(document.getElementById("operations-panel-waiting") as HTMLElement).getByRole("heading", { level: 2, hidden: true });
-    expect(document.activeElement).toBe(heading);
-    expect(heading.getAttribute("tabindex")).toBe("-1");
+    const panel = document.getElementById("operations-panel-waiting") as HTMLElement;
+    expect(document.activeElement).toBe(panel);
+    expect(panel.getAttribute("tabindex")).toBe("-1");
+    expect(panel.className).toContain("focus-visible:ring-2");
   });
 
   it("groups the tiles by time base and has no Now or In period tags", async () => {
@@ -137,7 +139,7 @@ describe("AdminAnalyticsPage", () => {
     renderPage();
     const row = await screen.findByRole("button", { name: "Requirements: 5 in stage, 2 overdue. Show these candidates" });
     fireEvent.click(row);
-    expect(screen.getByRole("tab", { name: "Waiting 0" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("tab", { name: "Overdue candidates 0" }).getAttribute("aria-selected")).toBe("true");
     expect(within(screen.getByRole("tablist")).getByText("Requests")).toBeDefined();
     expect(screen.getByRole("tab", { name: "Client requests 6" })).toBeDefined();
   });
@@ -208,7 +210,7 @@ describe("AdminAnalyticsPage", () => {
     renderPage();
     await screen.findByText("Candidates by stage");
     expect(adminApi.getDashboardSummary).toHaveBeenCalledWith({ range: "7d" }, expect.anything());
-    expect(screen.getByRole("tab", { name: /Waiting/ }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("tab", { name: /Overdue candidates/ }).getAttribute("aria-selected")).toBe("true");
   });
 
   it("gives request links the report search as return state", async () => {
