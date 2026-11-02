@@ -94,9 +94,9 @@ export const WORKLOAD = {
   estimated: "#9A5B00",
 } as const;
 
-/** Waiting bars: the time inside the limit is a plain pale baseline, only the time past it is coloured. */
+/** Waiting bars: the time inside the limit is the same on-track blue as the stage chart (BAR_ON_TRACK); the time past it is amber or red. */
 export const WAIT = {
-  withinLimit: "#9AA5B4",
+  withinLimit: "#3A6FB0",
   late: "#B87A0A",
   critical: "#C0392B",
 } as const;
