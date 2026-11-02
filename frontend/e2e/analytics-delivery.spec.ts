@@ -1189,6 +1189,31 @@ test.describe("Recruiter reports (/ta/analytics)", () => {
     await expect(waiting.getByLabel("Recruiter")).toHaveCount(0);
   });
 
+  test("Quick view moves a candidate to the next stage with a note", async ({ page }) => {
+    const h = await setup(page, "recruiter", taDashboard);
+    await page.route(
+      (url) => url.pathname === "/api/ta/applications/811",
+      (route) => route.fulfill(json({ id: 811, status: "COMPLIANCE", complianceRequirements: [], createdAt: "2026-10-01T00:00:00.000Z", user: { email: "mario@example.com" } }))
+    );
+    let body: unknown = null;
+    await page.route(
+      (url) => url.pathname === "/api/ta/applications/811/status",
+      (route) => {
+        body = route.request().postDataJSON();
+        return route.fulfill(json({ id: 811, status: "CONTRACT_SIGNING" }));
+      }
+    );
+    await page.goto("/ta/analytics");
+    await expectReportsLoaded(page);
+    await page.getByRole("button", { name: "Quick view: Mario Reyes" }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Note (optional)").fill("All cleared");
+    await dialog.getByRole("button", { name: "Move to contract signing" }).click();
+    await expect(dialog.getByRole("status")).toContainText("Moved to");
+    expect(body).toEqual({ status: "CONTRACT_SIGNING", reason: "All cleared" });
+    expect(h.unmocked).toEqual([]);
+  });
+
   test("the client requests list has no recruiter column and links to the request", async ({ page }) => {
     await setup(page, "recruiter", taDashboard);
     await page.goto("/ta/analytics");

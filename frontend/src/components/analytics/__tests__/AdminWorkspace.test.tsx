@@ -11,9 +11,9 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
-const apiMocks = vi.hoisted(() => ({ admin: vi.fn(), ta: vi.fn() }));
+const apiMocks = vi.hoisted(() => ({ admin: vi.fn(), ta: vi.fn(), move: vi.fn() }));
 vi.mock("../../../lib/api/admin.api", () => ({ adminApi: { getApplication: apiMocks.admin } }));
-vi.mock("../../../lib/api/ta.api", () => ({ taApi: { getApplication: apiMocks.ta } }));
+vi.mock("../../../lib/api/ta.api", () => ({ taApi: { getApplication: apiMocks.ta, updateApplicationStatus: apiMocks.move } }));
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { OperationsWorkspace,RequestProgressList, StagePipeline, StuckList, TeamTable } from "../index";
@@ -24,6 +24,7 @@ afterEach(() => {
   cleanup();
   apiMocks.admin.mockReset();
   apiMocks.ta.mockReset();
+  apiMocks.move.mockReset();
 });
 
 const renderWithQuery = (ui: ReactElement) =>
@@ -404,6 +405,60 @@ describe("admin lists", () => {
     expect(await within(dialog).findByText("Could not load the profile.")).toBeDefined();
     expect(within(dialog).getByRole("button", { name: "Retry" })).toBeDefined();
     expect(within(dialog).getByText("Called client")).toBeDefined();
+  });
+
+  describe("Quick view next step", () => {
+    const compliance = { id: 7, status: "COMPLIANCE", complianceRequirements: [{ isRequired: true, reviewStatus: "APPROVED" }] };
+    const open = () => {
+      renderWithQuery(<StuckList rows={[stuck(7)]} total={1} viewer="ta" showRecruiter={false} />);
+      fireEvent.click(screen.getByRole("button", { name: "Quick view: Candidate 7" }));
+      return screen.getByRole("dialog");
+    };
+
+    it("moves a recruiter's candidate with the typed note", async () => {
+      apiMocks.ta.mockResolvedValue(compliance);
+      apiMocks.move.mockResolvedValue({});
+      const dialog = open();
+      fireEvent.change(await within(dialog).findByLabelText("Note (optional)"), { target: { value: "  Clearances done  " } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Move to contract signing" }));
+      expect(await within(dialog).findByRole("status")).toBeDefined();
+      expect(apiMocks.move).toHaveBeenCalledWith("7", { status: "CONTRACT_SIGNING", reason: "Clearances done" });
+      expect(within(dialog).getByRole("status").textContent).toMatch(/^Moved to /);
+    });
+
+    it("sends the default reason when the note is empty", async () => {
+      apiMocks.ta.mockResolvedValue(compliance);
+      apiMocks.move.mockResolvedValue({});
+      const dialog = open();
+      fireEvent.click(await within(dialog).findByRole("button", { name: "Move to contract signing" }));
+      await within(dialog).findByRole("status");
+      expect(apiMocks.move).toHaveBeenCalledWith("7", { status: "CONTRACT_SIGNING", reason: "All mandatory clearances verified and approved." });
+    });
+
+    it("shows the backend's refusal in an alert", async () => {
+      apiMocks.ta.mockResolvedValue(compliance);
+      apiMocks.move.mockRejectedValue(new Error("Candidate is not yours"));
+      const dialog = open();
+      fireEvent.click(await within(dialog).findByRole("button", { name: "Move to contract signing" }));
+      expect((await within(dialog).findByRole("alert")).textContent).toContain("Candidate is not yours");
+    });
+
+    it("offers no move to the Admin", async () => {
+      apiMocks.admin.mockResolvedValue(compliance);
+      renderWithQuery(<StuckList rows={[stuck(7)]} total={1} viewer="admin" showRecruiter />);
+      fireEvent.click(screen.getByRole("button", { name: "Quick view: Candidate 7" }));
+      const dialog = screen.getByRole("dialog");
+      await within(dialog).findByText("Applied");
+      expect(within(dialog).queryByRole("button", { name: /^Move to/ })).toBeNull();
+      expect(within(dialog).queryByText("Next step")).toBeNull();
+    });
+
+    it("only names the step when it needs a dialog", async () => {
+      apiMocks.ta.mockResolvedValue({ id: 7, status: "INITIAL_SCREENING", interviews: [] });
+      const dialog = open();
+      expect(await within(dialog).findByText("Next step: Schedule interview.")).toBeDefined();
+      expect(within(dialog).queryByRole("button", { name: /^Move to/ })).toBeNull();
+    });
   });
 
   it("StuckList in-text links are underlined and closed openings sit in the caption", () => {

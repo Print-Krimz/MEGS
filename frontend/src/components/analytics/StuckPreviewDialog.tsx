@@ -1,6 +1,10 @@
 import React from "react";
 import { Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ApplicationStatus } from "../../lib/types/enums";
+import { formatErrorMessage } from "../../lib/feedback";
+import { getApplicationStatusMeta } from "../../lib/utils";
+import { deriveApplicationFlags, getStageActions } from "../ta/application/stage-actions";
 import { adminApi } from "../../lib/api/admin.api";
 import { taApi } from "../../lib/api/ta.api";
 import type { Application } from "../../lib/types/application.types";
@@ -70,7 +74,96 @@ const CandidateProfile: React.FC<{ applicationId: number; viewer: "admin" | "ta"
   );
 };
 
-/** Quick look at one overdue candidate: row facts plus the candidate's contact details, with Previous and Next through the filtered list. No changes are made here. */
+/** The three stage moves the record page runs as a direct update, with the reason it sends when no note is typed. */
+const DIRECT_MOVES = {
+  "move-to-final": { status: ApplicationStatus.FINAL_INTERVIEW, reason: undefined },
+  "move-to-requirements": { status: ApplicationStatus.COMPLIANCE, reason: "Client accepted candidate for employment" },
+  "move-to-contract-signing": { status: ApplicationStatus.CONTRACT_SIGNING, reason: "All mandatory clearances verified and approved." },
+} as const;
+
+/** Recruiter only. Same stage rules as the record page; moves that need a dialog or schedule stay on the record. */
+const NextStep: React.FC<{ applicationId: number }> = ({ applicationId }) => {
+  const id = String(applicationId);
+  const queryClient = useQueryClient();
+  const query = useQuery({
+    queryKey: ["ta", "application", id],
+    queryFn: () => taApi.getApplication(id),
+    staleTime: 30_000,
+  });
+  const [note, setNote] = React.useState("");
+  const [movedTo, setMovedTo] = React.useState<string | null>(null);
+  const statusRef = React.useRef<HTMLParagraphElement>(null);
+
+  const move = useMutation({
+    mutationFn: (data: { status: ApplicationStatus; reason?: string }) => taApi.updateApplicationStatus(id, data),
+    onSuccess: (_, vars) => {
+      queryClient.setQueryData<any>(["ta", "application", id], (old: any) => (old ? { ...old, status: vars.status } : old));
+      for (const key of ["application", "applications", "analytics", "compliance", "jobs", "deployments", "redeployment-queue"]) {
+        queryClient.invalidateQueries({ queryKey: key === "application" ? ["ta", "application", id] : ["ta", key] });
+      }
+      setNote("");
+      setMovedTo(getApplicationStatusMeta(vars.status).label);
+    },
+  });
+
+  React.useEffect(() => {
+    if (movedTo) statusRef.current?.focus();
+  }, [movedTo]);
+
+  const app = query.data as Application | undefined;
+  if (!app) return null;
+  const actions = getStageActions(app, deriveApplicationFlags(app));
+  const direct = actions.find((a) => a.id in DIRECT_MOVES);
+  const primary = actions.find((a) => a.kind === "primary");
+  const pending = actions.find((a) => a.kind === "status");
+
+  return (
+    <section aria-label="Next step" className="mb-3 border border-slate-200 px-3 py-2">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-600">Next step</h3>
+      {movedTo && (
+        <p ref={statusRef} tabIndex={-1} role="status" className="py-1 text-sm text-slate-900 focus:outline-none">
+          Moved to {movedTo}.
+        </p>
+      )}
+      {direct ? (
+        <div className="space-y-2 py-2">
+          <label className="block text-xs font-semibold text-slate-600">
+            Note (optional)
+            <textarea
+              value={note}
+              maxLength={500}
+              rows={2}
+              onChange={(e) => setNote(e.target.value)}
+              className="mt-1 block w-full border border-slate-300 bg-white px-2 py-1.5 text-sm font-normal text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            />
+          </label>
+          {move.isError && (
+            <p role="alert" className="text-sm text-slate-900">
+              {formatErrorMessage(move.error)}
+            </p>
+          )}
+          <button
+            type="button"
+            disabled={move.isPending}
+            onClick={() => {
+              const m = DIRECT_MOVES[direct.id as keyof typeof DIRECT_MOVES];
+              move.mutate({ status: m.status, reason: note.trim() || m.reason });
+            }}
+            className={`${BUTTON} border-navy bg-navy text-white hover:bg-navy/90 disabled:cursor-not-allowed disabled:opacity-50`}
+          >
+            {move.isPending ? "Moving…" : direct.label}
+          </button>
+        </div>
+      ) : primary ? (
+        <p className="py-2 text-sm text-slate-800">Next step: {primary.label}.</p>
+      ) : pending ? (
+        <p className="py-2 text-sm text-slate-600">{pending.label}</p>
+      ) : null}
+    </section>
+  );
+};
+
+/** Quick look at one overdue candidate: row facts plus the candidate's contact details, with Previous and Next through the filtered list. A recruiter can also move the candidate on one stage. */
 export const StuckPreviewDialog: React.FC<StuckPreviewDialogProps> = ({ rows, openId, onSelect, onClose, viewer, showRecruiter, linkState }) => {
   const index = openId === null ? -1 : rows.findIndex((r) => r.applicationId === openId);
   const row = index === -1 ? null : rows[index];
@@ -83,6 +176,7 @@ export const StuckPreviewDialog: React.FC<StuckPreviewDialogProps> = ({ rows, op
       {row && (
         <>
           <CandidateProfile key={row.applicationId} applicationId={row.applicationId} viewer={viewer} />
+          {!admin && <NextStep key={row.applicationId} applicationId={row.applicationId} />}
           <dl className="divide-y divide-slate-200">
             <Fact label="Stage">{row.stageLabel}</Fact>
             <Fact label="In this stage">
