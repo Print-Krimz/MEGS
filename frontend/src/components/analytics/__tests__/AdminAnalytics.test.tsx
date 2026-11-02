@@ -465,6 +465,16 @@ describe("Analytics Components Test Suite", () => {
     expect(ticks).toEqual(["0", "4", "8"]);
   });
 
+  it("shows each line's total in the legend and the count over each non-zero point", () => {
+    const pts = [{ label: "A", values: { starts: 7, backouts: 1 } }, { label: "B", values: { starts: 2, backouts: 0 } }];
+    const { container } = render(<LineChart title="Results over time" points={pts} series={lineSeries} />);
+    const legend = screen.getByRole("list", { name: "Legend" });
+    expect(legend.textContent).toContain("9");
+    expect(legend.textContent).toContain("1");
+    const values = Array.from(container.querySelectorAll("svg text[data-point-value]")).map((n) => n.textContent);
+    expect(values.sort()).toEqual(["1", "2", "7"]);
+  });
+
   it("draws a marker per series for a single point", () => {
     const { container } = render(<LineChart title="Results over time" points={[{ label: "Oct 13", values: { starts: 2, backouts: 1 } }]} series={lineSeries} />);
     expect(container.querySelectorAll("svg circle")).toHaveLength(2);

@@ -96,12 +96,13 @@ describe("StagePipeline", () => {
     expect(screen.queryByRole("button", { name: /Show these candidates/ })).toBeNull();
   });
 
-  it("draws every bar in one colour and the overdue part in red", () => {
+  it("gives each stage its own colour and keeps the overdue part red", () => {
     render(<StagePipeline rows={rows} />);
     const colours = (name: string) =>
       Array.from(screen.getByRole("img", { name }).querySelectorAll<HTMLElement>(".flex > div")).map((d) => d.style.backgroundColor);
-    expect(colours("Requirements: within limit 28, overdue 26")).toEqual(["rgb(11, 49, 93)", "rgb(200, 16, 46)"]);
-    expect(colours("Submitted: within limit 29, overdue 1")[0]).toBe("rgb(11, 49, 93)");
+    // Requirements is olive, Submitted is blue; neither is the navy theme colour.
+    expect(colours("Requirements: within limit 28, overdue 26")).toEqual(["rgb(122, 138, 31)", "rgb(200, 16, 46)"]);
+    expect(colours("Submitted: within limit 29, overdue 1")[0]).toBe("rgb(58, 111, 176)");
   });
 
   it("holds the exact values behind View as table, with a sampled typical wait", () => {

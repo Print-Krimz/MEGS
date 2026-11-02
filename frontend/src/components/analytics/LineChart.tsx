@@ -96,6 +96,7 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
               <li key={s.key} className="flex items-center gap-1.5">
                 <span className="inline-block h-0.5 w-4 shrink-0" style={{ backgroundColor: SERIES_COLORS[i] }} aria-hidden="true" />
                 {s.label}
+                <strong className="tabular-nums text-slate-950">{totals[i]}</strong>
               </li>
             ))}
           </ul>
@@ -126,6 +127,28 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
                         <title>{`${p.label}, ${s.label}: ${p.values[s.key] ?? 0}`}</title>
                       </circle>
                     ))}
+                  {/* The count over each non-zero point: the first line labels above, the second below, so they do not collide. */}
+                  {points.map((p, i) => {
+                    const v = p.values[s.key] ?? 0;
+                    if (v === 0) return null;
+                    const below = si === 1 && y(v) + 16 < M.top + PLOT_H;
+                    return (
+                      <text
+                        key={`v${i}`}
+                        x={x(i)}
+                        y={below ? y(v) + 16 : y(v) - 8}
+                        textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}
+                        fontSize={11}
+                        fontWeight={600}
+                        fill="#0F172A"
+                        style={{ fontVariantNumeric: "tabular-nums" }}
+                        data-point-value=""
+                        aria-hidden="true"
+                      >
+                        {v}
+                      </text>
+                    );
+                  })}
                 </g>
               );
             })}

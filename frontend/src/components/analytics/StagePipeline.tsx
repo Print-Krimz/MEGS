@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "@tanstack/react-router";
 import type { StageTableRow } from "../../lib/types/analytics.types";
 import type { ApplicationStatus } from "../../lib/types/enums";
-import { BAR_PRIMARY, TEXT_LOSS, WORKLOAD } from "../../lib/chart-palette";
+import { BAR_PRIMARY, REPORT_STAGE_COLORS, TEXT_LOSS, WORKLOAD } from "../../lib/chart-palette";
 import { formatSampled } from "../../lib/analytics-format";
 import { DataTableToggle, StackedBar } from "./chart-primitives";
 import { AnalyticsPanel } from "./AnalyticsPanel";
@@ -17,8 +17,8 @@ interface StagePipelineProps {
   footer?: React.ReactNode;
 }
 
-/** The one bar colour (the navy token). Colour carries nothing the stage name does not; only overdue is red. */
-const BAR = BAR_PRIMARY;
+/** Each stage has its own hue so the bars stand apart from the navy theme; overdue is always red. */
+const barColor = (stage: string) => REPORT_STAGE_COLORS[stage] ?? BAR_PRIMARY;
 
 const overdueText = (row: StageTableRow) =>
   row.overdueEstimated > 0 ? `${row.overdue} + ${row.overdueEstimated} estimated` : String(row.overdue);
@@ -63,7 +63,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
                     heightClass="h-3"
                     max={maxInStage}
                     segments={[
-                      { key: "ok", label: "within limit", value: row.inStageNow - late, color: BAR },
+                      { key: "ok", label: "within limit", value: row.inStageNow - late, color: barColor(row.stage) },
                       { key: "late", label: "overdue", value: late, color: WORKLOAD.overdue },
                     ]}
                   />

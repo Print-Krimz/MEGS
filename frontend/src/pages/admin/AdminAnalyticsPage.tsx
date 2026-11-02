@@ -93,6 +93,8 @@ export const AdminAnalyticsPage: React.FC = () => {
         to: "/admin/analytics",
         search: parseAdminReportSearch({ ...searchRef.current, ...patch }) as never,
         replace,
+        // Report state lives in the URL; a chip, tile or tab click must not jump the page back to the top.
+        resetScroll: false,
       });
     },
     [navigate],
