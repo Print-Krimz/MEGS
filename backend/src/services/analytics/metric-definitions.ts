@@ -13,14 +13,122 @@ export type StageRowKey =
   | "DEPLOYED";
 
 export const STAGE_ROWS: { key: StageRowKey; label: string; slaDays: number }[] = [
-  { key: "APPLIED", label: "New applications", slaDays: 7 },
-  { key: "INITIAL_SCREENING", label: "Initial review", slaDays: 7 },
+  { key: "APPLIED", label: "Submitted", slaDays: 7 },
+  { key: "INITIAL_SCREENING", label: "Initial screening", slaDays: 7 },
   { key: "CLIENT_ENDORSEMENT", label: "Client review", slaDays: 5 }, // replaced by Client.reviewThresholdDays
   { key: "FINAL_INTERVIEW", label: "Final interview", slaDays: 5 },
   { key: "COMPLIANCE", label: "Requirements", slaDays: 14 },
   { key: "CONTRACT_SIGNING", label: "Contract signing", slaDays: 7 },
-  { key: "DEPLOYED", label: "Awaiting start", slaDays: 7 },
+  { key: "DEPLOYED", label: "Deployed", slaDays: 7 },
 ];
+
+/** Rates and typical times need at least this many cases; fewer is shown as "Not enough data". */
+export const MIN_SAMPLE = 5;
+
+/** The value, or null when it rests on fewer than MIN_SAMPLE cases. */
+export const sampled = (value: number | null, n: number): number | null => (n < MIN_SAMPLE ? null : value);
+
+export type MetricKey =
+  | "seatsFilled"
+  | "starts"
+  | "daysToFill"
+  | "backoutRate"
+  | "backoutsAfterClientReview"
+  | "withdrawals"
+  | "overdueCandidates"
+  | "criticalWaits"
+  | "lateRequests"
+  | "openRequests"
+  | "filledNoStart"
+  | "activeApplicants";
+
+export interface MetricDefinition {
+  key: MetricKey;
+  label: string;
+  definition: string;
+  window: "Right now" | "In these dates";
+  unit: "%" | "days" | "count";
+}
+
+const metric = (
+  key: MetricKey,
+  label: string,
+  definition: string,
+  window: MetricDefinition["window"],
+  unit: MetricDefinition["unit"]
+): MetricDefinition => ({ key, label, definition, window, unit });
+
+/** Plain-language names and meanings. Screen, PDF and Excel all read these. */
+export const METRICS: Record<MetricKey, MetricDefinition> = {
+  seatsFilled: metric("seatsFilled", "Seats filled", "Seats with a worker who started, out of seats clients asked for.", "Right now", "%"),
+  starts: metric("starts", "Starts", "Workers who started work.", "In these dates", "count"),
+  daysToFill: metric("daysToFill", "Days to fill", "Typical days from request opened to worker start.", "In these dates", "days"),
+  backoutRate: metric(
+    "backoutRate",
+    "Backout rate",
+    "Workers who backed out after client review, out of those plus starts.",
+    "In these dates",
+    "%"
+  ),
+  backoutsAfterClientReview: metric(
+    "backoutsAfterClientReview",
+    "Backed out after client review",
+    "Candidates who left once the client had seen them.",
+    "In these dates",
+    "count"
+  ),
+  withdrawals: metric(
+    "withdrawals",
+    "Backed out before client review",
+    "Candidates who left before the client saw them.",
+    "In these dates",
+    "count"
+  ),
+  overdueCandidates: metric(
+    "overdueCandidates",
+    "Overdue candidates",
+    "Candidates past the days allowed for their stage, including ones estimated from application date.",
+    "Right now",
+    "count"
+  ),
+  criticalWaits: metric("criticalWaits", "Critical waits", "Overdue by twice the days allowed or more.", "Right now", "count"),
+  lateRequests: metric(
+    "lateRequests",
+    "Overdue requests",
+    "Open requests past target date, or due within 7 days with too few candidates.",
+    "Right now",
+    "count"
+  ),
+  openRequests: metric("openRequests", "Open requests", "Requests still needing workers.", "Right now", "count"),
+  filledNoStart: metric("filledNoStart", "Filled, no start", "Requests marked filled with no worker recorded.", "Right now", "count"),
+  activeApplicants: metric(
+    "activeApplicants",
+    "Active applicants",
+    "Candidates in the pipeline now, from application to before start.",
+    "Right now",
+    "count"
+  ),
+};
+
+/** Reason codes in plain words. Mirrors frontend/src/lib/backout.ts. */
+export const BACKOUT_REASON_LABELS: Record<string, string> = {
+  NO_SHOW: "Did not show up",
+  ACCEPTED_OTHER_OFFER: "Accepted another job offer",
+  SALARY_OR_BENEFITS: "Salary or benefits",
+  LOCATION_OR_COMMUTE: "Work location or commute",
+  FAMILY_OR_PERSONAL: "Family or personal reasons",
+  HEALTH: "Health reasons",
+  UNREACHABLE: "Cannot be reached",
+  INCOMPLETE_REQUIREMENTS: "Could not complete requirements",
+  CLIENT_CANCELLED_REQUEST: "Client cancelled the request",
+  CLIENT_WITHDREW_SELECTION: "Client withdrew the selection",
+  POSITION_FILLED: "Position already filled",
+  AGENCY_PROCESSING_DELAY: "Processing delay on our side",
+  OTHER: "Other reason",
+};
+
+export const backoutReasonLabel = (code: string): string =>
+  BACKOUT_REASON_LABELS[code] ?? code.replace(/_/g, " ").toLowerCase().replace(/^./, (c) => c.toUpperCase());
 
 const APPLIED_STATUSES = ["SUBMITTED", "PARSING", "REVIEW", "NEEDS_ATTENTION", "MATCHED"];
 

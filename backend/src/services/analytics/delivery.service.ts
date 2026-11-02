@@ -5,6 +5,7 @@ import { parseDateRange, type AnalyticsFilterDto, type UserScope } from "./analy
 import { ownedWhere } from "../ta/ownership.js";
 import {
   ACTIVE_PIPELINE_STATUSES,
+  backoutReasonLabel,
   FILLED_SEAT_STATUSES,
   POST_SELECTION_STAGES,
   STAGE_ROWS,
@@ -16,6 +17,7 @@ import {
   percent,
   requestHealth,
   round1,
+  sampled,
   stageEntry,
   stageRowFor,
   stagesReached,
@@ -43,6 +45,8 @@ export interface StageTableRow {
   backedOut: number;
   avgDaysInStage: number | null;
   medianDaysInStage: number | null;
+  /** How many candidates the typical wait rests on (= inStageNow). Under 5, the averages are null. */
+  typicalWaitSample: number;
   slaDays: number;
 }
 
@@ -65,7 +69,7 @@ export interface BackoutSummary {
   backouts: number;
   byParty: Record<BackoutPartyKey, number>;
   byStage: { stage: StageRowKey; label: string; APPLICANT: number; CLIENT: number; AGENCY: number; total: number }[];
-  topReasons: { reason: string; count: number }[];
+  topReasons: { reason: string; count: number; label: string }[];
   /** Backouts recorded as NO_SHOW. Counted inside `backouts` or `withdrawals` by stage, shown on their own too. */
   noShows: number;
   byClient: { clientName: string; count: number }[];
@@ -79,6 +83,7 @@ export interface BackoutSummary {
     stage: string;
     party: BackoutPartyKey;
     reason: string;
+    reasonLabel: string;
     occurredAt: string;
   }[];
 }
@@ -185,6 +190,8 @@ export interface TrendPoint {
   label: string;
   newStarts: number;
   redeployStarts: number;
+  /** newStarts + redeployStarts. */
+  starts: number;
   /** Left after the client saw the candidate. */
   backouts: number;
   /** Left before the client saw the candidate. */
@@ -203,8 +210,8 @@ export interface DateRangeInfo {
 }
 
 export interface DeliveryKpis {
-  /** Snapshot: seats filled across the requisitions in scope, now. */
-  fillRate: number;
+  /** Snapshot: seats filled across the requisitions in scope, now. Null when fewer than 5 seats were requested. */
+  fillRate: number | null;
   filledSeats: number;
   requestedSeats: number;
   openSeats: number;
@@ -218,12 +225,17 @@ export interface DeliveryKpis {
   daysToFillSample: number;
   /** In period: left at or after client review. Rate = backouts / (backouts + starts that came from an application). */
   backoutsAfterClientReview: number;
-  backoutRate: number;
+  /** Null when backoutRateBase is under 5. */
+  backoutRate: number | null;
   backoutRateBase: number;
   /** Snapshot: candidates in the pipeline now. */
   activeApplicants: number;
   overdueCandidates: number;
   overdueEstimated: number;
+  /** overdueCandidates + overdueEstimated: the count the overdue list shows. */
+  overdueTotal: number;
+  /** Open requests that are overdue or at risk. */
+  lateRequests: number;
   /** Candidates still in the pipeline on a closed job or a filled or cancelled requisition. Not counted as overdue. */
   closedOpenings: number;
   /** Verified overdue candidates who have waited at least twice the stage limit. */
@@ -573,7 +585,7 @@ export function summarizeBackouts(records: BackoutRecord[], recentLimit = 10): B
     topReasons: [...reasons.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
-      .map(([reason, count]) => ({ reason, count })),
+      .map(([reason, count]) => ({ reason, count, label: backoutReasonLabel(reason) })),
     noShows,
     byClient: [...clients.entries()]
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
@@ -592,6 +604,7 @@ export function summarizeBackouts(records: BackoutRecord[], recentLimit = 10): B
       stage: r.stage,
       party: r.party,
       reason: r.reason,
+      reasonLabel: backoutReasonLabel(r.reason),
       occurredAt: r.occurredAt.toISOString(),
     })),
   };
@@ -678,8 +691,9 @@ export function buildStageTable(
       overdueEstimated: inStage.filter((s) => s.overdueEstimated).length,
       entered: entered.get(row.key) ?? 0,
       backedOut: backoutRecords.filter((b) => (stageRowFor(b.stage) ?? "APPLIED") === row.key).length,
-      avgDaysInStage: ages.length ? round1(ages.reduce((a, b) => a + b, 0) / ages.length) : null,
-      medianDaysInStage: middle === null ? null : round1(middle),
+      avgDaysInStage: ages.length ? sampled(round1(ages.reduce((a, b) => a + b, 0) / ages.length), ages.length) : null,
+      medianDaysInStage: middle === null ? null : sampled(round1(middle), ages.length),
+      typicalWaitSample: inStage.length,
       slaDays: row.slaDays,
     };
   });
@@ -878,7 +892,7 @@ export function buildKpis(
   const pipeline = snapshot.filter((s) => s.stage !== "DEPLOYED");
   const count = (health: RequestHealth) => requests.filter((r) => r.health === health).length;
   return {
-    fillRate: percent(filledSeats, requestedSeats),
+    fillRate: sampled(percent(filledSeats, requestedSeats), requestedSeats),
     filledSeats,
     requestedSeats,
     openSeats: Math.max(0, requestedSeats - filledSeats),
@@ -892,14 +906,16 @@ export function buildKpis(
     placementsStarted: placements.length,
     newStarts: placements.length - redeployStarts,
     redeployStarts,
-    medianDaysToFill: medianFill === null ? null : round1(medianFill),
+    medianDaysToFill: medianFill === null ? null : sampled(round1(medianFill), fillTimes.length),
     daysToFillSample: fillTimes.length,
     backoutsAfterClientReview: postSelectionBackouts,
-    backoutRate: percent(postSelectionBackouts, backoutRateBase),
+    backoutRate: sampled(percent(postSelectionBackouts, backoutRateBase), backoutRateBase),
     backoutRateBase,
     activeApplicants: pipeline.length,
     overdueCandidates: pipeline.filter((s) => s.overdue).length,
     overdueEstimated: pipeline.filter((s) => s.overdueEstimated).length,
+    overdueTotal: pipeline.filter((s) => s.overdue || s.overdueEstimated).length,
+    lateRequests: count("OVERDUE") + count("AT_RISK"),
     closedOpenings: pipeline.filter((s) => s.closedOpening).length,
     // Same population as the overdue list (verified and by-age-only), so the headline matches the list it opens.
     criticalCandidates: pipeline.filter((s) => (s.overdue || s.overdueEstimated) && urgencyFor(s.daysInStage, s.slaDays) === "critical").length,
@@ -1060,7 +1076,7 @@ export function buildTrend(
         month: "short",
         ...(granularity === "month" ? { year: "numeric" } : { day: "numeric" }),
       });
-      return [key, { start: key, label, newStarts: 0, redeployStarts: 0, backouts: 0, withdrawals: 0 }];
+      return [key, { start: key, label, newStarts: 0, redeployStarts: 0, starts: 0, backouts: 0, withdrawals: 0 }];
     })
   );
   for (const p of placements) {
@@ -1068,6 +1084,7 @@ export function buildTrend(
     if (!point) continue;
     if (p.isRedeployment) point.redeployStarts++;
     else point.newStarts++;
+    point.starts++;
   }
   for (const b of backouts) {
     const point = points.get(trendBucketStart(b.occurredAt, granularity));
