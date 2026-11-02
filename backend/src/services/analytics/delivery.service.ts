@@ -1270,7 +1270,7 @@ async function computeAdminDelivery(
       const mine = placements.filter((p) => keyOf(p.ownerId) === key);
       const reqs = requests.filter((r) => keyOf(r.ownerId) === key);
       const lost = postSelection.filter((b) => keyOf(b.ownerId) === key).length;
-            const sent = new Set(
+      const sent = new Set(
         endorsements.filter((e) => keyOf(jobOwnerId(e.application.jobPosting)) === key).map((e) => e.applicationId)
       ).size;
       const requestedSeats = reqs.reduce((t, r) => t + r.headcount, 0);

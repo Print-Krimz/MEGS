@@ -29,6 +29,7 @@ import {
 } from "../../lib/admin-report-search";
 import type { AnalyticsFilterState } from "../../lib/types/analytics.types";
 import { formatDate } from "../../lib/utils";
+import { scrollToId } from "../../lib/scroll-to";
 
 const plural = (count: number, word: string) => (count === 1 ? word : `${word}s`);
 
@@ -47,7 +48,7 @@ type WorkspaceKey = "waiting" | "requests" | "recruiters";
 type WaitingFocus = { urgency?: "ALL" | "critical"; stage?: string; nonce: number };
 type RequestFocus = { health: RequestHealthFilter; nonce: number };
 
-const scrollToWorkspace = () => setTimeout(() => document.getElementById("operations")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+const scrollToWorkspace = () => setTimeout(() => scrollToId("operations"), 0);
 
 export const AdminAnalyticsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -185,7 +186,7 @@ export const AdminAnalyticsPage: React.FC = () => {
     kpis.activeApplicants === 0 && kpis.requisitions.total === 0 && kpis.placementsStarted === 0 && data.backouts.backouts === 0 && data.backouts.withdrawals === 0;
   const staleNote =
     kpis.staleFilledRequisitions > 0
-      ? `${kpis.staleFilledRequisitions} marked filled with no placement. Left out of seat counts.`
+      ? `${kpis.staleFilledRequisitions} marked filled with no start. Left out of seat counts.`
       : undefined;
 
   return (

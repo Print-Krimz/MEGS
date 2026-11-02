@@ -86,9 +86,9 @@ describe("StagePipeline", () => {
 
   it("names every stage with its count and overdue total, and never flags Deployed", () => {
     render(<StagePipeline rows={rows} />);
-    expect(screen.getByRole("group", { name: "Requirements, 54, 26 overdue" })).toBeDefined();
+    expect(screen.getByRole("group", { name: "Requirements, 54 · 26 overdue" })).toBeDefined();
     expect(screen.getByText(/26 overdue/)).toBeDefined();
-    expect(screen.getByRole("group", { name: "Final interview, 4, 3 overdue" })).toBeDefined();
+    expect(screen.getByRole("group", { name: "Final interview, 4 · 3 overdue" })).toBeDefined();
     expect(screen.getByRole("group", { name: "Deployed, 2" })).toBeDefined();
     expect(screen.getByRole("img", { name: "Requirements: within limit 28, overdue 26" })).toBeDefined();
     expect(screen.queryByText(/Watch|Bottleneck|by age only|Show period details/)).toBeNull();
@@ -129,7 +129,7 @@ describe("StagePipeline", () => {
 
   it("names each stage row from its visible text and puts the footer on the View as table row", () => {
     const { container } = render(<StagePipeline rows={rows} footer={<p>Client answers: 3 approved</p>} />);
-    expect(screen.getByRole("group", { name: /^Requirements, 54, 26 overdue/ })).toBeDefined();
+    expect(screen.getByRole("group", { name: /^Requirements, 54 · 26 overdue/ })).toBeDefined();
     expect(screen.getByText("Candidates in each stage today.")).toBeDefined();
     const footer = screen.getByText("Client answers: 3 approved");
     expect(footer.closest("div")?.parentElement).toBe(container.querySelector("details")?.parentElement);
@@ -138,7 +138,7 @@ describe("StagePipeline", () => {
   it("lets a backed-up stage be chosen to list its candidates", () => {
     const onSelect = vi.fn();
     render(<StagePipeline rows={rows} onSelectStage={onSelect} />);
-    fireEvent.click(screen.getByRole("button", { name: "Requirements, 54, 26 overdue. Show these candidates" }));
+    fireEvent.click(screen.getByRole("button", { name: "Requirements, 54 · 26 overdue. Show these candidates" }));
     expect(onSelect).toHaveBeenCalledWith("COMPLIANCE");
     // Deployed has no limit, so it cannot be overdue and is not a button
     expect(screen.queryByRole("button", { name: /Deployed/ })).toBeNull();
@@ -197,7 +197,18 @@ describe("compact client requests table", () => {
     rerender(<RequestProgressList linkTo="/admin/mrfs/$mrfId" rows={rows} focus={{ health: "NO_OPENING", nonce: 2 }} />);
     expect(screen.getByRole("link", { name: "No job" })).toBeDefined();
     expect(screen.queryByRole("link", { name: "No applicants" })).toBeNull();
+    expect(screen.getByRole("button", { name: /^No job opening/ }).getAttribute("aria-pressed")).toBe("true");
   });
+
+  it("RequestProgressList follows a second chip click: the new filter is the one pressed", () => {
+    const rows = [row(1, { title: "Late one", health: "OVERDUE" }), row(4, { title: "No job", attention: "NO_OPENING" })];
+    const { rerender } = render(<RequestProgressList linkTo="/admin/mrfs/$mrfId" rows={rows} focus={{ health: "LATE", nonce: 1 }} />);
+    expect(screen.getByRole("button", { name: /^Overdue or at risk/ }).getAttribute("aria-pressed")).toBe("true");
+    rerender(<RequestProgressList linkTo="/admin/mrfs/$mrfId" rows={rows} focus={{ health: "NO_OPENING", nonce: 1 }} />);
+    expect(screen.getByRole("button", { name: /^No job opening/ }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByRole("button", { name: /^Overdue or at risk/ })).toBeNull();
+  });
+
 });
 
 describe("admin lists", () => {
@@ -224,7 +235,7 @@ describe("admin lists", () => {
     expect(header("Overdue").getAttribute("aria-sort")).toBe("descending");
     expect(header("Active").hasAttribute("aria-sort")).toBe(false);
     const order = () => screen.getAllByRole("row").slice(1).map((r) => within(r).getAllByRole("rowheader")[0].textContent);
-    expect(order()).toEqual(["Alice", "Bea", "Cy"]);
+    expect(order()).toEqual(["Alice", "Cy", "Bea"]);
 
     fireEvent.click(within(header("Active")).getByRole("button"));
     expect(header("Active").getAttribute("aria-sort")).toBe("descending");
@@ -240,10 +251,17 @@ describe("admin lists", () => {
     render(<TeamTable rows={rows} onSelectRecruiter={vi.fn()} />);
     const order = () => screen.getAllByRole("row").slice(1).map((r) => within(r).getAllByRole("rowheader")[0].textContent);
     const button = within(screen.getByRole("columnheader", { name: /Overdue/ })).getByRole("button");
+    expect(order()).toEqual(["Bea", "Alice", "Cy"]);
     fireEvent.click(button);
     expect(order()).toEqual(["Cy", "Alice", "Bea"]);
-    fireEvent.click(button);
-    expect(order()).toEqual(["Bea", "Alice", "Cy"]);
+  });
+
+  it("StuckList follows a second chip click: the new filter is the one pressed", () => {
+    const rows = [stuck(1, { urgency: "critical" }), stuck(2)];
+    const { rerender } = render(<StuckList rows={rows} total={2} focus={{ urgency: "critical", nonce: 1 }} />);
+    expect(screen.queryByRole("link", { name: "Candidate 2" })).toBeNull();
+    rerender(<StuckList rows={rows} total={2} focus={{ urgency: "ALL", nonce: 1 }} />);
+    expect(screen.getByRole("link", { name: "Candidate 2" })).toBeDefined();
   });
 
   it("StuckList in-text links are underlined and closed openings sit in the caption", () => {

@@ -33,16 +33,16 @@ export const BackoutPanel: React.FC<BackoutPanelProps> = ({ data, rangeLabel }) 
         <div className="p-3.5 space-y-4">
           <div>
             <dl className="grid grid-cols-2 gap-3">
-              <div title="Applicants who left before the client reviewed them">
+              <div>
                 <dt className="text-xs font-semibold text-slate-600">Before client review</dt>
                 <dd className="text-2xl font-bold tabular-nums text-slate-950"><AnimatedNumber value={data.withdrawals} /></dd>
               </div>
-              <div title="Candidates who left once the client had reviewed them, up to their start date">
+              <div>
                 <dt className="text-xs font-semibold text-slate-600">After client review</dt>
                 <dd className={`text-2xl font-bold tabular-nums ${TEXT_LOSS}`}><AnimatedNumber value={data.backouts} /></dd>
-                {data.noShows > 0 && <dd className="text-xs text-slate-600 font-sans tabular-nums">of which {data.noShows} {data.noShows === 1 ? "no-show" : "no-shows"}</dd>}
               </div>
             </dl>
+            {data.noShows > 0 && <p className="mt-1.5 text-xs text-slate-600 font-sans tabular-nums">{data.noShows} {data.noShows === 1 ? "no-show" : "no-shows"} in these dates</p>}
           </div>
 
           {partyTotal > 0 && (

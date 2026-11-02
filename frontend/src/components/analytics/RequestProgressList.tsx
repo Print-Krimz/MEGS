@@ -68,8 +68,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
     setHealth(focus.health);
     setQuery("");
     setPage(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focus?.nonce]);
+  }, [focus?.nonce, focus?.health]);
 
   const counts = useMemo(() => {
     const c: Record<RequestHealthFilter, number> = { ALL: rows.length, NONE: 0, LATE: 0, NO_OPENING: 0, OVERDUE: 0, AT_RISK: 0, ON_TRACK: 0, FILLED: 0 };
@@ -154,7 +153,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
         <ul className="divide-y divide-slate-200">
           {pageRows.map((row) => {
             const style = HEALTH[row.health];
-            const owner = row.ownerId === null ? { label: "No recruiter", full: undefined } : formatRecruiterName(row.ownerName);
+            const owner = row.ownerId === null ? { label: "No recruiter assigned", full: undefined } : formatRecruiterName(row.ownerName);
             return (
               <li key={row.mrfId} className="px-3 py-2.5">
                 <div className="flex items-center justify-between gap-3">

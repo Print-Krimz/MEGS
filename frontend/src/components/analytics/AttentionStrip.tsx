@@ -1,5 +1,6 @@
 import React from "react";
 import { HEALTH_CHIP } from "../../lib/chart-palette";
+import { scrollToId } from "../../lib/scroll-to";
 
 export interface AttentionItem {
   key: string;
@@ -56,7 +57,7 @@ export const AttentionStrip: React.FC<AttentionStripProps> = ({ items }) => {
                 event.preventDefault();
                 item.onSelect?.();
                 // Let a newly opened tab render before scrolling to it.
-                if (anchor) setTimeout(() => document.getElementById(anchor)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+                if (anchor) setTimeout(() => scrollToId(anchor), 0);
               }}
               className={chip}
             >

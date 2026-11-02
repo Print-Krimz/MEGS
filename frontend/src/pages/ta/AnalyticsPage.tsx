@@ -21,6 +21,7 @@ import type { RequestHealthFilter } from "../../components/analytics";
 import { filtersToSearch, parseTAReportSearch, searchToFilters, type AdminReportSearch } from "../../lib/admin-report-search";
 import type { AnalyticsFilterState } from "../../lib/types/analytics.types";
 import { formatDate } from "../../lib/utils";
+import { scrollToId } from "../../lib/scroll-to";
 import { TA_COPY } from "../../lib/ta-copy";
 
 const plural = (count: number, word: string) => (count === 1 ? word : `${word}s`);
@@ -39,7 +40,7 @@ type WorkspaceKey = "waiting" | "requests";
 type WaitingFocus = { urgency?: "ALL" | "critical"; stage?: string; nonce: number };
 type RequestFocus = { health: RequestHealthFilter; nonce: number };
 
-const scrollToWorkspace = () => setTimeout(() => document.getElementById("operations")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+const scrollToWorkspace = () => setTimeout(() => scrollToId("operations"), 0);
 
 export const AnalyticsPage: React.FC = () => {
   const navigate = useNavigate();
@@ -156,7 +157,7 @@ export const AnalyticsPage: React.FC = () => {
     kpis.activeApplicants === 0 && kpis.requisitions.total === 0 && kpis.placementsStarted === 0 && data.backouts.backouts === 0 && data.backouts.withdrawals === 0;
   const staleNote =
     kpis.staleFilledRequisitions > 0
-      ? `${kpis.staleFilledRequisitions} marked filled with no placement. Left out of seat counts.`
+      ? `${kpis.staleFilledRequisitions} marked filled with no start. Left out of seat counts.`
       : undefined;
 
   return (
@@ -172,10 +173,10 @@ export const AnalyticsPage: React.FC = () => {
       <div className={`space-y-5 transition-opacity ${dashboardQuery.isFetching ? "opacity-70" : ""}`}>
         <AttentionStrip
           items={[
-            { key: "overdue", count: kpis.overdueTotal, label: plural(kpis.overdueTotal, "overdue candidate"), href: "#operations", onSelect: () => showWaiting({}) },
+            { key: "overdue", count: kpis.overdueTotal, label: plural(kpis.overdueTotal, "overdue candidate"), href: "#operations", onSelect: () => showWaiting({ urgency: "ALL" }) },
             // The Overview already lists the tasks, so this chip goes there instead of repeating them here.
             { key: "tasks", count: data.pendingActionsTotal, label: `${plural(data.pendingActionsTotal, "task")} waiting on you`, href: "/ta", tone: "watch", onSelect: () => void navigate({ to: "/ta" }) },
-            { key: "late", count: kpis.lateRequests, label: `${plural(kpis.lateRequests, "request")} overdue or at risk`, href: "#operations", onSelect: () => showRequests("LATE") },
+            { key: "late", count: kpis.lateRequests, label: `overdue or at-risk ${plural(kpis.lateRequests, "request")}`, href: "#operations", onSelect: () => showRequests("LATE") },
           ]}
         />
 
@@ -204,7 +205,7 @@ export const AnalyticsPage: React.FC = () => {
                     value={kpis.overdueTotal}
                     detail={`${kpis.overdueEstimated} estimated from application date`}
                     href="#operations"
-                    onClick={() => showWaiting({})}
+                    onClick={() => showWaiting({ urgency: "ALL" })}
                   />
                   {/* No link: the request list also holds filled requests, so its count would not match this tile. */}
                   <AnalyticsKpi label="Open requests" value={kpis.requisitions.open} detail={`${kpis.filledSeats} of ${kpis.requestedSeats} seats filled`} />

@@ -77,8 +77,7 @@ export const StuckList = React.memo(function StuckList({
     setUrgency(focus.urgency ?? "ALL");
     setStage(focus.stage ?? "ALL");
     setPage(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focus?.nonce]);
+  }, [focus?.nonce, focus?.urgency, focus?.stage]);
 
   const stages = useMemo(() => [...new Map(rows.map((r) => [r.stage, r.stageLabel])).entries()], [rows]);
   const criticalCount = rows.filter((r) => r.urgency === "critical").length;

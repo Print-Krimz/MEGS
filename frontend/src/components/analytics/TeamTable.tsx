@@ -75,9 +75,9 @@ export const TeamTable = React.memo(function TeamTable({
 }: TeamTableProps) {
   const [query, setQuery] = useState(initialQuery);
   const [page, setPage] = useState(1);
-  // null keeps the order the server sent, which is Overdue, highest first.
-  const [sort, setSort] = useState<Sort | null>(null);
-  const shown: Sort = sort ?? { key: "overdue", dir: "desc" };
+  // Opens on Overdue, highest first, as the arrow shows.
+  const [sort, setSort] = useState<Sort>({ key: "overdue", dir: "desc" });
+  const shown = sort;
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -87,7 +87,7 @@ export const TeamTable = React.memo(function TeamTable({
       return !needle || r.name.toLowerCase().includes(needle);
     });
     // Array.sort is stable, so ties keep the server order.
-    return sort ? [...kept].sort((a, b) => compare(a, b, sort)) : kept;
+    return [...kept].sort((a, b) => compare(a, b, sort));
   }, [rows, query, selectedRecruiterId, sort]);
 
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));

@@ -2,6 +2,7 @@ import React from "react";
 import { Link } from "@tanstack/react-router";
 import { AnimatedNumber } from "./motion";
 import { TEXT_LOSS } from "../../lib/chart-palette";
+import { scrollToId } from "../../lib/scroll-to";
 
 interface AnalyticsKpiProps {
   label: string;
@@ -69,7 +70,7 @@ export const AnalyticsKpi: React.FC<AnalyticsKpiProps> = ({ label, value, detail
           event.preventDefault();
           onClick?.();
           // Let a newly opened tab render before scrolling to it.
-          setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+          setTimeout(() => scrollToId(id), 0);
         }}
         className={ACTIVE}
       >

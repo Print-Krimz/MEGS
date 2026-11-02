@@ -244,7 +244,7 @@ describe("Analytics Components Test Suite", () => {
     expect(screen.getByRole("heading", { name: "Why people backed out" })).toBeDefined();
     expect(screen.getByText("Before client review").nextElementSibling?.textContent).toContain("1");
     expect(screen.getByText("After client review").nextElementSibling?.textContent).toContain("3");
-    expect(screen.getByText("of which 1 no-show")).toBeDefined();
+    expect(screen.getByText("1 no-show in these dates")).toBeDefined();
     expect(screen.queryByText("No-shows")).toBeNull();
     expect(screen.getByRole("img", { name: /Who backed out: Applicant 3, Client 1/ })).toBeDefined();
     expect(screen.getByText("Applicant").parentElement?.textContent).toContain("3");
@@ -255,7 +255,7 @@ describe("Analytics Components Test Suite", () => {
 
   it("uses plural no-shows, a visible caption and no (i) button", () => {
     render(<BackoutPanel data={{ ...backouts, noShows: 2 }} />);
-    expect(screen.getByText("of which 2 no-shows")).toBeDefined();
+    expect(screen.getByText("2 no-shows in these dates")).toBeDefined();
     expect(screen.getByText(/A client turning someone down is not a backout/)).toBeDefined();
     expect(screen.queryByRole("button", { name: /Why people backed out/ })).toBeNull();
   });
@@ -584,7 +584,7 @@ describe("Analytics Components Test Suite", () => {
     ];
     const onSelect = vi.fn();
     const { unmount } = render(<StagePipeline rows={rows} onSelectStage={onSelect} />);
-    fireEvent.click(screen.getByRole("button", { name: "Requirements, 4, 1 overdue. Show these candidates" }));
+    fireEvent.click(screen.getByRole("button", { name: "Requirements, 4 · 1 overdue. Show these candidates" }));
     expect(onSelect).toHaveBeenCalledWith("COMPLIANCE");
     // A stage with nothing overdue is not a button
     expect(screen.getByRole("group", { name: "Final interview, 2" })).toBeDefined();

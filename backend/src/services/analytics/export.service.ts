@@ -171,11 +171,11 @@ function kpisFor(result: ReportResult): Kpi[] {
       k.unlinkedApplicants > 0 ? `${k.unlinkedApplicants} applied to a job post with no client request` : "Still being processed today"
     ),
     metricKpi("openRequests", k.requisitions.open, `${k.filledSeats} of ${k.requestedSeats} seats filled. ${k.lateRequests} overdue or at risk`),
-    metricKpi("overdueCandidates", k.overdueTotal, `${k.overdueCandidates} sure, ${k.overdueEstimated} estimated from application date`),
-    metricKpi("starts", k.placementsStarted, `${k.newStarts} new, ${k.redeployStarts} returning`),
+    metricKpi("overdueCandidates", k.overdueTotal, `${k.overdueCandidates} recorded, ${k.overdueEstimated} estimated from application date`),
+    metricKpi("starts", k.placementsStarted, `${k.newStarts} new, ${k.redeployStarts} redeployed`),
     metricKpi("backoutsAfterClientReview", k.backoutsAfterClientReview, `${k.backoutsAfterClientReview} of ${k.backoutRateBase} (backouts plus starts)`),
     metricKpi("backoutRate", valueOrNote(k.backoutRate, k.backoutRateBase, pct), `${k.backoutsAfterClientReview} of ${k.backoutRateBase}`),
-    metricKpi("withdrawals", result.backouts.withdrawals, `${result.backouts.noShows} did not show up`),
+    metricKpi("withdrawals", result.backouts.withdrawals, "Left before the client reviewed them"),
   ];
 }
 
@@ -491,7 +491,7 @@ function startsSection(detail: DeliveryDetail, admin: boolean): Section {
       { header: "Worker", key: "worker", weight: 120 },
       { header: "Client", key: "client", weight: 110 },
       { header: "Client request", key: "request", weight: 120 },
-      { header: "New or returning", key: "type", weight: 70, align: "center", badge: true },
+      { header: "New or redeployed", key: "type", weight: 70, align: "center", badge: true },
       ...(admin ? [{ header: "Recruiter", key: "recruiter", weight: 90 }] : []),
       { header: "Work site", key: "site", weight: 90 },
       { header: "Status", key: "status", weight: 70, align: "center" as const, badge: true },
@@ -595,7 +595,7 @@ async function buildDeploymentModel(requestedBy: Requester, filters: AnalyticsFi
   const awaiting = await awaitingStartSection(filters, requestedBy, admin, new Date());
   const k = result.kpis;
   const kpis: Kpi[] = [
-    metricKpi("starts", k.placementsStarted, `${k.newStarts} new, ${k.redeployStarts} returning`),
+    metricKpi("starts", k.placementsStarted, `${k.newStarts} new, ${k.redeployStarts} redeployed`),
     metricKpi("seatsFilled", valueOrNote(k.fillRate, k.requestedSeats, pct), `${k.filledSeats} of ${k.requestedSeats} seats`),
     {
       label: "Seats still open",

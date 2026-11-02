@@ -24,7 +24,7 @@ interface LineChartProps {
   emptyText?: string;
 }
 
-/** Navy for the first series, the loss red for the second. Each line is also named at its last point. */
+/** Navy for the first series, the loss red for the second. The legend names each line. */
 const SERIES_COLORS = [BAR_PRIMARY, TREND.backouts] as const;
 
 /** Fixed height and real pixel text: only the width follows the container, so the chart is the same height at every screen width. */

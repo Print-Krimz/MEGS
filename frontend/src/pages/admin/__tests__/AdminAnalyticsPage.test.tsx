@@ -178,7 +178,7 @@ describe("AdminAnalyticsPage", () => {
 
   it("names the stage row and opens the waiting list from it, with short tab names", async () => {
     renderPage();
-    const row = await screen.findByRole("button", { name: "Requirements, 5, 2 overdue. Show these candidates" });
+    const row = await screen.findByRole("button", { name: "Requirements, 5 · 2 overdue. Show these candidates" });
     fireEvent.click(row);
     expect(screen.getByRole("tab", { name: /Overdue candidates 0$/ }).getAttribute("aria-selected")).toBe("true");
     expect(within(screen.getByRole("tablist")).getByText("Requests")).toBeDefined();
@@ -216,7 +216,7 @@ describe("AdminAnalyticsPage", () => {
     renderPage();
     expect(await screen.findByRole("button", { name: /^Overdue or at risk 4$/ })).toBeDefined();
     expect(screen.getAllByText(/\/10 seats/)).toHaveLength(4);
-    expect(screen.getByText("No recruiter")).toBeDefined();
+    expect(screen.getByText("No recruiter assigned")).toBeDefined();
   });
 
   it("lists requests marked filled with no start in the strip and opens the requests tab", async () => {

@@ -833,7 +833,7 @@ describe("Talent Acquisition Interface Suite", () => {
     renderWithClient(<AnalyticsPage />);
     fireEvent.click(await screen.findByRole("link", { name: /1\s*task waiting on you/ }));
     expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ to: "/ta" }));
-    fireEvent.click(screen.getByRole("link", { name: /1\s*request overdue or at risk/ }));
+    fireEvent.click(screen.getByRole("link", { name: /1\s*overdue or at-risk request/ }));
     expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ to: "/ta/analytics", search: expect.objectContaining({ tab: "requests", health: "LATE" }) }));
   });
 

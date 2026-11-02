@@ -706,7 +706,7 @@ test.describe("Team leader reports (/admin/analytics)", () => {
     await expect(requests.getByRole("listitem")).toHaveCount(2);
 
     await strip.getByRole("link", { name: /requests filled with no start$/ }).click();
-    await expect(page.locator("#requests-note")).toContainText("28 marked filled with no placement");
+    await expect(page.locator("#requests-note")).toContainText("28 marked filled with no start");
     await expect(requests.getByRole("button", { name: /^All 3$/ })).toHaveAttribute("aria-pressed", "true");
   });
 
@@ -732,7 +732,7 @@ test.describe("Team leader reports (/admin/analytics)", () => {
     await expect(requirements).toContainText("8 days");
     await expect(requirements).toContainText("14 days");
 
-    await stages.getByRole("button", { name: /^Requirements, 54, 26 overdue/ }).click();
+    await stages.getByRole("button", { name: /^Requirements, 54 · 26 overdue/ }).click();
     const waiting = await openTab(page, /^Overdue candidates/);
     await expect(waiting.getByRole("combobox", { name: /^Stage/ })).toHaveValue("COMPLIANCE");
     await expect(waiting.getByRole("link", { name: "Ramon Gomez" })).toBeVisible();
@@ -776,7 +776,7 @@ test.describe("Team leader reports (/admin/analytics)", () => {
     await expect(welders.getByRole("link", { name: "5x Certified Welders" })).toHaveAttribute("href", "/admin/mrfs/3");
     await expect(list.getByRole("listitem").filter({ hasText: "10x Industrial" })).toContainText("At risk");
     await expect(list.getByRole("listitem").filter({ hasText: "25x Warehouse" })).toContainText("On track");
-    await expect(list.getByText("28 marked filled with no placement. Left out of seat counts.")).toBeVisible();
+    await expect(list.getByText("28 marked filled with no start. Left out of seat counts.")).toBeVisible();
   });
 
   test("the status filters classify requests the way the server does", async ({ page }) => {
@@ -799,7 +799,7 @@ test.describe("Team leader reports (/admin/analytics)", () => {
 
     const list = await openTab(page, /^Client requests\s+4$/);
     const row = list.getByRole("listitem").filter({ hasText: "Admin-held request" });
-    await expect(row).toContainText("No recruiter");
+    await expect(row).toContainText("No recruiter assigned");
     await expect(row).not.toContainText("Team Leader");
   });
 
@@ -899,7 +899,7 @@ test.describe("Team leader reports (/admin/analytics)", () => {
 
     const panel = page.locator("#backouts");
     await expect(panel.getByRole("heading", { name: "Why people backed out" })).toBeVisible();
-    await expect(panel.getByText("of which 1 no-show")).toBeVisible();
+    await expect(panel.getByText("1 no-show in these dates")).toBeVisible();
     await expect(panel.getByText("Accepted another offer")).toBeVisible();
     await expect(panel.getByText("Client cancelled the request")).toBeVisible();
     await expect(page.getByText("Accepted another offer", { exact: true })).toHaveCount(1);
@@ -1155,7 +1155,7 @@ test.describe("Recruiter reports (/ta/analytics)", () => {
     const strip = page.getByRole("region", { name: "Needs action" });
     await expect(strip.getByRole("link", { name: /overdue candidates$/ })).toBeVisible();
     await expect(strip.getByRole("link", { name: /tasks waiting on you$/ })).toBeVisible();
-    await expect(strip.getByRole("link", { name: /request overdue or at risk$/ })).toBeVisible();
+    await expect(strip.getByRole("link", { name: /overdue or at-risk request$/ })).toBeVisible();
 
     await strip.getByRole("link", { name: /overdue candidates$/ }).click();
     const waiting = page.getByRole("tabpanel");
@@ -1163,7 +1163,7 @@ test.describe("Recruiter reports (/ta/analytics)", () => {
     await expect(waiting.getByRole("link", { name: "Mario Reyes" })).toBeVisible();
     await expect(page.locator("#operations")).toBeInViewport();
 
-    await strip.getByRole("link", { name: /request overdue or at risk$/ }).click();
+    await strip.getByRole("link", { name: /overdue or at-risk request$/ }).click();
     await expect(page.getByRole("tab", { name: /^Client requests/ })).toHaveAttribute("aria-selected", "true");
     await expect(page.getByRole("tabpanel").getByRole("button", { name: /^Overdue or at risk 1$/ })).toHaveAttribute("aria-pressed", "true");
   });
@@ -1198,7 +1198,7 @@ test.describe("Recruiter reports (/ta/analytics)", () => {
     await setup(page, "recruiter", taDashboard);
     await page.goto("/ta/analytics");
     await expectReportsLoaded(page);
-    await page.locator("#stage-pipeline").getByRole("button", { name: /^Requirements, 54, 26 overdue/ }).click();
+    await page.locator("#stage-pipeline").getByRole("button", { name: /^Requirements, 54 · 26 overdue/ }).click();
     const waiting = page.getByRole("tabpanel");
     await expect(waiting.getByRole("combobox", { name: /^Stage/ })).toHaveValue("COMPLIANCE");
     await expect(waiting.getByRole("link", { name: "Mario Reyes" })).toBeVisible();

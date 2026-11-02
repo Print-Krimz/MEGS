@@ -50,7 +50,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
             {rows.map((row, i) => {
               const late = row.stage === "DEPLOYED" ? 0 : row.overdue + row.overdueEstimated;
               const name = row.label;
-              const summary = `${name}, ${row.inStageNow}${late > 0 ? `, ${late} overdue` : ""}`;
+              const summary = `${name}, ${row.inStageNow}${late > 0 ? ` · ${late} overdue` : ""}`;
               const link = linkStages && row.stage !== "APPLIED" && row.stage !== "DEPLOYED";
               const pick = !link && !!onSelectStage && late > 0;
               const label = link || pick ? `${summary}. Show these candidates` : summary;
