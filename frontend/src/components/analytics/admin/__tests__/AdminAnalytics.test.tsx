@@ -90,37 +90,39 @@ describe("Analytics Components Test Suite", () => {
     expect(screen.queryByRole("checkbox", { name: /My requisitions only/i })).toBeNull();
   });
 
-  it("will not apply a custom range until both dates are chosen and in order", () => {
+  it("applies a custom range at once when both dates are chosen and in order, with no Apply step", () => {
     const handleChange = vi.fn();
     render(<AnalyticsFilterBar filters={{ range: "7d" }} onChange={handleChange} options={mockOptions} />);
     fireEvent.click(screen.getByText("Custom range"));
-    const apply = screen.getByRole("button", { name: /Apply filters/i }) as HTMLButtonElement;
-    expect(apply.disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: /Apply filters/i })).toBeNull();
     expect(screen.getByRole("alert").textContent).toMatch(/start and an end date/);
 
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2026-10-10" } });
+    expect(handleChange).not.toHaveBeenCalled();
     fireEvent.change(screen.getByLabelText("To"), { target: { value: "2026-10-12" } });
-    expect(apply.disabled).toBe(false);
-    fireEvent.click(apply);
     expect(handleChange).toHaveBeenCalledWith(expect.objectContaining({ range: "custom", startDate: "2026-10-10", endDate: "2026-10-12" }));
   });
 
-  it("will not apply a custom range longer than 366 days, counting both ends", () => {
+  it("does not apply a custom range longer than 366 days, counting both ends, and links the error to both dates", () => {
     const handleChange = vi.fn();
     render(<AnalyticsFilterBar filters={{ range: "7d" }} onChange={handleChange} options={mockOptions} />);
     fireEvent.click(screen.getByText("Custom range"));
-    const apply = screen.getByRole("button", { name: /Apply filters/i }) as HTMLButtonElement;
 
     // 2024 is a leap year: 2024-01-01 to 2024-12-31 is exactly 366 days counting both ends, which is allowed.
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2024-01-01" } });
     fireEvent.change(screen.getByLabelText("To"), { target: { value: "2024-12-31" } });
-    expect(apply.disabled).toBe(false);
+    expect(handleChange).toHaveBeenCalledTimes(1);
 
+    handleChange.mockClear();
     fireEvent.change(screen.getByLabelText("To"), { target: { value: "2025-01-01" } });
-    expect(apply.disabled).toBe(true);
-    expect(screen.getByRole("alert").textContent).toMatch(/Choose a date range of 366 days or fewer/);
-    fireEvent.click(apply);
     expect(handleChange).not.toHaveBeenCalled();
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toMatch(/Choose a date range of 366 days or fewer/);
+    for (const label of ["From", "To"]) {
+      const input = screen.getByLabelText(label);
+      expect(input.getAttribute("aria-invalid")).toBe("true");
+      expect(input.getAttribute("aria-describedby")).toBe(alert.id);
+    }
   });
 
   it("hides the extra filters again when asked", () => {
