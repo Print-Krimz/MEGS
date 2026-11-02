@@ -42,7 +42,7 @@ const DASHBOARD = {
     requisitions: { total: 4, open: 3, overdue: 2, atRisk: 1, filled: 1 },
     placementsStarted: 5, newStarts: 3, redeployStarts: 2, medianDaysToFill: 12, daysToFillSample: 5,
     backoutsAfterClientReview: 1, backoutRate: 17, backoutRateBase: 6, activeApplicants: 20, overdueCandidates: 4,
-    overdueEstimated: 0, closedOpenings: 0, criticalCandidates: 2, unlinkedApplicants: 0, staleFilledRequisitions: 0,
+    overdueEstimated: 0, closedOpenings: 0, criticalCandidates: 2, lateRequests: 4, unlinkedApplicants: 0, staleFilledRequisitions: 0,
   },
   team: [],
   unassigned: { applicants: 0, overdue: 0, overdueEstimated: 0, requests: 0, requestedSeats: 0, oldestWaitDays: null },
@@ -80,17 +80,48 @@ afterEach(cleanup);
 const before = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
 describe("AdminAnalyticsPage", () => {
-  it("orders the page: KPIs, stage chart, attention strip, lists, backouts", async () => {
+  it("orders the page by the team leader's questions", async () => {
     renderPage();
-    const kpi = (await screen.findAllByText("Seats filled"))[0].closest("a,div,article") as HTMLElement;
-    const stages = screen.getByText("Candidates by stage");
-    const attention = screen.getByRole("region", { name: "Needs action" });
-    const workspace = screen.getByRole("region", { name: "Operations workspace" });
-    const backouts = screen.getByText("Why people backed out");
-    expect(before(kpi, stages)).toBe(true);
-    expect(before(stages, attention)).toBe(true);
-    expect(before(attention, workspace)).toBe(true);
-    expect(before(workspace, backouts)).toBe(true);
+    await screen.findByText("Candidates by stage");
+    const names = screen.getAllByRole("heading", { level: 2, hidden: true }).map((h) => h.textContent);
+    const at = (name: string) => names.indexOf(name);
+    const order = ["Needs action", "Headline numbers", "Candidates by stage", "Results over time", "Waiting too long", "Client requests", "Recruiters", "Why people backed out"].map(at);
+    expect(order.every((i) => i >= 0)).toBe(true);
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
+    expect(screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual(["Right now", "In these dates"]);
+    expect(screen.queryByText(/Team workload/)).toBeNull();
+    expect(screen.queryByText("Late requests")).toBeNull();
+  });
+
+  it("shows one page-level empty state when nothing is recorded for the dates", async () => {
+    const none = {
+      ...DASHBOARD,
+      kpis: { ...DASHBOARD.kpis, activeApplicants: 0, placementsStarted: 0, requisitions: { ...DASHBOARD.kpis.requisitions, total: 0 }, criticalCandidates: 0, lateRequests: 0 },
+      requests: [],
+      stageTable: [stage("COMPLIANCE", "Requirements")],
+    };
+    vi.mocked(adminApi.getDashboardSummary).mockResolvedValue(none as never);
+    renderPage();
+    expect(await screen.findByText("Nothing recorded for these dates.")).toBeDefined();
+    expect(screen.queryByText("Candidates by stage")).toBeNull();
+    expect(screen.queryByText("Why people backed out")).toBeNull();
+    expect(screen.getByRole("region", { name: "Needs action" })).toBeDefined();
+  });
+
+  it("does not colour the backout rate red at 33%", async () => {
+    vi.mocked(adminApi.getDashboardSummary).mockResolvedValue({ ...DASHBOARD, kpis: { ...DASHBOARD.kpis, backoutRate: 33, backoutRateBase: 6, backoutsAfterClientReview: 2 } } as never);
+    renderPage();
+    const tile = await screen.findByRole("link", { name: /Backout rate/ });
+    expect(tile.innerHTML).not.toMatch(/text-\[#|text-red|text-loss/i);
+    expect(tile.textContent).toMatch(/2 of 6 backed out after client review/);
+  });
+
+  it("moves focus to the Waiting panel heading when the critical chip is chosen", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole("link", { name: /2\s*critical waits/ }));
+    const heading = within(document.getElementById("operations-panel-waiting") as HTMLElement).getByRole("heading", { level: 2, hidden: true });
+    expect(document.activeElement).toBe(heading);
+    expect(heading.getAttribute("tabindex")).toBe("-1");
   });
 
   it("groups the tiles by time base and has no Now or In period tags", async () => {
@@ -98,6 +129,7 @@ describe("AdminAnalyticsPage", () => {
     expect(await screen.findByText("Right now")).toBeDefined();
     expect(screen.getByText("In these dates")).toBeDefined();
     expect(screen.getAllByText("How these are counted")).toHaveLength(1);
+    expect(screen.getAllByRole("link", { name: /Seats filled/ }).length).toBeGreaterThan(0);
     expect(screen.queryByText("In period")).toBeNull();
   });
 
@@ -113,14 +145,14 @@ describe("AdminAnalyticsPage", () => {
   it("lists critical waits and overdue requests in the attention strip", async () => {
     renderPage();
     expect(await screen.findByRole("link", { name: /2\s*critical waits/ })).toBeDefined();
-    expect(screen.getByRole("link", { name: /3\s*overdue requests/ })).toBeDefined();
+    expect(screen.getByRole("link", { name: /4\s*overdue or at-risk requests/ })).toBeDefined();
     expect(screen.queryByText(/Nothing needs attention/)).toBeNull();
   });
 
   it("says nothing needs action when nothing does and keeps the status text screen-reader only", async () => {
     const calm = {
       ...DASHBOARD,
-      kpis: { ...DASHBOARD.kpis, criticalCandidates: 0, requisitions: { ...DASHBOARD.kpis.requisitions, overdue: 0 } },
+      kpis: { ...DASHBOARD.kpis, criticalCandidates: 0, lateRequests: 0, requisitions: { ...DASHBOARD.kpis.requisitions, overdue: 0 } },
       requests: [],
     };
     vi.mocked(adminApi.getDashboardSummary).mockResolvedValue(calm as never);
@@ -130,12 +162,10 @@ describe("AdminAnalyticsPage", () => {
     expect(screen.queryByText(/Updating the numbers/)?.className ?? "sr-only").toContain("sr-only");
   });
 
-  it("counts exactly the overdue and at-risk rows the Late requests tile opens, including a request with no recruiter", async () => {
+  it("counts the late requests chip from the backend and opens the same rows, including a request with no recruiter", async () => {
     const { unmount } = renderPage();
-    const tile = await screen.findByRole("link", { name: /Late requests/ });
-    expect(tile.textContent).toMatch(/4/);
-    expect(tile.textContent).toMatch(/3 overdue · 1 at risk/);
-    fireEvent.click(tile);
+    const chip = await screen.findByRole("link", { name: /4\s*overdue or at-risk requests/ });
+    fireEvent.click(chip);
     expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ search: expect.objectContaining({ tab: "requests", health: "LATE" }) }));
     unmount();
 
@@ -146,12 +176,14 @@ describe("AdminAnalyticsPage", () => {
     expect(screen.getByText("No recruiter assigned")).toBeDefined();
   });
 
-  it("no opening counts and opens only requests with no opening, not ones without applicants", async () => {
-    const { unmount } = renderPage();
-    fireEvent.click(await screen.findByRole("link", { name: /1\s*no opening/ }));
-    expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ search: expect.objectContaining({ tab: "requests", health: "NO_OPENING" }) }));
-    unmount();
+  it("lists requests marked filled with no start in the strip and opens the requests tab", async () => {
+    vi.mocked(adminApi.getDashboardSummary).mockResolvedValue({ ...DASHBOARD, kpis: { ...DASHBOARD.kpis, staleFilledRequisitions: 2 } } as never);
+    renderPage();
+    fireEvent.click(await screen.findByRole("link", { name: /2\s*requests marked filled with no start/ }));
+    expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ search: expect.objectContaining({ tab: "requests" }) }));
+  });
 
+  it("still opens only requests with no opening from a saved link", async () => {
     searchMock.value = { tab: "requests", health: "NO_OPENING" };
     renderPage();
     expect(await screen.findByRole("button", { name: /^No opening 1$/ })).toBeDefined();

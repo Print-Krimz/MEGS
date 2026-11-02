@@ -8,7 +8,6 @@ import { PaginationBar } from "../PaginationBar";
 
 interface TeamTableProps {
   rows: TeamRow[];
-  rangeLabel?: string;
   selectedRecruiterId?: string;
   onSelectRecruiter: (recruiterId: string | undefined) => void;
   pageSize?: number;
