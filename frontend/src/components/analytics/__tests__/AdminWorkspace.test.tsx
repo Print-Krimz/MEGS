@@ -249,7 +249,7 @@ describe("admin lists", () => {
   it("StuckList in-text links are underlined and closed openings sit in the caption", () => {
     render(<StuckList rows={[stuck(1)]} total={1} closedOpenings={2} />);
     expect(screen.getByRole("link", { name: "Candidate 1" }).className).toContain("underline");
-    expect(screen.getByText(/2 more on closed openings/).closest("p")?.textContent).toContain("longest wait first");
+    expect(screen.getByText(/2 more are on closed job openings/).closest("p")?.textContent).toContain("longest wait first");
   });
 
   it("TeamTable shows the two overdue counts, a sampled rate, and says what a name click does", () => {
@@ -265,8 +265,8 @@ describe("admin lists", () => {
     expect(row.textContent).toContain("40%");
     expect(row.textContent).toContain("12 of 30");
     expect(row.textContent).toContain("Not enough data (n=3)");
-    const pick = screen.getByRole("button", { name: /Show this recruiter's numbers/ });
-    expect(pick.getAttribute("title")).toBe("Show this recruiter's numbers");
+    const pick = screen.getByRole("button", { name: /Filter the page to this recruiter/ });
+    expect(pick.getAttribute("title")).toBe("Filter the page to this recruiter");
     fireEvent.click(pick);
     expect(onSelect).toHaveBeenCalledWith("a");
   });
@@ -279,7 +279,7 @@ describe("admin lists", () => {
     };
     render(<RequestProgressList linkTo="/admin/mrfs/$mrfId" rows={[row]} />);
     const li = screen.getByText("Orphan").closest("li") as HTMLElement;
-    expect(li.textContent).toContain("No recruiter assigned");
+    expect(li.textContent).toContain("No recruiter");
     expect(li.textContent).toContain("1/4 seats");
     expect(li.textContent).toMatch(/Target .*2026/);
     expect(within(li).queryByRole("img")).toBeNull();

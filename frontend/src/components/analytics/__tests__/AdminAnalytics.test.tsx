@@ -50,11 +50,11 @@ describe("Analytics Components Test Suite", () => {
       />
     );
 
-    expect(screen.getByText("Last 30 days")).toBeDefined();
-    expect(screen.getByText("Last 7 days")).toBeDefined();
+    expect(screen.getByRole("button", { name: "Last 30 days" })).toBeDefined();
+    expect(screen.getByRole("button", { name: "Last 7 days" })).toBeDefined();
 
     // A preset applies at once; there is nothing left to apply.
-    fireEvent.click(screen.getByText("Last 30 days"));
+    fireEvent.click(screen.getByRole("button", { name: "Last 30 days" }));
     expect(handleChange).toHaveBeenCalledWith(expect.objectContaining({ range: "30d" }));
     expect(handleChange).toHaveBeenCalledTimes(1);
 
@@ -93,7 +93,7 @@ describe("Analytics Components Test Suite", () => {
   it("applies a custom range at once when both dates are chosen and in order, with no Apply step", () => {
     const handleChange = vi.fn();
     render(<AnalyticsFilterBar filters={{ range: "7d" }} onChange={handleChange} options={mockOptions} />);
-    fireEvent.click(screen.getByText("Custom range"));
+    fireEvent.click(screen.getByRole("button", { name: "Custom range" }));
     expect(screen.queryByRole("button", { name: /Apply filters/i })).toBeNull();
     expect(screen.getByRole("alert").textContent).toMatch(/start and an end date/);
 
@@ -106,7 +106,7 @@ describe("Analytics Components Test Suite", () => {
   it("does not apply a custom range longer than 366 days, counting both ends, and links the error to both dates", () => {
     const handleChange = vi.fn();
     render(<AnalyticsFilterBar filters={{ range: "7d" }} onChange={handleChange} options={mockOptions} />);
-    fireEvent.click(screen.getByText("Custom range"));
+    fireEvent.click(screen.getByRole("button", { name: "Custom range" }));
 
     // 2024 is a leap year: 2024-01-01 to 2024-12-31 is exactly 366 days counting both ends, which is allowed.
     fireEvent.change(screen.getByLabelText("From"), { target: { value: "2024-01-01" } });
@@ -485,9 +485,9 @@ describe("Analytics Components Test Suite", () => {
       requestRow(4, { title: "Healthy" }),
     ];
     render(<RequestProgressList rows={rows} linkTo="/admin/mrfs/$mrfId" />);
-    expect(screen.getByText("No opening")).toBeDefined();
+    expect(screen.getByText("No job opening")).toBeDefined();
     expect(screen.getByText("No applicants")).toBeDefined();
-    expect(screen.getByText("None past review")).toBeDefined();
+    expect(screen.getByText("None past first screening")).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: /^No candidates 2$/ }));
     expect(screen.getAllByRole("link")).toHaveLength(2);
     expect(screen.queryByText("Healthy")).toBeNull();
@@ -515,7 +515,7 @@ describe("Analytics Components Test Suite", () => {
     expect(screen.getByRole("link", { name: "Candidate 1" }).getAttribute("href")).toBe("/admin/applications/1");
     expect(screen.getAllByRole("link", { name: "Welder" })[0].getAttribute("href")).toBe("/admin/mrfs/9");
     expect(screen.getByText("16 days over")).toBeDefined();
-    expect(screen.getByRole("img", { name: /Requirements, days in stage, limit 14 days: Within limit 14, Past limit 16/ })).toBeDefined();
+    expect(screen.getByRole("img", { name: /Requirements, days in stage, limit 14 days: Within days allowed 14, Past days allowed 16/ })).toBeDefined();
     expect(screen.getAllByText(/of 14 days/)).toBeDefined();
     expect(screen.getByText(/· Ben/)).toBeDefined();
     expect(screen.getByText(/estimated from application date/)).toBeDefined();
@@ -556,10 +556,10 @@ describe("Analytics Components Test Suite", () => {
   it("explains a capped waiting list and the candidates on closed openings", () => {
     render(<StuckList rows={[stuck(1)]} total={340} closedOpenings={3} />);
     expect(screen.getByText(/Top 1 of 340/)).toBeDefined();
-    expect(screen.getByText(/3 more on closed openings/)).toBeDefined();
+    expect(screen.getByText(/3 more are on closed job openings/)).toBeDefined();
     cleanup();
     render(<StuckList rows={[]} total={0} />);
-    expect(screen.getByText(/No one is past a stage limit/)).toBeDefined();
+    expect(screen.getByText(/No one is past the days allowed/)).toBeDefined();
   });
 
   it("AnimatedNumber exposes the final value to screen readers and hides the animated frames", () => {

@@ -45,13 +45,13 @@ const WaitBar: React.FC<{ row: number; r: StuckCandidate; color: string; index: 
     heightClass="h-2"
     index={index}
     segments={[
-      { key: "within", label: "Within limit", value: Math.min(r.daysInStage, r.slaDays), color: WAIT.withinLimit },
-      { key: "over", label: "Past limit", value: Math.max(0, r.daysInStage - r.slaDays), color },
+      { key: "within", label: "Within days allowed", value: Math.min(r.daysInStage, r.slaDays), color: WAIT.withinLimit },
+      { key: "over", label: "Past days allowed", value: Math.max(0, r.daysInStage - r.slaDays), color },
     ]}
   />
 );
 
-/** Candidates past their stage limit, longest wait first, so it is clear who is holding them up. */
+/** Candidates past their days allowed, longest wait first, so it is clear who is holding them up. */
 export const StuckList = React.memo(function StuckList({
   rows,
   total,
@@ -60,8 +60,8 @@ export const StuckList = React.memo(function StuckList({
   viewer = "admin",
   showRecruiter,
   id = "waiting-too-long",
-  title = "Waiting too long",
-  subtitle = "Past the stage limit, longest wait first. Critical is twice the limit or more.",
+  title = "Overdue candidates",
+  subtitle = "Past the days allowed for their stage, longest wait first. Critical means twice the days allowed or more.",
   bare = false,
   focus,
   linkState,
@@ -103,7 +103,7 @@ export const StuckList = React.memo(function StuckList({
   };
 
   return (
-    <AnalyticsPanel tone="reports" id={id} title={title} subtitle={closedOpenings > 0 ? `${subtitle} ${closedOpenings} more on closed openings.` : subtitle} bare={bare} aside={<span className="tabular-nums">{total} waiting</span>}>
+    <AnalyticsPanel tone="reports" id={id} title={title} subtitle={closedOpenings > 0 ? `${subtitle} ${closedOpenings} more are on closed job openings.` : subtitle} bare={bare} aside={<span className="tabular-nums">{total} waiting</span>}>
       {rows.length > 0 && (
         <div className="flex flex-wrap items-end gap-x-4 gap-y-2 border-b border-slate-200 px-3.5 py-2.5">
           <div role="group" aria-label="Filter by urgency" className="flex gap-1.5">
@@ -136,7 +136,7 @@ export const StuckList = React.memo(function StuckList({
       )}
 
       {rows.length === 0 ? (
-        <p className="p-6 text-center text-xs text-slate-500 font-sans">No one is past a stage limit.</p>
+        <p className="p-6 text-center text-xs text-slate-500 font-sans">No one is past the days allowed.</p>
       ) : pageRows.length === 0 ? (
         <p className="p-6 text-center text-xs text-slate-500 font-sans">No match. Change the filters.</p>
       ) : (

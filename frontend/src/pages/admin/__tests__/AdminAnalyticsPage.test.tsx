@@ -180,9 +180,9 @@ describe("AdminAnalyticsPage", () => {
     renderPage();
     const row = await screen.findByRole("button", { name: "Requirements, 5, 2 overdue. Show these candidates" });
     fireEvent.click(row);
-    expect(screen.getByRole("tab", { name: "Overdue candidates 0" }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByRole("tab", { name: /Overdue candidates 0$/ }).getAttribute("aria-selected")).toBe("true");
     expect(within(screen.getByRole("tablist")).getByText("Requests")).toBeDefined();
-    expect(screen.getByRole("tab", { name: "Client requests 6" })).toBeDefined();
+    expect(screen.getByRole("tab", { name: /Client requests 6$/ })).toBeDefined();
   });
 
   it("lists critical waits and overdue requests in the attention strip", async () => {
@@ -216,7 +216,7 @@ describe("AdminAnalyticsPage", () => {
     renderPage();
     expect(await screen.findByRole("button", { name: /^Overdue or at risk 4$/ })).toBeDefined();
     expect(screen.getAllByText(/\/10 seats/)).toHaveLength(4);
-    expect(screen.getByText("No recruiter assigned")).toBeDefined();
+    expect(screen.getByText("No recruiter")).toBeDefined();
   });
 
   it("lists requests marked filled with no start in the strip and opens the requests tab", async () => {
@@ -229,7 +229,7 @@ describe("AdminAnalyticsPage", () => {
   it("still opens only requests with no opening from a saved link", async () => {
     searchMock.value = { tab: "requests", health: "NO_OPENING" };
     renderPage();
-    expect(await screen.findByRole("button", { name: /^No opening 1$/ })).toBeDefined();
+    expect(await screen.findByRole("button", { name: /^No job opening 1$/ })).toBeDefined();
     expect(screen.getAllByText(/\/10 seats/)).toHaveLength(1);
     expect(screen.getByText("Request 4")).toBeDefined();
     expect(screen.queryByText("Request 5")).toBeNull();

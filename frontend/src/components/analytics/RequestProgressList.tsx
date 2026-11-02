@@ -35,9 +35,9 @@ const HEALTH: Record<RequestRow["health"], { label: string; badge: string }> = {
 };
 
 const ATTENTION: Record<Exclude<RequestRow["attention"], null>, { label: string; title: string; text: string }> = {
-  NO_OPENING: { label: "No opening", title: "No job opening is posted for this request.", text: TEXT_AMBER },
+  NO_OPENING: { label: "No job opening", title: "No job opening is posted for this request.", text: TEXT_AMBER },
   NO_APPLICANTS: { label: "No applicants", title: "Nobody has applied yet.", text: TEXT_AMBER },
-  FIRST_STAGE_ONLY: { label: "None past review", title: "Every applicant is still in first review.", text: "text-slate-700" },
+  FIRST_STAGE_ONLY: { label: "None past first screening", title: "Every applicant is still in first review.", text: "text-slate-700" },
 };
 
 /** The short "how late or how soon" text. The target date is printed next to it. */
@@ -88,7 +88,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
     { key: "NONE", label: "No candidates" },
     // Reached from a tile above the list. Shown only while active, so the chip row stays short.
     ...(health === "LATE" ? [{ key: "LATE" as const, label: "Overdue or at risk" }] : []),
-    ...(health === "NO_OPENING" ? [{ key: "NO_OPENING" as const, label: "No opening" }] : []),
+    ...(health === "NO_OPENING" ? [{ key: "NO_OPENING" as const, label: "No job opening" }] : []),
   ];
 
   const visible = useMemo(() => {
@@ -106,7 +106,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
     <AnalyticsPanel tone="reports"
       id="client-requests"
       title="Client requests"
-      subtitle="Open requests and any filled this period, most urgent first."
+      subtitle="Open requests, plus any filled in these dates, most urgent first."
       bare={bare}
       aside={<span className="tabular-nums">{rows.length} requests</span>}
     >
@@ -154,7 +154,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
         <ul className="divide-y divide-slate-200">
           {pageRows.map((row) => {
             const style = HEALTH[row.health];
-            const owner = row.ownerId === null ? { label: "No recruiter assigned", full: undefined } : formatRecruiterName(row.ownerName);
+            const owner = row.ownerId === null ? { label: "No recruiter", full: undefined } : formatRecruiterName(row.ownerName);
             return (
               <li key={row.mrfId} className="px-3 py-2.5">
                 <div className="flex items-center justify-between gap-3">

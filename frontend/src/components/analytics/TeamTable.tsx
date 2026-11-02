@@ -71,7 +71,7 @@ export const TeamTable = React.memo(function TeamTable({
   pageSize = 10,
   bare = false,
   initialQuery = "",
-  subtitle = "Pick a name to show only that recruiter's numbers on this page. Active, Overdue, Open requests and Seats filled are as of today. Starts, Backout rate and Days to fill use the dates above.",
+  subtitle = "Select a name to filter the whole page to that recruiter. Active, Overdue, Open requests and Seats filled are right now. Starts, Backout rate and Days to fill use the dates above.",
 }: TeamTableProps) {
   const [query, setQuery] = useState(initialQuery);
   const [page, setPage] = useState(1);
@@ -152,7 +152,7 @@ export const TeamTable = React.memo(function TeamTable({
               {pageRows.map((row) => {
                 const selected = row.recruiterId === selectedRecruiterId;
                 const label = formatRecruiterName(row.name).label;
-                const action = selected ? "Show all recruiters again" : "Show this recruiter's numbers";
+                const action = selected ? "Show all recruiters" : "Filter the page to this recruiter";
                 return (
                   <tr key={row.recruiterId} className={selected ? "bg-navy-soft" : undefined}>
                     <th scope="row" className="px-3 py-2 text-left font-sans font-medium whitespace-nowrap">
