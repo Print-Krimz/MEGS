@@ -280,7 +280,7 @@ const taDashboard = {
   backouts,
   clientDecisions: { accepted: 15, declined: 2 },
   stuck: [
-    { applicationId: 811, candidateName: "Mario Reyes", jobTitle: "Industrial Electrician", clientName: "Acme Industrial Corp", mrfId: 10, recruiterId: "ta-1", recruiterName: "You", stage: "COMPLIANCE", stageLabel: "Requirements", daysInStage: 20, slaDays: 14, daysOver: 6, urgency: "overdue", estimated: false },
+    { applicationId: 811, candidateName: "Mario Reyes", jobTitle: "Industrial Electrician", clientName: "Acme Industrial Corp", mrfId: 10, recruiterId: "ta-1", recruiterName: "You", stage: "COMPLIANCE", stageLabel: "Requirements", daysInStage: 20, slaDays: 14, daysOver: 6, urgency: "overdue", estimated: false, lastActivityAt: "2026-10-28T08:00:00.000Z", lastNote: "Waiting for NBI clearance" },
   ],
   stuckTotal: 25,
   pendingActionsTotal: 41,
@@ -315,8 +315,8 @@ const adminDashboard = {
   clientDecisions: { accepted: 15, declined: 2 },
   stageTable,
   stuck: [
-    { applicationId: 801, candidateName: "Ramon Gomez", jobTitle: "Forklift Operator", clientName: "Gamma Logistics", mrfId: 4, recruiterId: "ta-1", recruiterName: "Alice Recruiter", stage: "COMPLIANCE", stageLabel: "Requirements", daysInStage: 31, slaDays: 14, daysOver: 17, urgency: "critical", estimated: false },
-    { applicationId: 802, candidateName: "Lito Santos", jobTitle: "Welder", clientName: "Beta Fabrication", mrfId: 3, recruiterId: "ta-2", recruiterName: "Bob Recruiter", stage: "FINAL_INTERVIEW", stageLabel: "Final interview", daysInStage: 9, slaDays: 5, daysOver: 4, urgency: "overdue", estimated: true },
+    { applicationId: 801, candidateName: "Ramon Gomez", jobTitle: "Forklift Operator", clientName: "Gamma Logistics", mrfId: 4, recruiterId: "ta-1", recruiterName: "Alice Recruiter", stage: "COMPLIANCE", stageLabel: "Requirements", daysInStage: 31, slaDays: 14, daysOver: 17, urgency: "critical", estimated: false, lastActivityAt: "2026-10-20T08:00:00.000Z", lastNote: "Client asked for a new medical" },
+    { applicationId: 802, candidateName: "Lito Santos", jobTitle: "Welder", clientName: "Beta Fabrication", mrfId: 3, recruiterId: "ta-2", recruiterName: "Bob Recruiter", stage: "FINAL_INTERVIEW", stageLabel: "Final interview", daysInStage: 9, slaDays: 5, daysOver: 4, urgency: "overdue", estimated: true, lastActivityAt: null, lastNote: null },
   ],
   stuckTotal: 2,
   filterOptions,

@@ -6,6 +6,9 @@ import { AnalyticsPanel } from "./AnalyticsPanel";
 import { TEXT_AMBER, TEXT_LOSS, WAIT } from "../../lib/chart-palette";
 import { PaginationBar } from "./PaginationBar";
 import { StackedBar } from "./chart-primitives";
+import { StuckPreviewDialog } from "./StuckPreviewDialog";
+import { daysAgoText } from "../../lib/analytics-format";
+import { formatDate } from "../../lib/utils";
 
 interface StuckListProps {
   rows: StuckCandidate[];
@@ -72,12 +75,14 @@ export const StuckList = React.memo(function StuckList({
   const [stage, setStage] = useState("ALL");
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
+  const [previewId, setPreviewId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!focus) return;
     setUrgency(focus.urgency ?? "ALL");
     setStage(focus.stage ?? "ALL");
     setQuery("");
+    setPreviewId(null);
     setPage(1);
   }, [focus?.nonce, focus?.urgency, focus?.stage]);
 
@@ -187,9 +192,19 @@ export const StuckList = React.memo(function StuckList({
                       </Link>
                     )}
                   </div>
-                  <span className={`shrink-0 text-xs font-semibold tabular-nums ${r.urgency === "critical" ? TEXT_LOSS : TEXT_AMBER}`}>
-                    {r.daysOver} {r.daysOver === 1 ? "day" : "days"} over
-                  </span>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className={`text-xs font-semibold tabular-nums ${r.urgency === "critical" ? TEXT_LOSS : TEXT_AMBER}`}>
+                      {r.daysOver} {r.daysOver === 1 ? "day" : "days"} over
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={`Preview ${r.candidateName}`}
+                      onClick={() => setPreviewId(r.applicationId)}
+                      className="inline-flex min-h-11 items-center px-1 text-xs font-semibold text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9"
+                    >
+                      Preview
+                    </button>
+                  </div>
                 </div>
                 <div className="mt-1 grid grid-cols-[7rem_minmax(0,1fr)_auto] items-center gap-x-3 text-xs font-sans text-slate-700 sm:grid-cols-[9rem_minmax(0,1fr)_auto]">
                   <span className="truncate font-semibold text-slate-900">{r.stageLabel}</span>
@@ -215,12 +230,27 @@ export const StuckList = React.memo(function StuckList({
                   {r.estimated && <span> · estimated from application date</span>}
                   {withRecruiter && <span title={formatRecruiterName(r.recruiterName).full}> · {formatRecruiterName(r.recruiterName).label}</span>}
                 </p>
+                {r.lastActivityAt && (
+                  <p className="mt-0.5 truncate text-xs text-slate-500 font-sans" title={formatDate(r.lastActivityAt)}>
+                    Last activity: {daysAgoText(r.lastActivityAt)}
+                    {r.lastNote ? ` · ${r.lastNote}` : ""}
+                  </p>
+                )}
               </li>
             );
           })}
         </ul>
       )}
 
+      <StuckPreviewDialog
+        rows={visible}
+        openId={previewId}
+        onSelect={setPreviewId}
+        onClose={() => setPreviewId(null)}
+        viewer={viewer}
+        showRecruiter={withRecruiter}
+        linkState={linkState}
+      />
       <PaginationBar page={currentPage} pageSize={pageSize} total={visible.length} onPageChange={setPage} noun="candidates" />
       {total > rows.length && (
         <p className="border-t border-slate-200 px-3.5 py-2.5 text-xs text-slate-600 font-sans">{`Top ${rows.length} of ${total}.`}</p>

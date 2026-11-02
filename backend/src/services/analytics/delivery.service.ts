@@ -128,6 +128,10 @@ export interface StuckCandidate {
   urgency: "critical" | "overdue";
   /** No stage change was recorded, so days are counted from the application date. */
   estimated: boolean;
+  /** Latest recorded decision on the application (ISO), else when it entered the stage. */
+  lastActivityAt: string | null;
+  /** Reason on that latest decision, whitespace collapsed, at most 140 characters. Null when there is none. */
+  lastNote: string | null;
 }
 
 export interface TeamRow {
@@ -377,6 +381,8 @@ interface SnapshotItem {
   ownerId: string | null;
   stage: StageRowKey;
   daysInStage: number;
+  /** When the application entered its current stage (the application date if no change was recorded). */
+  enteredAt: Date;
   slaDays: number;
   /** Past the limit by a recorded stage change, or a required document is late. */
   overdue: boolean;
@@ -477,6 +483,7 @@ async function loadSnapshot(jobClause: Record<string, unknown>, now: Date): Prom
       ownerId: jobOwnerId(app.jobPosting),
       stage,
       daysInStage,
+      enteredAt: entry.at,
       slaDays,
       overdue: !closedOpening && (lateRequirement || (pastLimit && !entry.estimated)),
       overdueEstimated: !closedOpening && !lateRequirement && pastLimit && entry.estimated,
@@ -1056,9 +1063,41 @@ function buildStuck(snapshot: SnapshotItem[], recruiterOf: (ownerId: string | nu
       daysOver,
       urgency: urgencyFor(s.daysInStage, s.slaDays),
       estimated: s.overdueEstimated,
+      lastActivityAt: s.enteredAt.toISOString(),
+      lastNote: null,
     };
   });
   return { items, total: all.length };
+}
+
+const NOTE_MAX = 140;
+const tidyNote = (reason: string | null): string | null => {
+  const text = (reason ?? "").replace(/\s+/g, " ").trim();
+  if (!text) return null;
+  return text.length > NOTE_MAX ? `${text.slice(0, NOTE_MAX - 1).trimEnd()}…` : text;
+};
+
+/**
+ * Adds the latest recorded decision (time and reason) to the listed rows, in one query over just those rows.
+ * Rows without a decision keep the stage-entry date. Ownership is unchanged: the ids come from rows already in scope.
+ */
+async function withLastActivity(stuck: { items: StuckCandidate[]; total: number }) {
+  const ids = stuck.items.map((i) => i.applicationId);
+  if (ids.length === 0) return stuck;
+  const decisions = await prisma.recruiterDecision.findMany({
+    where: { applicationId: { in: ids } },
+    orderBy: { createdAt: "desc" },
+    distinct: ["applicationId"],
+    select: { applicationId: true, createdAt: true, reason: true },
+  });
+  const latest = new Map(decisions.map((d) => [d.applicationId, d]));
+  return {
+    total: stuck.total,
+    items: stuck.items.map((item) => {
+      const d = latest.get(item.applicationId);
+      return d ? { ...item, lastActivityAt: d.createdAt.toISOString(), lastNote: tidyNote(d.reason) } : item;
+    }),
+  };
 }
 
 // ─────────────────────────────────────────────
@@ -1185,7 +1224,7 @@ async function computeTADelivery(
   const postSelection = backoutRecords.filter((b) => POST_SELECTION_STAGES.includes(b.stage));
   // Everything a TA sees is their own, so the recruiter column is just "You".
   const self = () => ({ id: scope.userId, name: "You" });
-  const stuck = buildStuck(snapshot, self);
+  const stuck = await withLastActivity(buildStuck(snapshot, self));
   const result: TADeliveryResult = {
     dateRange: rangeInfo(start, end, days),
     kpis: buildKpis(requests, placements, postSelection.length, snapshot, fetched.staleFilled),
@@ -1319,7 +1358,7 @@ async function computeAdminDelivery(
     const id = keyOf(ownerId);
     return { id, name: names.get(id) ?? UNASSIGNED_NAME };
   };
-  const stuck = buildStuck(snapshot, recruiterOf);
+  const stuck = await withLastActivity(buildStuck(snapshot, recruiterOf));
 
   const result: AdminDeliveryResult = {
     dateRange: rangeInfo(start, end, days),

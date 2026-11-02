@@ -143,7 +143,16 @@ export function wireWorld(m: Record<string, any>, w: World) {
     if (args.where?.actualStart) return w.deployments;
     return w.earlier;
   });
-  m.decisionFindMany.mockResolvedValue(w.enteredDecisions);
+  // The overdue list's last-activity lookup (one query, by application ids) versus the stage-entry query.
+  m.decisionFindMany.mockImplementation(async (args: any) => {
+    const ids: number[] | undefined = args?.where?.applicationId?.in;
+    if (!ids) return w.enteredDecisions;
+    return ids.slice(0, 50).map((applicationId, i) => ({
+      applicationId,
+      createdAt: new Date(Date.UTC(2026, 9, 1 + (i % 20))),
+      reason: i % 2 ? `Note ${i}` : null,
+    }));
+  });
   m.backoutFindMany.mockResolvedValue(w.backouts);
   m.closureFindMany.mockResolvedValue(w.closures);
   m.endorsementFindMany.mockResolvedValue(w.endorsements);

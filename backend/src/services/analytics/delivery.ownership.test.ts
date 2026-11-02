@@ -279,6 +279,35 @@ describe("what needs attention", () => {
     expect(stuck[0]).toMatchObject({ recruiterName: "You", urgency: "critical", estimated: false });
   });
 
+  it("adds the latest decision time and a tidy note to overdue rows from one batched query", async () => {
+    mocks.decisionGroupBy.mockResolvedValue([decisionInto(1, "FINAL_INTERVIEW"), decisionInto(2, "FINAL_INTERVIEW")]);
+    mocks.applicationFindMany.mockResolvedValue([
+      app({ id: 1, status: "FINAL_INTERVIEW" }),
+      app({ id: 2, status: "FINAL_INTERVIEW" }),
+    ]);
+    const long = `  Called   the client\n and waited ${"x".repeat(200)}`;
+    mocks.decisionFindMany.mockImplementation(async (args: any) =>
+      args?.where?.applicationId?.in ? [{ applicationId: 1, createdAt: new Date("2026-10-30T08:00:00Z"), reason: long }] : []
+    );
+    const { stuck } = await getAdminDelivery({ range: "7d" });
+    const byId = new Map(stuck.map((s) => [s.applicationId, s]));
+    expect(byId.get(1)?.lastActivityAt).toBe("2026-10-30T08:00:00.000Z");
+    expect(byId.get(1)?.lastNote).toHaveLength(140);
+    expect(byId.get(1)?.lastNote?.startsWith("Called the client and waited")).toBe(true);
+    expect(byId.get(1)?.lastNote?.endsWith("…")).toBe(true);
+    // No decision: falls back to when the stage was entered, with no note.
+    expect(byId.get(2)?.lastActivityAt).toBe("2026-01-01T00:00:00.000Z");
+    expect(byId.get(2)?.lastNote).toBeNull();
+    const lookups = mocks.decisionFindMany.mock.calls.filter(([a]) => a?.where?.applicationId?.in);
+    expect(lookups).toHaveLength(1);
+    expect(lookups[0][0].where.applicationId.in.sort()).toEqual([1, 2]);
+  });
+
+  it("skips the last-activity query when nothing is overdue", async () => {
+    await getAdminDelivery({ range: "7d" });
+    expect(mocks.decisionFindMany.mock.calls.filter(([a]) => a?.where?.applicationId?.in)).toHaveLength(0);
+  });
+
   it("returns every overdue candidate to a report, even past the dashboard cap", async () => {
     mocks.applicationFindMany.mockResolvedValue(Array.from({ length: 230 }, (_, i) => app({ id: i + 1, status: "FINAL_INTERVIEW" })));
     const { result, detail } = await getAdminReportData({ range: "7d" });

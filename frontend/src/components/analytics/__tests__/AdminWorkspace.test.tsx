@@ -257,7 +257,7 @@ describe("admin lists", () => {
   });
   const stuck = (id: number, over: Partial<StuckCandidate> = {}): StuckCandidate => ({
     applicationId: id, candidateName: `Candidate ${id}`, jobTitle: "Welder", clientName: "Acme", mrfId: 9, recruiterId: "ta-1", recruiterName: "Alice",
-    stage: "COMPLIANCE", stageLabel: "Requirements", daysInStage: 20, slaDays: 14, daysOver: 6, urgency: "overdue", estimated: false, ...over,
+    stage: "COMPLIANCE", stageLabel: "Requirements", daysInStage: 20, slaDays: 14, daysOver: 6, urgency: "overdue", estimated: false, lastActivityAt: null, lastNote: null, ...over,
   });
 
   it("TeamTable has exactly the 8 columns", () => {
@@ -327,6 +327,42 @@ describe("admin lists", () => {
     render(<StuckList rows={[stuck(1, { recruiterName: "Alice" })]} total={1} showRecruiter={false} />);
     fireEvent.change(screen.getByRole("searchbox", { name: /Search/ }), { target: { value: "alice" } });
     expect(screen.getByText("No overdue candidates match “alice”.")).toBeDefined();
+  });
+
+  it("StuckList shows last activity and the note under each row, and nothing when there is no date", () => {
+    const iso = new Date(Date.now() - 4 * 86_400_000 - 3_600_000).toISOString();
+    render(<StuckList rows={[stuck(1, { lastActivityAt: iso, lastNote: "Waiting for NBI" }), stuck(2)]} total={2} />);
+    expect(screen.getByText("Last activity: 4 days ago · Waiting for NBI")).toBeDefined();
+    expect(screen.getAllByText(/Last activity:/)).toHaveLength(1);
+  });
+
+  it("StuckList Preview opens a dialog, Next steps through the filtered list, Escape closes", () => {
+    const rows = [
+      stuck(1, { candidateName: "Ana", lastNote: "Called client", lastActivityAt: "2026-10-30T00:00:00.000Z" }),
+      stuck(2, { candidateName: "Ben", clientName: "Globex" }),
+      stuck(3, { candidateName: "Cy", clientName: "Acme" }),
+    ];
+    render(<StuckList rows={rows} total={3} />);
+    fireEvent.change(screen.getByRole("searchbox", { name: /Search/ }), { target: { value: "acme" } });
+    fireEvent.click(screen.getByRole("button", { name: "Preview Ana" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("heading", { name: "Ana" })).toBeDefined();
+    expect(within(dialog).getByText("1 of 2")).toBeDefined();
+    expect(within(dialog).getByText("Called client")).toBeDefined();
+    expect((within(dialog).getByRole("button", { name: "Previous" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(within(dialog).getByRole("link", { name: "Open record" }).getAttribute("href")).toBe("/admin/applications/1");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Next" }));
+    expect(within(dialog).getByRole("heading", { name: "Cy" })).toBeDefined();
+    expect(within(dialog).getByText("2 of 2")).toBeDefined();
+    expect((within(dialog).getByRole("button", { name: "Next" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("StuckList Preview links a recruiter's record to the TA page", () => {
+    render(<StuckList rows={[stuck(7)]} total={1} viewer="ta" showRecruiter={false} />);
+    fireEvent.click(screen.getByRole("button", { name: "Preview Candidate 7" }));
+    expect(within(screen.getByRole("dialog")).getByRole("link", { name: "Open record" }).getAttribute("href")).toBe("/ta/applications/7");
   });
 
   it("StuckList in-text links are underlined and closed openings sit in the caption", () => {

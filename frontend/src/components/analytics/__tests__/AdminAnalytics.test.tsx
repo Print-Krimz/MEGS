@@ -522,7 +522,7 @@ describe("Analytics Components Test Suite", () => {
 
   const stuck = (id: number, over: Partial<StuckCandidate> = {}): StuckCandidate => ({
     applicationId: id, candidateName: `Candidate ${id}`, jobTitle: "Welder", clientName: "Acme", mrfId: 9, recruiterId: "ta-1", recruiterName: "Alice",
-    stage: "COMPLIANCE", stageLabel: "Requirements", daysInStage: 20, slaDays: 14, daysOver: 6, urgency: "overdue", estimated: false, ...over,
+    stage: "COMPLIANCE", stageLabel: "Requirements", daysInStage: 20, slaDays: 14, daysOver: 6, urgency: "overdue", estimated: false, lastActivityAt: null, lastNote: null, ...over,
   });
 
   it("lists who is waiting too long with urgency, owner and limit, and links to the Admin pages", () => {

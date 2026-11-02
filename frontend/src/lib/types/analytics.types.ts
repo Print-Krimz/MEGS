@@ -248,6 +248,10 @@ export interface StuckCandidate {
   urgency: "critical" | "overdue";
   /** No stage change was recorded, so days are counted from the application date. */
   estimated: boolean;
+  /** Latest recorded decision (ISO), else when the candidate entered the stage. */
+  lastActivityAt: string | null;
+  /** Reason on that latest decision, at most 140 characters. */
+  lastNote: string | null;
 }
 
 export interface TADeliveryDashboard {
