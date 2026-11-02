@@ -197,7 +197,7 @@ function requestsSection(result: ReportResult, admin: boolean): Section {
   return {
     sheet: "Client requests",
     title: "Client requests",
-    note: "Requests still open, plus any filled within the dates. In process = applicants still going through the steps. Overdue = applicants who waited longer than the days allowed. Due date = when the client wants the seats filled.",
+    note: "Requests still open, plus any filled in these dates. In process = applicants still going through the stages. Overdue = applicants who waited longer than the days allowed. Due date = when the client wants the seats filled.",
     columns,
     rows: result.requests.map((r) => ({
       title: clean(r.title),
@@ -328,7 +328,7 @@ function closureSections(result: ReportResult): Section[] {
     {
       sheet: "Closed applications",
       title: "Closed applications",
-      note: "Applications closed within the dates. Rejected means we turned the applicant down. Backed out means the applicant dropped out. Talent pool and Archive are what was decided for the applicant afterwards. Not recorded is for older records closed before this choice existed.",
+      note: "Applications closed in these dates. Rejected means we turned the applicant down. Backed out means the applicant dropped out. Talent pool and Archive are what was decided for the applicant afterwards. Not recorded is for older records closed before this choice existed.",
       columns: [
         { header: "Outcome", key: "outcome", weight: 120 },
         { header: "Total", key: "total", weight: 60, align: "right" },
@@ -344,7 +344,7 @@ function closureSections(result: ReportResult): Section[] {
     {
       sheet: "Why applicants were rejected",
       title: "Why applicants were rejected",
-      note: "The most common reasons for rejecting an applicant within the dates, and the step they were at.",
+      note: "The most common reasons for rejecting an applicant in these dates, and the stage they were at.",
       columns: [
         { header: "Reason", key: "reason", weight: 200 },
         { header: "Applicants", key: "count", weight: 70, align: "right" },
@@ -359,8 +359,8 @@ function closureSections(result: ReportResult): Section[] {
 
 function backoutSection(detail: DeliveryDetail, admin: boolean): Section {
   return {
-    sheet: "Withdrawals and backouts",
-    title: "Withdrawals and backouts",
+    sheet: "Why people backed out",
+    title: "Why people backed out",
     note: "Everyone who left in these dates. \"Backed out after client review\" means they left once the client had seen them. \"Backed out before client review\" means they left earlier. Candidates the client turned down are not listed here.",
     columns: [
       { header: "Date", key: "date", weight: 52, align: "center" },
@@ -369,7 +369,7 @@ function backoutSection(detail: DeliveryDetail, admin: boolean): Section {
       { header: "Job post", key: "job", weight: 100 },
       { header: "Client", key: "client", weight: 85 },
       { header: "Client request", key: "request", weight: 100 },
-      { header: "Step", key: "stage", weight: 80 },
+      { header: "Stage", key: "stage", weight: 80 },
       { header: "Who ended it", key: "party", weight: 70 },
       { header: "Reason", key: "reason", weight: 100 },
       { header: "Did not show up", key: "noShow", weight: 46, align: "center" },
@@ -408,8 +408,8 @@ function candidatesSection(detail: DeliveryDetail, admin: boolean): Section {
       { header: "Client", key: "client", weight: 95 },
       { header: "Client request", key: "request", weight: 110 },
       ...(admin ? [{ header: "Recruiter", key: "recruiter", weight: 90 }] : []),
-      { header: "Current step", key: "stage", weight: 90 },
-      { header: "Days in this step", key: "days", weight: 50, align: "right" as const },
+      { header: "Current stage", key: "stage", weight: 90 },
+      { header: "Days in this stage", key: "days", weight: 50, align: "right" as const },
       { header: "Days allowed", key: "limit", weight: 45, align: "right" as const },
       { header: "Status", key: "status", weight: 85, align: "center" as const, badge: true },
     ],
@@ -451,8 +451,8 @@ async function receivedSection(filters: AnalyticsFilterDto, requestedBy: Request
   return {
     sheet: "Applications received",
     inPdf: false,
-    title: "Applications received within the dates",
-    note: "Every application received within the dates, whatever its step today. Someone who applied more than once appears once per application.",
+    title: "Applications received in these dates",
+    note: "Every application received in these dates, whatever its stage today. Someone who applied more than once appears once per application.",
     columns: [
       { header: "Application no.", key: "id", weight: 55, align: "center" },
       { header: "Applicant", key: "candidate", weight: 130 },
@@ -460,7 +460,7 @@ async function receivedSection(filters: AnalyticsFilterDto, requestedBy: Request
       { header: "Job post", key: "job", weight: 130 },
       { header: "Client", key: "client", weight: 100 },
       { header: "Client request", key: "request", weight: 120 },
-      { header: "Step today", key: "status", weight: 90, align: "center", badge: true },
+      { header: "Stage today", key: "status", weight: 90, align: "center", badge: true },
       { header: "Match score", key: "score", weight: 50, align: "right" },
       { header: "Date applied", key: "received", weight: 58, align: "center" },
     ],
@@ -546,7 +546,7 @@ async function awaitingStartSection(filters: AnalyticsFilterDto, requestedBy: Re
       ...(admin ? [{ header: "Recruiter", key: "recruiter", weight: 100 }] : []),
       { header: "Work site", key: "site", weight: 100 },
       { header: "Planned start date", key: "planned", weight: 65, align: "center" as const },
-      { header: "Days late to start", key: "late", weight: 60, align: "right" as const },
+      { header: "Days overdue to start", key: "late", weight: 60, align: "right" as const },
     ],
     rows: rows.map((d) => ({
       worker: clean(nameOf(d.employee?.user)),
@@ -600,7 +600,7 @@ async function buildDeploymentModel(requestedBy: Requester, filters: AnalyticsFi
     {
       label: "Seats still open",
       value: k.openSeats,
-      detail: `${k.requisitions.open} open client requests`,
+      detail: `${k.requisitions.open} open requests`,
       basis: "Right now",
       definition: "Seats the client asked for that no one has been hired for yet.",
     },

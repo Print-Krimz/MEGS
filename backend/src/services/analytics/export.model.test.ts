@@ -208,7 +208,7 @@ describe("report models use the screen's words", () => {
     const model = await __reportModels.buildPipelineModel(admin, {});
     const stages = sectionNamed(model, "Candidates by stage");
     expect(stages.rows.map((r: any) => r.stage)).toEqual(STAGE_ROWS.map((r) => r.label));
-    const backouts = sectionNamed(model, "Withdrawals and backouts").rows;
+    const backouts = sectionNamed(model, "Why people backed out").rows;
     expect(backouts[0].reason).toBe(backoutReasonLabel("ACCEPTED_OTHER_OFFER"));
     expect(backouts[0].type).toBe("Backed out after client review");
   });
@@ -230,5 +230,14 @@ describe("report models use the screen's words", () => {
     expect(row.backoutRate).toBe("Not enough data (n=3)");
     expect(row.days).toBe("Not enough data (n=2)");
     expect(row.fill).toBe(25);
+  });
+  it("no column header or note uses a retired word", async () => {
+    vi.mocked(getAdminReportData).mockResolvedValue(adminData() as any);
+    const retired = /step|within the dates|withdrawals|slots/i;
+    for (const model of [await __reportModels.buildPipelineModel(admin, {}), await __reportModels.buildDeploymentModel(admin, {})]) {
+      for (const s of model.sections) {
+        for (const text of [s.title, s.sheet, s.note ?? "", ...s.columns.map((c) => c.header)]) expect(text).not.toMatch(retired);
+      }
+    }
   });
 });
