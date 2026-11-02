@@ -11,9 +11,9 @@ vi.mock("@tanstack/react-router", () => ({
   ),
 }));
 
-import { BackoutPanel, OperationsWorkspace, RequestProgressList, StagePipeline } from "../index";
+import { OperationsWorkspace, RequestProgressList, StagePipeline, StuckList, TeamTable } from "../index";
 import { formatRecruiterName } from "../../../../lib/recruiter-label";
-import type { BackoutSummary, RequestRow, StageTableRow } from "../../../../lib/types/analytics.types";
+import type { RequestRow, StageTableRow, StuckCandidate, TeamRow } from "../../../../lib/types/analytics.types";
 
 afterEach(cleanup);
 
@@ -190,22 +190,100 @@ describe("compact client requests table", () => {
   });
 });
 
-describe("compact backouts", () => {
-  const data: BackoutSummary = {
-    withdrawals: 1, backouts: 3, noShows: 1, byParty: { APPLICANT: 2, CLIENT: 1, AGENCY: 1 },
-    byStage: [{ stage: "COMPLIANCE", label: "Requirements", APPLICANT: 1, CLIENT: 1, AGENCY: 1, total: 3 }],
-    topReasons: [{ reason: "ACCEPTED_OTHER_OFFER", count: 2 }],
-    byClient: [{ clientName: "Gamma", count: 2 }, { clientName: "Beta", count: 1 }],
-    byRequest: [{ mrfId: 4, title: "25x Warehouse Staff", clientName: "Gamma", count: 2 }],
-    recent: [],
-  };
+describe("admin lists", () => {
+  const team = (id: string, name: string, over: Partial<TeamRow> = {}): TeamRow => ({
+    recruiterId: id, name, active: 0, overdue: 0, overdueEstimated: 0, openRequisitions: 0, requestedSeats: 0, filledSeats: 0, fillRate: null,
+    sentToClient: 0, newStarts: 0, redeployStarts: 0, placed: 0, backouts: 0, backoutRate: null, backoutRateBase: 0, medianDaysToFill: null, daysToFillSample: 0, ...over,
+  });
+  const stuck = (id: number, over: Partial<StuckCandidate> = {}): StuckCandidate => ({
+    applicationId: id, candidateName: `Candidate ${id}`, jobTitle: "Welder", clientName: "Acme", mrfId: 9, recruiterId: "ta-1", recruiterName: "Alice",
+    stage: "COMPLIANCE", stageLabel: "Requirements", daysInStage: 20, slaDays: 14, daysOver: 6, urgency: "overdue", estimated: false, ...over,
+  });
 
-  it("keeps the three headline numbers and folds the breakdown behind a toggle", () => {
-    const { container } = render(<BackoutPanel data={data} rangeLabel="this week" showStageBars compact />);
-    expect(screen.getByText("After client review")).toBeDefined();
-    const details = container.querySelector("details") as HTMLDetailsElement;
-    expect(details.open).toBe(false);
-    expect(details.textContent).toContain("25x Warehouse Staff");
-    expect(screen.getByText("Breakdown")).toBeDefined();
+  it("TeamTable has exactly the 8 columns", () => {
+    render(<TeamTable rows={[team("a", "Alice")]} onSelectRecruiter={vi.fn()} />);
+    expect(screen.getAllByRole("columnheader").map((h) => h.textContent?.replace(/[▲▼↕]/g, ""))).toEqual([
+      "Recruiter", "Active", "Overdue", "Open requests", "Seats filled", "Starts", "Backout rate", "Days to fill",
+    ]);
+  });
+
+  it("TeamTable sorts by a clicked header, keeps Overdue descending by default and puts empty values last", () => {
+    const rows = [team("a", "Alice", { active: 2, overdue: 9 }), team("b", "Bea", { active: 5, overdue: 1 }), team("c", "Cy", { active: 3, overdue: 4 })];
+    render(<TeamTable rows={rows} onSelectRecruiter={vi.fn()} />);
+    const header = (name: string) => screen.getByRole("columnheader", { name });
+    expect(header("Overdue").getAttribute("aria-sort")).toBe("descending");
+    expect(header("Active").getAttribute("aria-sort")).toBe("none");
+    const order = () => screen.getAllByRole("row").slice(1).map((r) => within(r).getAllByRole("rowheader")[0].textContent);
+    expect(order()).toEqual(["Alice", "Bea", "Cy"]);
+
+    fireEvent.click(within(header("Active")).getByRole("button"));
+    expect(header("Active").getAttribute("aria-sort")).toBe("descending");
+    expect(header("Overdue").getAttribute("aria-sort")).toBe("none");
+    expect(order()).toEqual(["Bea", "Cy", "Alice"]);
+    fireEvent.click(within(header("Active")).getByRole("button"));
+    expect(header("Active").getAttribute("aria-sort")).toBe("ascending");
+    expect(order()).toEqual(["Alice", "Cy", "Bea"]);
+  });
+
+  it("TeamTable shows the two overdue counts, a sampled rate, and says what a name click does", () => {
+    const onSelect = vi.fn();
+    render(
+      <TeamTable
+        onSelectRecruiter={onSelect}
+        rows={[team("a", "Alice", { overdue: 3, overdueEstimated: 2, requestedSeats: 30, filledSeats: 12, fillRate: 40, placed: 5, backoutRate: null, backoutRateBase: 3 })]}
+      />,
+    );
+    const row = screen.getByRole("row", { name: /Alice/ });
+    expect(row.textContent).toContain("3 + 2 estimated");
+    expect(row.textContent).toContain("40%");
+    expect(row.textContent).toContain("12 of 30");
+    expect(row.textContent).toContain("Not enough data (n=3)");
+    const pick = screen.getByRole("button", { name: /Show this recruiter's numbers/ });
+    expect(pick.getAttribute("title")).toBe("Show this recruiter's numbers");
+    fireEvent.click(pick);
+    expect(onSelect).toHaveBeenCalledWith("a");
+  });
+
+  it("RequestProgressList shows a request with no recruiter, with seat text and the due date as text", () => {
+    const row: RequestRow = {
+      mrfId: 1, title: "Orphan", clientId: 1, clientName: "Acme", status: "OPEN", ownerId: null, ownerName: "No recruiter assigned", headcount: 4,
+      filled: 1, openSeats: 3, pipeline: 0, overdueCandidates: 0, jobCount: 0, applicantCount: 0, attention: "NO_OPENING", targetFillDate: "2026-10-01T00:00:00Z",
+      daysRemaining: -3, health: "OVERDUE", backoutsInPeriod: 0,
+    };
+    render(<RequestProgressList linkTo="/admin/mrfs/$mrfId" rows={[row]} />);
+    const li = screen.getByText("Orphan").closest("li") as HTMLElement;
+    expect(li.textContent).toContain("No recruiter assigned");
+    expect(li.textContent).toContain("1/4 seats");
+    expect(li.textContent).toMatch(/Target .*2026/);
+    expect(within(li).queryByRole("img")).toBeNull();
+    expect(screen.getAllByRole("group", { name: "Filter by status" })[0].textContent).toMatch(/All.*Overdue.*At risk.*On track.*Filled.*No candidates/);
+  });
+
+  it("StuckList has no recruiter select, badges Critical or Overdue, and says when a wait is estimated", () => {
+    render(<StuckList rows={[stuck(1, { urgency: "critical" }), stuck(2, { estimated: true })]} total={2} />);
+    expect(screen.queryByLabelText("Recruiter")).toBeNull();
+    expect(screen.getByText("Critical", { selector: "span.border" })).toBeDefined();
+    expect(screen.getByText("Overdue", { selector: "span.border" })).toBeDefined();
+    expect(screen.getByText(/estimated from application date/)).toBeDefined();
+  });
+
+  it("StuckList hides the recruiter name when showRecruiter is false and keeps the backend order", () => {
+    render(<StuckList rows={[stuck(1, { daysOver: 1 }), stuck(2, { daysOver: 30, urgency: "critical" })]} total={2} showRecruiter={false} />);
+    expect(screen.queryByText(/· Alice/)).toBeNull();
+    expect(screen.getAllByRole("link", { name: /Candidate/ }).map((a) => a.textContent)).toEqual(["Candidate 1", "Candidate 2"]);
+  });
+
+  it("puts a visually hidden h2 and the visible caption in a bare tab panel", () => {
+    render(
+      <OperationsWorkspace
+        active="s"
+        onChange={vi.fn()}
+        tabs={[{ key: "s", label: "Waiting", count: 0, content: <StuckList bare rows={[]} total={0} subtitle="Past the stage limit." /> }]}
+      />,
+    );
+    const panel = screen.getByRole("tabpanel");
+    const h2 = within(panel).getByRole("heading", { level: 2 });
+    expect(h2.className).toContain("sr-only");
+    expect(within(panel).getByText("Past the stage limit.").className).not.toContain("sr-only");
   });
 });

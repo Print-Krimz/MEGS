@@ -107,13 +107,13 @@ describe("AdminAnalyticsPage", () => {
     fireEvent.click(row);
     expect(screen.getByRole("tab", { name: "Waiting 0" }).getAttribute("aria-selected")).toBe("true");
     expect(within(screen.getByRole("tablist")).getByText("Requests")).toBeDefined();
-    expect(screen.getByRole("tab", { name: "Client requests 5" })).toBeDefined();
+    expect(screen.getByRole("tab", { name: "Client requests 6" })).toBeDefined();
   });
 
   it("lists critical waits and overdue requests in the attention strip", async () => {
     renderPage();
     expect(await screen.findByRole("link", { name: /2\s*critical waits/ })).toBeDefined();
-    expect(screen.getByRole("link", { name: /2\s*overdue requests/ })).toBeDefined();
+    expect(screen.getByRole("link", { name: /3\s*overdue requests/ })).toBeDefined();
     expect(screen.queryByText(/Nothing needs attention/)).toBeNull();
   });
 
@@ -130,19 +130,20 @@ describe("AdminAnalyticsPage", () => {
     expect(screen.queryByText(/Updating the numbers/)?.className ?? "sr-only").toContain("sr-only");
   });
 
-  it("counts exactly the overdue and at-risk rows the Late requests tile opens (unowned rows excluded)", async () => {
+  it("counts exactly the overdue and at-risk rows the Late requests tile opens, including a request with no recruiter", async () => {
     const { unmount } = renderPage();
     const tile = await screen.findByRole("link", { name: /Late requests/ });
-    expect(tile.textContent).toMatch(/3/);
-    expect(tile.textContent).toMatch(/2 overdue · 1 at risk/);
+    expect(tile.textContent).toMatch(/4/);
+    expect(tile.textContent).toMatch(/3 overdue · 1 at risk/);
     fireEvent.click(tile);
     expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ search: expect.objectContaining({ tab: "requests", health: "LATE" }) }));
     unmount();
 
     searchMock.value = { tab: "requests", health: "LATE" };
     renderPage();
-    expect(await screen.findByRole("button", { name: /^Overdue or at risk 3$/ })).toBeDefined();
-    expect(screen.getAllByRole("img", { name: /seats filled/ })).toHaveLength(3);
+    expect(await screen.findByRole("button", { name: /^Overdue or at risk 4$/ })).toBeDefined();
+    expect(screen.getAllByText(/\/10 seats/)).toHaveLength(4);
+    expect(screen.getByText("No recruiter assigned")).toBeDefined();
   });
 
   it("no opening counts and opens only requests with no opening, not ones without applicants", async () => {
@@ -154,7 +155,7 @@ describe("AdminAnalyticsPage", () => {
     searchMock.value = { tab: "requests", health: "NO_OPENING" };
     renderPage();
     expect(await screen.findByRole("button", { name: /^No opening 1$/ })).toBeDefined();
-    expect(screen.getAllByRole("img", { name: /seats filled/ })).toHaveLength(1);
+    expect(screen.getAllByText(/\/10 seats/)).toHaveLength(1);
     expect(screen.getByText("Request 4")).toBeDefined();
     expect(screen.queryByText("Request 5")).toBeNull();
   });

@@ -10,7 +10,7 @@ interface AnalyticsPanelProps {
   aside?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
-  /** Content only: no frame or header. For panels that sit inside another container, such as a tab. */
+  /** Content only: no frame. For panels inside another container, such as a tab. Keeps a hidden h2 and the subtitle as a visible caption. */
   bare?: boolean;
 }
 
@@ -18,6 +18,8 @@ interface AnalyticsPanelProps {
 export const AnalyticsPanel: React.FC<AnalyticsPanelProps> = ({ id, title, subtitle, aside, children, className = "", bare = false }) =>
   bare ? (
     <div id={id} className={`scroll-mt-4 ${className}`}>
+      <h2 className="sr-only">{title}</h2>
+      {subtitle && <p className="border-b border-slate-200 px-3.5 py-2 text-xs font-sans text-slate-600">{subtitle}</p>}
       {children}
     </div>
   ) : (

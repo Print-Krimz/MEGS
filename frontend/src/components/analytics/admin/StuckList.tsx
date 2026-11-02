@@ -11,6 +11,8 @@ interface StuckListProps {
   rows: StuckCandidate[];
   /** Admin sees every recruiter and links to read-only pages. A TA sees their own and links to their working pages. */
   viewer?: "admin" | "ta";
+  /** Show which recruiter holds each candidate. Off on the recruiter page, where every row is theirs. Defaults to on for Admin. */
+  showRecruiter?: boolean;
   id?: string;
   title?: string;
   subtitle?: string;
@@ -29,7 +31,7 @@ interface StuckListProps {
 
 const URGENCY = {
   critical: { label: "Critical", badge: HEALTH_CHIP.overdue.className },
-  overdue: { label: "Late", badge: HEALTH_CHIP.atRisk.className },
+  overdue: { label: "Overdue", badge: HEALTH_CHIP.atRisk.className },
 } as const;
 
 const SELECT =
@@ -56,6 +58,7 @@ export const StuckList = React.memo(function StuckList({
   closedOpenings = 0,
   pageSize = 8,
   viewer = "admin",
+  showRecruiter,
   id = "waiting-too-long",
   title = "Waiting too long",
   subtitle = "Past the stage limit, longest wait first. Critical is twice the limit or more.",
@@ -64,31 +67,29 @@ export const StuckList = React.memo(function StuckList({
   linkState,
 }: StuckListProps) {
   const admin = viewer === "admin";
+  const withRecruiter = showRecruiter ?? admin;
   const [urgency, setUrgency] = useState<"ALL" | "critical">("ALL");
   const [stage, setStage] = useState("ALL");
-  const [recruiter, setRecruiter] = useState("ALL");
   const [page, setPage] = useState(1);
 
   useEffect(() => {
     if (!focus) return;
     setUrgency(focus.urgency ?? "ALL");
     setStage(focus.stage ?? "ALL");
-    setRecruiter("ALL");
     setPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus?.nonce]);
 
   const stages = useMemo(() => [...new Map(rows.map((r) => [r.stage, r.stageLabel])).entries()], [rows]);
-  const recruiters = useMemo(() => [...new Map(rows.map((r) => [r.recruiterId, r.recruiterName])).entries()].sort((a, b) => a[1].localeCompare(b[1])), [rows]);
   const criticalCount = rows.filter((r) => r.urgency === "critical").length;
 
   const visible = useMemo(
     () =>
       rows.filter(
         (r) =>
-          (urgency === "ALL" || r.urgency === "critical") && (stage === "ALL" || r.stage === stage) && (recruiter === "ALL" || r.recruiterId === recruiter)
+          (urgency === "ALL" || r.urgency === "critical") && (stage === "ALL" || r.stage === stage)
       ),
-    [rows, urgency, stage, recruiter]
+    [rows, urgency, stage]
   );
 
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
@@ -131,19 +132,6 @@ export const StuckList = React.memo(function StuckList({
               ))}
             </select>
           </label>
-          {admin && (
-          <label className="flex flex-col gap-0.5 text-xs text-slate-700">
-            <span className="text-xs font-semibold text-slate-600">Recruiter</span>
-            <select value={recruiter} onChange={(e) => reset(() => setRecruiter(e.target.value))} className={SELECT}>
-              <option value="ALL">All recruiters</option>
-              {recruiters.map(([id, name]) => (
-                <option key={id} value={id}>
-                  {formatRecruiterName(name).label}
-                </option>
-              ))}
-            </select>
-          </label>
-          )}
         </div>
       )}
 
@@ -188,11 +176,6 @@ export const StuckList = React.memo(function StuckList({
                   <WaitBar row={scale} index={i} r={r} color={r.urgency === "critical" ? WAIT.critical : WAIT.late} />
                   <span className="whitespace-nowrap tabular-nums">
                     <strong>{r.daysInStage}</strong> of {r.slaDays} days
-                    {r.estimated && (
-                      <abbr title="Counted from the application date. No stage change was recorded." className="ml-1 no-underline cursor-help">
-                        est.<span className="sr-only"> Counted from the application date. No stage change was recorded.</span>
-                      </abbr>
-                    )}
                   </span>
                 </div>
                 <p className="mt-1 truncate text-xs text-slate-600 font-sans">
@@ -209,7 +192,8 @@ export const StuckList = React.memo(function StuckList({
                     r.jobTitle
                   )}
                   {r.clientName ? ` · ${r.clientName}` : ""}
-                  {admin && <span title={formatRecruiterName(r.recruiterName).full}> · {formatRecruiterName(r.recruiterName).label}</span>}
+                  {r.estimated && <span> · estimated from application date</span>}
+                  {withRecruiter && <span title={formatRecruiterName(r.recruiterName).full}> · {formatRecruiterName(r.recruiterName).label}</span>}
                 </p>
               </li>
             );

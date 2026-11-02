@@ -4,9 +4,8 @@ import type { RequestRow } from "../../../lib/types/analytics.types";
 import { formatRecruiterName } from "../../../lib/recruiter-label";
 import { formatDate } from "../../../lib/utils";
 import { AnalyticsPanel } from "./AnalyticsPanel";
-import { HEALTH_CHIP, OUTCOME, TEXT_AMBER, TEXT_LOSS } from "../../../lib/chart-palette";
+import { HEALTH_CHIP, TEXT_AMBER, TEXT_LOSS } from "../../../lib/chart-palette";
 import { PaginationBar } from "../PaginationBar";
-import { BarMark } from "./chart-primitives";
 import { matchesRequestHealth, type RequestHealthFilter } from "../../../lib/admin-report-search";
 
 interface RequestProgressListProps {
@@ -28,11 +27,11 @@ interface RequestProgressListProps {
 
 export type { RequestHealthFilter };
 
-const HEALTH: Record<RequestRow["health"], { label: string; badge: string; bar: string }> = {
-  OVERDUE: { ...HEALTH_CHIP.overdue, badge: HEALTH_CHIP.overdue.className, bar: OUTCOME.backedOut },
-  AT_RISK: { ...HEALTH_CHIP.atRisk, badge: HEALTH_CHIP.atRisk.className, bar: OUTCOME.notSelected },
-  ON_TRACK: { ...HEALTH_CHIP.onTrack, badge: HEALTH_CHIP.onTrack.className, bar: OUTCOME.movedOn },
-  FILLED: { ...HEALTH_CHIP.filled, badge: HEALTH_CHIP.filled.className, bar: OUTCOME.movedOn },
+const HEALTH: Record<RequestRow["health"], { label: string; badge: string }> = {
+  OVERDUE: { ...HEALTH_CHIP.overdue, badge: HEALTH_CHIP.overdue.className },
+  AT_RISK: { ...HEALTH_CHIP.atRisk, badge: HEALTH_CHIP.atRisk.className },
+  ON_TRACK: { ...HEALTH_CHIP.onTrack, badge: HEALTH_CHIP.onTrack.className },
+  FILLED: { ...HEALTH_CHIP.filled, badge: HEALTH_CHIP.filled.className },
 };
 
 const ATTENTION: Record<Exclude<RequestRow["attention"], null>, { label: string; title: string; text: string }> = {
@@ -41,7 +40,7 @@ const ATTENTION: Record<Exclude<RequestRow["attention"], null>, { label: string;
   FIRST_STAGE_ONLY: { label: "None past review", title: "Every applicant is still in first review.", text: "text-slate-700" },
 };
 
-/** The short "how late or how soon" text. The target date is in the tooltip. */
+/** The short "how late or how soon" text. The target date is printed next to it. */
 const slaText = (row: RequestRow): string => {
   if (!row.targetFillDate || row.daysRemaining === null) return "No target date";
   if (row.daysRemaining < 0) return `${Math.abs(row.daysRemaining)} ${row.daysRemaining === -1 ? "day" : "days"} late`;
@@ -95,7 +94,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return rows.filter((r) => {
-      return matchesRequestHealth(r, health) && (!needle || `${r.title} ${r.clientName} ${r.ownerName} ${formatRecruiterName(r.ownerName).label}`.toLowerCase().includes(needle));
+      return matchesRequestHealth(r, health) && (!needle || `${r.title} ${r.clientName} ${r.ownerName}`.toLowerCase().includes(needle));
     });
   }, [rows, health, query]);
 
@@ -155,8 +154,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
         <ul className="divide-y divide-slate-200">
           {pageRows.map((row) => {
             const style = HEALTH[row.health];
-            const owner = formatRecruiterName(row.ownerName);
-            const due = row.targetFillDate ? `Target ${formatDate(row.targetFillDate)}` : "No target date";
+            const owner = row.ownerId === null ? { label: "No recruiter assigned", full: undefined } : formatRecruiterName(row.ownerName);
             return (
               <li key={row.mrfId} className="px-3 py-2.5">
                 <div className="flex items-center justify-between gap-3">
@@ -171,7 +169,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                     </Link>
                     <span className="truncate text-xs font-sans text-slate-600">{row.clientName}</span>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2 text-xs font-sans" title={due}>
+                  <div className="flex shrink-0 items-center gap-2 text-xs font-sans">
                     {row.health === "OVERDUE" ? (
                       <span className={`tabular-nums font-semibold ${TEXT_LOSS}`}>
                         <span className="sr-only">Overdue: </span>
@@ -185,14 +183,14 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                     )}
                   </div>
                 </div>
-                <div className="mt-1 grid grid-cols-[6rem_auto_minmax(0,1fr)] items-center gap-x-3 text-xs font-sans text-slate-700">
-                  <BarMark label={`${row.title} seats filled`} value={Math.min(row.filled, row.headcount)} max={row.headcount} color={style.bar} heightClass="h-2" />
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs font-sans text-slate-700">
                   <span className="whitespace-nowrap tabular-nums">
                     <strong>{row.filled}</strong>/{row.headcount} seats
                   </span>
+                  {row.targetFillDate && <span className="whitespace-nowrap tabular-nums text-slate-600">Target {formatDate(row.targetFillDate)}</span>}
                   <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
-                    {showOwner && row.ownerId !== null && (
-                      <span title={owner.full} className="truncate text-slate-600">
+                    {showOwner && (
+                      <span title={owner.full} className={`truncate ${row.ownerId === null ? "font-semibold text-slate-900" : "text-slate-600"}`}>
                         {owner.label}
                       </span>
                     )}

@@ -108,9 +108,8 @@ export const AdminAnalyticsPage: React.FC = () => {
     staleTime: 60 * 1000,
     placeholderData: keepPreviousData,
   });
-  const allRequests = dashboardQuery.data?.requests;
-  // A request with no recruiter is not listed. Nobody is working it, so there is nothing to follow up.
-  const requests = useMemo(() => (allRequests ?? []).filter((r) => r.ownerId !== null), [allRequests]);
+  // Every request is listed, including ones with no recruiter, so the list, the Seats filled tile and the export agree.
+  const requests = dashboardQuery.data?.requests ?? [];
 
   const selectRecruiter = useCallback((recruiterId: string | undefined) => update({ recruiterId }), [update]);
 

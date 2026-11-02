@@ -212,24 +212,24 @@ describe("Analytics Components Test Suite", () => {
 
   const teamRow = (id: string, name: string, over: Partial<TeamRow> = {}): TeamRow => ({
     recruiterId: id, name, active: 0, overdue: 0, overdueEstimated: 0, openRequisitions: 0, requestedSeats: 0, filledSeats: 0, fillRate: 0,
-    sentToClient: 0, newStarts: 0, redeployStarts: 0, placed: 0, backouts: 0, backoutRate: 0, medianDaysToFill: null, ...over,
+    sentToClient: 0, newStarts: 0, redeployStarts: 0, placed: 0, backouts: 0, backoutRate: 0, backoutRateBase: 0, medianDaysToFill: null, daysToFillSample: 0, ...over,
   });
 
   it("selects a recruiter from the team table and toggles the selection off", () => {
     const rows = [teamRow("ta-1", "Alice Recruiter", { active: 14, overdue: 3, sentToClient: 5, placed: 4, backouts: 1, backoutRate: 20, medianDaysToFill: 12 })];
     const onSelect = vi.fn();
     const { rerender } = render(<TeamTable rows={rows} onSelectRecruiter={onSelect} />);
-    fireEvent.click(screen.getByRole("button", { name: "Alice Recruiter" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Alice Recruiter\./ }));
     expect(onSelect).toHaveBeenCalledWith("ta-1");
 
     rerender(<TeamTable rows={rows} selectedRecruiterId="ta-1" onSelectRecruiter={onSelect} />);
-    fireEvent.click(screen.getByRole("button", { name: "Alice Recruiter" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Alice Recruiter\./ }));
     expect(onSelect).toHaveBeenLastCalledWith(undefined);
   });
 
-  it("shows a dash instead of a fake rate when a recruiter has no placements or backouts", () => {
+  it("says how few records stand behind a rate instead of showing a fake one", () => {
     render(<TeamTable rows={[teamRow("ta-1", "Alice Recruiter", { active: 3 })]} onSelectRecruiter={vi.fn()} />);
-    expect(screen.getByRole("row", { name: /Alice Recruiter/ }).textContent).toContain("—");
+    expect(screen.getByRole("row", { name: /Alice Recruiter/ }).textContent).toContain("Not enough data (n=0)");
   });
 
   it("shows seats filled with counts and the percentage, and the workload next to results", () => {
@@ -238,8 +238,8 @@ describe("Analytics Components Test Suite", () => {
     const text = screen.getByRole("row", { name: /Alice Recruiter/ }).textContent;
     expect(text).toContain("12 of 30");
     expect(text).toContain("40%");
-    expect(text).toContain("+2 est.");
-    expect(text).toContain("3 new · 2 redeploy");
+    expect(text).toContain("3 + 2 estimated");
+    expect(text).not.toContain("redeploy");
   });
 
   it("lists only what needs action, each scrolling to its section", async () => {
@@ -297,23 +297,23 @@ describe("Analytics Components Test Suite", () => {
   it("pages and searches a long recruiter list, and keeps a selected recruiter visible", () => {
     const rows = Array.from({ length: 23 }, (_, i) => teamRow(`ta-${i}`, `Recruiter ${String(i).padStart(2, "0")}`, { active: i + 1 }));
     const { rerender } = render(<TeamTable rows={rows} onSelectRecruiter={vi.fn()} pageSize={10} />);
-    expect(screen.getAllByRole("button", { name: /^Recruiter \d\d$/ })).toHaveLength(10);
+    expect(screen.getAllByRole("button", { name: /^Recruiter \d\d\./ })).toHaveLength(10);
     expect(screen.getByText("1 to 10 of 23 recruiters")).toBeDefined();
 
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByText("11 to 20 of 23 recruiters")).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(screen.getAllByRole("button", { name: /^Recruiter \d\d$/ })).toHaveLength(3);
+    expect(screen.getAllByRole("button", { name: /^Recruiter \d\d\./ })).toHaveLength(3);
     expect((screen.getByRole("button", { name: "Next" }) as HTMLButtonElement).disabled).toBe(true);
 
     // Searching returns to page 1 and narrows the list
     fireEvent.change(screen.getByPlaceholderText("Recruiter name"), { target: { value: "Recruiter 07" } });
-    expect(screen.getAllByRole("button", { name: /^Recruiter \d\d$/ })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: /^Recruiter \d\d\./ })).toHaveLength(1);
     expect(screen.queryByRole("navigation", { name: "recruiters pages" })).toBeNull();
 
     // A selected recruiter stays listed even when the search does not match them
     rerender(<TeamTable rows={rows} selectedRecruiterId="ta-3" onSelectRecruiter={vi.fn()} pageSize={10} />);
-    expect(screen.getByRole("button", { name: "Recruiter 03" })).toBeDefined();
+    expect(screen.getByRole("button", { name: /^Recruiter 03\./ })).toBeDefined();
   });
 
   const requestRow = (id: number, over: Partial<RequestRow> = {}): RequestRow => ({
@@ -330,7 +330,8 @@ describe("Analytics Components Test Suite", () => {
     expect(screen.getByText(/8 days late/)).toBeDefined();
     expect(screen.getByRole("link", { name: "20 Warehouse Staff" }).getAttribute("href")).toBe("/admin/mrfs/1");
     expect(screen.getAllByText("Alice").length).toBeGreaterThan(0);
-    expect(screen.getByRole("img", { name: /20 Warehouse Staff seats filled: 5 \(25%\)/ })).toBeDefined();
+    expect(document.body.textContent).toContain("5/20 seats");
+    expect(screen.queryByRole("img")).toBeNull();
     expect(screen.getByText("No target date")).toBeDefined();
   });
 
@@ -340,19 +341,19 @@ describe("Analytics Components Test Suite", () => {
       requestRow(50, { title: "Urgent Welders", clientName: "Beta Fab", health: "OVERDUE", targetFillDate: "2026-10-01T00:00:00Z", daysRemaining: -12 }),
     ];
     render(<RequestProgressList rows={rows} linkTo="/admin/mrfs/$mrfId" pageSize={5} />);
-    expect(screen.getAllByRole("img", { name: /seats filled/ })).toHaveLength(5);
+    expect(screen.getAllByRole("link")).toHaveLength(5);
     expect(screen.getByText("1 to 5 of 12 requests")).toBeDefined();
     // Counts on the status buttons
     expect(screen.getByRole("button", { name: /^Overdue 1$/ })).toBeDefined();
     expect(screen.getByRole("button", { name: /^On track 11$/ })).toBeDefined();
 
     fireEvent.click(screen.getByRole("button", { name: /^Overdue 1$/ }));
-    expect(screen.getAllByRole("img", { name: /seats filled/ })).toHaveLength(1);
+    expect(screen.getAllByRole("link")).toHaveLength(1);
     expect(screen.queryByRole("navigation", { name: "requests pages" })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: /^All 12$/ }));
     fireEvent.change(screen.getByPlaceholderText("Request, client or recruiter"), { target: { value: "beta" } });
-    expect(screen.getAllByRole("img", { name: /seats filled/ })).toHaveLength(1);
+    expect(screen.getAllByRole("link")).toHaveLength(1);
 
     fireEvent.change(screen.getByPlaceholderText("Request, client or recruiter"), { target: { value: "nothing like this" } });
     expect(screen.getByText(/No match\. Change the status or search/)).toBeDefined();
@@ -411,14 +412,14 @@ describe("Analytics Components Test Suite", () => {
     expect(screen.getByText("No applicants")).toBeDefined();
     expect(screen.getByText("None past review")).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: /^No candidates 2$/ }));
-    expect(screen.getAllByRole("img", { name: /seats filled/ })).toHaveLength(2);
+    expect(screen.getAllByRole("link")).toHaveLength(2);
     expect(screen.queryByText("Healthy")).toBeNull();
     expect(screen.queryByText("Stuck at first review")).toBeNull();
   });
 
   it("guards a request with a headcount of zero instead of showing NaN", () => {
     render(<RequestProgressList rows={[requestRow(1, { headcount: 0, filled: 0, openSeats: 0 })]} linkTo="/ta/mrfs/$mrfId" showOwner={false} />);
-    expect(screen.getByRole("img", { name: /seats filled: 0 \(0%\)/ })).toBeDefined();
+    expect(document.body.textContent).toContain("0/0 seats");
     expect(screen.queryByText(/NaN/)).toBeNull();
     expect(screen.queryByText(/assigned to/)).toBeNull();
   });
@@ -440,7 +441,7 @@ describe("Analytics Components Test Suite", () => {
     expect(screen.getByRole("img", { name: /Requirements, days in stage, limit 14 days: Within limit 14, Past limit 16/ })).toBeDefined();
     expect(screen.getAllByText(/of 14 days/)).toBeDefined();
     expect(screen.getByText(/· Ben/)).toBeDefined();
-    expect(screen.getByText(/Counted from the application date. No stage change was recorded/)).toBeDefined();
+    expect(screen.getByText(/estimated from application date/)).toBeDefined();
   });
 
   it("serves a TA with their own links and no recruiter filter or name", () => {
@@ -462,7 +463,7 @@ describe("Analytics Components Test Suite", () => {
     expect(screen.queryByRole("link", { name: /New applications/ })).toBeNull();
   });
 
-  it("filters the waiting list by urgency, stage and recruiter", () => {
+  it("filters the waiting list by urgency and stage", () => {
     const rows = [
       stuck(1, { urgency: "critical" }),
       stuck(2, { stage: "FINAL_INTERVIEW", stageLabel: "Final interview", recruiterId: "ta-2", recruiterName: "Ben" }),
@@ -473,9 +474,6 @@ describe("Analytics Components Test Suite", () => {
     fireEvent.click(screen.getByRole("button", { name: /^All 2$/ }));
     fireEvent.change(screen.getByLabelText("Stage"), { target: { value: "FINAL_INTERVIEW" } });
     expect(screen.queryByRole("link", { name: "Candidate 1" })).toBeNull();
-    fireEvent.change(screen.getByLabelText("Stage"), { target: { value: "ALL" } });
-    fireEvent.change(screen.getByLabelText("Recruiter"), { target: { value: "ta-1" } });
-    expect(screen.queryByRole("link", { name: "Candidate 2" })).toBeNull();
   });
 
   it("explains a capped waiting list and the candidates on closed openings", () => {
