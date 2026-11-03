@@ -176,6 +176,10 @@ export const StuckList = React.memo(function StuckList({
     });
   }, [visible]);
 
+  // Table columns once the panel is wide: [tick], candidate, stage and wait, last activity, overdue chips, actions.
+  const columns = selectable
+    ? "@3xl:grid-cols-[2.75rem_minmax(0,2.2fr)_minmax(0,1.7fr)_minmax(0,1.5fr)_minmax(6.5rem,0.8fr)_minmax(17rem,1.5fr)]"
+    : "@3xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1.7fr)_minmax(0,1.5fr)_minmax(6.5rem,0.8fr)_minmax(17rem,1.5fr)]";
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const pageRows = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -350,117 +354,133 @@ export const StuckList = React.memo(function StuckList({
             )}
           </div>
         )}
+        {/* Container queries: the side menu takes width, so the table starts when this panel is wide enough, not at a screen width. */}
+        <div className="@container">
+        <div aria-hidden="true" className={`hidden border-b border-slate-200 py-2 pr-3.5 text-xs font-semibold text-slate-600 @3xl:grid @3xl:gap-x-4 ${selectable ? "pl-1" : "pl-3.5"} ${columns}`}>
+          {selectable && <span />}
+          <span>Candidate</span>
+          <span>Stage and wait</span>
+          <span>Last activity</span>
+          <span>Overdue</span>
+          <span className="text-right">Actions</span>
+        </div>
         <ul className="divide-y divide-slate-200">
           {pageRows.map((r, i) => {
             const style = URGENCY[r.urgency];
+            const recruiter = formatRecruiterName(r.recruiterName);
+            const link =
+              "truncate text-sm font-semibold text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
             return (
-              <li key={r.applicationId} className={selectable ? "flex items-start gap-1 py-2.5 pl-1 pr-3" : "px-3 py-2.5"}>
+              <li
+                key={r.applicationId}
+                className={`flex flex-col gap-1.5 relative py-3 transition-colors hover:bg-navy-soft focus-within:bg-navy-soft motion-reduce:transition-none @3xl:grid @3xl:items-center @3xl:gap-x-4 ${selectable ? "pl-3.5 pr-12 @3xl:pl-1 @3xl:pr-3.5" : "pl-3.5 pr-3.5"} ${columns}`}
+              >
                 {selectable && (
-                  <label className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center md:h-9 md:w-9">
+                  <label className="absolute right-1 top-1 flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center @3xl:static md:h-9 md:w-9">
                     <input type="checkbox" aria-label={`Select ${r.candidateName}`} checked={selected.has(r.applicationId)} onChange={() => toggle(r.applicationId)} className={CHECKBOX} />
                   </label>
                 )}
-                <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center justify-between gap-x-3">
+
+                <div className="min-w-0">
                   <div className="flex min-w-0 items-center gap-2">
-                    <span className={`shrink-0 px-1.5 py-0.5 text-xs font-semibold ${style.badge}`}>{style.label}</span>
+                    <span className={`shrink-0 px-1.5 py-0.5 text-xs font-semibold @3xl:hidden ${style.badge}`}>{style.label}</span>
                     {admin ? (
                       <Link
                         to="/admin/applications/$applicationId"
                         params={{ applicationId: String(r.applicationId) }}
                         {...(linkState ? { state: linkState as never } : {})}
-                        className="truncate text-sm font-semibold text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                        className={link}
                       >
                         {r.candidateName}
                       </Link>
                     ) : (
-                      <Link
-                        to="/ta/applications/$applicationId"
-                        params={{ applicationId: String(r.applicationId) }}
-                        className="truncate text-sm font-semibold text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                      >
+                      <Link to="/ta/applications/$applicationId" params={{ applicationId: String(r.applicationId) }} className={link}>
                         {r.candidateName}
                       </Link>
                     )}
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-3">
-                    <span className={`px-1.5 py-0.5 text-xs font-semibold tabular-nums ${style.badge}`}>
-                      {r.daysOver} {r.daysOver === 1 ? "day" : "days"} over
-                    </span>
-                    {!admin && (
-                      <button
-                        type="button"
-                        aria-label={`Move stage: ${r.candidateName}`}
-                        onClick={() => {
-                          setPreviewMove(true);
-                          setPreviewId(r.applicationId);
-                        }}
-                        className="inline-flex min-h-11 items-center px-1 text-xs font-semibold text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9"
+                  <p className="mt-0.5 text-xs text-slate-600 font-sans @3xl:truncate">
+                    {r.mrfId !== null ? (
+                      <Link
+                        to={admin ? "/admin/mrfs/$mrfId" : "/ta/mrfs/$mrfId"}
+                        params={{ mrfId: String(r.mrfId) }}
+                        {...(admin && linkState ? { state: linkState as never } : {})}
+                        className="text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
-                        Move stage
-                      </button>
+                        {r.jobTitle}
+                      </Link>
+                    ) : (
+                      r.jobTitle
                     )}
-                    {rowActions.map((a) => (
-                      <button key={a.key} type="button" disabled={busy} aria-label={`${a.label}: ${r.candidateName}`} onClick={() => void runRow(a, r)} className={ROW_BUTTON}>
-                        {a.label}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      aria-label={`Quick view: ${r.candidateName}`}
-                      onClick={() => {
-                        setPreviewMove(false);
-                        setPreviewId(r.applicationId);
-                      }}
-                      className="inline-flex min-h-11 items-center px-1 text-xs font-semibold text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9"
-                    >
-                      Quick view
-                    </button>
-                  </div>
+                    {r.clientName ? ` · ${r.clientName}` : ""}
+                    {r.estimated && <span> · estimated from application date</span>}
+                    {withRecruiter && <span title={recruiter.full}> · {recruiter.label}</span>}
+                  </p>
                 </div>
-                {/* Fixed label column, so every bar starts and ends at the same place whatever its "N of M days" width.
-                    Phones: stage and days on one line, the bar full width under them. */}
-                <div className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 text-xs font-sans text-slate-700 sm:grid-cols-[9rem_minmax(0,1fr)_6.5rem] sm:gap-y-0">
-                  <span className="col-start-1 row-start-1 truncate font-semibold text-slate-900">{r.stageLabel}</span>
-                  <WaitBar
-                    className="col-span-2 row-start-2 sm:col-span-1 sm:col-start-2 sm:row-start-1"
-                    row={scale}
-                    index={i}
-                    r={r}
-                    color={r.urgency === "critical" ? WAIT.critical : WAIT.late}
-                  />
-                  <span className="col-start-2 row-start-1 whitespace-nowrap text-right tabular-nums sm:col-start-3">
-                    <strong>{r.daysInStage}</strong> of {r.slaDays} days
+
+                {/* A short bar under the stage name: enough to compare waits, not a full-width line. */}
+                <div className="min-w-0 text-xs font-sans text-slate-700">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="truncate font-semibold text-slate-900">{r.stageLabel}</span>
+                    <span className="whitespace-nowrap tabular-nums">
+                      <strong>{r.daysInStage}</strong> of {r.slaDays} days
+                    </span>
+                  </div>
+                  <WaitBar className="mt-1 max-w-44" row={scale} index={i} r={r} color={r.urgency === "critical" ? WAIT.critical : WAIT.late} />
+                </div>
+
+                <div className="min-w-0 text-xs text-slate-600 font-sans" title={r.lastActivityAt ? formatDate(r.lastActivityAt) : undefined}>
+                  {r.lastActivityAt && (
+                    <span className="line-clamp-2">
+                      Last activity: {daysAgoText(r.lastActivityAt)}
+                      {r.lastNote ? ` · ${r.lastNote}` : ""}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 @3xl:flex-col @3xl:items-start @3xl:gap-1">
+                  <span className={`hidden px-1.5 py-0.5 text-xs font-semibold @3xl:inline-block ${style.badge}`}>{style.label}</span>
+                  <span className={`px-1.5 py-0.5 text-xs font-semibold tabular-nums ${style.badge}`}>
+                    {r.daysOver} {r.daysOver === 1 ? "day" : "days"} over
                   </span>
                 </div>
-                <p className="mt-1 text-xs sm:truncate text-slate-600 font-sans">
-                  {r.mrfId !== null ? (
-                    <Link
-                      to={admin ? "/admin/mrfs/$mrfId" : "/ta/mrfs/$mrfId"}
-                      params={{ mrfId: String(r.mrfId) }}
-                      {...(admin && linkState ? { state: linkState as never } : {})}
-                      className="text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+
+                <div className="flex flex-wrap items-center gap-x-3 @3xl:flex-nowrap @3xl:justify-end @3xl:whitespace-nowrap">
+                  {!admin && (
+                    <button
+                      type="button"
+                      aria-label={`Move stage: ${r.candidateName}`}
+                      onClick={() => {
+                        setPreviewMove(true);
+                        setPreviewId(r.applicationId);
+                      }}
+                      className={ROW_BUTTON}
                     >
-                      {r.jobTitle}
-                    </Link>
-                  ) : (
-                    r.jobTitle
+                      Move stage
+                    </button>
                   )}
-                  {r.clientName ? ` · ${r.clientName}` : ""}
-                  {r.estimated && <span> · estimated from application date</span>}
-                  {withRecruiter && <span title={formatRecruiterName(r.recruiterName).full}> · {formatRecruiterName(r.recruiterName).label}</span>}
-                </p>
-                {r.lastActivityAt && (
-                  <p className="mt-0.5 truncate text-xs text-slate-500 font-sans" title={formatDate(r.lastActivityAt)}>
-                    Last activity: {daysAgoText(r.lastActivityAt)}
-                    {r.lastNote ? ` · ${r.lastNote}` : ""}
-                  </p>
-                )}
+                  {rowActions.map((a) => (
+                    <button key={a.key} type="button" disabled={busy} aria-label={`${a.label}: ${r.candidateName}`} onClick={() => void runRow(a, r)} className={ROW_BUTTON}>
+                      {a.label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    aria-label={`Quick view: ${r.candidateName}`}
+                    onClick={() => {
+                      setPreviewMove(false);
+                      setPreviewId(r.applicationId);
+                    }}
+                    className={ROW_BUTTON}
+                  >
+                    Quick view
+                  </button>
                 </div>
               </li>
             );
           })}
         </ul>
+        </div>
         </>
       )}
 
