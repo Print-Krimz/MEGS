@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import prisma from "../../utils/prisma.js";
 import { sendNotification } from "../../utils/notification.js";
 import { logAudit } from "../../utils/audit.js";
-import { resolveUserName } from "../../utils/user-name.js";
+import { resolvePersonName } from "../../utils/user-name.js";
 import { manilaDateString } from "../../schemas/field-limits.js";
 import { JOB_OWNER_SELECT, jobOwnerTaId } from "../ta/ownership.js";
 
@@ -35,7 +35,9 @@ export async function remindRecruiters(adminId: string, applicationIds: number[]
     byRecruiter.set(owner, [...(byRecruiter.get(owner) ?? []), applicationId]);
   }
 
-  const who = resolveUserName(admin, "An administrator");
+  // The reminder names the admin by name, never by email; the email stays in the audit entry below.
+  const name = resolvePersonName(admin, "");
+  const who = name ? `${name} (Admin)` : "An administrator";
   const day = manilaDateString();
   let reminded = 0;
   let candidates = 0;
@@ -56,6 +58,12 @@ export async function remindRecruiters(adminId: string, applicationIds: number[]
     }
   }
   const skipped = ids.length - candidates;
-  void logAudit(adminId, "ANALYTICS_RECRUITERS_REMINDED", "Application", null, { applicationIds: ids, recruiters: reminded, candidates, skipped });
+  void logAudit(adminId, "ANALYTICS_RECRUITERS_REMINDED", "Application", null, {
+    applicationIds: ids,
+    recruiters: reminded,
+    candidates,
+    skipped,
+    actor: { id: adminId, name: name || null, role: admin?.role ?? "ADMINISTRATOR", email: admin?.email ?? null },
+  });
   return { reminded, candidates, skipped };
 }

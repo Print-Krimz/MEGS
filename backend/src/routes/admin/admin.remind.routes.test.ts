@@ -75,11 +75,22 @@ describe("POST /api/admin/analytics/remind", () => {
     expect(sendNotification).toHaveBeenCalledTimes(2);
     const [id, title, message, type, link, options] = sendNotification.mock.calls.find((c) => c[0] === "ta1")!;
     expect([id, title, type, link]).toEqual(["ta1", "Overdue candidates", "WARNING", "/ta/analytics?tab=waiting"]);
-    expect(message).toBe("Nia Admin asked you to follow up on 2 overdue candidates.");
+    expect(message).toBe("Nia Admin (Admin) asked you to follow up on 2 overdue candidates.");
     expect(options.dedupeKey).toMatch(/^admin-remind:ta1:\d{4}-\d{2}-\d{2}:[0-9a-f]{12}$/);
     expect(options.sendEmail).toBeUndefined();
-    expect(sendNotification.mock.calls.find((c) => c[0] === "ta2")![2]).toBe("Nia Admin asked you to follow up on 1 overdue candidate.");
-    expect(logAudit).toHaveBeenCalledWith("admin1", "ANALYTICS_RECRUITERS_REMINDED", "Application", null, expect.objectContaining({ recruiters: 2, candidates: 3, skipped: 3 }));
+    expect(sendNotification.mock.calls.find((c) => c[0] === "ta2")![2]).toBe("Nia Admin (Admin) asked you to follow up on 1 overdue candidate.");
+    expect(logAudit).toHaveBeenCalledWith("admin1", "ANALYTICS_RECRUITERS_REMINDED", "Application", null, expect.objectContaining({ recruiters: 2, candidates: 3, skipped: 3, actor: { id: "admin1", name: "Nia Admin", role: "ADMINISTRATOR", email: "a@x.test" } }));
+  });
+
+  it("never puts the admin's email in the message when the account has no name", async () => {
+    prisma.user.findUnique.mockResolvedValue({ role: "ADMINISTRATOR", displayName: null, email: "admin@megs-recruitment.com" });
+    prisma.application.findMany.mockResolvedValue([{ id: 1, jobPosting: job("ta1") }]);
+    prisma.user.findMany.mockResolvedValue([{ id: "ta1" }]);
+    await post({ applicationIds: [1] });
+    const message = sendNotification.mock.calls[0][2] as string;
+    expect(message).toBe("An administrator asked you to follow up on 1 overdue candidate.");
+    expect(message).not.toContain("@");
+    expect(logAudit.mock.calls[0][4].actor.email).toBe("admin@megs-recruitment.com");
   });
 
   it("counts a repeat of the same reminder as reminded", async () => {
