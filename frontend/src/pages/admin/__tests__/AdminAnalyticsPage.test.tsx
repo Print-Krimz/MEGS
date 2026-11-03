@@ -102,7 +102,7 @@ describe("AdminAnalyticsPage", () => {
     await screen.findByText("Candidates by stage");
     const names = screen.getAllByRole("heading", { level: 2, hidden: true }).map((h) => h.textContent);
     const at = (name: string) => names.indexOf(name);
-    const order = ["Needs action", "Headline numbers", "Candidates by stage", "Results over time", "Overdue candidates", "Client requests", "Recruiters"].map(at);
+    const order = ["Needs action", "Headline numbers", "Candidates by stage", "Starts and backouts", "Overdue candidates", "Client requests", "Recruiters"].map(at);
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
     expect(screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual(["Right now", "In these dates"]);
@@ -206,7 +206,7 @@ describe("AdminAnalyticsPage", () => {
 
   it("names the stage row and opens the waiting list from it, with short tab names", async () => {
     renderPage();
-    const row = await screen.findByRole("button", { name: "Requirements, 5 · 2 overdue (40%). Show these candidates" });
+    const row = await screen.findByRole("button", { name: /^Requirements.*5.*2\ overdue\ \(40%\).*Show these candidates/ });
     fireEvent.click(row);
     expect(screen.getByRole("tab", { name: /Overdue candidates 0$/ }).getAttribute("aria-selected")).toBe("true");
     expect(within(screen.getByRole("tablist")).getByText("Requests")).toBeDefined();

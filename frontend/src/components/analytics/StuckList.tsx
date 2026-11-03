@@ -85,7 +85,7 @@ const BULK_BUTTON =
   "inline-flex min-h-11 items-center gap-1.5 border border-navy bg-white px-2.5 text-xs font-semibold text-navy hover:bg-navy-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50 md:min-h-8";
 
 const SELECT =
-  "min-h-9 border border-slate-300 bg-white px-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+  "min-h-11 md:min-h-9 border border-slate-300 bg-white px-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 /** Days in the stage as a bar: a pale baseline up to the limit, then only the days past it in colour. */
 const WaitBar: React.FC<{ row: number; r: StuckCandidate; color: string; index: number; className?: string }> = ({ row: scale, r, color, index, className }) => (
@@ -267,8 +267,8 @@ export const StuckList = React.memo(function StuckList({
                 type="button"
                 aria-pressed={urgency === key}
                 onClick={() => reset(() => setUrgency(key))}
-                className={`min-h-9 px-2.5 text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
-                  urgency === key ? "bg-slate-900 text-white border-slate-900" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                className={`min-h-11 md:min-h-9 px-2.5 text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+                  urgency === key ? "bg-navy text-white border-navy" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
                 }`}
               >
                 {key === "ALL" ? "All" : "Critical"} <span className="tabular-nums font-normal">{key === "ALL" ? rows.length : criticalCount}</span>
@@ -296,7 +296,7 @@ export const StuckList = React.memo(function StuckList({
                 setPage(1);
               }}
               placeholder={withRecruiter ? "Candidate, job, client or recruiter" : "Candidate, job or client"}
-              className="min-h-9 w-full border border-slate-300 bg-white px-2.5 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:w-56"
+              className="min-h-11 md:min-h-9 w-full border border-slate-300 bg-white px-2.5 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:w-64"
             />
           </label>
         </div>
@@ -356,7 +356,7 @@ export const StuckList = React.memo(function StuckList({
         )}
         {/* Container queries: the side menu takes width, so the table starts when this panel is wide enough, not at a screen width. */}
         <div className="@container">
-        <div aria-hidden="true" className={`hidden border-b border-slate-200 py-2 pr-3.5 text-xs font-semibold text-slate-600 @3xl:grid @3xl:gap-x-4 ${selectable ? "pl-1" : "pl-3.5"} ${columns}`}>
+        <div aria-hidden="true" className={`hidden border-b border-slate-200 bg-slate-50 py-2 pr-3.5 text-xs font-semibold text-slate-600 @3xl:grid @3xl:gap-x-4 ${selectable ? "pl-1" : "pl-3.5"} ${columns}`}>
           {selectable && <span />}
           <span>Candidate</span>
           <span>Stage and wait</span>
@@ -430,11 +430,16 @@ export const StuckList = React.memo(function StuckList({
                 </div>
 
                 <div className="min-w-0 text-xs text-slate-600 font-sans" title={r.lastActivityAt ? formatDate(r.lastActivityAt) : undefined}>
-                  {r.lastActivityAt && (
+                  {r.lastActivityAt ? (
                     <span className="line-clamp-2">
                       Last activity: {daysAgoText(r.lastActivityAt)}
                       {r.lastNote ? ` · ${r.lastNote}` : ""}
                     </span>
+                  ) : (
+                    <>
+                      <span aria-hidden="true" className="text-slate-500">—</span>
+                      <span className="sr-only">No activity recorded</span>
+                    </>
                   )}
                 </div>
 

@@ -148,7 +148,7 @@ export const DataTableToggle: React.FC<DataTableToggleProps> = ({ caption, colum
     <summary className="inline-flex min-h-11 cursor-pointer list-none items-center text-xs font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-8">
       {summary}
     </summary>
-    <div className="mt-1 overflow-x-auto">
+    <div tabIndex={0} role="region" aria-label={caption} className="mt-1 overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
       <table className="w-full min-w-[18rem] text-xs tabular-nums">
         <caption className="sr-only">{caption}</caption>
         <thead>

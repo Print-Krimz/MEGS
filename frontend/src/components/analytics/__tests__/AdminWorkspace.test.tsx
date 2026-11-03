@@ -190,7 +190,7 @@ describe("StagePipeline", () => {
   it("lets a backed-up stage be chosen to list its candidates", () => {
     const onSelect = vi.fn();
     render(<StagePipeline rows={rows} onSelectStage={onSelect} />);
-    fireEvent.click(screen.getByRole("button", { name: "Requirements, 54 · 26 overdue (48%). Show these candidates" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Requirements.*54.*26\ overdue\ \(48%\).*Show these candidates/ }));
     expect(onSelect).toHaveBeenCalledWith("COMPLIANCE");
     // Deployed has no limit, so it cannot be overdue and is not a button
     expect(screen.queryByRole("button", { name: /Deployed/ })).toBeNull();

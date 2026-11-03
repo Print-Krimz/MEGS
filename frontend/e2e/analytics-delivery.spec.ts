@@ -673,7 +673,7 @@ test.describe("Team leader reports (/admin/analytics)", () => {
       "Right now",
       "In these dates",
       "Candidates by stage",
-      "Results over time",
+      "Starts and backouts",
       "Slowest client reviews",
       "Why candidates backed out",
       "TABS",
@@ -783,7 +783,7 @@ test.describe("Team leader reports (/admin/analytics)", () => {
     await expect(requirements).toContainText("8 days");
     await expect(requirements).toContainText("14 days");
 
-    await stages.getByRole("button", { name: /^Requirements, 54 · 26 overdue/ }).click();
+    await stages.getByRole("button", { name: /^Requirements.*54.*26 overdue/ }).click();
     const waiting = await openTab(page, /^Overdue candidates/);
     await expect(waiting.getByRole("combobox", { name: /^Stage/ })).toHaveValue("COMPLIANCE");
     await expect(waiting.getByRole("link", { name: "Ramon Gomez" })).toBeVisible();
@@ -958,7 +958,7 @@ test.describe("Team leader reports (/admin/analytics)", () => {
     await page.goto("/admin/analytics");
     await expectReportsLoaded(page);
     const trendPanel = page.locator("#trend");
-    await expect(trendPanel.getByRole("img", { name: "Results over time" })).toBeVisible();
+    await expect(trendPanel.getByRole("img", { name: "Starts and backouts" })).toBeVisible();
     await expect(trendPanel.getByRole("list", { name: "Legend" })).toContainText("Starts");
     await expect(trendPanel.getByRole("list", { name: "Legend" })).toContainText("Backed out");
     await trendPanel.getByText("View as table").click();
@@ -1293,7 +1293,7 @@ test.describe("Recruiter reports (/ta/analytics)", () => {
     await setup(page, "recruiter", taDashboard);
     await page.goto("/ta/analytics");
     await expectReportsLoaded(page);
-    await page.locator("#stage-pipeline").getByRole("button", { name: /^Requirements, 54 · 26 overdue/ }).click();
+    await page.locator("#stage-pipeline").getByRole("button", { name: /^Requirements.*54.*26 overdue/ }).click();
     const waiting = page.getByRole("tabpanel");
     await expect(waiting.getByRole("combobox", { name: /^Stage/ })).toHaveValue("COMPLIANCE");
     await expect(waiting.getByRole("link", { name: "Mario Reyes" })).toBeVisible();

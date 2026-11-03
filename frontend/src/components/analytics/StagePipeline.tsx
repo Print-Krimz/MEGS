@@ -113,6 +113,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
                     )}
                     {avg && <span id={avgId} className={`block text-xs ${avg.over ? `font-semibold ${TEXT_LOSS}` : "text-slate-600"}`}>{avg.text}{avg.over && <span className="sr-only"> (over the limit)</span>}</span>}
                   </span>
+                  {(link || pick) && <span className="sr-only">. Show these candidates</span>}
                 </>
               );
               const frame = `${ROW_GRID} w-full px-1.5 py-1.5 text-left`;
@@ -120,11 +121,11 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
               return (
                 <li key={row.stage} className="min-w-0 border-b border-navy-line last:border-b-0">
                   {link ? (
-                    <Link to="/ta/applications" search={{ stage: row.stage as ApplicationStatus }} aria-label={label} aria-describedby={describedBy} className={`${frame} ${hover}`}>
+                    <Link to="/ta/applications" search={{ stage: row.stage as ApplicationStatus }} aria-describedby={describedBy} className={`${frame} ${hover}`}>
                       {content}
                     </Link>
                   ) : pick ? (
-                    <button type="button" aria-label={label} aria-describedby={describedBy} onClick={() => onSelectStage?.(row.stage)} className={`${frame} ${hover} cursor-pointer`}>
+                    <button type="button" aria-describedby={describedBy} onClick={() => onSelectStage?.(row.stage)} className={`${frame} ${hover} cursor-pointer`}>
                       {content}
                     </button>
                   ) : (

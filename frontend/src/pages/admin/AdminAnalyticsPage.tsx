@@ -207,9 +207,9 @@ export const AdminAnalyticsPage: React.FC = () => {
       <div className="space-y-5">
         {header}
         <AnalyticsFilterBar filters={filters} onChange={setFilters} showClientFilter showRecruiterFilter />
-        <div className="h-11 animate-pulse border border-slate-300 bg-white" aria-hidden="true" />
+        <div className="h-11 motion-safe:animate-pulse border border-slate-300 bg-white" aria-hidden="true" />
         <LoadingState variant="cards" rows={4} className="lg:grid-cols-4" />
-        <div className="h-60 animate-pulse border border-slate-300 bg-white" aria-hidden="true" />
+        <div className="h-60 motion-safe:animate-pulse border border-slate-300 bg-white" aria-hidden="true" />
         <LoadingState variant="table" rows={4} />
       </div>
     );
@@ -335,7 +335,7 @@ export const AdminAnalyticsPage: React.FC = () => {
               <div className="flex-1">
               <LineChart
                 id="trend"
-                title="Results over time"
+                title="Starts and backouts"
                 subtitle={`${data.trend.granularity === "day" ? "Daily" : data.trend.granularity === "week" ? "Weekly" : "Monthly"}. Backouts are people who left after the client reviewed them.`}
                 points={data.trend.points.map((p) => ({ label: p.label, values: { starts: p.starts, backouts: p.backouts } }))}
                 series={[{ key: "starts", label: "Starts" }, { key: "backouts", label: "Backed out" }]}

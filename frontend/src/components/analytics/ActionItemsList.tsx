@@ -81,7 +81,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ rows, total, b
       ) : (
         // Container queries: the side menu takes width, so the table starts when this panel is wide enough, not at a screen width.
         <div className="@container">
-          <div aria-hidden="true" className={`hidden border-b border-slate-200 px-3.5 py-2 text-xs font-semibold text-slate-600 @3xl:grid @3xl:gap-x-4 ${COLUMNS}`}>
+          <div aria-hidden="true" className={`hidden border-b border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-600 @3xl:grid @3xl:gap-x-4 ${COLUMNS}`}>
             <span>Task</span>
             <span>Candidate / Job</span>
             <span>Stage</span>

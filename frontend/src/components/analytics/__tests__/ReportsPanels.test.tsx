@@ -359,7 +359,7 @@ describe("TeamTable flags and actions", () => {
     const onSelect = vi.fn();
     const onView = vi.fn();
     render(<TeamTable rows={rows} onSelectRecruiter={onSelect} onViewOverdue={onView} />);
-    fireEvent.click(screen.getByRole("button", { name: /12 overdue, 2 projected/ }));
+    fireEvent.click(screen.getByRole("button", { name: /12 overdue \+2 projected/ }));
     expect(onView).toHaveBeenCalledWith("a");
     expect(onSelect).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("row", { name: /Bea/ }));

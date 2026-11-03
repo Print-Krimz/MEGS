@@ -146,7 +146,7 @@ export const AnalyticsPage: React.FC = () => {
       <div className="space-y-5">
         {header}
         <AnalyticsFilterBar filters={filters} onChange={setFilters} showClientFilter />
-        <div className="h-11 animate-pulse border border-slate-300 bg-white" aria-hidden="true" />
+        <div className="h-11 motion-safe:animate-pulse border border-slate-300 bg-white" aria-hidden="true" />
         <LoadingState variant="cards" rows={4} className="lg:grid-cols-4" />
         <LoadingState variant="table" rows={4} />
       </div>

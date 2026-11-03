@@ -114,7 +114,7 @@ const flagsFor = (row: TeamRow, bench: Benchmarks) => {
 /** A hidden rate: "—", with how few cases stood behind it when there were some. */
 const NoValue: React.FC<{ n: number }> = ({ n }) => (
   <>
-    <span aria-hidden="true" className="text-slate-400">—</span>
+    <span aria-hidden="true" className="text-slate-500">—</span>
     {n === 0 ? <span className="sr-only">{sampleNote(0)}</span> : <span className={`${SUB} text-slate-500`}>{sampleNote(n)}</span>}
   </>
 );
@@ -172,7 +172,7 @@ export const TeamTable = React.memo(function TeamTable({
               setPage(1);
             }}
             placeholder="Recruiter name"
-            className="min-h-9 w-52 border border-slate-300 bg-white px-2.5 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            className="min-h-11 md:min-h-9 w-52 border border-slate-300 bg-white px-2.5 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           />
         </label>
         <p className="text-xs font-sans text-slate-600">
@@ -185,7 +185,7 @@ export const TeamTable = React.memo(function TeamTable({
       {pageRows.length === 0 ? (
         <p className="p-6 text-center text-xs text-slate-500 font-sans">{rows.length === 0 ? "No recruiters in this view." : "No match."}</p>
       ) : (
-        <div className="max-h-[32rem] overflow-auto">
+        <div className="relative max-h-[32rem] overflow-auto">
           <table className="w-full min-w-[50rem] text-sm">
             <thead className="sticky top-0 z-10 bg-white shadow-[inset_0_-1px_0_var(--color-slate-200)]">
               <tr>
@@ -201,10 +201,10 @@ export const TeamTable = React.memo(function TeamTable({
                       <button
                         type="button"
                         onClick={() => sortBy(col.key)}
-                        className="min-h-9 inline-flex items-center gap-1 font-semibold hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                        className="min-h-11 md:min-h-9 inline-flex items-center gap-1 font-semibold hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
                         {col.label}
-                        <span aria-hidden="true" className={`text-[10px] ${active ? "text-slate-900" : "text-slate-300"}`}>
+                        <span aria-hidden="true" className={`text-xs ${active ? "text-slate-900" : "text-slate-500"}`}>
                           {active ? (shown.dir === "asc" ? "▲" : "▼") : "↕"}
                         </span>
                       </button>
@@ -218,7 +218,7 @@ export const TeamTable = React.memo(function TeamTable({
                 const selected = row.recruiterId === selectedRecruiterId;
                 const { label, email } = formatRecruiterName(row.name);
                 const action = selected ? "Show all recruiters" : "Filter the page to this recruiter";
-                const spokenName = email ? `${label}, ${email}` : label;
+                const spokenName = email ? `${label} ${email}` : label;
                 const late = row.overdue + row.overdueEstimated;
                 const flag = flagsFor(row, bench);
                 const toggle = () => onSelectRecruiter(selected ? undefined : row.recruiterId);
@@ -227,7 +227,7 @@ export const TeamTable = React.memo(function TeamTable({
                   <tr
                     key={row.recruiterId}
                     onClick={toggle}
-                    className={`cursor-pointer transition-colors hover:bg-navy-soft motion-reduce:transition-none ${selected ? "bg-navy-soft shadow-[inset_3px_0_0_var(--color-navy)]" : ""}`}
+                    className={`cursor-pointer transition-colors hover:bg-navy-soft motion-reduce:transition-none ${selected ? "bg-navy-soft outline outline-1 -outline-offset-1 outline-navy" : ""}`}
                   >
                     <th scope="row" className="px-3 py-2 text-left font-sans font-semibold whitespace-nowrap align-top">
                       <button
@@ -239,10 +239,10 @@ export const TeamTable = React.memo(function TeamTable({
                           e.stopPropagation();
                           toggle();
                         }}
-                        className="min-h-9 text-left text-sm text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                        className="min-h-11 text-left text-sm text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-0 md:py-0.5"
                       >
-                        {label}
-                        {email && <span className="block text-xs font-normal text-slate-500 truncate">{email}</span>}
+                        {label}{email && " "}
+                        {email && <span className="block text-xs font-normal text-slate-600 truncate">{email}</span>}
                       </button>
                     </th>
                     <td className={`${TD} font-semibold text-slate-950`}>
@@ -255,13 +255,13 @@ export const TeamTable = React.memo(function TeamTable({
                       ) : onViewOverdue ? (
                         <button
                           type="button"
-                          aria-label={`${row.overdue} overdue${row.overdueEstimated > 0 ? `, ${row.overdueEstimated} projected` : ""}. View ${label}'s overdue candidates`}
+                          aria-label={`${row.overdue} overdue${row.overdueEstimated > 0 ? ` +${row.overdueEstimated} projected` : ""}. View ${label}'s overdue candidates`}
                           title="View their overdue candidates"
                           onClick={(e) => {
                             e.stopPropagation();
                             onViewOverdue(row.recruiterId);
                           }}
-                          className={`group min-h-9 text-right font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${TEXT_LOSS}`}
+                          className={`group min-h-11 md:min-h-9 text-right font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${TEXT_LOSS}`}
                         >
                           <span className="underline decoration-slate-300 underline-offset-2 group-hover:decoration-current">{row.overdue} overdue</span>
                           {row.overdueEstimated > 0 && <span className={`${SUB} font-normal ${TEXT_AMBER}`}>+{row.overdueEstimated} projected</span>}
@@ -277,7 +277,7 @@ export const TeamTable = React.memo(function TeamTable({
                     <td className={TD}>{row.openRequisitions}</td>
                     <td className={TD}>
                       {row.requestedSeats === 0 ? (
-                        <span aria-hidden="true" className="text-slate-400">—</span>
+                        <span aria-hidden="true" className="text-slate-500">—</span>
                       ) : (
                         <>
                           <span className="text-slate-950">
