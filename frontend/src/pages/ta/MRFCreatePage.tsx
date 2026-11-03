@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi, type MRFFileField, type MRFFileReading } from "../../lib/api/ta.api";
 import { PageHeader, ConfirmDialog, DateField } from "../../components/common";
 import { MRFCreateSummary, MRFStepList, type MRFStep } from "../../components/ta/recruitment/MRFCreateSummary";
+import { MRFFileReviewDialog, type MRFFileReviewRow } from "../../components/ta/MRFFileReviewDialog";
 import { cn } from "../../lib/utils";
 import { Button, Input, Select, Textarea, ComboBox } from "../../components/ui";
 import { notify, formatErrorMessage, fieldErrorsFrom } from "../../lib/feedback";
@@ -89,13 +90,24 @@ const FIELD_DEFAULTS: Partial<Record<MRFFileField, string>> = {
   tattooPolicy: "ALLOWED",
 };
 
+const FIELD_LABELS: Record<MRFFileField, string> = {
+  title: "Request title", description: "Description", headcount: "Workers needed", location: "Work site", targetFillDate: "Needed by",
+  priority: "Priority", employmentType: "Employment", workArrangement: "Work arrangement", requiredSkills: "Skills",
+  requiredExperience: "Experience", requiredEducation: "Education", requiredCertifications: "Certifications and licenses",
+  salaryRangeMin: "Minimum monthly pay", salaryRangeMax: "Maximum monthly pay", ageMin: "Minimum age", ageMax: "Maximum age",
+  genderPreference: "Gender preference", tattooPolicy: "Tattoo policy",
+};
+
+/** "NO_VISIBLE" reads as "No visible". Free text is left alone. */
+const readable = (value: string): string =>
+  /^[A-Z_]+$/.test(value) ? value.charAt(0) + value.slice(1).toLowerCase().replace(/_/g, " ") : value;
+
 const isEmptyField = (key: MRFFileField, values: Record<MRFFileField, string>): boolean => {
   const value = values[key].trim();
   return value === "" || value === FIELD_DEFAULTS[key];
 };
 
 type PendingFill =
-  | { kind: "file"; reading: MRFFileReading }
   | { kind: "preset"; presetId: string }
   | { kind: "clone"; mrf: ManpowerRequest; preserveClient: boolean };
 
@@ -132,6 +144,7 @@ export const MRFCreatePage: React.FC = () => {
   const [cloneModalOpen, setCloneModalOpen] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [pendingFill, setPendingFill] = useState<PendingFill | null>(null);
+  const [fileReview, setFileReview] = useState<{ reading: MRFFileReading; rows: MRFFileReviewRow[] } | null>(null);
   const [createdId, setCreatedId] = useState<number | null>(null);
   const [fileState, setFileState] = useState<"idle" | "reading" | "filled" | "nothing" | "unreadable" | "too-big">("idle");
   const [fileNotes, setFileNotes] = useState<FileNotes>({});
@@ -411,12 +424,25 @@ export const MRFCreatePage: React.FC = () => {
 
   const fillTargets = (reading: MRFFileReading) => Object.keys(reading.fields) as MRFFileField[];
 
-  /** Fills the form from a reading. Without overwrite, only empty fields are filled. Nothing is saved. */
-  const applyFileReading = (reading: MRFFileReading, overwrite: boolean) => {
+  /** What the file found that differs from the form, for the review dialog. Fields the TA already filled with the same value are left out. */
+  const fileReviewRows = (reading: MRFFileReading): MRFFileReviewRow[] => {
+    const values = valuesRef.current;
+    const rows: MRFFileReviewRow[] = [];
+    for (const key of fillTargets(reading)) {
+      const fileValue = String(reading.fields[key]);
+      const empty = isEmptyField(key, values);
+      if (!empty && values[key].trim() === fileValue.trim()) continue;
+      rows.push({ key, label: FIELD_LABELS[key], fileValue: readable(fileValue), currentValue: empty ? null : readable(values[key]) });
+    }
+    return rows;
+  };
+
+  /** Writes only the chosen fields from a reading into the form. Nothing is saved. */
+  const applyFileReading = (reading: MRFFileReading, chosen: Set<MRFFileField>) => {
     const before = valuesRef.current;
     const applied = new Set<MRFFileField>();
     for (const key of fillTargets(reading)) {
-      if (!overwrite && !isEmptyField(key, before)) continue;
+      if (!chosen.has(key)) continue;
       fileSetters[key](String(reading.fields[key]));
       applied.add(key);
     }
@@ -442,13 +468,14 @@ export const MRFCreatePage: React.FC = () => {
         setFileState("unreadable");
         return;
       }
-      const hasEntries = fillTargets(reading).some((key) => !isEmptyField(key, valuesRef.current));
-      if (hasEntries) {
-        setFileState("idle");
-        setPendingFill({ kind: "file", reading });
+      // Nothing reaches the form until the TA has reviewed it.
+      const rows = fileReviewRows(reading);
+      if (rows.length === 0) {
+        applyFileReading(reading, new Set());
         return;
       }
-      applyFileReading(reading, false);
+      setFileState("idle");
+      setFileReview({ reading, rows });
     } catch {
       // Includes "too many reads right now". The TA can type the details; creating the request still works.
       if (version === fileReadVersion.current) setFileState("unreadable");
@@ -470,8 +497,7 @@ export const MRFCreatePage: React.FC = () => {
 
   const confirmPendingFill = () => {
     if (!pendingFill) return;
-    if (pendingFill.kind === "file") applyFileReading(pendingFill.reading, true);
-    else if (pendingFill.kind === "preset") applyPreset(pendingFill.presetId);
+    if (pendingFill.kind === "preset") applyPreset(pendingFill.presetId);
     else applyClonedMRF(pendingFill.mrf, pendingFill.preserveClient);
     setPendingFill(null);
   };
@@ -479,8 +505,6 @@ export const MRFCreatePage: React.FC = () => {
   const cancelPendingFill = () => {
     // Put the template picker back where it was; nothing was replaced.
     if (pendingFill?.kind === "preset") setSelectedPresetId("");
-    // Keeping entries still fills whatever is empty.
-    if (pendingFill?.kind === "file") applyFileReading(pendingFill.reading, false);
     setPendingFill(null);
   };
 
@@ -733,7 +757,7 @@ export const MRFCreatePage: React.FC = () => {
                 {fileState === "nothing" && "Nothing new to fill in."}
                 {fileState === "unreadable" && "Couldn't read this file. Enter the details manually."}
                 {fileState === "too-big" && "The file is over 5 MB. Use a smaller file."}
-                {fileState === "idle" && "PDF, Word file or photo. Only empty fields are filled."}
+                {fileState === "idle" && "PDF, Word file or photo. You review what it found before anything is filled in."}
               </p>
             </div>
 
@@ -1170,6 +1194,17 @@ export const MRFCreatePage: React.FC = () => {
         currentClientId={clientId || undefined}
         currentClientName={selectedClient?.name}
       />
+
+      {fileReview && (
+        <MRFFileReviewDialog
+          rows={fileReview.rows}
+          onClose={() => setFileReview(null)}
+          onFill={(keys) => {
+            applyFileReading(fileReview.reading, keys as Set<MRFFileField>);
+            setFileReview(null);
+          }}
+        />
+      )}
 
       <ConfirmDialog
         open={pendingFill !== null}
