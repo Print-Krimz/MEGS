@@ -26,6 +26,7 @@ export const SkipToFinalDialog: React.FC<SkipToFinalDialogProps> = ({ open, onCl
       <div className="space-y-4">
         <Textarea
           label="Client instruction or recruitment rule"
+          required
           placeholder="Why can this candidate skip client review?"
           value={reason}
           onChange={(e) => {
