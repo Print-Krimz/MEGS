@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { uploadComplianceDocumentForApplicant } from "../../services/applicant/application.service.js";
 import { bulkUploadComplianceDocuments, BulkUploadRequestError } from "../../services/ta/ta.compliance-bulk.service.js";
+import { bulkApproveComplianceRequirements, BulkApproveRequestError } from "../../services/ta/ta.compliance-bulk-approve.service.js";
 import { requestComplianceDocumentUpdate } from "../../services/ta/ta.compliance.service.js";
 import { sendSuccess, sendError } from "../../utils/response.js";
 import {
@@ -130,6 +131,20 @@ export const bulkUploadComplianceDocumentsHandler = async (req: Request, res: Re
     sendSuccess(res, "Documents uploaded for the applicant", { results });
   } catch (error: any) {
     sendError(res, error.message, error instanceof BulkUploadRequestError ? 400 : 500);
+  }
+};
+
+export const bulkApproveRequirementsHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const results = await bulkApproveComplianceRequirements({
+      reviewerId: req.user!.id,
+      applicationId: Number(req.params.id),
+      entries: req.body.entries,
+      reviewNotes: req.body.reviewNotes,
+    });
+    sendSuccess(res, "Requirements reviewed", { results });
+  } catch (error: any) {
+    sendError(res, error.message, error instanceof BulkApproveRequestError ? 400 : 500);
   }
 };
 

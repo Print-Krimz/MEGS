@@ -3,6 +3,7 @@ import { Plus } from "lucide-react";
 import { Button } from "../../ui";
 import { ClientReviewSummary, type ClientReviewSummaryProps } from "./ClientReviewSummary";
 import { BulkUploadRequirementsDialog, canTakeUpload } from "./BulkUploadRequirementsDialog";
+import { BulkApproveRequirementsDialog } from "./BulkApproveRequirementsDialog";
 import { UploadRequirementDialog } from "./UploadRequirementDialog";
 import { RequirementRow, type RequirementRowData } from "./RequirementRow";
 
@@ -66,6 +67,24 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({
   // A closed application that reached Requirements keeps its list and contract steps; one that never did has neither.
   const showContractSection = canManage || requirements.length > 0;
   const expanded = manualExpanded !== null ? manualExpanded : !isAllApproved;
+
+  // Bulk approval: only a document waiting for review can be ticked, and only after the reviewer opened it.
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  // A snapshot, so the result list can still name documents that leave the selection once approved.
+  const [approveTargets, setApproveTargets] = useState<RequirementRowData[] | null>(null);
+  const [viewedKeys, setViewedKeys] = useState<string[]>([]);
+  const viewKey = (r: RequirementRowData) => `${r.id}:${r.documentId}`;
+  const isEligible = (r: RequirementRowData) => canManage && Boolean(r.documentId) && r.reviewStatus === "SUBMITTED";
+  const isViewed = (r: RequirementRowData) => viewedKeys.includes(viewKey(r));
+  const eligible = requirements.filter(isEligible);
+  const ready = eligible.filter(isViewed);
+  const showSelection = eligible.length > 1;
+  const selected = ready.filter((r) => selectedIds.includes(r.id));
+  const allReadySelected = ready.length > 0 && selected.length === ready.length;
+  const viewDocument = (req: RequirementRowData) => {
+    if (req.documentId) setViewedKeys((prev) => (prev.includes(viewKey(req)) ? prev : [...prev, viewKey(req)]));
+    onView(req);
+  };
 
   return (
     <div className="space-y-8">
@@ -147,6 +166,32 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({
               </button>
             </div>
 
+            {expanded && showSelection && (
+              <div role="region" aria-label="Bulk approval" className="flex flex-col justify-between gap-2 border border-slate-200 bg-slate-50 px-3 py-2 sm:flex-row sm:items-center">
+                <label className="flex min-h-11 items-center gap-2.5 text-sm text-slate-900 md:min-h-8">
+                  <input
+                    type="checkbox"
+                    className="focus-ring h-4 w-4 accent-navy disabled:cursor-not-allowed disabled:opacity-50"
+                    checked={allReadySelected}
+                    disabled={ready.length === 0}
+                    onChange={(e) => setSelectedIds(e.target.checked ? ready.map((r) => r.id) : [])}
+                  />
+                  <span>
+                    {selected.length > 0 ? `${selected.length} selected` : "Select all opened documents"}
+                    {ready.length < eligible.length && (
+                      <span className="text-slate-600"> · open each document with View document to select it</span>
+                    )}
+                  </span>
+                </label>
+                {selected.length > 0 && (
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setSelectedIds([])}>Clear</Button>
+                    <Button variant="primary" size="sm" onClick={() => setApproveTargets(selected)}>Approve selected</Button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {expanded && (
               <div id="requirements-list" role="list" className="divide-y divide-slate-100 border border-slate-200">
                 {requirements.map((req) => (
@@ -155,7 +200,17 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({
                     req={req}
                     canRemove={canManage && canRemove}
                     readOnly={!canManage}
-                    onView={() => onView(req)}
+                    selection={
+                      showSelection
+                        ? {
+                            eligible: isEligible(req),
+                            viewed: isViewed(req),
+                            checked: selected.some((r) => r.id === req.id),
+                            onChange: (checked) => setSelectedIds((prev) => (checked ? [...prev, req.id] : prev.filter((id) => id !== req.id))),
+                          }
+                        : undefined
+                    }
+                    onView={() => viewDocument(req)}
                     onReview={() => onReview(req)}
                     onRequestCopy={() => onRequestCopy(req)}
                     onEditDeadline={() => onEditDeadline(req)}
@@ -199,6 +254,15 @@ export const RequirementsTab: React.FC<RequirementsTabProps> = ({
             const target = requirements.find((r) => r.id === id);
             if (target) onReview(target);
           }}
+        />
+      )}
+
+      {approveTargets && (
+        <BulkApproveRequirementsDialog
+          applicationId={applicationId}
+          requirements={approveTargets}
+          onClose={() => setApproveTargets(null)}
+          onApproved={(ids) => setSelectedIds((prev) => prev.filter((id) => !ids.includes(id)))}
         />
       )}
 

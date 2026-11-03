@@ -60,6 +60,18 @@ import type {
   AnalyticsFilterState,
 } from "../types/analytics.types";
 
+export interface BulkApproveEntry {
+  requirementId: number;
+  validityStatus: "HAS_EXPIRY" | "NO_EXPIRY";
+  expiresAt?: string | null;
+}
+
+export interface BulkApproveResult {
+  requirementId: number;
+  status: "approved" | "failed";
+  error?: string;
+}
+
 export interface BulkUploadResult {
   requirementId: number;
   status: "uploaded" | "failed";
@@ -705,6 +717,9 @@ export const taApi = {
     formData.append("mapping", JSON.stringify(items.map((item, fileIndex) => ({ fileIndex, requirementId: item.requirementId }))));
     return api.upload<{ results: BulkUploadResult[] }>(`/api/ta/applications/${applicationId}/compliance/bulk-upload`, formData);
   },
+
+  bulkApproveComplianceRequirements: (applicationId: string | number, data: { entries: BulkApproveEntry[]; reviewNotes: string }) =>
+    api.post<{ results: BulkApproveResult[] }>(`/api/ta/applications/${applicationId}/compliance/bulk-approve`, data),
 
   reviewComplianceRequirement: (requirementId: number | string, data: ReviewComplianceDto) =>
     api.patch<ComplianceRequirement>(`/api/ta/compliance/${requirementId}/review`, data),

@@ -35,6 +35,9 @@ const sanitizeDetails = (obj: any): any => {
   return clean;
 };
 
+/** Written when staff open a stored document; bulk approval requires it. */
+export const DOCUMENT_VIEWED_ACTION = "DOCUMENT_VIEWED_BY_STAFF";
+
 // Fire-and-forget audit logger. Swallows write errors to prevent blocking the primary transaction.
 export const logAudit = async (
   userId: string | null,
