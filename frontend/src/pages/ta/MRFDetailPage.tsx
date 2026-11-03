@@ -189,11 +189,8 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     enabled: Boolean(mrfId),
   });
 
-  // TA default: a request with nobody deployed yet is still being sourced, so open on its job openings.
-  // Everyone else starts on the overview.
-  const defaultTab: MRFDetailTab =
-    !readOnly && mrfQuery.data && ((mrfQuery.data.deployments as any[]) || []).length === 0 ? "jobs" : "overview";
-  const activeTab: MRFDetailTab = selectedTab ?? defaultTab;
+  // Always open on the overview: required documents and Add document live there.
+  const activeTab: MRFDetailTab = selectedTab ?? "overview";
 
   const jobsQuery = useQuery({
     queryKey: ["ta", "jobs", "all"],
