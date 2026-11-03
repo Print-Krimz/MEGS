@@ -1233,9 +1233,8 @@ test.describe("Recruiter reports (/ta/analytics)", () => {
     await page.getByRole("tab", { name: /^Overdue candidates/ }).click();
     await page.getByRole("checkbox", { name: "Select Mario Reyes" }).check();
     await expect(page.getByText("1 selected")).toBeVisible();
-    await page.getByRole("button", { name: "Bulk actions" }).click();
     const download = page.waitForEvent("download");
-    await page.getByRole("menuitem", { name: "Export selected" }).click();
+    await page.getByRole("button", { name: "Export selected" }).click();
     expect((await download).suggestedFilename()).toMatch(/^MEGS_overdue_candidates_.+\.csv$/);
   });
 

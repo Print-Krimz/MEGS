@@ -214,7 +214,8 @@ describe("compact client requests table", () => {
     );
     const li = screen.getByText("5x Welders").closest("li") as HTMLElement;
     expect(li.textContent).toContain("Acme");
-    expect(li.textContent).toContain("ta-9-1790159306112@megs.com");
+    expect(li.textContent).toContain("Ta 9 1790159306112");
+    expect(li.textContent).not.toContain("@megs.com");
     expect(li.textContent).toContain("2/10 seats");
     expect(li.textContent).toContain("No applicants");
     expect(li.textContent).toContain("12 days late");

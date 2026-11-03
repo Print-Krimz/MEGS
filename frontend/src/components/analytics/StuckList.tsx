@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ChevronDown, Download, type LucideIcon } from "lucide-react";
+import { ArrowRightLeft, Download, X, type LucideIcon } from "lucide-react";
 import type { StuckCandidate } from "../../lib/types/analytics.types";
 import { formatRecruiterName } from "../../lib/recruiter-label";
 import { AnalyticsPanel } from "./AnalyticsPanel";
@@ -12,9 +12,8 @@ import { daysAgoText } from "../../lib/analytics-format";
 import { formatDate } from "../../lib/utils";
 import { downloadCsv, toCsv } from "../../lib/csv";
 import { getManilaToday } from "../../lib/field-limits";
-import { BulkActionBar } from "../common/BulkActionBar";
 
-/** An action on every ticked row, listed in the Bulk actions menu. Reject to report a failure and keep the selection. */
+/** An action on every ticked row, shown as a button beside Select all. Reject to report a failure and keep the selection. */
 export interface StuckBulkAction {
   key: string;
   label: string;
@@ -82,79 +81,8 @@ const csvRow = (r: StuckCandidate) => [
   r.lastNote,
 ];
 
-/** Menu button with the actions for the ticked rows. Escape closes it and returns focus to the button. */
-const BulkMenu: React.FC<{ actions: StuckBulkAction[]; busy: boolean; onRun: (action: StuckBulkAction) => void }> = ({ actions, busy, onRun }) => {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const toggleRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-        toggleRef.current?.focus();
-      }
-      if (event.key === "Tab") setOpen(false);
-    };
-    const onPointerDown = (event: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    document.addEventListener("mousedown", onPointerDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      document.removeEventListener("mousedown", onPointerDown);
-    };
-  }, [open]);
-
-  const onItemKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-    event.preventDefault();
-    const items = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []);
-    const at = items.indexOf(event.currentTarget as HTMLButtonElement);
-    items[(at + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
-  };
-
-  return (
-    <div ref={rootRef} className="relative">
-      <button
-        ref={toggleRef}
-        type="button"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        disabled={busy}
-        onClick={() => setOpen((v) => !v)}
-        className="inline-flex min-h-11 items-center gap-1.5 border border-navy bg-white px-3 text-xs font-semibold text-navy hover:bg-navy-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50 md:min-h-9"
-      >
-        {busy ? "Working" : "Bulk actions"}
-        <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
-      </button>
-      {open && (
-        <div ref={menuRef} role="menu" aria-label="Bulk actions" className="absolute left-0 z-20 mt-1 w-56 border border-slate-300 bg-white py-1 shadow-md">
-          {actions.map((a) => (
-            <button
-              key={a.key}
-              type="button"
-              role="menuitem"
-              onKeyDown={onItemKeyDown}
-              onClick={() => {
-                setOpen(false);
-                onRun(a);
-              }}
-              className="flex min-h-11 w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-100 focus-visible:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus md:min-h-9"
-            >
-              {a.icon && <a.icon className="h-4 w-4 shrink-0" aria-hidden="true" />}
-              {a.label}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
+const BULK_BUTTON =
+  "inline-flex min-h-11 items-center gap-1.5 border border-navy bg-white px-2.5 text-xs font-semibold text-navy hover:bg-navy-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50 md:min-h-8";
 
 const SELECT =
   "min-h-9 border border-slate-300 bg-white px-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
@@ -200,6 +128,8 @@ export const StuckList = React.memo(function StuckList({
   const [query, setQuery] = useState("");
   const [previewId, setPreviewId] = useState<number | null>(null);
   const [previewMove, setPreviewMove] = useState(false);
+  // Bulk Move stage steps Quick view through the ticked rows only; null means the dialog walks the filtered list.
+  const [previewSet, setPreviewSet] = useState<StuckCandidate[] | null>(null);
   // Ticked rows, by application id. They stay ticked across pages and filters.
   const [selected, setSelected] = useState<Set<number>>(() => new Set());
   const [busy, setBusy] = useState(false);
@@ -278,7 +208,16 @@ export const StuckList = React.memo(function StuckList({
     downloadCsv(`MEGS_overdue_candidates_${getManilaToday()}`, toCsv(CSV_HEADERS, picked.map(csvRow)));
     setNotice(`Exported ${picked.length} ${picked.length === 1 ? "candidate" : "candidates"}.`);
   };
-  const menuActions: StuckBulkAction[] = [...bulkActions, { key: "export", label: "Export selected", icon: Download, run: exportSelected }];
+  const moveSelected = (picked: StuckCandidate[]) => {
+    if (picked.length === 0) return;
+    setPreviewSet(picked);
+    setPreviewMove(true);
+    setPreviewId(picked[0].applicationId);
+  };
+  const clearSelection = () => {
+    setSelected(new Set());
+    pageBoxRef.current?.focus();
+  };
 
   // An action that rejects has already told the person why; the selection stays so they can try again.
   const runBulk = async (action: StuckBulkAction) => {
@@ -361,16 +300,6 @@ export const StuckList = React.memo(function StuckList({
 
       {selectable && (
         <>
-          {selected.size > 0 && (
-            <div className="border-b border-slate-200 px-3.5 py-2.5">
-              <BulkActionBar count={selected.size} onClear={() => {
-                  setSelected(new Set());
-                  pageBoxRef.current?.focus();
-                }} floating={false}>
-                <BulkMenu actions={menuActions} busy={busy} onRun={runBulk} />
-              </BulkActionBar>
-            </div>
-          )}
           <p role="status" className="sr-only">
             {notice}
           </p>
@@ -386,12 +315,40 @@ export const StuckList = React.memo(function StuckList({
       ) : (
         <>
         {selectable && (
-          <label className="flex min-h-11 cursor-pointer items-center gap-1 border-b border-slate-200 bg-slate-50 pl-1 pr-3 text-xs font-semibold text-slate-700 md:min-h-9">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center md:h-9 md:w-9">
-              <input ref={pageBoxRef} type="checkbox" checked={allOnPage} onChange={togglePage} className={CHECKBOX} />
-            </span>
-            Select all on this page
-          </label>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-200 bg-slate-50 pl-1 pr-3 text-xs font-semibold text-slate-700">
+            <label className="flex min-h-11 cursor-pointer items-center gap-1 md:min-h-9">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center md:h-9 md:w-9">
+                <input ref={pageBoxRef} type="checkbox" checked={allOnPage} onChange={togglePage} className={CHECKBOX} />
+              </span>
+              Select all on this page
+            </label>
+            {/* The actions appear on this row once something is ticked, so they sit next to what they act on. */}
+            {selected.size > 0 && (
+              <div role="group" aria-label="Actions for the ticked candidates" className="flex flex-wrap items-center gap-2 py-1.5">
+                <span role="status" className="tabular-nums text-slate-900">{selected.size} selected</span>
+                {!admin && (
+                  <button type="button" disabled={busy} onClick={() => moveSelected(selectedRows)} className={BULK_BUTTON}>
+                    <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                    Move stage
+                  </button>
+                )}
+                {bulkActions.map((a) => (
+                  <button key={a.key} type="button" disabled={busy} onClick={() => void runBulk(a)} className={BULK_BUTTON}>
+                    {a.icon && <a.icon className="h-3.5 w-3.5" aria-hidden="true" />}
+                    {busy ? "Working" : a.label}
+                  </button>
+                ))}
+                <button type="button" disabled={busy} onClick={() => void runBulk({ key: "export", label: "Export selected", run: exportSelected })} className={BULK_BUTTON}>
+                  <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                  Export selected
+                </button>
+                <button type="button" onClick={clearSelection} className={`${BULK_BUTTON} border-transparent`}>
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                  Clear selection
+                </button>
+              </div>
+            )}
+          </div>
         )}
         <ul className="divide-y divide-slate-200">
           {pageRows.map((r, i) => {
@@ -508,11 +465,14 @@ export const StuckList = React.memo(function StuckList({
       )}
 
       <StuckPreviewDialog
-        rows={visible}
+        rows={previewSet ?? visible}
         openId={previewId}
         focusMove={previewMove}
         onSelect={setPreviewId}
-        onClose={() => setPreviewId(null)}
+        onClose={() => {
+          setPreviewId(null);
+          setPreviewSet(null);
+        }}
         viewer={viewer}
         showRecruiter={withRecruiter}
         linkState={linkState}

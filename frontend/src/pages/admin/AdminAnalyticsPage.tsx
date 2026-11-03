@@ -74,7 +74,7 @@ const remindRecruiters = async (picked: StuckCandidate[]) => {
   const noOwner = skipped > 0 ? ` ${skipped} ${plural(skipped, "candidate")} with no recruiter left out.` : "";
   notify.success(`Reminded ${reminded} ${plural(reminded, "recruiter")} about ${candidates} ${plural(candidates, "candidate")}.${noOwner}`);
 };
-const BULK_ACTIONS: StuckBulkAction[] = [{ key: "remind", label: "Remind recruiter", icon: BellRing, run: remindRecruiters }];
+const BULK_ACTIONS: StuckBulkAction[] = [{ key: "remind", label: "Remind recruiters", icon: BellRing, run: remindRecruiters }];
 
 const scrollToWorkspace = () => setTimeout(() => scrollToId("operations"), 0);
 
@@ -313,8 +313,9 @@ export const AdminAnalyticsPage: React.FC = () => {
           </section>
 
           <div className="grid gap-5 lg:grid-cols-3">
-            {/* The trend sits under the stages so the left column roughly matches the two side panels. */}
-            <div className="min-w-0 space-y-5 lg:col-span-2">
+            {/* The trend sits under the stages and takes the rest of the column. LineChart is h-full, so it needs a sized
+                wrapper; without one it took the whole row height and ran over the worklist below. */}
+            <div className="flex min-w-0 flex-col gap-5 lg:col-span-2">
               <StagePipeline
                 rows={data.stageTable}
                 footer={`Client answers: ${data.clientDecisions.accepted} accepted, ${data.clientDecisions.declined} declined`}
@@ -323,6 +324,7 @@ export const AdminAnalyticsPage: React.FC = () => {
                   scrollToWorkspace();
                 }}
               />
+              <div className="flex-1">
               <LineChart
                 id="trend"
                 title="Results over time"
@@ -331,6 +333,7 @@ export const AdminAnalyticsPage: React.FC = () => {
                 series={[{ key: "starts", label: "Starts" }, { key: "backouts", label: "Backed out" }]}
                 emptyText="No starts or backouts in these dates."
               />
+              </div>
             </div>
             <div className="min-w-0 space-y-5">
               <ClientReviewPanel data={data.clientReview} />

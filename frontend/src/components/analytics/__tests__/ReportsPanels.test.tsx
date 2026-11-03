@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { recruiterDisplayName } from "../../../lib/recruiter-label";
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -80,8 +81,7 @@ describe("StuckList selection", () => {
     expect(screen.getByText("2 selected")).toBeDefined();
     fireEvent.click(screen.getByRole("button", { name: /^Critical/ }));
     expect(screen.getByText("1 selected")).toBeDefined();
-    fireEvent.click(screen.getByRole("button", { name: "Bulk actions" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Remind recruiter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remind recruiter" }));
     await waitFor(() => expect(run).toHaveBeenCalledTimes(1));
     expect(run.mock.calls[0][0].map((r: StuckCandidate) => r.applicationId)).toEqual([3]);
     await waitFor(() => expect(screen.queryByText("1 selected")).toBeNull());
@@ -92,28 +92,17 @@ describe("StuckList selection", () => {
     const run = vi.fn().mockRejectedValue(new Error("down"));
     render(<StuckList rows={rows} total={3} selectable bulkActions={[{ key: "remind", label: "Remind recruiter", run }]} />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Select Candidate 2" }));
-    fireEvent.click(screen.getByRole("button", { name: "Bulk actions" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Remind recruiter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remind recruiter" }));
     await waitFor(() => expect(run).toHaveBeenCalled());
-    await waitFor(() => expect(screen.getByRole("button", { name: "Bulk actions" })).toBeDefined());
+    await waitFor(() => expect((screen.getByRole("button", { name: "Remind recruiter" }) as HTMLButtonElement).disabled).toBe(false));
     expect(screen.getByText("1 selected")).toBeDefined();
-  });
-
-  it("closes the menu with Escape", () => {
-    render(<StuckList rows={rows} total={3} selectable />);
-    fireEvent.click(screen.getByRole("checkbox", { name: "Select Candidate 1" }));
-    fireEvent.click(screen.getByRole("button", { name: "Bulk actions" }));
-    expect(screen.getByRole("menu", { name: "Bulk actions" })).toBeDefined();
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("menu")).toBeNull();
   });
 
   it("exports the selected rows as CSV with the plan's columns and a formula guard", () => {
     const risky = stuckRow(4, { candidateName: "=SUM(A1)", lastNote: "Said \"call\", later" });
     render(<StuckList rows={[rows[0], risky]} total={2} selectable />);
     fireEvent.click(screen.getByRole("checkbox", { name: "Select all on this page" }));
-    fireEvent.click(screen.getByRole("button", { name: "Bulk actions" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Export selected" }));
+    fireEvent.click(screen.getByRole("button", { name: "Export selected" }));
     expect(downloadCsvMock).toHaveBeenCalledTimes(1);
     const [fileName, csv] = downloadCsvMock.mock.calls[0] as [string, string];
     expect(fileName).toMatch(/^MEGS_overdue_candidates_\d{4}-\d{2}-\d{2}$/);
@@ -200,6 +189,23 @@ describe("DueSoonList", () => {
   });
 });
 
+describe("Bulk actions beside Select all", () => {
+  const rows = [stuckRow(1), stuckRow(2)];
+  it("shows the count and actions on the Select all row only once something is ticked", () => {
+    render(<StuckList viewer="ta" rows={rows} total={2} selectable />);
+    expect(screen.queryByRole("group", { name: "Actions for the ticked candidates" })).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Candidate 2" }));
+    const bar = screen.getByRole("group", { name: "Actions for the ticked candidates" });
+    expect(bar.textContent).toContain("1 selected");
+    for (const name of ["Move stage", "Export selected", "Clear selection"]) expect(within(bar).getByRole("button", { name })).toBeDefined();
+  });
+  it("has no Move stage for an administrator", () => {
+    render(<StuckList rows={rows} total={2} selectable />);
+    fireEvent.click(screen.getByRole("checkbox", { name: "Select Candidate 1" }));
+    expect(within(screen.getByRole("group", { name: "Actions for the ticked candidates" })).queryByRole("button", { name: "Move stage" })).toBeNull();
+  });
+});
+
 describe("ActionItemsList", () => {
   const item = (id: string, over: Partial<TAPendingActionItem> = {}): TAPendingActionItem => ({
     id,
@@ -213,6 +219,25 @@ describe("ActionItemsList", () => {
     targetUrl: "/ta/applications/7",
     createdAt: "2026-10-30T00:00:00Z",
     ...over,
+  });
+
+  it("marks a deadline before today as High and N days overdue; today or later stays Due <date>", () => {
+    const now = new Date("2026-11-02T04:00:00Z");
+    render(
+      <ActionItemsList
+        now={now}
+        total={2}
+        rows={[
+          item("late", { title: "Review Clearance", urgency: "MEDIUM", agingDays: undefined, deadline: "2026-10-25T00:00:00Z" }),
+          item("soon", { title: "Sign contract", urgency: "MEDIUM", agingDays: undefined, deadline: "2026-11-07T00:00:00Z" }),
+        ]}
+      />
+    );
+    const [late, soon] = screen.getAllByRole("listitem");
+    expect(late.textContent).toContain("8 days overdue");
+    expect(late.textContent).toContain("High");
+    expect(soon.textContent).toContain("Due Nov 7, 2026");
+    expect(soon.textContent).toContain("Medium");
   });
 
   it("lists each task with its urgency in words, age, and an Open link, and counts what is shown", () => {
@@ -287,5 +312,13 @@ describe("StagePipeline average wait", () => {
     expect(screen.getAllByText(/^avg /)).toHaveLength(3);
     // The average also describes its row for screen readers.
     expect(screen.getByRole("group", { name: "Requirements, 4" }).getAttribute("aria-describedby")).toBeTruthy();
+  });
+});
+
+describe("recruiterDisplayName", () => {
+  it("keeps real names and turns an email into one title-cased name with no second line", () => {
+    expect(recruiterDisplayName("Ferdinand Rito")).toEqual({ label: "Ferdinand Rito" });
+    expect(recruiterDisplayName("sales_food_001@175dev.com")).toEqual({ label: "Sales Food 001", full: "sales_food_001@175dev.com" });
+    expect(recruiterDisplayName("naheje4599@37xiao.com").email).toBeUndefined();
   });
 });

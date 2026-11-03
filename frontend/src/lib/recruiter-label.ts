@@ -22,3 +22,15 @@ export const formatRecruiterName = (name: string | null | undefined): RecruiterL
   if (EMAIL.test(raw)) return { label: raw.slice(0, raw.indexOf("@")), email: raw, full: raw };
   return { label: raw };
 };
+
+/**
+ * One clean name for tight rows: a real name as is, an email as its title-cased local part
+ * ("sales_food_001@x.com" reads "Sales Food 001"). The full email stays in `full` for a tooltip; there is no second line.
+ */
+export const recruiterDisplayName = (name: string | null | undefined): RecruiterLabel => {
+  const base = formatRecruiterName(name);
+  if (!base.email) return base;
+  const words = base.label.split(/[._-]+/).filter(Boolean);
+  const label = words.map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(" ") || base.label;
+  return { label, full: base.email };
+};

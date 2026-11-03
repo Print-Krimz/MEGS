@@ -317,8 +317,7 @@ describe("AdminAnalyticsPage", () => {
     renderPage();
     fireEvent.click(await screen.findByRole("checkbox", { name: "Select Candidate 11" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Select Candidate 13" }));
-    fireEvent.click(screen.getByRole("button", { name: "Bulk actions" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Remind recruiter" }));
+    fireEvent.click(screen.getByRole("button", { name: "Remind recruiters" }));
     await waitFor(() => expect(adminApi.remindRecruiters).toHaveBeenCalledWith([11, 13]));
     await waitFor(() => expect(notifyMock.success).toHaveBeenCalledWith("Reminded 1 recruiter about 2 candidates."));
   });

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import type { RequestRow } from "../../lib/types/analytics.types";
-import { formatRecruiterName, type RecruiterLabel } from "../../lib/recruiter-label";
+import { recruiterDisplayName, type RecruiterLabel } from "../../lib/recruiter-label";
 import { formatDate } from "../../lib/utils";
 import { AnalyticsPanel } from "./AnalyticsPanel";
 import { HEALTH_CHIP, TEXT_AMBER, TEXT_LOSS } from "../../lib/chart-palette";
@@ -153,7 +153,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
         <ul className="divide-y divide-slate-200">
           {pageRows.map((row) => {
             const style = HEALTH[row.health];
-            const owner: RecruiterLabel = row.ownerId === null ? { label: "No recruiter assigned" } : formatRecruiterName(row.ownerName);
+            const owner: RecruiterLabel = row.ownerId === null ? { label: "No recruiter assigned" } : recruiterDisplayName(row.ownerName);
             return (
               <li key={row.mrfId} className="px-3 py-2.5">
                 <div className="flex items-center justify-between gap-3">
