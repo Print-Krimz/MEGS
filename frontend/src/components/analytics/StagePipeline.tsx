@@ -16,6 +16,8 @@ interface StagePipelineProps {
   linkStages?: boolean;
   /** Shown under the rows, e.g. the Client answers line. */
   footer?: React.ReactNode;
+  /** E.g. "h-full" so the panel matches the height of the panels beside it. */
+  className?: string;
 }
 
 /** Overdue candidates are part of the stage total, never added on top; Deployed has no limit so it is never overdue. */
@@ -49,13 +51,13 @@ const BAR_CELL = "col-span-2 row-start-2 @xl:col-span-1 @xl:col-start-2 @xl:row-
  * now (every bar on the same scale); the part past the limit is red, the rest is the on-track blue. Exact values are
  * under View as table.
  */
-export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStage, linkStages = false, footer }) => {
+export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStage, linkStages = false, footer, className }) => {
   const empty = rows.every((r) => r.inStageNow === 0 && r.entered === 0 && r.backedOut === 0);
   const maxInStage = Math.max(1, ...rows.map((r) => r.inStageNow));
   const baseId = useId();
 
   return (
-    <AnalyticsPanel tone="reports" id="stage-pipeline" title="Candidates by stage">
+    <AnalyticsPanel tone="reports" id="stage-pipeline" title="Candidates by stage" className={className}>
       {empty ? (
         <p className="p-4 text-center text-xs text-slate-600 font-sans">No candidates in the pipeline and none moved in these dates.</p>
       ) : (

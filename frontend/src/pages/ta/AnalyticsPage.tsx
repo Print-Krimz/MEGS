@@ -249,8 +249,10 @@ export const AnalyticsPage: React.FC = () => {
               </KpiRow>
             </section>
             <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+              {/* Every panel in this row stretches to the row height so the three columns end on one line. */}
               <div className="min-w-0 md:col-span-2 lg:col-span-1">
                 <StagePipeline
+                  className="h-full"
                   rows={data.stageTable}
                   footer={`Client answers: ${data.clientDecisions.accepted} accepted, ${data.clientDecisions.declined} declined`}
                   onSelectStage={(picked) => {
@@ -269,9 +271,9 @@ export const AnalyticsPage: React.FC = () => {
                   emptyText="No starts or backouts in these dates."
                 />
               </div>
-              <div className="min-w-0 space-y-5">
+              <div className="flex min-w-0 flex-col gap-5">
                 <BackoutReasonsDonut data={data.backouts} />
-                <DueSoonList rows={data.dueSoon} total={data.dueSoonTotal} viewer="ta" />
+                <DueSoonList rows={data.dueSoon} total={data.dueSoonTotal} viewer="ta" className="flex-1" />
               </div>
             </div>
 

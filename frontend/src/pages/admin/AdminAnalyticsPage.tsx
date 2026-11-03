@@ -335,9 +335,10 @@ export const AdminAnalyticsPage: React.FC = () => {
               />
               </div>
             </div>
-            <div className="min-w-0 space-y-5">
-              <ClientReviewPanel data={data.clientReview} />
-              <BackoutReasonsDonut data={data.backouts} />
+            {/* Both side panels grow so the column ends level with the stages and trend on the left. */}
+            <div className="flex min-w-0 flex-col gap-5">
+              <ClientReviewPanel data={data.clientReview} className="flex-1" />
+              <BackoutReasonsDonut data={data.backouts} className="flex-1" />
             </div>
           </div>
 
