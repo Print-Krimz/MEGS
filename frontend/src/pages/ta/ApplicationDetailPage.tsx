@@ -35,7 +35,7 @@ import { ScheduleInterviewDialog, type ScheduleActivity } from "../../components
 import { RescheduleRequestNotice, DeclineRescheduleDialog } from "../../components/ta/application/RescheduleRequestNotice";
 import { SendToClientDialog, ClientDecisionDialog } from "../../components/ta/application/ClientReviewDialogs";
 import { AddRequirementDialog, EditDeadlineDialog } from "../../components/ta/application/RequirementDialogs";
-import { SkipToFinalDialog, FastTrackDialog } from "../../components/ta/application/StageDialogs";
+import { SkipToFinalDialog } from "../../components/ta/application/StageDialogs";
 import { ActivateDeploymentDialog, SignedContractDialog } from "../../components/ta/application/DeploymentDialogs";
 import { deriveApplicationFlags, pickStageBarActions, type StageActionId } from "../../components/ta/application/stage-actions";
 import { getNextStep } from "../../components/ta/application/next-step";
@@ -84,7 +84,6 @@ type DialogState =
   | { kind: "updateCopy"; target: { id: number; label: string } }
   | { kind: "removeRequirement"; target: { id: number; label: string } }
   | { kind: "skip" }
-  | { kind: "fastTrack" }
   | { kind: "deploy" }
   | { kind: "contract" }
   | { kind: "confirmSigned" }
@@ -353,8 +352,6 @@ export const ApplicationDetailPage: React.FC = () => {
         return setDialog({ kind: "skip" });
       case "move-to-final":
         return m.updateStatus.mutate({ status: ApplicationStatus.FINAL_INTERVIEW });
-      case "fast-track":
-        return setDialog({ kind: "fastTrack" });
       case "record-client-decision":
         return latestEndorsement && openClientDecision(latestEndorsement, true);
       case "update-client-decision":
@@ -1001,14 +998,6 @@ export const ApplicationDetailPage: React.FC = () => {
         onSubmit={(reason) =>
           m.updateStatus.mutate({ status: ApplicationStatus.FINAL_INTERVIEW, reason }, { onSettled: closeDialog })
         }
-      />
-
-      <FastTrackDialog
-        open={dlg?.kind === "fastTrack"}
-        onClose={closeDialog}
-        candidateName={candidateName}
-        isSubmitting={m.fastTrack.isPending}
-        onSubmit={(targetStage) => m.fastTrack.mutate({ targetStage }, { onSuccess: closeDialog })}
       />
 
       <ResumeAnalysisDialog

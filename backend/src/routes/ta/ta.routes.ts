@@ -125,7 +125,6 @@ import {
   getDeploymentDetailsHandler,
   signDeploymentContractHandler,
   updateDeploymentContractHandler,
-  fastTrackRedeploymentHandler,
 } from '../../controllers/ta/ta.deployments.controller.js';
 
 import {
@@ -162,7 +161,7 @@ router.use(requireRole("TALENT_ACQUISITION"));
 router.use(validateDateRangeQuery);
 router.use("/analytics", ...analyticsLimiters);
 router.use("/reports", ...reportLimiters);
-router.use(["/talent-pool/search", "/candidates/:candidateId/similar", "/jobs/:jobId/talent-pool", "/jobs/:jobId/rank-candidates", "/candidates/:id/parse-resume", "/walk-ins/read-biodata", "/mrfs/read"], ...aiLimiters);
+router.use(["/talent-pool/search", "/candidates/:candidateId/similar", "/jobs/:jobId/talent-pool", "/jobs/:jobId/rank-candidates", "/candidates/:id/parse-resume", "/walk-ins/read-biodata", "/mrfs/read", "/applications/:id/analyze"], ...aiLimiters);
 
 router.get("/dashboard-counts", getTADashboardCountsHandler);
 
@@ -285,7 +284,6 @@ router.delete("/compliance/:requirementId", validate(taSchema.deleteComplianceRe
 
 // Deployment Lifecycle
 router.post("/applications/:id/deploy", validate(taSchema.createDeployment), requireOwned("application"), createDeploymentHandler);
-router.post("/applications/:id/fast-track-redeployment", validate(taSchema.fastTrackRedeployment), requireOwned("application"), fastTrackRedeploymentHandler);
 router.patch("/deployments/:id/status", validate(taSchema.updateDeploymentStatus), requireOwned("deployment"), updateDeploymentStatusHandler);
 router.post("/deployments/:id/sign-contract", validate(taSchema.signDeploymentContract), requireOwned("deployment"), signDeploymentContractHandler);
 router.patch("/deployments/:id/contract", validate(taSchema.updateDeploymentContract), requireOwned("deployment"), updateDeploymentContractHandler);

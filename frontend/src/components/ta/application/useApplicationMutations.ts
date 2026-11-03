@@ -365,23 +365,6 @@ export function useApplicationMutations({ applicationId, status }: Options) {
     },
   });
 
-  const fastTrack = useMutation({
-    mutationFn: (data?: { targetStage?: "FINAL_INTERVIEW" | "COMPLIANCE" }) => taApi.fastTrackRedeployment(applicationId, data),
-    onSuccess: (res: any, vars) => {
-      const carriedCount = res?.carriedOverDocuments?.length ?? 0;
-      const targetLabel = (vars?.targetStage ?? "COMPLIANCE") === "FINAL_INTERVIEW" ? "Final interview" : "Requirements";
-      const msg = `Candidate advanced to ${targetLabel}; ${carriedCount} valid clearance document${carriedCount === 1 ? "" : "s"} carried over.`;
-      setFeedback({ type: "success", message: msg });
-      notify.success("Redeployment fast-tracked", msg);
-      refreshApplicationQueries();
-      queryClient.invalidateQueries({ queryKey: ["applicant"] });
-    },
-    onError: (err: any) => {
-      setFeedback({ type: "error", message: `Unable to fast-track this redeployment. ${formatErrorMessage(err)}` });
-      notify.error("Fast-track failed", err);
-    },
-  });
-
   const deploy = useMutation({
     mutationFn: (data: { clientId: number; site?: string; contractStart?: string; contractEnd?: string; notes?: string }) =>
       taApi.createDeployment(applicationId, data),
@@ -422,7 +405,6 @@ export function useApplicationMutations({ applicationId, status }: Options) {
     reviewRequirement,
     deleteRequirement,
     updateDeadline,
-    fastTrack,
     deploy,
   };
 }

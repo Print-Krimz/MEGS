@@ -28,7 +28,6 @@ const applicantApplicationEvents = new Set([
   "Pre-Employment Checklist Available",
   "Employment Contract Signed",
   "Orientation Completed",
-  "Redeployment Fast-Tracked",
   "Deployment Update",
   "Contract Signing Scheduled",
   "Contract Signing Rescheduled",

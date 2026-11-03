@@ -432,10 +432,6 @@ export const taSchema = {
       contractEnd: dateOnly.optional().nullable(),
     }).strict(),
   }),
-  fastTrackRedeployment: z.object({
-    params: z.object({ id: boundedIdText }),
-    body: z.object({ targetStage: z.enum(["FINAL_INTERVIEW", "COMPLIANCE"]).optional() }).strict().optional(),
-  }),
   createComplianceRequirement: z.object({
     params: z.object({ id: boundedIdText }),
     body: z.object({

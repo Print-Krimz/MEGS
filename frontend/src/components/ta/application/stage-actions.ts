@@ -97,14 +97,6 @@ export function deriveApplicationFlags(app: Application) {
     !isClientDeclined &&
     !isTerminal;
 
-  // Redeployment Fast Track: returning workers can skip straight to Requirements/Final interview (backend re-validates).
-  const isCandidateEligibleForRedeployment = Boolean(
-    app.isRedeploymentEligible ||
-      app.user?.employee?.status === "AVAILABLE_FOR_REDEPLOYMENT" ||
-      (app.user?.employee?.deployments && app.user.employee.deployments.length > 0)
-  );
-  const canFastTrackRedeployment = isPreScreeningOrScreening && isCandidateEligibleForRedeployment && !isTerminal;
-
   const nextSchedulableInterview: "INITIAL_SCREENING" | "FINAL_INTERVIEW" | null = canScheduleInitialInterview
     ? "INITIAL_SCREENING"
     : canScheduleFinalInterview || canScheduleFinalFromClientReview
@@ -166,7 +158,6 @@ export function deriveApplicationFlags(app: Application) {
     canRecordFinalInterview,
     canAdvanceToCompliance,
     canScheduleFinalFromClientReview,
-    canFastTrackRedeployment,
     nextSchedulableInterview,
     isComplianceStage,
     canAdvanceToContractSigning,
@@ -196,7 +187,6 @@ export type StageActionId =
   | "send-to-client"
   | "skip-to-final"
   | "move-to-final"
-  | "fast-track"
   | "record-client-decision"
   | "update-client-decision"
   | "schedule-final"
@@ -256,7 +246,6 @@ export function getStageActions(
       add("move-to-final", "Move to final interview", "primary");
     }
   }
-  if (flags.canFastTrackRedeployment) add("fast-track", "Fast-track redeployment", "secondary");
 
   // A request without client review never records client decisions.
   if (flags.isClientEndorsementStage && flags.requiresClientReview) {

@@ -8,7 +8,6 @@ import {
   getDeploymentDetails,
   signDeploymentContract,
   updateDeploymentContract,
-  fastTrackRedeployment,
   DeploymentConflictError,
 } from "../../services/ta/ta.deployments.service.js";
 
@@ -160,20 +159,3 @@ export const updateDeploymentContractHandler = async (req: Request, res: Respons
     sendError(res, error.message, status);
   }
 };
-
-export const fastTrackRedeploymentHandler = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const applicationId = parseInt(req.params.id as string, 10);
-    if (isNaN(applicationId)) {
-      sendError(res, "Valid application ID is required", 400);
-      return;
-    }
-
-    const result = await fastTrackRedeployment(applicationId, req.user!.id, req.body);
-    sendSuccess(res, "Redeployment fast-tracked successfully", result);
-  } catch (error: any) {
-    const status = error.message.includes("not found") ? 404 : 400;
-    sendError(res, error.message, status);
-  }
-};
-
