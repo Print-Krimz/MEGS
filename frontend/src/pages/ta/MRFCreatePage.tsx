@@ -1198,7 +1198,11 @@ export const MRFCreatePage: React.FC = () => {
       {fileReview && (
         <MRFFileReviewDialog
           rows={fileReview.rows}
-          onClose={() => setFileReview(null)}
+          onClose={() => {
+            setFileReview(null);
+            // Clear the picker so choosing the same file again opens the review again.
+            if (fileInputRef.current) fileInputRef.current.value = "";
+          }}
           onFill={(keys) => {
             applyFileReading(fileReview.reading, keys as Set<MRFFileField>);
             setFileReview(null);
