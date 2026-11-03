@@ -4,7 +4,7 @@ import type { RequestRow } from "../../lib/types/analytics.types";
 import { recruiterDisplayName, type RecruiterLabel } from "../../lib/recruiter-label";
 import { formatDate } from "../../lib/utils";
 import { AnalyticsPanel } from "./AnalyticsPanel";
-import { HEALTH_CHIP, TEXT_AMBER, TEXT_LOSS } from "../../lib/chart-palette";
+import { BAR_ON_TRACK, HEALTH_CHIP, TEXT_LOSS, WORKLOAD } from "../../lib/chart-palette";
 import { PaginationBar } from "./PaginationBar";
 import { matchesRequestHealth, type RequestHealthFilter } from "../../lib/admin-report-search";
 
@@ -30,15 +30,23 @@ export type { RequestHealthFilter };
 const HEALTH: Record<RequestRow["health"], { label: string; badge: string }> = {
   OVERDUE: { ...HEALTH_CHIP.overdue, badge: HEALTH_CHIP.overdue.className },
   AT_RISK: { ...HEALTH_CHIP.atRisk, badge: HEALTH_CHIP.atRisk.className },
-  ON_TRACK: { ...HEALTH_CHIP.onTrack, badge: HEALTH_CHIP.onTrack.className },
+  // On track gets its own tint here: the shared chip is transparent, which reads as no status in a table column.
+  ON_TRACK: { ...HEALTH_CHIP.onTrack, badge: "bg-[#EAF6EE] text-[#1B6B3A]" },
   FILLED: { ...HEALTH_CHIP.filled, badge: HEALTH_CHIP.filled.className },
 };
 
-const ATTENTION: Record<Exclude<RequestRow["attention"], null>, { label: string; title: string; text: string }> = {
-  NO_OPENING: { label: "No job opening", title: "No job opening is posted for this request.", text: TEXT_AMBER },
-  NO_APPLICANTS: { label: "No applicants", title: "Nobody has applied yet.", text: TEXT_AMBER },
-  FIRST_STAGE_ONLY: { label: "None past first screening", title: "Every applicant is still in first review.", text: "text-slate-700" },
+const ATTENTION: Record<Exclude<RequestRow["attention"], null>, { label: string; title: string; chip: string }> = {
+  NO_OPENING: { label: "No job opening", title: "No job opening is posted for this request.", chip: "bg-[#FFF4DC] text-[#7A4800]" },
+  NO_APPLICANTS: { label: "No applicants", title: "Nobody has applied yet.", chip: "bg-[#FFF4DC] text-[#7A4800]" },
+  FIRST_STAGE_ONLY: { label: "None past first screening", title: "Every applicant is still in first review.", chip: "bg-slate-100 text-slate-700" },
 };
+
+/** Table columns once the panel is wide: request, seats, recruiter (Admin only), pipeline, urgency. */
+const COLUMNS_WITH_OWNER = "@2xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1.4fr)_minmax(0,1.4fr)_minmax(0,1.8fr)_minmax(8rem,1fr)]";
+const COLUMNS_NO_OWNER = "@2xl:grid-cols-[minmax(0,2.4fr)_minmax(0,1.5fr)_minmax(0,2fr)_minmax(8rem,1fr)]";
+
+/** A request this many days past its target date, or more, gets the solid red chip. */
+const SEVERE_DAYS_LATE = -30;
 
 /** The short "how late or how soon" text. The target date is printed next to it. */
 const slaText = (row: RequestRow): string => {
@@ -97,6 +105,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
     });
   }, [rows, health, query]);
 
+  const columns = showOwner ? COLUMNS_WITH_OWNER : COLUMNS_NO_OWNER;
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const pageRows = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -125,7 +134,10 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                   health === f.key ? "bg-navy text-white border-navy" : "bg-white text-slate-700 border-navy-line hover:bg-navy-soft"
                 }`}
               >
-                {f.label} <span className="tabular-nums font-normal">{counts[f.key]}</span>
+                {f.label}{" "}
+                <span className={`tabular-nums ${f.key === "OVERDUE" && counts.OVERDUE > 0 && health !== "OVERDUE" ? `font-semibold ${TEXT_LOSS}` : "font-normal"}`}>
+                  {counts[f.key]}
+                </span>
               </button>
             ))}
           </div>
@@ -150,67 +162,99 @@ export const RequestProgressList = React.memo(function RequestProgressList({
       ) : pageRows.length === 0 ? (
         <p className="p-6 text-center text-xs text-slate-500 font-sans">No match. Change the status or search.</p>
       ) : (
-        <ul className="divide-y divide-slate-200">
-          {pageRows.map((row) => {
-            const style = HEALTH[row.health];
-            const owner: RecruiterLabel = row.ownerId === null ? { label: "No recruiter assigned" } : recruiterDisplayName(row.ownerName);
-            return (
-              <li key={row.mrfId} className="px-3 py-2.5">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-baseline gap-2">
+        // Container queries, not viewport ones: the side menu takes width, so the table starts when this panel is wide enough.
+        <div className="@container">
+          <div aria-hidden="true" className={`hidden border-b border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-600 @2xl:grid @2xl:gap-x-4 ${columns}`}>
+            <span>Request / Client</span>
+            <span>Seats &amp; target date</span>
+            {showOwner && <span>Recruiter</span>}
+            <span>Pipeline</span>
+            <span>Urgency</span>
+          </div>
+          <ul className="divide-y divide-slate-200">
+            {pageRows.map((row) => {
+              const owner: RecruiterLabel = row.ownerId === null ? { label: "No recruiter assigned" } : recruiterDisplayName(row.ownerName);
+              const overdue = row.health === "OVERDUE";
+              // Far past the target date reads as solid red, so the worst requests stand out from the merely late ones.
+              const severe = overdue && row.daysRemaining !== null && row.daysRemaining <= SEVERE_DAYS_LATE;
+              const style = HEALTH[row.health];
+              const scale = Math.max(row.openSeats, row.pipeline, 1);
+              const onTrack = Math.max(0, row.pipeline - row.overdueCandidates);
+              return (
+                <li
+                  key={row.mrfId}
+                  className={`flex flex-col gap-1.5 px-3.5 py-3 transition-colors hover:bg-navy-soft focus-within:bg-navy-soft motion-reduce:transition-none @2xl:grid @2xl:items-center @2xl:gap-x-4 ${columns}`}
+                >
+                  <div className="min-w-0">
                     <Link
                       to={linkTo}
                       params={{ mrfId: String(row.mrfId) }}
                       {...(linkState ? { state: linkState as never } : {})}
-                      className="truncate text-sm font-semibold text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                      className="block truncate text-sm font-semibold text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                     >
                       {row.title}
                     </Link>
-                    <span className="truncate text-xs font-sans text-slate-600">{row.clientName}</span>
+                    <span className="block truncate text-xs font-sans text-slate-600">{row.clientName}</span>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2 text-xs font-sans">
-                    {row.health === "OVERDUE" ? (
-                      <span className={`tabular-nums font-semibold ${TEXT_LOSS}`}>
-                        <span className="sr-only">Overdue: </span>
-                        {slaText(row)}
-                      </span>
-                    ) : (
-                      <>
-                        <span className="tabular-nums text-slate-600">{slaText(row)}</span>
-                        <span className={`px-1.5 py-0.5 font-semibold ${style.badge.replace(/border-\S+/g, "")}`}>{style.label}</span>
-                      </>
-                    )}
+
+                  <div className="text-xs font-sans tabular-nums text-slate-700">
+                    <span className="block text-sm text-slate-900">
+                      <strong>{row.filled}</strong>/{row.headcount} seats
+                    </span>
+                    {row.targetFillDate && <span className="block text-slate-600">Target {formatDate(row.targetFillDate)}</span>}
                   </div>
-                </div>
-                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs font-sans text-slate-700">
-                  <span className="whitespace-nowrap tabular-nums">
-                    <strong>{row.filled}</strong>/{row.headcount} seats
-                  </span>
-                  {row.targetFillDate && <span className="whitespace-nowrap tabular-nums text-slate-600">Target {formatDate(row.targetFillDate)}</span>}
-                  <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5">
-                    {showOwner && (
-                      <span title={owner.full} className={`truncate ${row.ownerId === null ? "font-semibold text-slate-900" : "text-slate-600"}`}>
+
+                  {showOwner && (
+                    <div className="min-w-0 text-sm font-sans">
+                      <span title={owner.full} className={`block truncate ${row.ownerId === null ? "font-semibold text-slate-900" : "text-slate-700"}`}>
                         {owner.label}
-                        {owner.email && <span className="block text-xs font-normal text-slate-500 truncate">{owner.email}</span>}
                       </span>
-                    )}
+                    </div>
+                  )}
+
+                  <div className="min-w-0 text-xs font-sans text-slate-700">
                     {row.attention ? (
-                      <span title={ATTENTION[row.attention].title} className={`font-semibold ${ATTENTION[row.attention].text}`}>
+                      <span title={ATTENTION[row.attention].title} className={`inline-block px-1.5 py-0.5 font-semibold ${ATTENTION[row.attention].chip}`}>
                         {ATTENTION[row.attention].label}
                       </span>
                     ) : (
-                      <span className="tabular-nums" title={`${row.applicantCount} ${row.applicantCount === 1 ? "applicant" : "applicants"} in all`}>
-                        {row.pipeline} in pipeline
+                      <span aria-hidden="true" className="flex h-1.5 w-full max-w-36 overflow-hidden bg-[#E1E6ED]">
+                        <span style={{ width: `${(onTrack / scale) * 100}%`, backgroundColor: BAR_ON_TRACK }} />
+                        <span style={{ width: `${(row.overdueCandidates / scale) * 100}%`, backgroundColor: WORKLOAD.overdue }} />
                       </span>
                     )}
-                    {row.overdueCandidates > 0 && <span className={`${TEXT_LOSS} tabular-nums`}>{row.overdueCandidates} overdue</span>}
-                    {row.backoutsInPeriod > 0 && <span className={`${TEXT_LOSS} tabular-nums`}>{row.backoutsInPeriod} backed out</span>}
-                  </span>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                    <span className="mt-1 flex flex-wrap gap-x-2 tabular-nums">
+                      {!row.attention && (
+                        <span title={`${row.applicantCount} ${row.applicantCount === 1 ? "applicant" : "applicants"} in all`}>{row.pipeline} in pipeline</span>
+                      )}
+                      {row.overdueCandidates > 0 && <span className={`font-semibold ${TEXT_LOSS}`}>{row.overdueCandidates} overdue</span>}
+                      {row.backoutsInPeriod > 0 && <span className={TEXT_LOSS}>{row.backoutsInPeriod} backed out</span>}
+                    </span>
+                  </div>
+
+                  {/* On a narrow panel the chip leads the row; in the table it is the last column. */}
+                  <div className="order-first flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-sans @2xl:order-none @2xl:flex-col @2xl:items-start @2xl:gap-y-1">
+                    <span
+                      className={`inline-block whitespace-nowrap px-2 py-0.5 font-semibold tabular-nums ${
+                        severe ? "bg-[#B42318] text-white" : style.badge.replace(/border-\S+/g, "")
+                      }`}
+                    >
+                      {overdue ? (
+                        <>
+                          <span className="sr-only">Overdue: </span>
+                          {slaText(row)}
+                        </>
+                      ) : (
+                        style.label
+                      )}
+                    </span>
+                    {!overdue && <span className="tabular-nums text-slate-600">{slaText(row)}</span>}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
       <PaginationBar page={currentPage} pageSize={pageSize} total={visible.length} onPageChange={setPage} noun="requests" />
       {note && <p id="requests-note" className="scroll-mt-4 border-t border-slate-200 px-3.5 py-2.5 text-xs text-slate-600 font-sans">{note}</p>}
