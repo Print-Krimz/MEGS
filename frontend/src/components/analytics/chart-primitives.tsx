@@ -145,7 +145,7 @@ interface DataTableToggleProps {
 /** Text alternative for a chart. The first column is the row header. */
 export const DataTableToggle: React.FC<DataTableToggleProps> = ({ caption, columns, rows, className = "", summary = "View as table" }) => (
   <details className={`group mt-3 ${className}`}>
-    <summary className="inline-flex min-h-11 cursor-pointer list-none items-center text-xs font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-8">
+    <summary className="inline-flex min-h-11 cursor-pointer list-none items-center text-xs font-semibold text-navy hover:underline [&::-webkit-details-marker]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-8">
       {summary}
     </summary>
     <div tabIndex={0} role="region" aria-label={caption} className="mt-1 overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">

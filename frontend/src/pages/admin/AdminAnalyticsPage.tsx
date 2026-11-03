@@ -357,7 +357,7 @@ export const AdminAnalyticsPage: React.FC = () => {
           </div>
 
           {/* Row 2: Starts and backouts trend (wide, 2 cols) paired with Why candidates backed out (1 col) */}
-          <div className="grid gap-5 lg:grid-cols-3">
+          <div className="grid gap-5 lg:grid-cols-3 lg:items-start">
             <div className="min-w-0 lg:col-span-2">
               <LineChart
                 id="trend"
@@ -369,7 +369,7 @@ export const AdminAnalyticsPage: React.FC = () => {
               />
             </div>
             <div className="min-w-0 lg:col-span-1">
-              <BackoutReasonsDonut data={data.backouts} className="h-full" />
+              <BackoutReasonsDonut data={data.backouts} />
             </div>
           </div>
 
