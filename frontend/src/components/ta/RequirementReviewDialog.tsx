@@ -58,7 +58,6 @@ export interface RequirementReviewDialogProps {
   isSubmitting?: boolean;
 }
 
-const MEDICAL_LABEL = /medical|fit\s+to\s+work|health/i;
 
 /** Same rule as the backend: an open updated-copy request blocks approval until the new file arrives. */
 export const isAwaitingUpdatedCopy = (req?: ReviewableRequirement | null): boolean =>
@@ -117,7 +116,6 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
 
   const hasFile = Boolean(selected?.documentId);
   const awaitingCopy = isAwaitingUpdatedCopy(selected);
-  const isMedical = MEDICAL_LABEL.test(selected?.documentLabel || "");
 
   // The first reason the reviewer cannot save yet. Shown next to the button so a disabled button is never a mystery.
   const blockReason = (() => {
@@ -128,7 +126,6 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
       if (awaitingCopy) return "An updated copy was requested. Approve once the new file is uploaded.";
       if (validity === "UNKNOWN") return "Choose whether the document has an expiry date.";
       if (validity === "HAS_EXPIRY" && !expiresAt) return "Enter the expiry date.";
-      if (isMedical && !issuedAt) return "Enter the issue date for this document.";
     }
     if (decision === "APPROVED" && !notes.trim()) return "Add a note about what you verified.";
     if (decision === "REJECTED" && !notes.trim()) return "Add a note explaining why this was rejected.";
@@ -216,7 +213,6 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
             value={issuedAt}
             max={getManilaToday()}
             onChange={(e) => setIssuedAt(e.target.value)}
-            required={isMedical}
           />
           <Select
             label="Document validity"
