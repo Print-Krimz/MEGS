@@ -292,6 +292,8 @@ export const ApplicationDetailPage: React.FC = () => {
   const interviews = application.interviews || [];
   const compliance = application.complianceRequirements || [];
   const isDeployed = application.status === ApplicationStatus.DEPLOYED;
+  const latestDeployment = application.deployments?.[0];
+  const assignmentEnded = isDeployed && latestDeployment?.status === "ENDED";
   const pendingFollowUps = compliance.filter((c) => c.reviewStatus !== "APPROVED");
   const approvedClearances = compliance.filter((c) => c.reviewStatus === "APPROVED");
   const stageIndex = getPipelineStageIndex(application.status);
@@ -593,7 +595,13 @@ export const ApplicationDetailPage: React.FC = () => {
               <span className="text-sm font-medium text-[#486581]">
                 Current status
               </span>
-              <StatusBadge status={application.status} audience="applicant" size="sm" />
+              {assignmentEnded ? (
+                <span className="inline-flex items-center rounded-md border border-[#D9E2EC] bg-[#F7F9FC] px-2 py-0.5 text-xs font-medium text-[#486581]">
+                  Assignment ended
+                </span>
+              ) : (
+                <StatusBadge status={application.status} audience="applicant" size="sm" />
+              )}
             </div>
             <div className="text-sm text-[#486581]">
               Submitted on {formatDate(application.createdAt)}
@@ -645,7 +653,17 @@ export const ApplicationDetailPage: React.FC = () => {
           </div>
         )}
 
-        {isDeployed && (
+        {assignmentEnded && (
+          <div className="p-4 bg-[#F7F9FC] border border-[#D9E2EC] rounded-lg space-y-1">
+            <h4 className="text-sm font-semibold text-[#102A43]">Assignment ended</h4>
+            <p className="text-sm text-[#486581] leading-relaxed">
+              {latestDeployment?.actualEnd ? `Your assignment ended on ${formatDate(latestDeployment.actualEnd)}. ` : "Your assignment has ended. "}
+              Your TA will contact you about your next opportunity.
+            </p>
+          </div>
+        )}
+
+        {isDeployed && !assignmentEnded && (
           pendingFollowUps.length > 0 ? (
             <div className="p-4 bg-[#FFF7ED] border border-[#FED7AA] rounded-lg space-y-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">

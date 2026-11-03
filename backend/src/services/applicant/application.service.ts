@@ -555,6 +555,8 @@ export const fetchApplicationDetails = async (applicationId: number, userId: str
           updatedAt: true,
         },
       },
+      // The application stays DEPLOYED when an assignment ends; the applicant page reads this to say so.
+      deployments: { orderBy: { createdAt: "desc" }, take: 1, select: { status: true, actualEnd: true } },
       rescheduleRequests: {
         where: { requestedById: userId },
         orderBy: { createdAt: "desc" },
