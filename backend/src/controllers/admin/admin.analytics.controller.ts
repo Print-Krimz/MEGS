@@ -6,6 +6,7 @@ import {
   AnalyticsFilterDto,
 } from "../../services/analytics/analytics.service.js";
 import { getAdminDelivery } from "../../services/analytics/delivery.service.js";
+import { remindRecruiters } from "../../services/analytics/remind.service.js";
 import {
   generatePipelineReportPDF,
   generatePipelineReportXLSX,
@@ -48,6 +49,15 @@ export const getAdminDashboardSummaryHandler = async (req: Request, res: Respons
     sendError(res, error.message, 500);
   }
 };
+
+export const remindRecruitersHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    sendSuccess(res, "Recruiters reminded", await remindRecruiters(req.user!.id, req.body.applicationIds));
+  } catch (error: any) {
+    sendError(res, error.message, 500);
+  }
+};
+
 export const exportAdminPipelineReportHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const format = ((req.query.format as string) || "pdf").toLowerCase();

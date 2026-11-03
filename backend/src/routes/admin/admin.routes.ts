@@ -53,6 +53,7 @@ import {
 import {
   getAdminFilterOptionsHandler,
   getAdminDashboardSummaryHandler,
+  remindRecruitersHandler,
   exportAdminPipelineReportHandler,
   exportAdminDeploymentReportHandler,
 } from '../../controllers/admin/admin.analytics.controller.js';
@@ -115,6 +116,7 @@ router.post("/maintenance/cancel", cancelMaintenanceHandler);
 // Recruitment Analytics
 router.get("/analytics/dashboard", validate(analyticsSchema.filters), getAdminDashboardSummaryHandler);
 router.get("/analytics/filters", validate(analyticsSchema.filters), getAdminFilterOptionsHandler);
+router.post("/analytics/remind", validate(analyticsSchema.remind), remindRecruitersHandler);
 
 // Global worker: expires overdue talent pool invitations
 router.post("/talent-pool/invitations/expire-overdue", expireOverdueInvitationsHandler);

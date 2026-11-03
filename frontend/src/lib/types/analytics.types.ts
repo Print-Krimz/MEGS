@@ -254,8 +254,59 @@ export interface StuckCandidate {
   lastNote: string | null;
 }
 
+/** The period KPIs for the same-length window ending the day before the selected range starts. */
+export interface PreviousPeriod {
+  startDate: string;
+  endDate: string;
+  placementsStarted: number;
+  newStarts: number;
+  redeployStarts: number;
+  medianDaysToFill: number | null;
+  daysToFillSample: number;
+  backoutRate: number | null;
+  backoutRateBase: number;
+}
+
+export interface ClientReviewRow {
+  clientId: number;
+  clientName: string;
+  inReview: number;
+  /** Null when fewer than 5 candidates are in review for this client. */
+  avgDays: number | null;
+  limitDays: number;
+  /** Past the client's review limit (verified or by age only). */
+  overdue: number;
+}
+
+export interface ClientReview {
+  /** Average days in client review across all candidates in review now. Null under 5 candidates. */
+  avgDays: number | null;
+  sample: number;
+  clients: ClientReviewRow[];
+}
+
+export interface DueSoonCandidate extends StuckCandidate {
+  /** Whole days left before the stage limit, never below 0. */
+  daysLeft: number;
+}
+
+export interface RemindResult {
+  /** Recruiters who now have the reminder. */
+  reminded: number;
+  /** Candidates that belong to one of those recruiters. */
+  candidates: number;
+  /** Ids that do not exist or have no recruiter. */
+  skipped: number;
+}
+
 export interface TADeliveryDashboard {
   dateRange: DeliveryDateRange;
+  previousPeriod: PreviousPeriod;
+  clientReview: ClientReview;
+  /** Not overdue yet, but within 2 days of the stage limit. Soonest first, capped. */
+  dueSoon: DueSoonCandidate[];
+  dueSoonTotal: number;
+  trend: Trend;
   kpis: DeliveryKpis;
   requests: RequestRow[];
   stageTable: StageTableRow[];
@@ -275,6 +326,10 @@ export interface TADeliveryDashboard {
 
 export interface AdminDeliveryDashboard {
   dateRange: DeliveryDateRange;
+  previousPeriod: PreviousPeriod;
+  clientReview: ClientReview;
+  dueSoon: DueSoonCandidate[];
+  dueSoonTotal: number;
   kpis: DeliveryKpis;
   team: TeamRow[];
   unassigned: UnassignedWork;

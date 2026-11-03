@@ -31,6 +31,7 @@ export const analyticsSchema = {
       ctx.addIssue({ code: "custom", path: ["endDate"], message: "Start date must be on or before end date" });
     }
   }) }),
+  remind: z.object({ body: z.object({ applicationIds: z.array(boundedId).min(1).max(100) }).strict() }),
   report: z.object({ query: z.object({ ...filterFields, format: z.enum(["pdf", "xlsx"]).optional() }).strict().superRefine((query, ctx) => {
     const hasOneDate = Boolean(query.startDate || query.endDate);
     if ((query.range === "custom" || hasOneDate) && (!query.startDate || !query.endDate)) {

@@ -254,8 +254,49 @@ export interface DeliveryKpis {
   staleFilledRequisitions: number;
 }
 
+/** The period KPIs for the same-length window that ends the day before the selected range starts. */
+export interface PreviousPeriod {
+  startDate: string;
+  endDate: string;
+  placementsStarted: number;
+  newStarts: number;
+  redeployStarts: number;
+  medianDaysToFill: number | null;
+  daysToFillSample: number;
+  backoutRate: number | null;
+  backoutRateBase: number;
+}
+
+export interface ClientReviewRow {
+  clientId: number;
+  clientName: string;
+  inReview: number;
+  /** Null when fewer than 5 candidates are in review for this client. */
+  avgDays: number | null;
+  limitDays: number;
+  /** Past the client's review limit (verified or by age only). */
+  overdue: number;
+}
+
+export interface ClientReview {
+  /** Average days in client review across all candidates in review now. Null under 5 candidates. */
+  avgDays: number | null;
+  sample: number;
+  clients: ClientReviewRow[];
+}
+
+export interface DueSoonCandidate extends StuckCandidate {
+  /** Whole days left before the stage limit, never below 0. */
+  daysLeft: number;
+}
+
 export interface TADeliveryResult {
   dateRange: DateRangeInfo;
+  previousPeriod: PreviousPeriod;
+  clientReview: ClientReview;
+  dueSoon: DueSoonCandidate[];
+  dueSoonTotal: number;
+  trend: Trend;
   kpis: DeliveryKpis;
   requests: RequestRow[];
   stageTable: StageTableRow[];
@@ -315,6 +356,10 @@ export interface DeliveryDetail {
 
 export interface AdminDeliveryResult {
   dateRange: DateRangeInfo;
+  previousPeriod: PreviousPeriod;
+  clientReview: ClientReview;
+  dueSoon: DueSoonCandidate[];
+  dueSoonTotal: number;
   kpis: DeliveryKpis;
   team: TeamRow[];
   unassigned: UnassignedWork;
@@ -378,6 +423,7 @@ interface SnapshotItem {
   mrfId: number | null;
   mrfTitle: string | null;
   clientName: string | null;
+  clientId: number | null;
   ownerId: string | null;
   stage: StageRowKey;
   daysInStage: number;
@@ -410,7 +456,7 @@ async function loadSnapshot(jobClause: Record<string, unknown>, now: Date): Prom
           mrfId: true,
           status: true,
           postedById: true,
-          mrf: { select: { assignedTaId: true, status: true, title: true, client: { select: { name: true, reviewThresholdDays: true } } } },
+          mrf: { select: { assignedTaId: true, status: true, title: true, client: { select: { id: true, name: true, reviewThresholdDays: true } } } },
         },
       },
     },
@@ -480,6 +526,7 @@ async function loadSnapshot(jobClause: Record<string, unknown>, now: Date): Prom
       mrfId: app.jobPosting.mrfId,
       mrfTitle: app.jobPosting.mrf?.title ?? null,
       clientName: app.jobPosting.mrf?.client?.name ?? null,
+      clientId: app.jobPosting.mrf?.client?.id ?? null,
       ownerId: jobOwnerId(app.jobPosting),
       stage,
       daysInStage,
@@ -887,6 +934,47 @@ async function loadPlacements(filters: AnalyticsFilterDto, ownerId: string | und
 // ─────────────────────────────────────────────
 // KPIs
 // ─────────────────────────────────────────────
+/** The in-period KPIs, shared by the current range and the previous window so the two are always comparable. */
+export function periodKpis(
+  placements: Pick<PlacementRecord, "daysToFill" | "isRedeployment" | "hasApplication">[],
+  postSelectionBackouts: number
+) {
+  const fillTimes = placements.map((p) => p.daysToFill).filter((n): n is number => n !== null);
+  const medianFill = median(fillTimes);
+  const redeployStarts = placements.filter((p) => p.isRedeployment).length;
+  const backoutRateBase = postSelectionBackouts + placements.filter((p) => p.hasApplication).length;
+  return {
+    placementsStarted: placements.length,
+    newStarts: placements.length - redeployStarts,
+    redeployStarts,
+    medianDaysToFill: medianFill === null ? null : sampled(round1(medianFill), fillTimes.length),
+    daysToFillSample: fillTimes.length,
+    backoutRate: sampled(percent(postSelectionBackouts, backoutRateBase), backoutRateBase),
+    backoutRateBase,
+  };
+}
+
+/** Same-length window ending the day before `start` (Manila has no daylight saving, so whole days are exact). */
+export function previousWindow(start: Date, days: number): { start: Date; end: Date } {
+  return { start: new Date(start.getTime() - days * 86_400_000), end: new Date(start.getTime() - 1) };
+}
+
+async function loadPeriodKpis(
+  filters: AnalyticsFilterDto,
+  jobClause: Record<string, unknown>,
+  owner: string | undefined,
+  start: Date,
+  days: number
+): Promise<PreviousPeriod> {
+  const prev = previousWindow(start, days);
+  const [placements, backoutRecords] = await Promise.all([
+    loadPlacements(filters, owner, prev.start, prev.end),
+    loadBackouts(jobClause, prev.start, prev.end),
+  ]);
+  const lost = backoutRecords.filter((b) => POST_SELECTION_STAGES.includes(b.stage)).length;
+  return { startDate: manilaDateString(prev.start), endDate: manilaDateString(prev.end), ...periodKpis(placements, lost) };
+}
+
 export function buildKpis(
   requests: Pick<RequestRow, "headcount" | "filled" | "health">[],
   placements: Pick<PlacementRecord, "daysToFill" | "isRedeployment" | "hasApplication">[],
@@ -896,10 +984,7 @@ export function buildKpis(
 ): DeliveryKpis {
   const requestedSeats = requests.reduce((s, r) => s + r.headcount, 0);
   const filledSeats = requests.reduce((s, r) => s + Math.min(r.filled, r.headcount), 0);
-  const fillTimes = placements.map((p) => p.daysToFill).filter((n): n is number => n !== null);
-  const medianFill = median(fillTimes);
-  const redeployStarts = placements.filter((p) => p.isRedeployment).length;
-  const backoutRateBase = postSelectionBackouts + placements.filter((p) => p.hasApplication).length;
+  const period = periodKpis(placements, postSelectionBackouts);
   const pipeline = snapshot.filter((s) => s.stage !== "DEPLOYED");
   const count = (health: RequestHealth) => requests.filter((r) => r.health === health).length;
   return {
@@ -914,14 +999,8 @@ export function buildKpis(
       atRisk: count("AT_RISK"),
       filled: count("FILLED"),
     },
-    placementsStarted: placements.length,
-    newStarts: placements.length - redeployStarts,
-    redeployStarts,
-    medianDaysToFill: medianFill === null ? null : sampled(round1(medianFill), fillTimes.length),
-    daysToFillSample: fillTimes.length,
+    ...period,
     backoutsAfterClientReview: postSelectionBackouts,
-    backoutRate: sampled(percent(postSelectionBackouts, backoutRateBase), backoutRateBase),
-    backoutRateBase,
     activeApplicants: pipeline.length,
     overdueCandidates: pipeline.filter((s) => s.overdue).length,
     overdueEstimated: pipeline.filter((s) => s.overdueEstimated).length,
@@ -1081,9 +1160,9 @@ const tidyNote = (reason: string | null): string | null => {
  * Adds the latest recorded decision (time and reason) to the listed rows, in one query over just those rows.
  * Rows without a decision keep the stage-entry date. Ownership is unchanged: the ids come from rows already in scope.
  */
-async function withLastActivity(stuck: { items: StuckCandidate[]; total: number }) {
-  const ids = stuck.items.map((i) => i.applicationId);
-  if (ids.length === 0) return stuck;
+async function withLastActivityRows<T extends StuckCandidate>(rows: T[]): Promise<T[]> {
+  const ids = rows.map((i) => i.applicationId);
+  if (ids.length === 0) return rows;
   const decisions = await prisma.recruiterDecision.findMany({
     where: { applicationId: { in: ids } },
     orderBy: { createdAt: "desc" },
@@ -1091,14 +1170,85 @@ async function withLastActivity(stuck: { items: StuckCandidate[]; total: number 
     select: { applicationId: true, createdAt: true, reason: true, actorId: true, application: { select: { userId: true } } },
   });
   const latest = new Map(decisions.map((d) => [d.applicationId, d]));
+  return rows.map((item) => {
+    const d = latest.get(item.applicationId);
+    // Automatic moves (e.g. match scoring) are recorded under the applicant's own id; only staff wording is a note.
+    const note = d && d.actorId !== d.application.userId ? tidyNote(d.reason) : null;
+    return d ? { ...item, lastActivityAt: d.createdAt.toISOString(), lastNote: note } : item;
+  });
+}
+
+/** Overdue rows and due-soon rows share one lookup. The two sets never overlap, so each application is read once. */
+async function withActivity(stuck: { items: StuckCandidate[]; total: number }, due: { items: DueSoonCandidate[]; total: number }) {
+  const rows = await withLastActivityRows<StuckCandidate>([...stuck.items, ...due.items]);
   return {
-    total: stuck.total,
-    items: stuck.items.map((item) => {
-      const d = latest.get(item.applicationId);
-      // Automatic moves (e.g. match scoring) are recorded under the applicant's own id; only staff wording is a note.
-      const note = d && d.actorId !== d.application.userId ? tidyNote(d.reason) : null;
-      return d ? { ...item, lastActivityAt: d.createdAt.toISOString(), lastNote: note } : item;
-    }),
+    stuck: { items: rows.slice(0, stuck.items.length), total: stuck.total },
+    dueSoon: { items: rows.slice(stuck.items.length) as DueSoonCandidate[], total: due.total },
+  };
+}
+
+/**
+ * Candidates who are not overdue yet but reach their stage limit within 2 days, soonest first.
+ * Awaiting-start placements, closed openings and anything already overdue are left out.
+ */
+export function buildDueSoon(snapshot: SnapshotItem[], recruiterOf: (ownerId: string | null) => { id: string; name: string }, limit = 20) {
+  const all = snapshot
+    .filter((s) => !s.overdue && !s.overdueEstimated && !s.closedOpening && s.stage !== "DEPLOYED" && s.slaDays - s.daysInStage <= 2)
+    .map((s) => ({ s, daysLeft: Math.max(0, Math.floor(s.slaDays - s.daysInStage)) }))
+    .sort((a, b) => a.daysLeft - b.daysLeft || b.s.daysInStage - a.s.daysInStage || a.s.applicationId - b.s.applicationId);
+  const items: DueSoonCandidate[] = all.slice(0, limit).map(({ s, daysLeft }) => {
+    const who = recruiterOf(s.ownerId);
+    return {
+      applicationId: s.applicationId,
+      candidateName: s.candidateName,
+      jobTitle: s.jobTitle,
+      clientName: s.clientName,
+      mrfId: s.mrfId,
+      recruiterId: who.id,
+      recruiterName: who.name,
+      stage: s.stage,
+      stageLabel: stageLabel(s.stage),
+      daysInStage: Math.floor(s.daysInStage),
+      slaDays: s.slaDays,
+      daysOver: 0,
+      urgency: "overdue" as const,
+      estimated: false,
+      lastActivityAt: s.enteredAt.toISOString(),
+      lastNote: null,
+      daysLeft,
+    };
+  });
+  return { items, total: all.length };
+}
+
+/** Candidates in client review now, by client: how long they have waited against that client's own limit. */
+export function buildClientReview(
+  snapshot: Pick<SnapshotItem, "stage" | "closedOpening" | "clientId" | "clientName" | "daysInStage" | "slaDays" | "overdue" | "overdueEstimated">[]
+): ClientReview {
+  const inReview = snapshot.filter((s) => s.stage === "CLIENT_ENDORSEMENT" && !s.closedOpening && s.clientId !== null);
+  const avg = (items: { daysInStage: number }[]) => round1(items.reduce((t, i) => t + i.daysInStage, 0) / items.length);
+  const byClient = new Map<number, typeof inReview>();
+  for (const s of inReview) byClient.set(s.clientId!, [...(byClient.get(s.clientId!) ?? []), s]);
+  const clients: ClientReviewRow[] = [...byClient.entries()].map(([clientId, items]) => ({
+    clientId,
+    clientName: items[0].clientName ?? `Client #${clientId}`,
+    inReview: items.length,
+    avgDays: sampled(avg(items), items.length),
+    limitDays: items[0].slaDays,
+    overdue: items.filter((i) => i.overdue || i.overdueEstimated).length,
+  }));
+  clients.sort(
+    (a, b) =>
+      Number(b.avgDays !== null) - Number(a.avgDays !== null) ||
+      (b.avgDays !== null && a.avgDays !== null ? b.avgDays - b.limitDays - (a.avgDays - a.limitDays) : 0) ||
+      b.overdue - a.overdue ||
+      b.inReview - a.inReview ||
+      a.clientId - b.clientId
+  );
+  return {
+    avgDays: inReview.length ? sampled(avg(inReview), inReview.length) : null,
+    sample: inReview.length,
+    clients: clients.slice(0, 6),
   };
 }
 
@@ -1212,7 +1362,7 @@ async function computeTADelivery(
   const { start, end, days } = parseDateRange(filters);
   const jobClause = buildJobClause(filters, scope);
   const owner = ownerFilter(filters, scope);
-  const [snapshot, entered, backoutRecords, closureRecords, dropOff, placements, clientDecisions, fetched] = await Promise.all([
+  const [snapshot, entered, backoutRecords, closureRecords, dropOff, placements, clientDecisions, fetched, previousPeriod] = await Promise.all([
     loadSnapshot(jobClause, now),
     loadEntered(jobClause, start, end),
     loadBackouts(jobClause, start, end),
@@ -1221,14 +1371,20 @@ async function computeTADelivery(
     loadPlacements(filters, owner, start, end),
     loadClientDecisions(jobClause, start, end),
     fetchRequests(filters, owner, start, end),
+    loadPeriodKpis(filters, jobClause, owner, start, days),
   ]);
   const requests = assembleRequests(fetched.mrfs, snapshot, backoutRecords, now);
   const postSelection = backoutRecords.filter((b) => POST_SELECTION_STAGES.includes(b.stage));
   // Everything a TA sees is their own, so the recruiter column is just "You".
   const self = () => ({ id: scope.userId, name: "You" });
-  const stuck = await withLastActivity(buildStuck(snapshot, self));
+  const { stuck, dueSoon } = await withActivity(buildStuck(snapshot, self), buildDueSoon(snapshot, self));
   const result: TADeliveryResult = {
     dateRange: rangeInfo(start, end, days),
+    previousPeriod,
+    clientReview: buildClientReview(snapshot),
+    dueSoon: dueSoon.items,
+    dueSoonTotal: dueSoon.total,
+    trend: buildTrend(placements, backoutRecords, start, end, days),
     kpis: buildKpis(requests, placements, postSelection.length, snapshot, fetched.staleFilled),
     requests,
     stageTable: buildStageTable(snapshot, entered, backoutRecords),
@@ -1260,7 +1416,7 @@ async function computeAdminDelivery(
   const jobClause = buildJobClause(filters);
   const owner = ownerFilter(filters);
 
-  const [snapshot, entered, backoutRecords, closureRecords, placements, endorsements, clientDecisions, fetched] = await Promise.all([
+  const [snapshot, entered, backoutRecords, closureRecords, placements, endorsements, clientDecisions, fetched, previousPeriod] = await Promise.all([
     loadSnapshot(jobClause, now),
     loadEntered(jobClause, start, end),
     loadBackouts(jobClause, start, end),
@@ -1272,6 +1428,7 @@ async function computeAdminDelivery(
     }),
     loadClientDecisions(jobClause, start, end),
     fetchRequests(filters, owner, start, end),
+    loadPeriodKpis(filters, jobClause, owner, start, days),
   ]);
 
   const rawRequests = assembleRequests(fetched.mrfs, snapshot, backoutRecords, now);
@@ -1360,10 +1517,14 @@ async function computeAdminDelivery(
     const id = keyOf(ownerId);
     return { id, name: names.get(id) ?? UNASSIGNED_NAME };
   };
-  const stuck = await withLastActivity(buildStuck(snapshot, recruiterOf));
+  const { stuck, dueSoon } = await withActivity(buildStuck(snapshot, recruiterOf), buildDueSoon(snapshot, recruiterOf));
 
   const result: AdminDeliveryResult = {
     dateRange: rangeInfo(start, end, days),
+    previousPeriod,
+    clientReview: buildClientReview(snapshot),
+    dueSoon: dueSoon.items,
+    dueSoonTotal: dueSoon.total,
     kpis: buildKpis(requests, placements, postSelection.length, snapshot, staleFilled),
     team,
     unassigned,

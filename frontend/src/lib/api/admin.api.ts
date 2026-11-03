@@ -67,6 +67,7 @@ import type {
   AdminDeliveryDashboard,
   AnalyticsFilterOptions,
   AnalyticsFilterState,
+  RemindResult,
 } from "../types/analytics.types";
 
 function buildAnalyticsQueryString(filters?: Partial<AnalyticsFilterState>): string {
@@ -242,6 +243,9 @@ export const adminApi = {
 
   getFilterOptions: () =>
     api.get<AnalyticsFilterOptions>("/api/admin/analytics/filters"),
+
+  remindRecruiters: (applicationIds: number[]) =>
+    api.post<RemindResult>("/api/admin/analytics/remind", { applicationIds }),
 
   // -------------------------------------------------------------
   // 6. Manpower Request (MRF) Oversight

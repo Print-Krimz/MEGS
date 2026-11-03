@@ -3,11 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("../../utils/prisma.js", () => ({ default: {} }));
 
 import {
+  buildClientReview,
   buildDropOff,
+  buildDueSoon,
   buildKpis,
   buildStageTable,
   buildTrend,
   buildJobClause,
+  previousWindow,
   summarizeBackouts,
   summarizeClosures,
 } from "./delivery.service.js";
@@ -505,5 +508,105 @@ describe("five-case rule and named definitions", () => {
       expect(["Right now", "In these dates"]).toContain(METRICS[k].window);
     }
     expect(STAGE_ROWS.map((r) => r.label)).toEqual(["Submitted", "Initial screening", "Client review", "Final interview", "Requirements", "Contract signing", "Deployed"]);
+  });
+});
+
+const snap = (over: Record<string, unknown> = {}) => ({
+  applicationId: 1,
+  candidateName: "A",
+  jobTitle: "Job",
+  mrfId: 1,
+  mrfTitle: "Req",
+  clientName: "Acme",
+  clientId: 1,
+  ownerId: "ta1",
+  stage: "CLIENT_ENDORSEMENT",
+  daysInStage: 3,
+  enteredAt: d("2026-10-30T00:00:00Z"),
+  slaDays: 5,
+  overdue: false,
+  overdueEstimated: false,
+  closedOpening: false,
+  ...over,
+});
+const recruiterOf = (id: string | null) => ({ id: id ?? "unassigned", name: id ?? "No recruiter assigned" });
+
+describe("previous period window", () => {
+  it("is the same length and ends right before the current start", () => {
+    const start = d("2026-10-26T16:00:00Z"); // 27 Oct 00:00 Manila
+    const prev = previousWindow(start, 7);
+    expect(prev.end.getTime()).toBe(start.getTime() - 1);
+    expect(prev.start.toISOString()).toBe("2026-10-19T16:00:00.000Z");
+    expect(prev.end.getTime() - prev.start.getTime() + 1).toBe(7 * 86_400_000);
+  });
+});
+
+describe("buildClientReview", () => {
+  const five = (clientId: number, name: string, days: number, limit: number, overdueCount = 0) =>
+    Array.from({ length: 5 }, (_, i) =>
+      snap({ applicationId: clientId * 100 + i, clientId, clientName: name, daysInStage: days, slaDays: limit, overdue: i < overdueCount })
+    );
+
+  it("groups client-review candidates by client with average, limit and overdue count", () => {
+    const r = buildClientReview([...five(1, "Acme", 6.24, 5, 2), ...five(2, "Beta", 2, 5)] as any);
+    expect(r.sample).toBe(10);
+    expect(r.avgDays).toBe(4.1);
+    expect(r.clients.map((c) => c.clientName)).toEqual(["Acme", "Beta"]);
+    expect(r.clients[0]).toMatchObject({ inReview: 5, avgDays: 6.2, limitDays: 5, overdue: 2 });
+  });
+
+  it("hides averages under 5 candidates, ranks them after sampled clients, and skips other stages, closed openings and no client", () => {
+    const r = buildClientReview([
+      ...five(1, "Acme", 2, 5),
+      snap({ applicationId: 900, clientId: 2, clientName: "Small", daysInStage: 20, overdue: true }),
+      snap({ applicationId: 901, stage: "COMPLIANCE" }),
+      snap({ applicationId: 902, closedOpening: true }),
+      snap({ applicationId: 903, clientId: null, clientName: null }),
+    ] as any);
+    expect(r.sample).toBe(6);
+    expect(r.clients.map((c) => c.clientName)).toEqual(["Acme", "Small"]);
+    expect(r.clients[1]).toMatchObject({ avgDays: null, inReview: 1, overdue: 1 });
+  });
+
+  it("counts estimated overdue, sorts by distance over the limit and keeps the top 6", () => {
+    const clients = [1, 2, 3, 4, 5, 6, 7].flatMap((id) => five(id, `C${id}`, 5 + id, 5, id === 1 ? 5 : 0));
+    const r = buildClientReview(clients as any);
+    expect(r.clients).toHaveLength(6);
+    expect(r.clients[0].clientName).toBe("C7");
+    const est = buildClientReview([snap({ overdueEstimated: true })] as any);
+    expect(est.clients[0].overdue).toBe(1);
+    expect(est.avgDays).toBeNull();
+  });
+
+  it("is empty with nothing in client review", () => {
+    expect(buildClientReview([])).toEqual({ avgDays: null, sample: 0, clients: [] });
+  });
+});
+
+describe("buildDueSoon", () => {
+  it("lists candidates within 2 days of the limit, soonest first, with whole days left", () => {
+    const r = buildDueSoon(
+      [
+        snap({ applicationId: 1, daysInStage: 3.2, slaDays: 5 }), // 1 day left
+        snap({ applicationId: 2, daysInStage: 4.9, slaDays: 5 }), // 0 days left
+        snap({ applicationId: 3, daysInStage: 1, slaDays: 5 }), // too early
+        snap({ applicationId: 4, daysInStage: 6, slaDays: 5, overdue: true }),
+        snap({ applicationId: 5, daysInStage: 6, slaDays: 5, overdueEstimated: true }),
+        snap({ applicationId: 6, daysInStage: 4.5, slaDays: 5, closedOpening: true }),
+        snap({ applicationId: 7, stage: "DEPLOYED", daysInStage: 4.5, slaDays: 5 }),
+        snap({ applicationId: 8, daysInStage: 2.1, slaDays: 4 }), // 1 day left, waited less
+      ] as any,
+      recruiterOf
+    );
+    expect(r.items.map((i) => [i.applicationId, i.daysLeft])).toEqual([[2, 0], [1, 1], [8, 1]]);
+    expect(r.total).toBe(3);
+    expect(r.items[0]).toMatchObject({ recruiterId: "ta1", stageLabel: "Client review", daysOver: 0, estimated: false });
+  });
+
+  it("caps rows but reports the full total", () => {
+    const rows = Array.from({ length: 5 }, (_, i) => snap({ applicationId: i + 1, daysInStage: 4.5, slaDays: 5 }));
+    const r = buildDueSoon(rows as any, recruiterOf, 2);
+    expect(r.items).toHaveLength(2);
+    expect(r.total).toBe(5);
   });
 });
