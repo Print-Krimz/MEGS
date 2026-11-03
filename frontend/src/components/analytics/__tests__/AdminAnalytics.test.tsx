@@ -251,16 +251,19 @@ describe("Analytics Components Test Suite", () => {
 
   it("says how few records stand behind a rate instead of showing a fake one", () => {
     render(<TeamTable rows={[teamRow("ta-1", "Alice Recruiter", { active: 3 })]} onSelectRecruiter={vi.fn()} />);
-    expect(screen.getByRole("row", { name: /Alice Recruiter/ }).textContent).toContain("No data yet");
+    const text = screen.getByRole("row", { name: /Alice Recruiter/ }).textContent;
+    expect(text).toContain("—");
+    expect(text).toContain("No data yet");
   });
 
   it("shows seats filled with counts and the percentage, and the workload next to results", () => {
     const rows = [teamRow("ta-1", "Alice Recruiter", { active: 14, overdue: 3, overdueEstimated: 2, openRequisitions: 4, requestedSeats: 30, filledSeats: 12, fillRate: 40, placed: 5, newStarts: 3, redeployStarts: 2 })];
     render(<TeamTable rows={rows} onSelectRecruiter={vi.fn()} />);
     const text = screen.getByRole("row", { name: /Alice Recruiter/ }).textContent;
-    expect(text).toContain("12 of 30");
+    expect(text).toContain("12 / 30 seats");
     expect(text).toContain("40%");
-    expect(text).toContain("3 + 2 estimated");
+    expect(text).toContain("3 overdue");
+    expect(text).toContain("+2 projected");
     expect(text).not.toContain("redeploy");
   });
 

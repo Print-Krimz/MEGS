@@ -158,6 +158,14 @@ export const AdminAnalyticsPage: React.FC = () => {
     [recruiterId, selectRecruiter],
   );
 
+  /** From the Recruiters table: filter the page to one recruiter and open their overdue candidates. */
+  const viewRecruiterOverdue = (id: string) => {
+    setNonce((n) => n + 1);
+    setTabState("waiting");
+    setFocusRequest({ tab: "waiting", id: nonce + 1 });
+    update({ recruiterId: id, tab: "waiting", urgency: undefined, stage: undefined, health: undefined });
+    scrollToWorkspace();
+  };
   /** Open the waiting list with a filter applied. */
   const showWaiting = (focus: Omit<WaitingFocus, "nonce">) => {
     setNonce((n) => n + 1);
@@ -383,7 +391,7 @@ export const AdminAnalyticsPage: React.FC = () => {
                 label: "Recruiters",
                 shortLabel: "Recruiters",
                 count: data.team.length,
-                content: <TeamTable bare rows={data.team} selectedRecruiterId={filters.recruiterId} onSelectRecruiter={selectRecruiter} />,
+                content: <TeamTable bare rows={data.team} selectedRecruiterId={filters.recruiterId} onSelectRecruiter={selectRecruiter} onViewOverdue={viewRecruiterOverdue} />,
               },
             ]}
           />

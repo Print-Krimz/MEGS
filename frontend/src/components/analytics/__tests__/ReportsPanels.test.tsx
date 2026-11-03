@@ -15,8 +15,8 @@ vi.mock("@tanstack/react-router", () => ({
 const { downloadCsvMock } = vi.hoisted(() => ({ downloadCsvMock: vi.fn() }));
 vi.mock("../../../lib/csv", async (importOriginal) => ({ ...(await importOriginal<typeof import("../../../lib/csv")>()), downloadCsv: downloadCsvMock }));
 
-import { ActionItemsList, BackoutReasonsDonut, ClientReviewPanel, DueSoonList, StagePipeline, StuckList } from "../index";
-import type { BackoutSummary, ClientReview, DueSoonCandidate, StageTableRow, StuckCandidate, TAPendingActionItem } from "../../../lib/types/analytics.types";
+import { ActionItemsList, BackoutReasonsDonut, ClientReviewPanel, DueSoonList, StagePipeline, StuckList, TeamTable } from "../index";
+import type { BackoutSummary, ClientReview, DueSoonCandidate, StageTableRow, StuckCandidate, TAPendingActionItem, TeamRow } from "../../../lib/types/analytics.types";
 
 const stuckRow = (id: number, over: Partial<StuckCandidate> = {}): StuckCandidate => ({
   applicationId: id,
@@ -323,5 +323,46 @@ describe("recruiterDisplayName", () => {
     expect(recruiterDisplayName("Ferdinand Rito")).toEqual({ label: "Ferdinand Rito" });
     expect(recruiterDisplayName("sales_food_001@175dev.com")).toEqual({ label: "Sales Food 001", full: "sales_food_001@175dev.com" });
     expect(recruiterDisplayName("naheje4599@37xiao.com").email).toBeUndefined();
+  });
+});
+
+describe("TeamTable flags and actions", () => {
+  const team = (id: string, name: string, over: Partial<TeamRow> = {}): TeamRow => ({
+    recruiterId: id, name, active: 6, overdue: 0, overdueEstimated: 0, openRequisitions: 2, requestedSeats: 20, filledSeats: 10, fillRate: 50,
+    sentToClient: 0, newStarts: 4, redeployStarts: 0, placed: 4, backouts: 1, backoutRate: 10, backoutRateBase: 10, medianDaysToFill: 10, daysToFillSample: 6, ...over,
+  });
+  const rows = [
+    team("a", "Alice", { active: 30, overdue: 12, overdueEstimated: 2, filledSeats: 2, fillRate: 10, backoutRate: 40, medianDaysToFill: 20 }),
+    team("b", "Bea"),
+    team("c", "Cy", { medianDaysToFill: 5 }),
+  ];
+  const rowOf = (name: string) => screen.getByRole("row", { name: new RegExp(name) }).textContent ?? "";
+
+  it("flags the overloaded, late, low-filling, high-backout and slow recruiter against the team", () => {
+    render(<TeamTable rows={rows} onSelectRecruiter={vi.fn()} />);
+    const alice = rowOf("Alice");
+    for (const flag of ["High load", "High overdue", "Low fill", "High backouts", "Slow"]) expect(alice).toContain(flag);
+    expect(alice).toContain("12 overdue");
+    expect(alice).toContain("+2 projected");
+    expect(alice).toContain("2 / 20 seats");
+    expect(rowOf("Cy")).toContain("Fast");
+    expect(rowOf("Bea")).not.toMatch(/High|Low fill|Slow|Fast/);
+  });
+
+  it("shows no flags for a team of two", () => {
+    render(<TeamTable rows={rows.slice(0, 2)} onSelectRecruiter={vi.fn()} />);
+    expect(rowOf("Alice")).not.toContain("High load");
+    expect(screen.getByText(/at least three recruiters/)).toBeDefined();
+  });
+
+  it("selects on a row click, and the overdue count opens that recruiter's overdue list without also toggling the filter", () => {
+    const onSelect = vi.fn();
+    const onView = vi.fn();
+    render(<TeamTable rows={rows} onSelectRecruiter={onSelect} onViewOverdue={onView} />);
+    fireEvent.click(screen.getByRole("button", { name: /12 overdue, 2 projected/ }));
+    expect(onView).toHaveBeenCalledWith("a");
+    expect(onSelect).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("row", { name: /Bea/ }));
+    expect(onSelect).toHaveBeenCalledWith("b");
   });
 });

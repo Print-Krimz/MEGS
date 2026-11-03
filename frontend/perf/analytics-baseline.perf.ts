@@ -344,6 +344,9 @@ const adminDashboard = {
   team: [
     teamRow({ recruiterId: "ta-1", name: "Alice Recruiter", active: 40, overdue: 12, overdueEstimated: 3, openRequisitions: 2, requestedSeats: 35, filledSeats: 24, fillRate: 68.6, sentToClient: 9, newStarts: 2, redeployStarts: 2, placed: 4, backouts: 2, backoutRate: 33.3, backoutRateBase: 6, medianDaysToFill: 20, daysToFillSample: 6 }),
     teamRow({ recruiterId: "ta-2", name: "Bob Recruiter", active: 22, overdue: 1, overdueEstimated: 0, openRequisitions: 1, requestedSeats: 5, filledSeats: 1, fillRate: 20, sentToClient: 4, newStarts: 2, redeployStarts: 0, placed: 2, backouts: 1, backoutRate: 33.3, backoutRateBase: 3, medianDaysToFill: 15, daysToFillSample: 2 }),
+    teamRow({ recruiterId: "ta-3", name: "naheje4599@37xiao.com", active: 12, overdue: 0, overdueEstimated: 0, openRequisitions: 3, requestedSeats: 30, filledSeats: 18, fillRate: 60, newStarts: 6, placed: 6, backouts: 0, backoutRate: 0, backoutRateBase: 8, medianDaysToFill: 6, daysToFillSample: 6 }),
+    teamRow({ recruiterId: "ta-4", name: "Juan Dela Cruz", active: 9, overdue: 2, overdueEstimated: 0, openRequisitions: 0, requestedSeats: 0, filledSeats: 0, fillRate: null, placed: 0, backoutRate: null, backoutRateBase: 0, medianDaysToFill: null, daysToFillSample: 0 }),
+    teamRow({ recruiterId: "ta-5", name: "Retard Rita", active: 14, overdue: 5, overdueEstimated: 1, openRequisitions: 2, requestedSeats: 20, filledSeats: 3, fillRate: 15, placed: 3, backouts: 3, backoutRate: 50, backoutRateBase: 6, medianDaysToFill: 24, daysToFillSample: 5 }),
   ],
   unassigned: { applicants: 45, overdue: 12, overdueEstimated: 3, requests: 0, requestedSeats: 0, oldestWaitDays: 41 },
   requests,

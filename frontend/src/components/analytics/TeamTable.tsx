@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from "react";
 import type { TeamRow } from "../../lib/types/analytics.types";
-import { formatSampled } from "../../lib/analytics-format";
+import { sampleNote } from "../../lib/analytics-format";
 import { formatRecruiterName } from "../../lib/recruiter-label";
 import { AnalyticsPanel } from "./AnalyticsPanel";
-import { TEXT_LOSS, TEXT_AMBER } from "../../lib/chart-palette";
+import { TEXT_AMBER, TEXT_GOOD, TEXT_LOSS } from "../../lib/chart-palette";
 import { PaginationBar } from "./PaginationBar";
 
 interface TeamTableProps {
@@ -17,6 +17,8 @@ interface TeamTableProps {
   initialQuery?: string;
   /** One visible line under the tab. */
   subtitle?: string;
+  /** Filters the page to this recruiter and opens their overdue candidates. Without it the overdue count is plain text. */
+  onViewOverdue?: (recruiterId: string) => void;
 }
 
 type SortKey = "name" | "active" | "overdue" | "openRequisitions" | "seats" | "placed" | "backoutRate" | "medianDaysToFill";
@@ -63,7 +65,61 @@ const compare = (a: TeamRow, b: TeamRow, { key, dir }: Sort): number => {
   return dir === "asc" ? order : -order;
 };
 
-const TD = "px-3 py-2 text-right tabular-nums whitespace-nowrap text-slate-700";
+const TD = "px-3 py-2 text-right tabular-nums whitespace-nowrap text-slate-700 align-top";
+const SUB = "block text-xs font-normal";
+
+/** A recruiter flag: what it says and how it reads (red = act now, amber = watch, green = strong). */
+type Flag = { text: string; tone: "bad" | "watch" | "good" };
+const FLAG_TONE = { bad: TEXT_LOSS, watch: TEXT_AMBER, good: TEXT_GOOD } as const;
+
+/**
+ * Flags compare one recruiter with the rest of the team, so they only appear for a team of three or more.
+ * The cut-offs are deliberately plain: 1.5x the team average for load, a 40% overdue share, half the team fill rate,
+ * 1.5x the team backout rate (and at least 20%), and a quarter faster or slower than the typical days to fill.
+ */
+const benchmarks = (rows: TeamRow[]) => {
+  const comparable = rows.length >= 3;
+  const avg = (xs: number[]) => (xs.length ? xs.reduce((t, x) => t + x, 0) / xs.length : null);
+  const seats = rows.reduce((t, r) => t + r.requestedSeats, 0);
+  const filled = rows.reduce((t, r) => t + r.filledSeats, 0);
+  const lost = rows.reduce((t, r) => t + r.backouts, 0);
+  const base = rows.reduce((t, r) => t + r.backoutRateBase, 0);
+  const days = rows.map((r) => r.medianDaysToFill).filter((n): n is number => n !== null).sort((x, y) => x - y);
+  const mid = days.length ? (days.length % 2 ? days[(days.length - 1) / 2] : (days[days.length / 2 - 1] + days[days.length / 2]) / 2) : null;
+  return {
+    comparable,
+    active: avg(rows.map((r) => r.active)),
+    fill: seats > 0 ? (filled / seats) * 100 : null,
+    backout: base > 0 ? (lost / base) * 100 : null,
+    days: mid,
+  };
+};
+type Benchmarks = ReturnType<typeof benchmarks>;
+
+const flagsFor = (row: TeamRow, bench: Benchmarks) => {
+  const out: { load?: Flag; overdue?: Flag; fill?: Flag; backout?: Flag; days?: Flag } = {};
+  if (!bench.comparable) return out;
+  const late = row.overdue + row.overdueEstimated;
+  if (bench.active !== null && row.active >= 10 && row.active > bench.active * 1.5) out.load = { text: "High load", tone: "watch" };
+  if (late >= 3 && row.active > 0 && late / row.active >= 0.4) out.overdue = { text: "High overdue", tone: "bad" };
+  if (row.fillRate !== null && bench.fill !== null && row.fillRate < bench.fill * 0.5) out.fill = { text: "Low fill", tone: "watch" };
+  if (row.backoutRate !== null && bench.backout !== null && row.backoutRate >= Math.max(20, bench.backout * 1.5)) out.backout = { text: "High backouts", tone: "bad" };
+  if (row.medianDaysToFill !== null && bench.days !== null && Math.abs(row.medianDaysToFill - bench.days) >= 1) {
+    if (row.medianDaysToFill <= bench.days * 0.75) out.days = { text: "Fast", tone: "good" };
+    else if (row.medianDaysToFill >= bench.days * 1.25) out.days = { text: "Slow", tone: "bad" };
+  }
+  return out;
+};
+
+/** A hidden rate: "—", with how few cases stood behind it when there were some. */
+const NoValue: React.FC<{ n: number }> = ({ n }) => (
+  <>
+    <span aria-hidden="true" className="text-slate-400">—</span>
+    {n === 0 ? <span className="sr-only">{sampleNote(0)}</span> : <span className={`${SUB} text-slate-500`}>{sampleNote(n)}</span>}
+  </>
+);
+
+const FlagText: React.FC<{ flag?: Flag }> = ({ flag }) => (flag ? <span className={`${SUB} font-semibold ${FLAG_TONE[flag.tone]}`}>{flag.text}</span> : null);
 
 export const TeamTable = React.memo(function TeamTable({
   rows,
@@ -72,7 +128,8 @@ export const TeamTable = React.memo(function TeamTable({
   pageSize = 10,
   bare = false,
   initialQuery = "",
-  subtitle = "Select a name to filter the whole page to that recruiter. Active, Overdue, Open requests and Seats filled are right now. Starts, Backout rate and Days to fill use the dates above.",
+  subtitle = "Select a row to filter the whole page to that recruiter. Active, Overdue, Open requests and Seats filled are right now. Starts, Backout rate and Days to fill use the dates above.",
+  onViewOverdue,
 }: TeamTableProps) {
   const [query, setQuery] = useState(initialQuery);
   const [page, setPage] = useState(1);
@@ -91,6 +148,8 @@ export const TeamTable = React.memo(function TeamTable({
     return [...kept].sort((a, b) => compare(a, b, sort));
   }, [rows, query, selectedRecruiterId, sort]);
 
+  const bench = useMemo(() => benchmarks(rows), [rows]);
+
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const pageRows = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -102,7 +161,7 @@ export const TeamTable = React.memo(function TeamTable({
 
   return (
     <AnalyticsPanel tone="reports" id="recruiter-table" title="Recruiters" subtitle={subtitle} bare={bare}>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-slate-200 px-3.5 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-slate-200 px-3.5 py-2">
         <label className="flex items-center gap-2 text-xs text-slate-700">
           <span className="text-xs font-semibold text-slate-600">Search</span>
           <input
@@ -116,13 +175,18 @@ export const TeamTable = React.memo(function TeamTable({
             className="min-h-9 w-52 border border-slate-300 bg-white px-2.5 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           />
         </label>
+        <p className="text-xs font-sans text-slate-600">
+          {bench.comparable
+            ? "Flags compare each recruiter with the team average."
+            : "Flags need at least three recruiters to compare."}
+        </p>
       </div>
 
       {pageRows.length === 0 ? (
         <p className="p-6 text-center text-xs text-slate-500 font-sans">{rows.length === 0 ? "No recruiters in this view." : "No match."}</p>
       ) : (
         <div className="max-h-[32rem] overflow-auto">
-          <table className="w-full min-w-[46rem] text-sm">
+          <table className="w-full min-w-[50rem] text-sm">
             <thead className="sticky top-0 z-10 bg-white shadow-[inset_0_-1px_0_var(--color-slate-200)]">
               <tr>
                 {COLUMNS.map((col) => {
@@ -132,7 +196,7 @@ export const TeamTable = React.memo(function TeamTable({
                       key={col.key}
                       scope="col"
                       aria-sort={active ? (shown.dir === "asc" ? "ascending" : "descending") : undefined}
-                      className={`px-3 py-1 text-xs font-semibold text-slate-600 whitespace-nowrap ${col.key === "name" ? "text-left min-w-40" : "text-right"}`}
+                      className={`px-3 py-0.5 text-xs font-semibold text-slate-600 whitespace-nowrap ${col.key === "name" ? "text-left min-w-44" : "text-right"}`}
                     >
                       <button
                         type="button"
@@ -140,7 +204,7 @@ export const TeamTable = React.memo(function TeamTable({
                         className="min-h-9 inline-flex items-center gap-1 font-semibold hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
                         {col.label}
-                        <span aria-hidden="true" className={active ? "text-slate-900" : "text-slate-400"}>
+                        <span aria-hidden="true" className={`text-[10px] ${active ? "text-slate-900" : "text-slate-300"}`}>
                           {active ? (shown.dir === "asc" ? "▲" : "▼") : "↕"}
                         </span>
                       </button>
@@ -155,38 +219,101 @@ export const TeamTable = React.memo(function TeamTable({
                 const { label, email } = formatRecruiterName(row.name);
                 const action = selected ? "Show all recruiters" : "Filter the page to this recruiter";
                 const spokenName = email ? `${label}, ${email}` : label;
+                const late = row.overdue + row.overdueEstimated;
+                const flag = flagsFor(row, bench);
+                const toggle = () => onSelectRecruiter(selected ? undefined : row.recruiterId);
                 return (
-                  <tr key={row.recruiterId} className={selected ? "bg-navy-soft" : undefined}>
-                    <th scope="row" className="px-3 py-2 text-left font-sans font-medium whitespace-nowrap">
+                  // The whole row is a click target (the name button is the keyboard route), because choosing a recruiter filters the page.
+                  <tr
+                    key={row.recruiterId}
+                    onClick={toggle}
+                    className={`cursor-pointer transition-colors hover:bg-navy-soft motion-reduce:transition-none ${selected ? "bg-navy-soft shadow-[inset_3px_0_0_var(--color-navy)]" : ""}`}
+                  >
+                    <th scope="row" className="px-3 py-2 text-left font-sans font-semibold whitespace-nowrap align-top">
                       <button
                         type="button"
                         aria-pressed={selected}
                         aria-label={`${spokenName}. ${action}`}
                         title={action}
-                        onClick={() => onSelectRecruiter(selected ? undefined : row.recruiterId)}
-                        className="min-h-9 text-left text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggle();
+                        }}
+                        className="min-h-9 text-left text-sm text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
                         {label}
                         {email && <span className="block text-xs font-normal text-slate-500 truncate">{email}</span>}
                       </button>
                     </th>
-                    <td className={`${TD} font-semibold text-slate-950`}>{row.active}</td>
-                    <td className={`px-3 py-2 text-right tabular-nums whitespace-nowrap ${row.overdue + row.overdueEstimated > 0 ? `font-bold ${TEXT_LOSS}` : "text-slate-500"}`}>
-                      {row.overdue}
-                      {row.overdueEstimated > 0 && <span className={`font-normal ${TEXT_AMBER}`}> + {row.overdueEstimated} estimated</span>}
+                    <td className={`${TD} font-semibold text-slate-950`}>
+                      {row.active}
+                      <FlagText flag={flag.load} />
+                    </td>
+                    <td className={`${TD} ${late > 0 ? "" : "text-slate-500"}`}>
+                      {late === 0 ? (
+                        "0"
+                      ) : onViewOverdue ? (
+                        <button
+                          type="button"
+                          aria-label={`${row.overdue} overdue${row.overdueEstimated > 0 ? `, ${row.overdueEstimated} projected` : ""}. View ${label}'s overdue candidates`}
+                          title="View their overdue candidates"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onViewOverdue(row.recruiterId);
+                          }}
+                          className={`group min-h-9 text-right font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${TEXT_LOSS}`}
+                        >
+                          <span className="underline decoration-slate-300 underline-offset-2 group-hover:decoration-current">{row.overdue} overdue</span>
+                          {row.overdueEstimated > 0 && <span className={`${SUB} font-normal ${TEXT_AMBER}`}>+{row.overdueEstimated} projected</span>}
+                        </button>
+                      ) : (
+                        <span className={`font-bold ${TEXT_LOSS}`}>
+                          {row.overdue} overdue
+                          {row.overdueEstimated > 0 && <span className={`${SUB} font-normal ${TEXT_AMBER}`}>+{row.overdueEstimated} projected</span>}
+                        </span>
+                      )}
+                      <FlagText flag={flag.overdue} />
                     </td>
                     <td className={TD}>{row.openRequisitions}</td>
                     <td className={TD}>
-                      {formatSampled(row.fillRate, row.requestedSeats, "%")}
-                      {row.requestedSeats > 0 && (
-                        <span className="block text-xs text-slate-500">
-                          {row.filledSeats} of {row.requestedSeats}
-                        </span>
+                      {row.requestedSeats === 0 ? (
+                        <span aria-hidden="true" className="text-slate-400">—</span>
+                      ) : (
+                        <>
+                          <span className="text-slate-950">
+                            <strong>{row.filledSeats}</strong> / {row.requestedSeats} seats
+                          </span>
+                          {row.fillRate === null ? (
+                            <span className={`${SUB} text-slate-500`}>{sampleNote(row.requestedSeats)}</span>
+                          ) : (
+                            <span className={`${SUB} text-slate-600`}>{row.fillRate}%</span>
+                          )}
+                        </>
                       )}
+                      {row.requestedSeats === 0 && <span className="sr-only">{sampleNote(0)}</span>}
+                      <FlagText flag={flag.fill} />
                     </td>
                     <td className={TD}>{row.placed}</td>
-                    <td className={TD}>{formatSampled(row.backoutRate, row.backoutRateBase, "%")}</td>
-                    <td className={TD}>{formatSampled(row.medianDaysToFill, row.daysToFillSample, "days")}</td>
+                    <td className={TD}>
+                      {row.backoutRate === null ? (
+                        <NoValue n={row.backoutRateBase} />
+                      ) : (
+                        <>
+                          {row.backoutRate}%
+                          <FlagText flag={flag.backout} />
+                        </>
+                      )}
+                    </td>
+                    <td className={TD}>
+                      {row.medianDaysToFill === null ? (
+                        <NoValue n={row.daysToFillSample} />
+                      ) : (
+                        <>
+                          {row.medianDaysToFill} {row.medianDaysToFill === 1 ? "day" : "days"}
+                          <FlagText flag={flag.days} />
+                        </>
+                      )}
+                    </td>
                   </tr>
                 );
               })}

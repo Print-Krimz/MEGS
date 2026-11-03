@@ -865,7 +865,7 @@ test.describe("Team leader reports (/admin/analytics)", () => {
     // Columns after the name: Active, Overdue, Open requests, Seats filled, Starts, Backout rate, Days to fill
     const starts = Number(await alice.locator("td").nth(4).innerText()) + Number(await bob.locator("td").nth(4).innerText());
     expect(starts).toBe(adminDashboard.kpis.placementsStarted);
-    await expect(alice).toContainText("24 of 35");
+    await expect(alice).toContainText("24 / 35 seats");
   });
 
   test("selecting a recruiter filters the whole page, and the choice survives a reload", async ({ page }) => {

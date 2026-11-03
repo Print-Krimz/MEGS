@@ -490,9 +490,10 @@ describe("admin lists", () => {
       />,
     );
     const row = screen.getByRole("row", { name: /Alice/ });
-    expect(row.textContent).toContain("3 + 2 estimated");
+    expect(row.textContent).toContain("3 overdue");
+    expect(row.textContent).toContain("+2 projected");
     expect(row.textContent).toContain("40%");
-    expect(row.textContent).toContain("12 of 30");
+    expect(row.textContent).toContain("12 / 30 seats");
     expect(row.textContent).toContain("Too few to show (3 cases)");
     const pick = screen.getByRole("button", { name: /Filter the page to this recruiter/ });
     expect(pick.getAttribute("title")).toBe("Filter the page to this recruiter");
