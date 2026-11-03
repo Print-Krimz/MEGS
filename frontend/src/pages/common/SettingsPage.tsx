@@ -270,7 +270,7 @@ function SettingsContent({ userId, sessionGeneration, identityRef, refreshUser }
         <dl className={`${panelClass} divide-y divide-slate-200`}>
           <SettingsRow
             label="Password"
-            action={<Button type="button" variant="outline" onClick={() => setPasswordOpen(true)}>Change password</Button>}
+            action={<Button type="button" variant="outline" size="sm" onClick={() => setPasswordOpen(true)}>Change password</Button>}
           >
             <span className="text-slate-600">A code is sent to you to confirm a change.</span>
           </SettingsRow>
