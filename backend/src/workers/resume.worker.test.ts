@@ -47,7 +47,7 @@ const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.doc
 const legacyFile = (mimeType: string, originalName: string) =>
   mocks.legacyDownload.mockResolvedValueOnce({ buffer: Buffer.from("resume-bytes"), mimeType, originalName });
 
-import { processResumeJob, detectDocumentFormat, enqueueResumeAnalysis, waitForResumeQueue } from "./resume.worker.js";
+import { processResumeJob, detectDocumentFormat, enqueueResumeAnalysis, waitForResumeQueue, getAnalysisProgress } from "./resume.worker.js";
 
 beforeEach(() => {
   // Reset (not just clear) so unused one-time values never leak between tests.
@@ -439,6 +439,21 @@ describe("Resume Worker AI Routing Policy & Multi-Format OCR", () => {
     });
     // The provider/parser message stays out of the stored summary.
     expect(JSON.stringify(mocks.prisma.application.updateMany.mock.calls)).not.toContain("Corrupted DOCX archive structure");
+  });
+
+  it("reports UNREADABLE_RESUME, not AI_UNAVAILABLE, when a Word file has no text", async () => {
+    mocks.prisma.application.findUnique.mockResolvedValueOnce({
+      id: 215,
+      status: "PARSING",
+      resumeUrl: "https://example.com/blank-resume.docx",
+      jobPosting: { title: "Software Engineer", requirements: "TypeScript" },
+    });
+    legacyFile(DOCX, "blank-resume.docx");
+    mocks.extractText.mockResolvedValueOnce("");
+
+    await processResumeJob(215);
+
+    expect(getAnalysisProgress(215)?.failureReason).toBe("UNREADABLE_RESUME");
   });
 
   it("handles image vision analysis failure gracefully by setting status to NEEDS_ATTENTION", async () => {

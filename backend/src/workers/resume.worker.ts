@@ -42,6 +42,8 @@ export interface AnalysisProgress {
   failureReason?: AnalysisFailureReason;
 }
 
+const NO_TEXT_MESSAGE = "Word document contained no extractable text";
+
 export type AnalysisFailureReason = "NOT_FOUND" | "NO_RESUME" | "UNREADABLE_RESUME" | "AI_UNAVAILABLE" | "SAVE_FAILED";
 
 const analysisProgress = new Map<number, AnalysisProgress>();
@@ -322,7 +324,7 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
     if (isDocx) {
       const resumeText = await extractDocumentText(buffer, detectedMime);
       if (!resumeText) {
-        throw new Error("Word document contained no extractable text");
+        throw new Error(NO_TEXT_MESSAGE);
       }
       setPhase(applicationId, "AI_ANALYSIS");
       analysis = await analyzeResume(
@@ -367,7 +369,7 @@ export const processResumeJob = async (applicationId: number): Promise<void> => 
     console.log(`[Worker] Gemini returned score ${analysis.score} for application #${applicationId}`);
   } catch (err: any) {
     const reference = safeLogError(`Worker: analyze application #${applicationId}`, err);
-    setPhase(applicationId, "FAILED", { failureReason: "AI_UNAVAILABLE" });
+    setPhase(applicationId, "FAILED", { failureReason: err?.message === NO_TEXT_MESSAGE ? "UNREADABLE_RESUME" : "AI_UNAVAILABLE" });
     try {
       const flagged = await recordAnalysisFailure(
         applicationId,

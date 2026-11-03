@@ -263,7 +263,7 @@ ${RESUME_ANALYSIS_INSTRUCTIONS}
     config: {
       responseMimeType: "application/json",
     },
-  }, EXTRACTION_TEXT_TIMEOUT_MS, extractionOptions(() => undefined));
+  }, EXTRACTION_TEXT_TIMEOUT_MS, analysisOptions);
   return parseResumeAnalysis(response.text || "");
 };
 
@@ -549,6 +549,10 @@ const EXTRACTION_VISION_TIMEOUT_MS = 45_000;
 const EXTRACTION_MAX_RETRY_DELAY_MS = 5_000;
 const extractionOptions = (onModel: (model: string) => void): GenerateOptions =>
   ({ thinking: "minimal", maxRetryDelayMs: EXTRACTION_MAX_RETRY_DELAY_MS, attempts: 2, failoverOnBusy: true, onModel });
+// The assessment runs in the background and nobody is waiting on it, so it rides out a busy provider for longer.
+const ANALYSIS_MAX_RETRY_DELAY_MS = 30_000;
+const analysisOptions: GenerateOptions =
+  { thinking: "minimal", maxRetryDelayMs: ANALYSIS_MAX_RETRY_DELAY_MS, attempts: 3, failoverOnBusy: true };
 
 const sizeBucket = (n: number): string =>
   n < 50_000 ? "lt50k" : n < 200_000 ? "lt200k" : n < 1_000_000 ? "lt1m" : "gte1m";
@@ -783,7 +787,7 @@ ${RESUME_ANALYSIS_INSTRUCTIONS}
     config: {
       responseMimeType: "application/json",
     },
-  }, EXTRACTION_VISION_TIMEOUT_MS, extractionOptions(() => undefined));
+  }, EXTRACTION_VISION_TIMEOUT_MS, analysisOptions);
 
   return parseResumeAnalysis(response.text || "");
 };
