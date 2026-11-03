@@ -68,7 +68,7 @@ const ItemRow: React.FC<ItemRowProps> = ({ staff, id, title, detail, checked, on
     </li>
   ) : (
     <li>
-      <label htmlFor={id} className="flex min-h-11 cursor-pointer items-center gap-3 py-2">
+      <label htmlFor={id} className="flex min-h-11 cursor-pointer items-center gap-3 py-1">
         <input
           id={id}
           type="checkbox"
@@ -76,7 +76,7 @@ const ItemRow: React.FC<ItemRowProps> = ({ staff, id, title, detail, checked, on
           onChange={(e) => onChange(e.target.checked)}
           className={checkboxClass(false)}
         />
-        <span className="min-w-0 text-sm text-[#102A43]">
+        <span className="min-w-0 break-words text-sm text-[#102A43]">
           <span className="font-medium">{title}</span>
           {detail ? <span className={`block text-xs ${mutedText(false)}`}>{detail}</span> : null}
         </span>
@@ -135,15 +135,15 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
       size="lg"
       // Applicant phones: the header wraps to several lines, so leave more room and keep Save on screen.
       // `!` because `cn` does not merge Tailwind classes and the Dialog body sets its own max-h.
-      bodyClassName={staff ? undefined : "max-h-[calc(100dvh-13rem)]! sm:max-h-[calc(100dvh-8rem)]!"}
+      bodyClassName={staff ? undefined : "max-h-[calc(100dvh-11rem)]! sm:max-h-[calc(100dvh-8rem)]!"}
       title={staff ? "Review details from the resume" : "Review details from your resume"}
       description={
         staff
           ? "Nothing is saved until you choose Save selected. Saved details are kept unless you pick the resume value."
-          : "Nothing is saved until you choose Save selected. Details already on your profile are kept unless you pick the resume value."
+          : "Nothing is saved until you choose Save selected. Profile details are kept unless you pick the resume value."
       }
     >
-      <div className="space-y-4">
+      <div className={staff ? "space-y-4" : "space-y-3"}>
         {personal.length > 0 && (
           <Section title="Personal details">
             <ul className="divide-y divide-[#D9E2EC]">
@@ -253,7 +253,7 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
 
         {skills.length > 0 && (
           <Section title="Skills">
-            <ul className="divide-y divide-[#D9E2EC]">
+            <ul className={staff ? "divide-y divide-[#D9E2EC]" : "grid grid-cols-2 gap-x-3 sm:grid-cols-3"}>
               {skills.map((row, index) => (
                 <ItemRow
                       staff={staff}
@@ -310,7 +310,8 @@ export const ResumeReviewDialog: React.FC<ResumeReviewDialogProps> = ({
           </p>
         )}
 
-        <div className="sticky bottom-0 flex justify-end gap-2 border-t border-[#D9E2EC] bg-white pt-3">
+        {/* Sticky offsets ignore the body padding, so pull the bar down and out to cover it: no text shows around the buttons. */}
+        <div className="sticky -bottom-3 -mx-4 -mb-3 flex justify-end gap-2 border-t border-[#D9E2EC] bg-white px-4 pb-3 pt-3 sm:-bottom-4 sm:-mx-5 sm:-mb-4 sm:px-5 sm:pb-4">
           <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
             Not now
           </Button>

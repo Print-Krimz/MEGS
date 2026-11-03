@@ -27,6 +27,8 @@ const COMMON_SUGGESTIONS = [
   "CCTV Monitoring",
 ];
 
+const HAS_LETTER = /\p{L}/u;
+
 export const SkillsSection: React.FC<SkillsSectionProps> = ({
   skills,
   onAddSkill,
@@ -36,17 +38,26 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState("");
 
+  const [error, setError] = useState<string | null>(null);
+
   const handleAdd = () => {
     const seen = new Set(skills.map((s) => s.toLowerCase()));
-    const fresh = parseSkillsArray(inputValue)
-      .map(formatSkillName)
-      .filter((skill) => {
-        const key = skill.toLowerCase();
-        if (!key || seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+    const entries = parseSkillsArray(inputValue).map(formatSkillName);
+    // A skill is a name, so numbers alone (e.g. 109021) are not accepted.
+    const named = entries.filter((skill) => HAS_LETTER.test(skill));
+    const fresh = named.filter((skill) => {
+      const key = skill.toLowerCase();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
     if (fresh.length > 0) onAddSkill(fresh);
+    if (named.length < entries.length) {
+      setError("A skill needs at least one letter. Numbers alone are not added.");
+      if (fresh.length === 0) return;
+    } else {
+      setError(null);
+    }
     setInputValue("");
   };
 
@@ -70,7 +81,11 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
         <Input
           placeholder="Type a skill (e.g. TypeScript, CCTV Monitoring, Customer Care) and press Enter"
           value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
+          onChange={(e) => {
+            setInputValue(e.target.value);
+            setError(null);
+          }}
+          aria-invalid={error ? true : undefined}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
               e.preventDefault();
@@ -89,6 +104,12 @@ export const SkillsSection: React.FC<SkillsSectionProps> = ({
           Add Skill
         </Button>
       </div>
+
+      {error && (
+        <p role="alert" className="-mt-4 text-xs text-red-700">
+          {error}
+        </p>
+      )}
 
       {/* Suggested Skills Carousel */}
       {availableSuggestions.length > 0 && (
