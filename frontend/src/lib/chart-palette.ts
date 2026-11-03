@@ -118,6 +118,12 @@ export const BAR_ON_TRACK = "#3A6FB0";
 /** Neutral single-series bar, for ranked lists with no category (top reasons, request progress). */
 export const NEUTRAL_MARK = "#4B5563";
 
+/**
+ * Categorical slices for a split by reason (DonutChart). Hues used nowhere else in Reports: no red, blue, amber or
+ * navy, so a reason never reads as an outcome or a stage. "Other" is last and neutral. Asserted >= 3:1 in chart-primitives.test.tsx.
+ */
+export const REASON_COLORS = ["#7A3E9D", "#2E7D4F", "#8A5A2B", "#5B6B12", NEUTRAL_MARK] as const;
+
 export type HealthKey = "onTrack" | "watch" | "atRisk" | "bottleneck" | "overdue" | "filled";
 
 /**
@@ -137,6 +143,8 @@ export const HEALTH_CHIP: Record<HealthKey, { label: string; className: string }
 /** Text colour classes for numbers that sit next to marks. Red text only for lost or late counts. */
 export const TEXT_LOSS = "text-[#B42318]";
 export const TEXT_AMBER = "text-[#7A4800]";
+/** Good-change text for KPI deltas. Only where a number moved the right way, and always with an arrow and a sign. */
+export const TEXT_GOOD = "text-[#1B6B3A]";
 
 /** Diagonal hatch for estimated values. Pair with a legend entry that says "by age only". */
 export const hatchStyle = (color: string): CSSProperties => ({

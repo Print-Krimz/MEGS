@@ -1,8 +1,21 @@
 import React from "react";
 import { Link } from "@tanstack/react-router";
+import { ArrowDown, ArrowUp, Minus } from "lucide-react";
 import { AnimatedNumber } from "./motion";
-import { TEXT_LOSS } from "../../lib/chart-palette";
+import { TEXT_GOOD, TEXT_LOSS } from "../../lib/chart-palette";
 import { scrollToId } from "../../lib/scroll-to";
+
+/** Change against an earlier period. The change line shows only when both values exist. */
+export interface KpiDelta {
+  current: number | null;
+  previous: number | null;
+  /** "%" changes are percentage points; "days" are days. */
+  unit?: "%" | "days" | "";
+  /** Which direction is good: starts go "up", days to fill go "down". */
+  better: "up" | "down";
+  /** The earlier period, e.g. "previous 7 days". Shown as "vs {periodLabel}". */
+  periodLabel: string;
+}
 
 interface AnalyticsKpiProps {
   label: string;
@@ -15,10 +28,55 @@ interface AnalyticsKpiProps {
   href?: string;
   /** Runs on click, before scrolling, e.g. to open the tab that holds the section. Without `href` the tile is a button. */
   onClick?: () => void;
+  /** Change since the earlier period, one line under the value. */
+  delta?: KpiDelta;
 }
 
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus";
-const ACTIVE = `block w-full p-3.5 text-left hover:bg-slate-50 ${FOCUS}`;
+const ACTIVE = `block w-full p-3.5 text-left transition-shadow motion-reduce:transition-none hover:bg-slate-50 hover:shadow-sm ${FOCUS}`;
+
+/** A change as shown ("+3", "-1.2 days", "+4.5 pts") and as read aloud ("3", "1.2 days", "4.5 percentage points"). */
+const deltaParts = (change: number, unit: KpiDelta["unit"]) => {
+  const size = Number.isInteger(change) ? String(Math.abs(change)) : Math.abs(change).toFixed(1);
+  const sign = change > 0 ? "+" : "-";
+  if (unit === "%") return { short: `${sign}${size} pts`, spoken: `${size} percentage points` };
+  if (unit === "days") {
+    const word = Math.abs(change) === 1 ? "day" : "days";
+    return { short: `${sign}${size} ${word}`, spoken: `${size} ${word}` };
+  }
+  return { short: `${sign}${size}`, spoken: size };
+};
+
+/** Values as they read in the sentence "... from 11 in the previous 7 days". */
+const valueText = (value: number, unit: KpiDelta["unit"]) => {
+  const size = Number.isInteger(value) ? String(value) : value.toFixed(1);
+  if (unit === "%") return `${size}%`;
+  if (unit === "days") return `${size} ${value === 1 ? "day" : "days"}`;
+  return size;
+};
+
+const deltaLine = ({ current, previous, unit, better, periodLabel }: KpiDelta) => {
+  if (current === null || previous === null) return null;
+  // Rounded to one decimal so float noise never shows as a change.
+  const change = Math.round((current - previous) * 10) / 10;
+  const up = change > 0;
+  const flat = change === 0;
+  const Icon = flat ? Minus : up ? ArrowUp : ArrowDown;
+  const tone = flat ? "text-slate-600" : up === (better === "up") ? TEXT_GOOD : TEXT_LOSS;
+  const { short, spoken } = deltaParts(change, unit);
+  const word = flat ? "No change" : up ? "Up" : "Down";
+  return (
+    <div className={`mt-1 flex items-center gap-1 text-xs font-sans font-semibold tabular-nums ${tone}`}>
+      <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      <span aria-hidden="true">
+        {flat ? "No change" : short} <span className="font-normal text-slate-600">vs {periodLabel}</span>
+      </span>
+      <span className="sr-only">
+        {flat ? `No change from ${valueText(previous, unit)}` : `${word} ${spoken} from ${valueText(previous, unit)}`} in the {periodLabel}
+      </span>
+    </div>
+  );
+};
 
 /** Counts in the same precision as the final value, so 62.5% never lands as 63%. */
 const formatLike = (target: number, suffix = "") => {
@@ -37,7 +95,7 @@ const renderValue = (value: number | string) => {
 };
 
 /** One headline number: label, value, one detail line. What it means is under "How these are counted". */
-export const AnalyticsKpi: React.FC<AnalyticsKpiProps> = ({ label, value, detail, tone = "default", href, onClick }) => {
+export const AnalyticsKpi: React.FC<AnalyticsKpiProps> = ({ label, value, detail, tone = "default", href, onClick, delta }) => {
   // Words ("Too few to show (3 cases)", "No seats") read as an absence, so they sit below headline numbers in size.
   const text = typeof value === "string" && !/^-?\d[\d.,]*\s?(%|days?)?$/.test(value);
   const body = (
@@ -50,6 +108,7 @@ export const AnalyticsKpi: React.FC<AnalyticsKpiProps> = ({ label, value, detail
       >
         {renderValue(value)}
       </div>
+      {delta && deltaLine(delta)}
       {detail && <div className="mt-0.5 text-balance text-xs font-sans text-slate-600">{detail}</div>}
     </>
   );
@@ -99,9 +158,10 @@ const SPAN: Record<number, string> = { 1: "md:col-span-1", 2: "md:col-span-2", 3
 /** Tiles that share a time base, under one label. */
 export const KpiGroup: React.FC<KpiGroupProps> = ({ label, children }) => (
   // A group spans as many columns as it has tiles, so every tile in the row is the same width.
-  <section aria-label={label} className={`min-w-0 ${SPAN[React.Children.count(children)] ?? ""}`}>
+  <section aria-label={label} className={`flex min-w-0 flex-col ${SPAN[React.Children.count(children)] ?? ""}`}>
     <h3 className="mb-1.5 text-xs font-semibold text-slate-700">{label}</h3>
-    <div className="grid grid-cols-2 divide-x divide-y divide-slate-300 border border-slate-300 bg-white md:grid-flow-col md:auto-cols-fr md:divide-y-0 max-md:[&>*:last-child:nth-child(odd)]:col-span-2">
+    {/* A lone tile fills its group; two columns would leave it half width. */}
+    <div className={`grid ${React.Children.count(children) === 1 ? "grid-cols-1" : "grid-cols-2"} flex-1 divide-x divide-y divide-slate-300 border border-slate-300 bg-white md:grid-flow-col md:auto-cols-fr md:divide-y-0 max-md:[&>*:last-child:nth-child(odd)]:col-span-2`}>
       {children}
     </div>
   </section>
