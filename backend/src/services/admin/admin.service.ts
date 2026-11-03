@@ -5,6 +5,7 @@ import { sendMail, sendTAInvitationEmail } from '../../utils/mailer.js';
 import { generateSecureToken, hashToken } from '../../utils/otp.js';
 import { parseManilaDateOnly } from "../../schemas/field-limits.js";
 import { ownedWhere } from "../ta/ownership.js";
+import { getSecurityControls } from "../../security/security-controls.js";
 import crypto from "crypto";
 
 export const inviteTA = async (
@@ -489,6 +490,7 @@ export const fetchAllUsers = async (filters: {
       displayName: true,
       isActive: true,
       accountStatus: true,
+      statusChangedAt: true,
       invitedAt: true,
       invitedBy: true,
       createdAt: true,
@@ -511,8 +513,10 @@ export const fetchAllUsers = async (filters: {
     paginated ? prisma.user.count({ where }) : Promise.resolve(0),
   ]);
 
+  const cooldownOn = !(await getSecurityControls()).rateLimitDisabled;
   const rows = users.map((u: any) => {
     const latestInvite = u.invitations?.[0];
+    const unlocksAt = u.statusChangedAt ? new Date(u.statusChangedAt.getTime() + STATUS_CHANGE_COOLDOWN_MS) : null;
     let computedStatus = u.accountStatus;
     if (u.accountStatus === "PENDING" || u.accountStatus === "INVITED") {
       if (latestInvite && new Date(latestInvite.expiresAt).getTime() < Date.now() && !latestInvite.isUsed) {
@@ -529,6 +533,8 @@ export const fetchAllUsers = async (filters: {
       role: u.role,
       isActive: u.isActive,
       accountStatus: u.accountStatus,
+      // Set while the account's status cannot be changed again; null otherwise.
+      statusLockedUntil: cooldownOn && unlocksAt && unlocksAt.getTime() > Date.now() ? unlocksAt : null,
       invitationStatus: computedStatus,
       invitationExpiresAt: latestInvite?.expiresAt || null,
       invitedAt: u.invitedAt,
@@ -617,6 +623,9 @@ export const changeUserRole = async (targetUserId: string, adminId: string, role
   return updatedUser;
 };
 
+// An account can be deactivated or reactivated once per cooldown, so a status cannot be flipped back and forth.
+export const STATUS_CHANGE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+
 export const changeUserStatus = async (targetUserId: string, adminId: string, isActive: boolean) => {
   if (typeof isActive !== "boolean") {
     throw new Error("isActive must be a boolean");
@@ -642,11 +651,22 @@ export const changeUserStatus = async (targetUserId: string, adminId: string, is
     return { id: targetUser.id, email: targetUser.email, isActive: targetUser.isActive, accountStatus: targetUser.accountStatus };
   }
 
-  const updatedUser = await prisma.user.update({
-    where: { id: targetUserId },
-    data: { isActive, accountStatus },
-    select: { id: true, email: true, isActive: true, accountStatus: true },
+  // The cooldown is part of the update condition, so two quick requests cannot both pass.
+  const now = new Date();
+  const cooldownOn = !(await getSecurityControls()).rateLimitDisabled;
+  const changed = await prisma.user.updateMany({
+    where: {
+      id: targetUserId,
+      ...(cooldownOn ? { OR: [{ statusChangedAt: null }, { statusChangedAt: { lt: new Date(now.getTime() - STATUS_CHANGE_COOLDOWN_MS) } }] } : {}),
+    },
+    data: { isActive, accountStatus, statusChangedAt: now },
   });
+  if (changed.count === 0) {
+    const lastChange = targetUser.statusChangedAt?.getTime() ?? now.getTime();
+    const hours = Math.max(1, Math.ceil((lastChange + STATUS_CHANGE_COOLDOWN_MS - now.getTime()) / 3_600_000));
+    throw new Error(`This account's status changed recently. Try again in ${hours} hour${hours === 1 ? "" : "s"}.`);
+  }
+  const updatedUser = { id: targetUser.id, email: targetUser.email, isActive, accountStatus };
 
   const action = isActive ? "USER_ACTIVATED" : "USER_DEACTIVATED";
   logAudit(adminId, action, "User", targetUserId, {

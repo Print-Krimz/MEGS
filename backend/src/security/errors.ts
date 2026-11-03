@@ -16,6 +16,7 @@ export const publicErrorMessage = (message: unknown, status: number): string => 
   if (typeof message === "string") {
     if (publicMessages.has(message)) return message;
     if (/^Please wait \d{1,5} seconds before requesting another code\.$/.test(message) ||
+        /^This account's status changed recently\. Try again in \d{1,3} hours?\.$/.test(message) ||
         /^Invalid verification code\. \d{1,2} attempts? remaining\.$/.test(message) ||
         /^Headcount can't be lower than the \d{1,6} already deployed\.$/.test(message) ||
         /^An application in [A-Z_]{3,30} cannot be archived$/.test(message) ||

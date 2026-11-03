@@ -387,6 +387,10 @@ export const UsersPage: React.FC = () => {
     onError: (err: any) => notify.error("Unable to complete the bulk action", err),
   });
 
+  // The server allows one status change per account per day; the menu says when it opens again.
+  const statusActionLabel = (u: AdminUserListItem) =>
+    `${u.isActive ? "Deactivate account" : "Reactivate account"}${u.statusLockedUntil ? ` (available ${formatDateTime(u.statusLockedUntil)})` : ""}`;
+
   const renderLastSignIn = (u: AdminUserListItem) =>
     u.lastLoginAt ? <time dateTime={u.lastLoginAt}>{formatDateTime(u.lastLoginAt)}</time> : "Never";
 
@@ -563,9 +567,9 @@ export const UsersPage: React.FC = () => {
                                 ? [{ label: "Reset two-step verification", disabled: isSelf, onSelect: () => setMfaModalUser({ id: u.id, email: u.email }) }]
                                 : []),
                               {
-                                label: u.isActive ? "Deactivate account" : "Reactivate account",
+                                label: statusActionLabel(u),
                                 tone: u.isActive ? "danger" : "default",
-                                disabled: isSelf,
+                                disabled: isSelf || Boolean(u.statusLockedUntil),
                                 onSelect: () => setStatusModalUser({ id: u.id, email: u.email, isActive: u.isActive, role: u.role }),
                               },
                             ]
@@ -692,9 +696,9 @@ export const UsersPage: React.FC = () => {
                                        ]
                                      : []),
                                    {
-                                     label: u.isActive ? "Deactivate account" : "Reactivate account",
+                                     label: statusActionLabel(u),
                                      tone: u.isActive ? "danger" : "default",
-                                     disabled: isSelf,
+                                     disabled: isSelf || Boolean(u.statusLockedUntil),
                                      onSelect: () =>
                                        setStatusModalUser({ id: u.id, email: u.email, isActive: u.isActive, role: u.role }),
                                    },

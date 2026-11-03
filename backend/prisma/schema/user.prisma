@@ -20,6 +20,8 @@ model User {
   // ACTIVE | PENDING_VERIFICATION | PENDING | INVITED | DEACTIVATED | WALK_IN.
   // WALK_IN: encoded by a TA with no portal login yet (synthetic email); becomes ACTIVE when the applicant claims it.
   accountStatus String @default("ACTIVE")
+  /// Last time an administrator deactivated or reactivated this account. Drives the cooldown.
+  statusChangedAt DateTime?
   mustChangePassword Boolean @default(false)
   invitedAt DateTime?
   invitedBy String?

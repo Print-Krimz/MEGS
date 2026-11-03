@@ -20,6 +20,8 @@ export interface AdminUserListItem {
   isActive: boolean;
   accountStatus: string;
   invitationStatus?: string;
+  /** Set while the status cannot be changed again; the time it opens. */
+  statusLockedUntil?: string | null;
   createdAt: string;
   /** Last sign-in from Supabase Auth; null when the person has never signed in. */
   lastLoginAt?: string | null;

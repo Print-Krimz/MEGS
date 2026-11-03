@@ -107,7 +107,8 @@ export const updateUserStatus = async (req: Request, res: Response): Promise<voi
     sendSuccess(res, `User successfully ${actionText}`, updatedUser);
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 :
-                       error.message.includes("Security constraint") ? 403 : 400;
+                       error.message.includes("Security constraint") ? 403 :
+                       error.message.includes("status changed recently") ? 429 : 400;
     sendError(res, error.message, statusCode);
   }
 };
