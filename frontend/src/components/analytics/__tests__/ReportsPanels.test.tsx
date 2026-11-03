@@ -221,7 +221,7 @@ describe("ActionItemsList", () => {
     ...over,
   });
 
-  it("marks a deadline before today as High and N days overdue; today or later stays Due <date>", () => {
+  it("marks a deadline before today as High and N days overdue; today or later reads Due in N days with the date", () => {
     const now = new Date("2026-11-02T04:00:00Z");
     render(
       <ActionItemsList
@@ -236,16 +236,19 @@ describe("ActionItemsList", () => {
     const [late, soon] = screen.getAllByRole("listitem");
     expect(late.textContent).toContain("8 days overdue");
     expect(late.textContent).toContain("High");
-    expect(soon.textContent).toContain("Due Nov 7, 2026");
+    expect(late.textContent).toContain("Was due Oct 25, 2026");
+    expect(soon.textContent).toContain("Due in 5 days");
+    expect(soon.textContent).toContain("Nov 7, 2026");
     expect(soon.textContent).toContain("Medium");
   });
 
   it("lists each task with its urgency in words, age, and an Open link, and counts what is shown", () => {
     render(<ActionItemsList rows={[item("a"), item("b", { urgency: "NORMAL", agingDays: undefined, deadline: "2026-11-05T00:00:00Z" })]} total={9} />);
     expect(screen.getByText("High")).toBeDefined();
-    expect(screen.getByText("Normal")).toBeDefined();
-    expect(screen.getByText("4 days")).toBeDefined();
-    expect(screen.getByText("Due Nov 5, 2026")).toBeDefined();
+    expect(screen.getByText("Low")).toBeDefined();
+    expect(screen.getByText("Waiting 4 days")).toBeDefined();
+    expect(screen.getByText(/^Due in \d+ days?$/)).toBeDefined();
+    expect(screen.getAllByText("Client review").length).toBeGreaterThan(0);
     expect(screen.getAllByRole("link", { name: /^Open: Record the client answer, Juan Cruz/ })[0].getAttribute("href")).toBe("/ta/applications/7");
     expect(screen.getByText(/Showing 2 of 9/)).toBeDefined();
     expect(screen.getByRole("link", { name: "See all on Overview" }).getAttribute("href")).toBe("/ta");

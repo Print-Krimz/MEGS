@@ -467,6 +467,14 @@ const taDashboard = {
       targetUrl: "/ta/interviews",
       createdAt: "2026-10-01T00:00:00.000Z",
     },
+    ...[
+      { id: "cs-1", type: "CLIENT_ENDORSEMENT", title: "Client Review Overdue (1d / 5d SLA) · Supercell", candidateName: "Zara Algat", jobTitle: "Software Developers", urgency: "HIGH", agingDays: 7 },
+      { id: "ct-2", type: "CONTRACT_SIGNING", title: "Confirm start: contract signing", candidateName: "Anthan Del Rosario", jobTitle: "Automotive & Transport Operations Staff", urgency: "MEDIUM", agingDays: 6 },
+      { id: "cl-3", type: "COMPLIANCE_REVIEW", title: "Review Clearance: Barangay Clearance", candidateName: "Nathaniel Cruz", jobTitle: "Automotive & Transport Operations Staff", urgency: "MEDIUM", deadline: new Date(Date.now() - 8 * 86_400_000).toISOString() },
+      { id: "in-4", type: "INITIAL_INTERVIEW", title: "Initial Interview Pending Evaluation", candidateName: "Marco Dixon", jobTitle: "Warehouse Forklift Operators", urgency: "MEDIUM", deadline: new Date(Date.now() + 5 * 86_400_000).toISOString() },
+      { id: "fi-5", type: "FINAL_INTERVIEW", title: "Final interview today", candidateName: "Jaselle Cruz", jobTitle: "Warehouse Forklift Operators", urgency: "NORMAL", deadline: new Date().toISOString() },
+      { id: "sc-6", type: "START_CONFIRMATION", title: "Logistics Personnel", candidateName: "Dana Reyes", jobTitle: "Meridian Island Logistics Corporation", urgency: "NORMAL", agingDays: 16 },
+    ].map((x) => ({ ...x, applicationId: 800, targetUrl: "/ta/applications/800", createdAt: "2026-10-01T00:00:00.000Z" })),
   ],
   filterOptions,
 };
