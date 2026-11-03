@@ -549,8 +549,9 @@ const EXTRACTION_VISION_TIMEOUT_MS = 45_000;
 const EXTRACTION_MAX_RETRY_DELAY_MS = 5_000;
 const extractionOptions = (onModel: (model: string) => void): GenerateOptions =>
   ({ thinking: "minimal", maxRetryDelayMs: EXTRACTION_MAX_RETRY_DELAY_MS, attempts: 2, failoverOnBusy: true, onModel });
-// The assessment runs in the background and nobody is waiting on it, so it rides out a busy provider for longer.
-const ANALYSIS_MAX_RETRY_DELAY_MS = 30_000;
+// The assessment runs in the worker, so it can ride out a short busy spell. Keep the wait small: the retry holds
+// one of the two provider slots that applicant resume reads and MRF file reads share.
+const ANALYSIS_MAX_RETRY_DELAY_MS = 10_000;
 const analysisOptions: GenerateOptions =
   { thinking: "minimal", maxRetryDelayMs: ANALYSIS_MAX_RETRY_DELAY_MS, attempts: 3, failoverOnBusy: true };
 
