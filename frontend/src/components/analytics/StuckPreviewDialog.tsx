@@ -16,7 +16,7 @@ import { Dialog } from "../ui/Dialog";
 
 interface StuckPreviewDialogProps {
   /** The currently filtered list, so Previous and Next step through what the person sees. */
-  rows: StuckCandidate[];
+  rows: (StuckCandidate & { daysLeft?: number })[];
   /** Application id of the row being previewed, or null when closed. */
   openId: number | null;
   onSelect: (applicationId: number) => void;
@@ -192,13 +192,22 @@ export const StuckPreviewDialog: React.FC<StuckPreviewDialogProps> = ({ rows, op
             <Fact label="In this stage">
               {row.daysInStage} of {row.slaDays} {row.slaDays === 1 ? "day" : "days"} allowed
             </Fact>
-            <Fact label="Over by">
-              {row.daysOver} {row.daysOver === 1 ? "day" : "days"}
-            </Fact>
-            <Fact label="Urgency">
-              {row.urgency === "critical" ? "Critical" : "Overdue"}
-              {row.estimated && <span className="text-slate-600"> · estimated from application date</span>}
-            </Fact>
+            {row.daysLeft !== undefined ? (
+              <Fact label="Due">
+                {row.daysLeft === 0 ? "Today" : `In ${row.daysLeft} ${row.daysLeft === 1 ? "day" : "days"}`}
+                {row.estimated && <span className="text-slate-600"> · estimated from application date</span>}
+              </Fact>
+            ) : (
+              <>
+                <Fact label="Over by">
+                  {row.daysOver} {row.daysOver === 1 ? "day" : "days"}
+                </Fact>
+                <Fact label="Urgency">
+                  {row.urgency === "critical" ? "Critical" : "Overdue"}
+                  {row.estimated && <span className="text-slate-600"> · estimated from application date</span>}
+                </Fact>
+              </>
+            )}
             {showRecruiter && recruiter && <Fact label="Recruiter">{recruiter.full ?? recruiter.label}</Fact>}
             <Fact label="Last activity">
               {row.lastActivityAt ? (

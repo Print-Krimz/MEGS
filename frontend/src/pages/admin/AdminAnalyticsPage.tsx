@@ -3,13 +3,15 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { formatSampled } from "../../lib/analytics-format";
 import { adminApi } from "../../lib/api/admin.api";
+import { notify } from "../../lib/feedback";
 import { PageHeader, LoadingState, ErrorState } from "../../components/common";
 import {
   AnalyticsFilterBar,
   ExportMenu,
   AnalyticsKpi,
   AttentionStrip,
-  BackoutPanel,
+  BackoutReasonsDonut,
+  ClientReviewPanel,
   KpiGroup,
   KpiRow,
   OperationsWorkspace,
@@ -19,7 +21,7 @@ import {
   StuckList,
   TeamTable,
 } from "../../components/analytics";
-import type { RequestHealthFilter } from "../../components/analytics";
+import type { RequestHealthFilter, StuckBulkAction, StuckRowAction } from "../../components/analytics";
 import {
   filtersToSearch,
   parseAdminReportSearch,
@@ -27,28 +29,52 @@ import {
   searchToFilters,
   type AdminReportSearch,
 } from "../../lib/admin-report-search";
-import type { AnalyticsFilterState } from "../../lib/types/analytics.types";
-import { formatDate } from "../../lib/utils";
+import type { AnalyticsFilterState, StuckCandidate } from "../../lib/types/analytics.types";
 import { scrollToId } from "../../lib/scroll-to";
 import { formatRecruiterName } from "../../lib/recruiter-label";
-import { X } from "lucide-react";
+import { BellRing, X } from "lucide-react";
 
 const plural = (count: number, word: string) => (count === 1 ? word : `${word}s`);
 
 const KPI_DEFINITIONS = [
   { label: "Seats filled", definition: "Seats with a worker who started, out of seats clients asked for." },
-  { label: "Starts", definition: "Workers who started work." },
-  { label: "Days to fill", definition: "Typical days from request opened to worker start." },
-  { label: "Backout rate", definition: "Workers who backed out after client review, out of those plus starts." },
+  { label: "Open requests", definition: "Requests still needing workers." },
+  { label: "Client review wait", definition: "Average days candidates have been waiting for the client's answer, across all clients." },
+  { label: "Days to fill", definition: "Typical days from request opened to worker start, compared with the previous dates of the same length." },
   { label: "Critical wait", definition: "Overdue by twice the days allowed or more." },
   { label: "Overdue request", definition: "Open request past its target date, or due within 7 days with too few candidates." },
 ];
 
-const rangeText = (start: string, end: string) => `${formatDate(start)} to ${formatDate(end)}`;
-
 type WorkspaceKey = "waiting" | "requests" | "recruiters";
 type WaitingFocus = { urgency?: "ALL" | "critical"; stage?: string; nonce: number };
 type RequestFocus = { health: RequestHealthFilter; nonce: number };
+
+/** Asks the recruiters who hold these candidates to follow up. Throws after telling the person, so the list keeps its selection. */
+const remindRecruiters = async (picked: StuckCandidate[]) => {
+  const ids = picked.map((r) => r.applicationId);
+  let reminded = 0;
+  let candidates = 0;
+  let skipped = 0;
+  try {
+    // The server takes at most 100 ids per call.
+    for (let i = 0; i < ids.length; i += 100) {
+      const result = await adminApi.remindRecruiters(ids.slice(i, i + 100));
+      reminded += result.reminded;
+      candidates += result.candidates;
+      skipped += result.skipped;
+    }
+  } catch (error) {
+    notify.error("The reminder was not sent. Try again.", error);
+    throw error;
+  }
+  if (reminded === 0) {
+    notify.error("No one was reminded. These candidates have no recruiter.");
+    throw new Error("No recruiter to remind");
+  }
+  const noOwner = skipped > 0 ? ` ${skipped} ${plural(skipped, "candidate")} with no recruiter left out.` : "";
+  notify.success(`Reminded ${reminded} ${plural(reminded, "recruiter")} about ${candidates} ${plural(candidates, "candidate")}.${noOwner}`);
+};
+const BULK_ACTIONS: StuckBulkAction[] = [{ key: "remind", label: "Remind recruiter", icon: BellRing, run: remindRecruiters }];
 
 const scrollToWorkspace = () => setTimeout(() => scrollToId("operations"), 0);
 
@@ -63,8 +89,9 @@ export const AdminAnalyticsPage: React.FC = () => {
     [range, startDate, endDate, clientId, mrfId, jobPostingId, recruiterId],
   );
   // Tab switches paint from local state at once; the URL catches up after that paint.
-  const [tab, setTabState] = useState<WorkspaceKey>(search.tab ?? "waiting");
-  useEffect(() => setTabState(search.tab ?? "waiting"), [search.tab]);
+  const urlTab: WorkspaceKey = search.tab === undefined || search.tab === "actions" ? "waiting" : search.tab;
+  const [tab, setTabState] = useState<WorkspaceKey>(urlTab);
+  useEffect(() => setTabState(urlTab), [urlTab]);
   // The nonce makes a second click on the same tile re-apply its filter after the list was changed by hand.
   const [nonce, setNonce] = useState(0);
   // After a chip or tile opens a tab, focus moves to that panel's heading so a keyboard or screen reader user lands on the list.
@@ -122,6 +149,14 @@ export const AdminAnalyticsPage: React.FC = () => {
   const requests = dashboardQuery.data?.requests ?? [];
 
   const selectRecruiter = useCallback((recruiterId: string | undefined) => update({ recruiterId }), [update]);
+  // Stable between renders, so a tab switch does not re-render the overdue list.
+  const rowActions = useMemo<StuckRowAction[]>(
+    () => [
+      { key: "remind", label: "Remind", run: (r) => remindRecruiters([r]) },
+      ...(recruiterId ? [] : [{ key: "filter", label: "Filter by recruiter", run: (r: StuckCandidate) => selectRecruiter(r.recruiterId) }]),
+    ],
+    [recruiterId, selectRecruiter],
+  );
 
   /** Open the waiting list with a filter applied. */
   const showWaiting = (focus: Omit<WaitingFocus, "nonce">) => {
@@ -184,7 +219,6 @@ export const AdminAnalyticsPage: React.FC = () => {
 
   const data = dashboardQuery.data;
   const { kpis } = data;
-  const label = rangeText(data.dateRange.startDate, data.dateRange.endDate);
   const recruiterName = filters.recruiterId
     ? formatRecruiterName(
         data.filterOptions.recruiters.find((r) => r.id === filters.recruiterId)?.name ||
@@ -195,6 +229,7 @@ export const AdminAnalyticsPage: React.FC = () => {
   // Each count uses the same predicate and the same rows as the list it opens, so N here is N rows there.
   const isEmpty =
     kpis.activeApplicants === 0 && kpis.requisitions.total === 0 && kpis.placementsStarted === 0 && data.backouts.backouts === 0 && data.backouts.withdrawals === 0;
+  const clientsOverLimit = data.clientReview.clients.filter((c) => c.avgDays !== null && c.avgDays > c.limitDays).length;
   const staleNote =
     kpis.staleFilledRequisitions > 0
       ? `${kpis.staleFilledRequisitions} marked filled with no start. Left out of seat counts.`
@@ -204,7 +239,24 @@ export const AdminAnalyticsPage: React.FC = () => {
     <div className="space-y-5">
       {header}
 
-      <AnalyticsFilterBar filters={filters} onChange={setFilters} options={data.filterOptions} showClientFilter showRecruiterFilter />
+      <AnalyticsFilterBar
+        filters={filters}
+        onChange={setFilters}
+        options={data.filterOptions}
+        showClientFilter
+        showRecruiterFilter
+        footer={
+          <AttentionStrip
+            embedded
+            items={[
+              { key: "critical", count: kpis.criticalCandidates, label: plural(kpis.criticalCandidates, "critical wait"), href: "#operations", onSelect: () => showWaiting({ urgency: "critical" }) },
+              { key: "late", count: kpis.lateRequests, label: `overdue or at-risk ${plural(kpis.lateRequests, "request")}`, href: "#operations", onSelect: () => showRequests("LATE") },
+              { key: "review", count: clientsOverLimit, label: `${plural(clientsOverLimit, "client")} past the review limit`, href: "#client-review" },
+              { key: "stale", count: kpis.staleFilledRequisitions, label: `${plural(kpis.staleFilledRequisitions, "request")} filled with no start`, href: "#requests-note", tone: "watch", onSelect: () => showRequests("ALL") },
+            ]}
+          />
+        }
+      />
 
       <p role="status" aria-live="polite" className="sr-only">
         {dashboardQuery.isPlaceholderData ? "Updating the numbers" : ""}
@@ -212,14 +264,6 @@ export const AdminAnalyticsPage: React.FC = () => {
 
       {/* Dim only while a filter change loads (old numbers on screen), not on a quiet background refresh. */}
       <div className={`space-y-5 transition-opacity ${dashboardQuery.isPlaceholderData ? "opacity-70" : ""}`}>
-      <AttentionStrip
-        items={[
-          { key: "critical", count: kpis.criticalCandidates, label: plural(kpis.criticalCandidates, "critical wait"), href: "#operations", onSelect: () => showWaiting({ urgency: "critical" }) },
-          { key: "late", count: kpis.lateRequests, label: `overdue or at-risk ${plural(kpis.lateRequests, "request")}`, href: "#operations", onSelect: () => showRequests("LATE") },
-          { key: "stale", count: kpis.staleFilledRequisitions, label: `${plural(kpis.staleFilledRequisitions, "request")} filled with no start`, href: "#requests-note", tone: "watch", onSelect: () => showRequests("ALL") },
-        ]}
-      />
-
       {isEmpty ? (
         <div className="border border-slate-300 bg-white p-6 text-center text-sm font-sans text-slate-700">
           <p>Nothing recorded for these dates. Try a longer range.</p>
@@ -247,46 +291,52 @@ export const AdminAnalyticsPage: React.FC = () => {
                   href="#operations"
                   onClick={() => showRequests("ALL")}
                 />
+                {/* No link: the request list also holds filled requests, so its count would not match this tile. */}
+                <AnalyticsKpi label="Open requests" value={kpis.requisitions.open} detail={`${kpis.lateRequests} overdue or at risk`} />
+                <AnalyticsKpi
+                  label="Client review wait"
+                  value={formatSampled(data.clientReview.avgDays, data.clientReview.sample, "days")}
+                  detail={clientsOverLimit > 0 ? `${clientsOverLimit} ${plural(clientsOverLimit, "client")} past their limit` : "Average across clients in review"}
+                  tone={clientsOverLimit > 0 ? "alert" : "default"}
+                  href="#client-review"
+                />
               </KpiGroup>
               <KpiGroup label="In these dates">
-                <AnalyticsKpi
-                  label="Starts"
-                  value={kpis.placementsStarted}
-                  detail={`${kpis.newStarts} new · ${kpis.redeployStarts} redeployed`}
-                  href="#trend"
-                />
                 <AnalyticsKpi
                   label="Days to fill"
                   value={formatSampled(kpis.medianDaysToFill, kpis.daysToFillSample, "days")}
                   detail={kpis.daysToFillSample === 0 ? "No starts" : `Typical, from ${kpis.daysToFillSample} ${kpis.daysToFillSample === 1 ? "start" : "starts"}`}
-                />
-                <AnalyticsKpi
-                  label="Backout rate"
-                  value={formatSampled(kpis.backoutRate, kpis.backoutRateBase, "%")}
-                  detail={`${kpis.backoutsAfterClientReview} of ${kpis.backoutRateBase} backed out after client review`}
-                  href="#backouts"
+                  delta={{ current: kpis.medianDaysToFill, previous: data.previousPeriod.medianDaysToFill, unit: "days", better: "down", periodLabel: `previous ${data.dateRange.days} days` }}
                 />
               </KpiGroup>
             </KpiRow>
           </section>
 
-          <StagePipeline
-            rows={data.stageTable}
-            footer={`Client answers: ${data.clientDecisions.accepted} accepted, ${data.clientDecisions.declined} declined`}
-            onSelectStage={(stage) => {
-              showWaiting({ stage });
-              scrollToWorkspace();
-            }}
-          />
-
-          <LineChart
-            id="trend"
-            title="Results over time"
-            subtitle={`${data.trend.granularity === "day" ? "Daily" : data.trend.granularity === "week" ? "Weekly" : "Monthly"}. Backouts are people who left after the client reviewed them.`}
-            points={data.trend.points.map((p) => ({ label: p.label, values: { starts: p.starts, backouts: p.backouts } }))}
-            series={[{ key: "starts", label: "Starts" }, { key: "backouts", label: "Backed out" }]}
-            emptyText="No starts or backouts in these dates."
-          />
+          <div className="grid gap-5 lg:grid-cols-3">
+            {/* The trend sits under the stages so the left column roughly matches the two side panels. */}
+            <div className="min-w-0 space-y-5 lg:col-span-2">
+              <StagePipeline
+                rows={data.stageTable}
+                footer={`Client answers: ${data.clientDecisions.accepted} accepted, ${data.clientDecisions.declined} declined`}
+                onSelectStage={(stage) => {
+                  showWaiting({ stage });
+                  scrollToWorkspace();
+                }}
+              />
+              <LineChart
+                id="trend"
+                title="Results over time"
+                subtitle={`${data.trend.granularity === "day" ? "Daily" : data.trend.granularity === "week" ? "Weekly" : "Monthly"}. Backouts are people who left after the client reviewed them.`}
+                points={data.trend.points.map((p) => ({ label: p.label, values: { starts: p.starts, backouts: p.backouts } }))}
+                series={[{ key: "starts", label: "Starts" }, { key: "backouts", label: "Backed out" }]}
+                emptyText="No starts or backouts in these dates."
+              />
+            </div>
+            <div className="min-w-0 space-y-5">
+              <ClientReviewPanel data={data.clientReview} />
+              <BackoutReasonsDonut data={data.backouts} />
+            </div>
+          </div>
 
           <OperationsWorkspace<WorkspaceKey>
             banner={
@@ -315,7 +365,7 @@ export const AdminAnalyticsPage: React.FC = () => {
                 label: "Overdue candidates",
                 shortLabel: "Overdue",
                 count: data.stuckTotal,
-                content: <StuckList bare title="Overdue candidates" rows={data.stuck} total={data.stuckTotal} closedOpenings={kpis.closedOpenings} focus={waitingFocus} linkState={waitingReturn} />,
+                content: <StuckList bare title="Overdue candidates" rows={data.stuck} total={data.stuckTotal} closedOpenings={kpis.closedOpenings} focus={waitingFocus} linkState={waitingReturn} selectable bulkActions={BULK_ACTIONS} rowActions={rowActions} />,
               },
               {
                 key: "requests",
@@ -333,8 +383,6 @@ export const AdminAnalyticsPage: React.FC = () => {
               },
             ]}
           />
-
-          <BackoutPanel data={data.backouts} rangeLabel={label} />
         </>
       )}
       </div>

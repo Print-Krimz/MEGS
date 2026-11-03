@@ -17,6 +17,8 @@ export interface AttentionItem {
 
 interface AttentionStripProps {
   items: AttentionItem[];
+  /** Sits inside another bordered block (the filter bar), so it draws no frame of its own. */
+  embedded?: boolean;
 }
 
 const CHIP_BASE = "min-h-11 md:min-h-9 inline-flex items-center gap-1.5 border px-2.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
@@ -28,10 +30,10 @@ const CHIP_TONE = {
 };
 
 /** What to act on first. Only items with a count show; each runs its action and scrolls to the records. */
-export const AttentionStrip: React.FC<AttentionStripProps> = ({ items }) => {
+export const AttentionStrip: React.FC<AttentionStripProps> = ({ items, embedded = false }) => {
   const shown = items.filter((i) => i.count > 0);
   return (
-    <section aria-label="Needs action" className="rounded-md border border-navy-line bg-white px-3.5 py-2.5">
+    <section aria-label="Needs action" className={embedded ? "" : "rounded-md border border-navy-line bg-white px-3.5 py-2.5"}>
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-xs font-semibold text-slate-700">Needs action</h2>
         {shown.length === 0 && <p className="text-xs font-sans text-slate-600">Nothing needs action right now.</p>}

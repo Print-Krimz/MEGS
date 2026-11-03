@@ -11,11 +11,10 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 import { AnalyticsFilterBar } from "../index";
-import { AnalyticsKpi, AttentionStrip, KpiGroup, KpiRow, BackoutPanel, LineChart, RequestProgressList, StagePipeline, StuckList, TeamTable } from "../index";
+import { AnalyticsKpi, AttentionStrip, KpiGroup, KpiRow, LineChart, RequestProgressList, StagePipeline, StuckList, TeamTable } from "../index";
 import { AnimatedNumber } from "../motion";
 import type {
   AnalyticsFilterOptions,
-  BackoutSummary,
   RequestRow,
   StageTableRow,
   StuckCandidate,
@@ -231,57 +230,6 @@ describe("Analytics Components Test Suite", () => {
     const chip = screen.getByTestId("active-filter-chip-recruiterId");
     expect(chip).toBeDefined();
     expect(chip.textContent).toContain("Recruiter Alice");
-  });
-
-
-  const backouts: BackoutSummary = {
-    withdrawals: 1,
-    backouts: 3,
-    byParty: { APPLICANT: 3, CLIENT: 1, AGENCY: 0 },
-    byStage: [{ stage: "COMPLIANCE", label: "Requirements", APPLICANT: 2, CLIENT: 1, AGENCY: 0, total: 3 }],
-    topReasons: [{ reason: "ACCEPTED_OTHER_OFFER", label: "Accepted another job offer", count: 2 }],
-    noShows: 2,
-    byClient: [{ clientName: "Acme", count: 3 }, { clientName: "Beta", count: 1 }],
-    byRequest: [{ mrfId: 9, title: "10x Electricians", clientName: "Acme", count: 3 }],
-    recent: [
-      { applicationId: 77, candidateName: "Juan Dela Cruz", jobTitle: "Welder", clientName: "Acme", mrfId: 9, stage: "COMPLIANCE", party: "APPLICANT", reason: "ACCEPTED_OTHER_OFFER", occurredAt: "2026-10-10T02:00:00Z" },
-    ],
-  };
-
-  it("shows one panel: two counts, no-shows as a line, who backed out in text, and reasons by label", () => {
-    render(<BackoutPanel data={{ ...backouts, noShows: 1 }} />);
-    expect(screen.getByRole("heading", { name: "Why people backed out" })).toBeDefined();
-    expect(screen.getByText("Before client review").nextElementSibling?.textContent).toContain("1");
-    expect(screen.getByText("After client review").nextElementSibling?.textContent).toContain("3");
-    expect(screen.getByText("1 no-show in these dates")).toBeDefined();
-    expect(screen.queryByText("No-shows")).toBeNull();
-    expect(screen.getByRole("img", { name: /Who backed out: Applicant 3, Client 1/ })).toBeDefined();
-    expect(screen.getByText("Applicant").parentElement?.textContent).toContain("3");
-    expect(screen.getAllByText("Accepted another job offer").length).toBeGreaterThan(0);
-    for (const gone of ["By client", "By request", "By stage", "Latest"]) expect(screen.queryByText(gone)).toBeNull();
-    expect(screen.queryByText(/Client answers/)).toBeNull();
-  });
-
-  it("uses plural no-shows, a visible caption and no (i) button", () => {
-    render(<BackoutPanel data={{ ...backouts, noShows: 2 }} />);
-    expect(screen.getByText("2 no-shows in these dates")).toBeDefined();
-    expect(screen.getByText(/A client turning someone down is not a backout/)).toBeDefined();
-    expect(screen.queryByRole("button", { name: /Why people backed out/ })).toBeNull();
-  });
-
-  it("hides the no-show line at zero, the party bar at zero, and caps reasons at five", () => {
-    const reasons = Array.from({ length: 7 }, (_, i) => ({ reason: `R${i}`, label: `Reason ${i}`, count: 7 - i }));
-    render(<BackoutPanel data={{ ...backouts, noShows: 0, byParty: { APPLICANT: 0, CLIENT: 0, AGENCY: 0 }, topReasons: reasons }} />);
-    expect(screen.queryByText(/no-shows/)).toBeNull();
-    expect(screen.queryByText("Who backed out")).toBeNull();
-    expect(screen.getByText("Reason 4")).toBeDefined();
-    expect(screen.queryByText("Reason 5")).toBeNull();
-  });
-
-  it("shows an empty state when nothing was recorded", () => {
-    const empty: BackoutSummary = { ...backouts, withdrawals: 0, backouts: 0, byStage: [], topReasons: [], recent: [] };
-    render(<BackoutPanel data={empty} />);
-    expect(screen.getByText(/Nobody backed out in these dates/)).toBeDefined();
   });
 
   const teamRow = (id: string, name: string, over: Partial<TeamRow> = {}): TeamRow => ({

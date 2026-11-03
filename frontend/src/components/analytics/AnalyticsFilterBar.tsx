@@ -12,6 +12,8 @@ interface AnalyticsFilterBarProps {
   options?: AnalyticsFilterOptions;
   showRecruiterFilter?: boolean;
   showClientFilter?: boolean;
+  /** Shown inside the same frame under a divider, e.g. the "Needs action" chips. */
+  footer?: React.ReactNode;
 }
 
 // Days in a custom range counting both ends, worked out the same way the server checks it (validate.middleware.ts).
@@ -41,6 +43,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
   options,
   showRecruiterFilter = false,
   showClientFilter = false,
+  footer,
 }) => {
   const moreFiltersId = useId();
   const rangeErrorId = useId();
@@ -291,7 +294,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
 
         {/* Full width, so it sits on its own line under the date controls */}
         <p id={dateNoteId} className="col-span-2 w-full text-xs text-slate-600">
-          Dates apply to “In these dates”, Results over time and Why people backed out. “Right now” figures are live.
+          Dates apply to “In these dates”, the starts and backouts chart and Why candidates backed out. “Right now” figures are live.
         </p>
       </div>
 
@@ -441,6 +444,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
           ))}
         </div>
       )}
+      {footer && <div className="-mx-3 -mb-3 border-t border-slate-300 px-3 py-2.5">{footer}</div>}
     </div>
   );
 };

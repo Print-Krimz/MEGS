@@ -267,8 +267,36 @@ const trend = {
 };
 const zeroTrend = { granularity: "day", points: trend.points.map((p) => ({ ...p, starts: 0, newStarts: 0, redeployStarts: 0, backouts: 0, withdrawals: 0 })) };
 
+const previousPeriod = {
+  startDate: "2026-09-30",
+  endDate: "2026-10-06",
+  placementsStarted: 4,
+  newStarts: 3,
+  redeployStarts: 1,
+  medianDaysToFill: 22,
+  daysToFillSample: 6,
+  backoutRate: 40,
+  backoutRateBase: 10,
+};
+const clientReview = {
+  avgDays: 6.4,
+  sample: 11,
+  clients: [
+    { clientId: 1, clientName: "Acme Industrial Corp", inReview: 7, avgDays: 7.5, limitDays: 5, overdue: 4 },
+    { clientId: 2, clientName: "Beta Fabrication", inReview: 4, avgDays: null, limitDays: 5, overdue: 0 },
+  ],
+};
+const dueSoon = [
+  { applicationId: 821, candidateName: "Nena Flores", jobTitle: "Welder", clientName: "Beta Fabrication", mrfId: 3, recruiterId: "ta-1", recruiterName: "Alice Recruiter", stage: "FINAL_INTERVIEW", stageLabel: "Final interview", daysInStage: 4, slaDays: 5, daysOver: 0, urgency: "overdue", estimated: false, lastActivityAt: null, lastNote: null, daysLeft: 1 },
+];
+
 const taDashboard = {
   dateRange,
+  previousPeriod,
+  clientReview,
+  dueSoon,
+  dueSoonTotal: 1,
+  trend,
   kpis: taKpis,
   requests: requests.filter((r) => r.ownerId === "ta-1"),
   stageTable,
@@ -303,6 +331,10 @@ const taDashboard = {
 
 const adminDashboard = {
   dateRange,
+  previousPeriod,
+  clientReview,
+  dueSoon,
+  dueSoonTotal: 1,
   kpis,
   team: [
     teamRow({ recruiterId: "ta-1", name: "Alice Recruiter", active: 40, overdue: 12, overdueEstimated: 3, openRequisitions: 2, requestedSeats: 35, filledSeats: 24, fillRate: 68.6, sentToClient: 9, newStarts: 2, redeployStarts: 2, placed: 4, backouts: 2, backoutRate: 33.3, backoutRateBase: 6, medianDaysToFill: 20, daysToFillSample: 6 }),
@@ -322,8 +354,12 @@ const adminDashboard = {
   filterOptions,
 };
 
+const emptyClientReview = { avgDays: null, sample: 0, clients: [] };
 const emptyAdmin = {
   ...adminDashboard,
+  clientReview: emptyClientReview,
+  dueSoon: [],
+  dueSoonTotal: 0,
   kpis: zeroKpis,
   team: [],
   unassigned: { applicants: 0, overdue: 0, overdueEstimated: 0, requests: 0, requestedSeats: 0, oldestWaitDays: null },
@@ -337,6 +373,10 @@ const emptyAdmin = {
 };
 const emptyTa = {
   ...taDashboard,
+  clientReview: emptyClientReview,
+  dueSoon: [],
+  dueSoonTotal: 0,
+  trend: zeroTrend,
   kpis: { ...zeroKpis, backoutRate: null },
   requests: [],
   stageTable: zeroStageTable,
@@ -619,11 +659,10 @@ async function tabToWorkspace(page: Page): Promise<Stop[]> {
 // ---------------------------------------------------------------------------
 
 test.describe("Team leader reports (/admin/analytics)", () => {
-  test("the headings read in order: Needs action, headline numbers, stages, results, the lists, then why people backed out", async ({ page }) => {
+  test("the headings read in order: Needs action, headline numbers, stages, results, client reviews, reasons, then the lists", async ({ page }) => {
     const h = await setup(page, "admin", adminDashboard);
     await page.goto("/admin/analytics");
     await expectReportsLoaded(page);
-    await expect(page.getByRole("heading", { name: "Why people backed out" })).toBeVisible();
 
     const headings = await outline(page);
     expect(headings[0]).toBe("Reports");
@@ -635,11 +674,12 @@ test.describe("Team leader reports (/admin/analytics)", () => {
       "In these dates",
       "Candidates by stage",
       "Results over time",
+      "Slowest client reviews",
+      "Why candidates backed out",
       "TABS",
-      "Why people backed out",
-      "Who backed out",
-      "Top reasons",
     ]);
+    // The old backout detail panel is gone; the reasons ring replaces it.
+    await expect(page.getByRole("heading", { name: "Why people backed out" })).toHaveCount(0);
     expect(h.unmocked).toEqual([]);
     expect(h.pageErrors).toEqual([]);
   });
@@ -653,11 +693,14 @@ test.describe("Team leader reports (/admin/analytics)", () => {
     const period = page.getByRole("region", { name: "In these dates" });
     await expect(now.getByRole("link", { name: /^Seats filled/ })).toContainText("62.5%");
     await expect(now.getByRole("link", { name: /^Seats filled/ })).toContainText("25 of 40 filled · 15 open");
-    await expect(period.getByRole("link", { name: /^Starts/ })).toContainText("4 new · 2 redeployed");
+    await expect(now.getByText("2 overdue or at risk")).toBeVisible();
+    await expect(now.getByRole("link", { name: /^Client review wait/ })).toContainText("6.4 days");
+    await expect(now.getByRole("link", { name: /^Client review wait/ })).toContainText("1 client past their limit");
     await expect(period.getByText("18.5 days")).toBeVisible();
     await expect(period.getByText("Typical, from 5 starts")).toBeVisible();
-    await expect(period.getByRole("link", { name: /^Backout rate/ })).toContainText("33.3%");
-    await expect(period.getByRole("link", { name: /^Backout rate/ })).toContainText("3 of 9 backed out after client review");
+    // 18.5 days now against 22 in the previous seven days.
+    await expect(period.getByText("-3.5 days")).toBeVisible();
+    await expect(period.getByText("vs previous 7 days")).toBeVisible();
   });
 
   test("how each number is counted sits behind one disclosure", async ({ page }) => {
@@ -668,7 +711,7 @@ test.describe("Team leader reports (/admin/analytics)", () => {
     await expect(definition).toBeHidden();
     await page.locator("summary", { hasText: "How these are counted" }).click();
     await expect(definition).toBeVisible();
-    await expect(page.getByText("Typical days from request opened to worker start.")).toBeVisible();
+    await expect(page.getByText(/^Typical days from request opened to worker start, compared with/)).toBeVisible();
   });
 
   test("a rate under five samples reads Too few to show (4 cases), and five samples show the number", async ({ page }) => {
@@ -677,8 +720,8 @@ test.describe("Team leader reports (/admin/analytics)", () => {
     await expectReportsLoaded(page);
 
     const period = page.getByRole("region", { name: "In these dates" });
-    await expect(period.getByRole("link", { name: /^Backout rate/ })).toContainText("Too few to show (4 cases)");
-    await expect(period.getByRole("link", { name: /^Backout rate/ })).toContainText("3 of 4 backed out after client review");
+    // The client with four candidates in review has no average to show. The number from a base of four is not a headline tile any more.
+    await expect(page.locator("#client-review").getByRole("listitem").filter({ hasText: "Beta Fabrication" })).toContainText("Too few to show (4 cases)");
     // Days to fill has five starts behind it, so the number shows.
     await expect(period.getByText("18.5 days")).toBeVisible();
 
@@ -900,17 +943,14 @@ test.describe("Team leader reports (/admin/analytics)", () => {
     await expect(page).not.toHaveURL(/forbidden/);
   });
 
-  test("the backout panel shows who left, the reasons with their labels, and the no-show count", async ({ page }) => {
+  test("the reasons ring lists why people backed out, by label", async ({ page }) => {
     await setup(page, "admin", adminDashboard);
     await page.goto("/admin/analytics");
     await expectReportsLoaded(page);
 
-    const panel = page.locator("#backouts");
-    await expect(panel.getByRole("heading", { name: "Why people backed out" })).toBeVisible();
-    await expect(panel.getByText("1 no-show in these dates")).toBeVisible();
-    await expect(panel.getByText("Accepted another offer")).toBeVisible();
-    await expect(panel.getByText("Client cancelled the request")).toBeVisible();
-    await expect(page.getByText("Accepted another offer", { exact: true })).toHaveCount(1);
+    const legend = page.locator("#backout-reasons").getByRole("list", { name: /legend/ });
+    await expect(legend).toContainText("Accepted another offer");
+    await expect(legend).toContainText("Client cancelled the request");
   });
 
   test("the results-over-time chart names both lines and has a table under it", async ({ page }) => {
@@ -1120,8 +1160,9 @@ test.describe("Recruiter reports (/ta/analytics)", () => {
 
     const headings = await outline(page);
     expect(headings[0]).toBe("Reports");
-    expectInOrder(headings, ["Reports", "Needs action", "Headline numbers", "Right now", "In these dates", "Candidates by stage", "TABS", "Why people backed out"]);
-    await expect(page.getByRole("tab")).toHaveCount(2);
+    expectInOrder(headings, ["Reports", "Needs action", "Headline numbers", "Right now", "In these dates", "Candidates by stage", "Starts and backouts", "Why candidates backed out", "Due soon", "TABS"]);
+    // Action items, Overdue candidates, Client requests.
+    await expect(page.getByRole("tab")).toHaveCount(3);
     await expect(page.getByRole("tab", { name: /^Recruiters/ })).toHaveCount(0);
     expect(h.unmocked).toEqual([]);
     expect(h.pageErrors).toEqual([]);
@@ -1137,7 +1178,10 @@ test.describe("Recruiter reports (/ta/analytics)", () => {
     await expect(now.getByRole("link", { name: /^Overdue candidates/ })).toContainText("31");
     await expect(now.getByRole("link", { name: /^Overdue candidates/ })).toContainText("6 estimated from application date");
     await expect(now.getByText("25 of 40 seats filled")).toBeVisible();
-    await expect(period.getByText("Days to fill: 18.5 days")).toBeVisible();
+    await expect(period.getByText("4 new · 2 redeployed")).toBeVisible();
+    // 6 starts now against 4, and a backout rate of 33.3% against 40%, in the previous seven days.
+    await expect(period.getByText(/\+2 vs previous 7 days/)).toBeVisible();
+    await expect(period.getByText("-6.7 pts")).toBeVisible();
     await expect(period.getByRole("link", { name: /^Backout rate/ })).toContainText("33.3%");
     // The deployments page takes no dates or request filters, so a Starts tile would point at the wrong numbers.
     await expect(page.getByRole("link", { name: /^Starts/ })).toHaveCount(0);
@@ -1149,7 +1193,6 @@ test.describe("Recruiter reports (/ta/analytics)", () => {
     await page.goto("/ta/analytics");
     await expectReportsLoaded(page);
     await expect(page.getByRole("region", { name: "In these dates" }).getByRole("link", { name: /^Backout rate/ })).toContainText("Too few to show (4 cases)");
-    await expect(page.getByText("Days to fill: 18.5 days")).toBeVisible();
     const stages = page.locator("#stage-pipeline");
     await stages.getByText("View as table").click();
     await expect(stages.getByRole("row", { name: /Client review/ })).toContainText("Too few to show (4 cases)");
@@ -1174,6 +1217,26 @@ test.describe("Recruiter reports (/ta/analytics)", () => {
     await strip.getByRole("link", { name: /overdue or at-risk request$/ }).click();
     await expect(page.getByRole("tab", { name: /^Client requests/ })).toHaveAttribute("aria-selected", "true");
     await expect(page.getByRole("tabpanel").getByRole("button", { name: /^Overdue or at risk 1$/ })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("the tasks chip opens Action items, and ticked overdue rows offer Export selected", async ({ page }) => {
+    await setup(page, "recruiter", taDashboard);
+    await page.goto("/ta/analytics");
+    await expectReportsLoaded(page);
+
+    await page.getByRole("region", { name: "Needs action" }).getByRole("link", { name: /tasks waiting on you$/ }).click();
+    await expect(page.getByRole("tab", { name: /^Action items/ })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("tabpanel").getByText("Initial Interview Pending Evaluation")).toBeVisible();
+    await expect(page.getByRole("tabpanel").getByText("Showing 1 of 41.")).toBeVisible();
+    await expect(page).toHaveURL(/tab=actions/);
+
+    await page.getByRole("tab", { name: /^Overdue candidates/ }).click();
+    await page.getByRole("checkbox", { name: "Select Mario Reyes" }).check();
+    await expect(page.getByText("1 selected")).toBeVisible();
+    await page.getByRole("button", { name: "Bulk actions" }).click();
+    const download = page.waitForEvent("download");
+    await page.getByRole("menuitem", { name: "Export selected" }).click();
+    expect((await download).suggestedFilename()).toMatch(/^MEGS_overdue_candidates_.+\.csv$/);
   });
 
   test("the overdue list links to the working pages, and shows no recruiter", async ({ page }) => {

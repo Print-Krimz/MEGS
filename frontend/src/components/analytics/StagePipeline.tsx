@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useId } from "react";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import type { StageTableRow } from "../../lib/types/analytics.types";
@@ -33,9 +33,16 @@ const waitText = (row: StageTableRow) =>
 const limitText = (row: StageTableRow) =>
   row.stage === "DEPLOYED" ? "None" : row.stage === "CLIENT_ENDORSEMENT" ? "Set per client" : `${row.slaDays} days`;
 
+/** "avg 2.5 days vs 3-day limit". Hidden when the average is too thin to show or the stage has no limit. */
+const avgText = (row: StageTableRow) => {
+  if (row.stage === "DEPLOYED" || row.avgDaysInStage === null) return null;
+  const limit = row.stage === "CLIENT_ENDORSEMENT" ? "client limit" : `${row.slaDays}-day limit`;
+  return { text: `avg ${row.avgDaysInStage} ${row.avgDaysInStage === 1 ? "day" : "days"} vs ${limit}`, over: row.stage !== "CLIENT_ENDORSEMENT" && row.avgDaysInStage > row.slaDays };
+};
+
 // Phones: name and count on one line, the bar full width under them. Wider screens: three aligned columns.
-const ROW_GRID = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 sm:grid-cols-[9rem_minmax(0,1fr)_13rem] sm:gap-y-0";
-const BAR_CELL = "col-span-2 row-start-2 sm:col-span-1 sm:col-start-2 sm:row-start-1";
+const ROW_GRID = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 @xl:grid-cols-[9rem_minmax(0,1fr)_14rem] @xl:gap-y-0";
+const BAR_CELL = "col-span-2 row-start-2 @xl:col-span-1 @xl:col-start-2 @xl:row-start-1";
 
 /**
  * The pipeline from application to start as one bar per stage. The full bar is how many candidates are in the stage
@@ -45,13 +52,14 @@ const BAR_CELL = "col-span-2 row-start-2 sm:col-span-1 sm:col-start-2 sm:row-sta
 export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStage, linkStages = false, footer }) => {
   const empty = rows.every((r) => r.inStageNow === 0 && r.entered === 0 && r.backedOut === 0);
   const maxInStage = Math.max(1, ...rows.map((r) => r.inStageNow));
+  const baseId = useId();
 
   return (
     <AnalyticsPanel tone="reports" id="stage-pipeline" title="Candidates by stage">
       {empty ? (
         <p className="p-4 text-center text-xs text-slate-600 font-sans">No candidates in the pipeline and none moved in these dates.</p>
       ) : (
-        <div className="p-3.5">
+        <div className="@container p-3.5">
           <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs font-sans text-slate-600">
             <p>How many candidates are in each stage right now. Red is the part past the stage&apos;s days allowed.</p>
             <div className="flex items-center gap-3" data-testid="stage-legend">
@@ -71,6 +79,9 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
               const late = overdueIn(row);
               const name = row.label;
               const share = late > 0 ? `${late} overdue (${overduePct(late, row.inStageNow)})` : "";
+              const avg = avgText(row);
+              const avgId = `${baseId}-${row.stage}`;
+              const describedBy = avg ? avgId : undefined;
               const summary = `${name}, ${row.inStageNow}${share ? ` · ${share}` : ""}`;
               const link = linkStages && row.stage !== "APPLIED" && row.stage !== "DEPLOYED";
               const pick = !link && !!onSelectStage && late > 0;
@@ -89,15 +100,16 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
                       { key: "late", label: "overdue", value: late, color: WORKLOAD.overdue },
                     ]}
                   />
-                  <span className="col-start-2 row-start-1 whitespace-nowrap text-right text-xs font-sans tabular-nums text-slate-700 sm:col-start-3">
+                  <span className="col-start-2 row-start-1 whitespace-nowrap text-right text-xs font-sans tabular-nums text-slate-700 @xl:col-start-3">
                     <strong className="text-slate-950">{row.inStageNow}</strong>
                     {late > 0 && <span className={`font-semibold ${TEXT_LOSS}`}> · {share}</span>}
                     {pick && (
                       <span aria-hidden="true" className="ml-1 inline-flex items-center text-xs font-semibold text-navy">
-                        <span className="hidden sm:inline">Show</span>
+                        <span className="hidden @xl:inline">Show</span>
                         <ChevronRight size={14} className="shrink-0" />
                       </span>
                     )}
+                    {avg && <span id={avgId} className={`block text-xs ${avg.over ? `font-semibold ${TEXT_LOSS}` : "text-slate-600"}`}>{avg.text}{avg.over && <span className="sr-only"> (over the limit)</span>}</span>}
                   </span>
                 </>
               );
@@ -106,15 +118,15 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
               return (
                 <li key={row.stage} className="min-w-0 border-b border-navy-line last:border-b-0">
                   {link ? (
-                    <Link to="/ta/applications" search={{ stage: row.stage as ApplicationStatus }} aria-label={label} className={`${frame} ${hover}`}>
+                    <Link to="/ta/applications" search={{ stage: row.stage as ApplicationStatus }} aria-label={label} aria-describedby={describedBy} className={`${frame} ${hover}`}>
                       {content}
                     </Link>
                   ) : pick ? (
-                    <button type="button" aria-label={label} onClick={() => onSelectStage?.(row.stage)} className={`${frame} ${hover} cursor-pointer`}>
+                    <button type="button" aria-label={label} aria-describedby={describedBy} onClick={() => onSelectStage?.(row.stage)} className={`${frame} ${hover} cursor-pointer`}>
                       {content}
                     </button>
                   ) : (
-                    <div role="group" aria-label={label} className={frame}>
+                    <div role="group" aria-label={label} aria-describedby={describedBy} className={frame}>
                       {content}
                     </div>
                   )}

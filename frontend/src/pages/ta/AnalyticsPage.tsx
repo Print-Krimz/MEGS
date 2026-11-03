@@ -9,9 +9,12 @@ import {
   ExportMenu,
   AnalyticsKpi,
   AttentionStrip,
-  BackoutPanel,
+  ActionItemsList,
+  BackoutReasonsDonut,
+  DueSoonList,
   KpiGroup,
   KpiRow,
+  LineChart,
   OperationsWorkspace,
   RequestProgressList,
   StagePipeline,
@@ -20,7 +23,6 @@ import {
 import type { RequestHealthFilter } from "../../components/analytics";
 import { filtersToSearch, parseTAReportSearch, searchToFilters, type AdminReportSearch } from "../../lib/admin-report-search";
 import type { AnalyticsFilterState } from "../../lib/types/analytics.types";
-import { formatDate } from "../../lib/utils";
 import { scrollToId } from "../../lib/scroll-to";
 import { TA_COPY } from "../../lib/ta-copy";
 
@@ -29,14 +31,11 @@ const plural = (count: number, word: string) => (count === 1 ? word : `${word}s`
 const KPI_DEFINITIONS = [
   { label: "Overdue candidates", definition: "Candidates past the days allowed for their stage, including ones estimated from application date." },
   { label: "Open requests", definition: "Requests still needing workers." },
-  { label: "Starts", definition: "Workers who started work." },
-  { label: "Days to fill", definition: "Typical days from request opened to worker start." },
-  { label: "Backout rate", definition: "Workers who backed out after client review, out of those plus starts." },
+  { label: "Starts", definition: "Workers who started work, compared with the previous dates of the same length." },
+  { label: "Backout rate", definition: "Workers who backed out after client review, out of those plus starts, compared with the previous dates of the same length." },
 ];
 
-const rangeText = (start: string, end: string) => `${formatDate(start)} to ${formatDate(end)}`;
-
-type WorkspaceKey = "waiting" | "requests";
+type WorkspaceKey = "waiting" | "requests" | "actions";
 type WaitingFocus = { urgency?: "ALL" | "critical"; stage?: string; nonce: number };
 type RequestFocus = { health: RequestHealthFilter; nonce: number };
 
@@ -52,8 +51,9 @@ export const AnalyticsPage: React.FC = () => {
     () => searchToFilters({ range, startDate, endDate, clientId, mrfId, jobPostingId }),
     [range, startDate, endDate, clientId, mrfId, jobPostingId],
   );
-  const [tab, setTabState] = useState<WorkspaceKey>(search.tab === "requests" ? "requests" : "waiting");
-  useEffect(() => setTabState(search.tab === "requests" ? "requests" : "waiting"), [search.tab]);
+  const urlTab: WorkspaceKey = search.tab === "requests" || search.tab === "actions" ? search.tab : "waiting";
+  const [tab, setTabState] = useState<WorkspaceKey>(urlTab);
+  useEffect(() => setTabState(urlTab), [urlTab]);
   const [nonce, setNonce] = useState(0);
   // After a chip or tile opens a tab, focus moves to that panel so a keyboard or screen reader user lands on the list.
   const [focusRequest, setFocusRequest] = useState<{ tab: WorkspaceKey; id: number } | null>(null);
@@ -101,6 +101,17 @@ export const AnalyticsPage: React.FC = () => {
     setTabState("waiting");
     setFocusRequest({ tab: "waiting", id: nonce + 1 });
     update({ tab: "waiting", urgency: focus.urgency, stage: focus.stage, health: undefined });
+  };
+  const showActions = () => {
+    // With nothing in these dates the tabs are not on the page, so the chip goes to the Overview task list instead.
+    if (isEmpty) {
+      void navigate({ to: "/ta" });
+      return;
+    }
+    setNonce((n) => n + 1);
+    setTabState("actions");
+    setFocusRequest({ tab: "actions", id: nonce + 1 });
+    update({ tab: "actions", health: undefined, urgency: undefined, stage: undefined });
   };
   const showRequests = (next: RequestHealthFilter) => {
     setNonce((n) => n + 1);
@@ -154,7 +165,7 @@ export const AnalyticsPage: React.FC = () => {
 
   const data = dashboardQuery.data;
   const { kpis } = data;
-  const label = rangeText(data.dateRange.startDate, data.dateRange.endDate);
+  const previousLabel = `previous ${data.dateRange.days} days`;
   const isEmpty =
     kpis.activeApplicants === 0 && kpis.requisitions.total === 0 && kpis.placementsStarted === 0 && data.backouts.backouts === 0 && data.backouts.withdrawals === 0;
   const staleNote =
@@ -166,7 +177,22 @@ export const AnalyticsPage: React.FC = () => {
     <div className="space-y-5">
       {header}
 
-      <AnalyticsFilterBar filters={filters} onChange={setFilters} options={data.filterOptions} showClientFilter />
+      <AnalyticsFilterBar
+        filters={filters}
+        onChange={setFilters}
+        options={data.filterOptions}
+        showClientFilter
+        footer={
+          <AttentionStrip
+            embedded
+            items={[
+              { key: "overdue", count: kpis.overdueTotal, label: plural(kpis.overdueTotal, "overdue candidate"), href: "#operations", onSelect: () => showWaiting({ urgency: "ALL" }) },
+              { key: "tasks", count: data.pendingActionsTotal, label: `${plural(data.pendingActionsTotal, "task")} waiting on you`, href: "#operations", tone: "watch", onSelect: showActions },
+              { key: "late", count: kpis.lateRequests, label: `overdue or at-risk ${plural(kpis.lateRequests, "request")}`, href: "#operations", onSelect: () => showRequests("LATE") },
+            ]}
+          />
+        }
+      />
 
       <p role="status" aria-live="polite" className="sr-only">
         {dashboardQuery.isPlaceholderData ? "Updating the numbers" : ""}
@@ -174,15 +200,6 @@ export const AnalyticsPage: React.FC = () => {
 
       {/* Dim only while a filter change loads (old numbers on screen), not on a quiet background refresh. */}
       <div className={`space-y-5 transition-opacity ${dashboardQuery.isPlaceholderData ? "opacity-70" : ""}`}>
-        <AttentionStrip
-          items={[
-            { key: "overdue", count: kpis.overdueTotal, label: plural(kpis.overdueTotal, "overdue candidate"), href: "#operations", onSelect: () => showWaiting({ urgency: "ALL" }) },
-            // The Overview already lists the tasks, so this chip goes there instead of repeating them here.
-            { key: "tasks", count: data.pendingActionsTotal, label: `${plural(data.pendingActionsTotal, "task")} waiting on you`, href: "/ta", tone: "watch", onSelect: () => void navigate({ to: "/ta" }) },
-            { key: "late", count: kpis.lateRequests, label: `overdue or at-risk ${plural(kpis.lateRequests, "request")}`, href: "#operations", onSelect: () => showRequests("LATE") },
-          ]}
-        />
-
         {isEmpty ? (
           <div className="border border-slate-300 bg-white p-6 text-center text-sm font-sans text-slate-700">
             <p>Nothing recorded for these dates. Try a longer range.</p>
@@ -218,37 +235,64 @@ export const AnalyticsPage: React.FC = () => {
                   <AnalyticsKpi
                     label="Starts"
                     value={kpis.placementsStarted}
-                    detail={`Days to fill: ${formatSampled(kpis.medianDaysToFill, kpis.daysToFillSample, "days")}`}
+                    detail={`${kpis.newStarts} new · ${kpis.redeployStarts} redeployed`}
+                    delta={{ current: kpis.placementsStarted, previous: data.previousPeriod.placementsStarted, better: "up", periodLabel: previousLabel }}
                   />
                   <AnalyticsKpi
                     label="Backout rate"
                     value={formatSampled(kpis.backoutRate, kpis.backoutRateBase, "%")}
                     detail={`${kpis.backoutsAfterClientReview} of ${kpis.backoutRateBase} backed out after client review`}
-                    href="#backouts"
+                    delta={{ current: kpis.backoutRate, previous: data.previousPeriod.backoutRate, unit: "%", better: "down", periodLabel: previousLabel }}
+                    href="#backout-reasons"
                   />
                 </KpiGroup>
               </KpiRow>
             </section>
-            <StagePipeline
-              rows={data.stageTable}
-              footer={`Client answers: ${data.clientDecisions.accepted} accepted, ${data.clientDecisions.declined} declined`}
-              onSelectStage={(picked) => {
-                showWaiting({ stage: picked });
-                scrollToWorkspace();
-              }}
-            />
+            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+              <div className="min-w-0 md:col-span-2 lg:col-span-1">
+                <StagePipeline
+                  rows={data.stageTable}
+                  footer={`Client answers: ${data.clientDecisions.accepted} accepted, ${data.clientDecisions.declined} declined`}
+                  onSelectStage={(picked) => {
+                    showWaiting({ stage: picked });
+                    scrollToWorkspace();
+                  }}
+                />
+              </div>
+              <div className="min-w-0">
+                <LineChart
+                  id="trend"
+                  title="Starts and backouts"
+                  subtitle={`${data.trend.granularity === "day" ? "Daily" : data.trend.granularity === "week" ? "Weekly" : "Monthly"}. Backouts are people who left after the client reviewed them.`}
+                  points={data.trend.points.map((p) => ({ label: p.label, values: { starts: p.starts, backouts: p.backouts } }))}
+                  series={[{ key: "starts", label: "Starts" }, { key: "backouts", label: "Backed out" }]}
+                  emptyText="No starts or backouts in these dates."
+                />
+              </div>
+              <div className="min-w-0 space-y-5">
+                <BackoutReasonsDonut data={data.backouts} />
+                <DueSoonList rows={data.dueSoon} total={data.dueSoonTotal} viewer="ta" />
+              </div>
+            </div>
 
             <OperationsWorkspace<WorkspaceKey>
               active={tab}
               onChange={setTab}
               tabs={[
                 {
+                  key: "actions",
+                  label: "Action items",
+                  shortLabel: "Tasks",
+                  count: data.pendingActionsTotal,
+                  content: <ActionItemsList bare rows={data.pendingActions} total={data.pendingActionsTotal} />,
+                },
+                {
                   key: "waiting",
                   label: "Overdue candidates",
                   shortLabel: "Overdue",
                   count: data.stuckTotal,
                   content: (
-                    <StuckList bare viewer="ta" showRecruiter={false} title="Overdue candidates" rows={data.stuck} total={data.stuckTotal} closedOpenings={kpis.closedOpenings} focus={waitingFocus} />
+                    <StuckList bare viewer="ta" showRecruiter={false} title="Overdue candidates" rows={data.stuck} total={data.stuckTotal} closedOpenings={kpis.closedOpenings} focus={waitingFocus} selectable />
                   ),
                 },
                 {
@@ -260,8 +304,6 @@ export const AnalyticsPage: React.FC = () => {
                 },
               ]}
             />
-
-            <BackoutPanel data={data.backouts} rangeLabel={label} />
           </>
         )}
       </div>

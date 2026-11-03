@@ -1,14 +1,33 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { ChevronDown, Download, type LucideIcon } from "lucide-react";
 import type { StuckCandidate } from "../../lib/types/analytics.types";
 import { formatRecruiterName } from "../../lib/recruiter-label";
 import { AnalyticsPanel } from "./AnalyticsPanel";
-import { STAGE_RAMP, TEXT_AMBER, TEXT_LOSS, WAIT } from "../../lib/chart-palette";
+import { STAGE_RAMP, WAIT } from "../../lib/chart-palette";
 import { PaginationBar } from "./PaginationBar";
 import { StackedBar } from "./chart-primitives";
 import { StuckPreviewDialog } from "./StuckPreviewDialog";
 import { daysAgoText } from "../../lib/analytics-format";
 import { formatDate } from "../../lib/utils";
+import { downloadCsv, toCsv } from "../../lib/csv";
+import { getManilaToday } from "../../lib/field-limits";
+import { BulkActionBar } from "../common/BulkActionBar";
+
+/** An action on every ticked row, listed in the Bulk actions menu. Reject to report a failure and keep the selection. */
+export interface StuckBulkAction {
+  key: string;
+  label: string;
+  icon?: LucideIcon;
+  run: (rows: StuckCandidate[]) => Promise<void> | void;
+}
+
+/** An extra button on each row. */
+export interface StuckRowAction {
+  key: string;
+  label: string;
+  run: (row: StuckCandidate) => Promise<void> | void;
+}
 
 interface StuckListProps {
   rows: StuckCandidate[];
@@ -30,12 +49,112 @@ interface StuckListProps {
   focus?: { urgency?: "ALL" | "critical"; stage?: string; nonce: number };
   /** History state added to the Admin links, so the detail page can return to the same report. */
   linkState?: Record<string, unknown>;
+  /** A checkbox on each row, Select all, and a Bulk actions menu. Export selected is always in the menu. */
+  selectable?: boolean;
+  /** Menu items added before Export selected. */
+  bulkActions?: StuckBulkAction[];
+  rowActions?: StuckRowAction[];
 }
 
 const URGENCY = {
   critical: { label: "Critical", badge: "bg-[#FDF1F2] text-[#B42318]" },
   overdue: { label: "Overdue", badge: "bg-[#FFF4DC] text-[#7A4800]" },
 } as const;
+
+const CHECKBOX = "h-4 w-4 cursor-pointer accent-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1";
+
+const ROW_BUTTON =
+  "inline-flex min-h-11 items-center px-1 text-xs font-semibold text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50 md:min-h-9";
+
+const CSV_HEADERS = ["Candidate", "Job", "Client", "Recruiter", "Stage", "Days in stage", "Days allowed", "Days over", "Urgency", "Last activity", "Last note"];
+
+const csvRow = (r: StuckCandidate) => [
+  r.candidateName,
+  r.jobTitle,
+  r.clientName,
+  r.recruiterName,
+  r.stageLabel,
+  r.daysInStage,
+  r.slaDays,
+  r.daysOver,
+  URGENCY[r.urgency].label,
+  r.lastActivityAt ? r.lastActivityAt.slice(0, 10) : null,
+  r.lastNote,
+];
+
+/** Menu button with the actions for the ticked rows. Escape closes it and returns focus to the button. */
+const BulkMenu: React.FC<{ actions: StuckBulkAction[]; busy: boolean; onRun: (action: StuckBulkAction) => void }> = ({ actions, busy, onRun }) => {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    menuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        toggleRef.current?.focus();
+      }
+      if (event.key === "Tab") setOpen(false);
+    };
+    const onPointerDown = (event: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("mousedown", onPointerDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("mousedown", onPointerDown);
+    };
+  }, [open]);
+
+  const onItemKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+    event.preventDefault();
+    const items = Array.from(menuRef.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]') ?? []);
+    const at = items.indexOf(event.currentTarget as HTMLButtonElement);
+    items[(at + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+  };
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        ref={toggleRef}
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        disabled={busy}
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex min-h-11 items-center gap-1.5 border border-navy bg-white px-3 text-xs font-semibold text-navy hover:bg-navy-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50 md:min-h-9"
+      >
+        {busy ? "Working" : "Bulk actions"}
+        <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+      {open && (
+        <div ref={menuRef} role="menu" aria-label="Bulk actions" className="absolute left-0 z-20 mt-1 w-56 border border-slate-300 bg-white py-1 shadow-md">
+          {actions.map((a) => (
+            <button
+              key={a.key}
+              type="button"
+              role="menuitem"
+              onKeyDown={onItemKeyDown}
+              onClick={() => {
+                setOpen(false);
+                onRun(a);
+              }}
+              className="flex min-h-11 w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-100 focus-visible:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus md:min-h-9"
+            >
+              {a.icon && <a.icon className="h-4 w-4 shrink-0" aria-hidden="true" />}
+              {a.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
 
 const SELECT =
   "min-h-9 border border-slate-300 bg-white px-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
@@ -69,6 +188,9 @@ export const StuckList = React.memo(function StuckList({
   bare = false,
   focus,
   linkState,
+  selectable = false,
+  bulkActions = [],
+  rowActions = [],
 }: StuckListProps) {
   const admin = viewer === "admin";
   const withRecruiter = showRecruiter ?? admin;
@@ -78,6 +200,12 @@ export const StuckList = React.memo(function StuckList({
   const [query, setQuery] = useState("");
   const [previewId, setPreviewId] = useState<number | null>(null);
   const [previewMove, setPreviewMove] = useState(false);
+  // Ticked rows, by application id. They stay ticked across pages and filters.
+  const [selected, setSelected] = useState<Set<number>>(() => new Set());
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const pageBoxRef = useRef<HTMLInputElement>(null);
+
 
   useEffect(() => {
     if (!focus) return;
@@ -109,11 +237,77 @@ export const StuckList = React.memo(function StuckList({
     [rows, urgency, stage, needle, withRecruiter]
   );
 
+  // Only rows the filters show stay ticked, so a bulk action never reaches a hidden row. This also drops candidates a refresh removed.
+  useEffect(() => {
+    setSelected((prev) => {
+      const ids = new Set(visible.map((r) => r.applicationId));
+      const next = new Set([...prev].filter((id) => ids.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+  }, [visible]);
+
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const pageRows = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   // One scale for the page so the bars compare, wide enough to show every limit mark.
   const scale = Math.max(1, ...pageRows.map((r) => Math.max(r.daysInStage, r.slaDays)));
+  const selectedRows = useMemo(() => rows.filter((r) => selected.has(r.applicationId)), [rows, selected]);
+  const pageSelected = pageRows.filter((r) => selected.has(r.applicationId)).length;
+  const allOnPage = pageRows.length > 0 && pageSelected === pageRows.length;
+  useEffect(() => {
+    if (pageBoxRef.current) pageBoxRef.current.indeterminate = pageSelected > 0 && !allOnPage;
+  }, [pageSelected, allOnPage]);
+
+  const toggle = (id: number) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  const togglePage = () =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const r of pageRows) {
+        if (allOnPage) next.delete(r.applicationId);
+        else next.add(r.applicationId);
+      }
+      return next;
+    });
+
+  const exportSelected = (picked: StuckCandidate[]) => {
+    downloadCsv(`MEGS_overdue_candidates_${getManilaToday()}`, toCsv(CSV_HEADERS, picked.map(csvRow)));
+    setNotice(`Exported ${picked.length} ${picked.length === 1 ? "candidate" : "candidates"}.`);
+  };
+  const menuActions: StuckBulkAction[] = [...bulkActions, { key: "export", label: "Export selected", icon: Download, run: exportSelected }];
+
+  // An action that rejects has already told the person why; the selection stays so they can try again.
+  const runBulk = async (action: StuckBulkAction) => {
+    if (busy) return;
+    setBusy(true);
+    setNotice("");
+    try {
+      await action.run(selectedRows);
+      setSelected(new Set());
+    } catch {
+      /* reported by the action */
+    } finally {
+      setBusy(false);
+      // The menu and, on success, the selection bar are gone; keep keyboard focus in the list.
+      pageBoxRef.current?.focus();
+    }
+  };
+  const runRow = async (action: StuckRowAction, row: StuckCandidate) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await action.run(row);
+    } catch {
+      /* reported by the action */
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const reset = (apply: () => void) => {
     apply();
     setPage(1);
@@ -165,6 +359,24 @@ export const StuckList = React.memo(function StuckList({
         </div>
       )}
 
+      {selectable && (
+        <>
+          {selected.size > 0 && (
+            <div className="border-b border-slate-200 px-3.5 py-2.5">
+              <BulkActionBar count={selected.size} onClear={() => {
+                  setSelected(new Set());
+                  pageBoxRef.current?.focus();
+                }} floating={false}>
+                <BulkMenu actions={menuActions} busy={busy} onRun={runBulk} />
+              </BulkActionBar>
+            </div>
+          )}
+          <p role="status" className="sr-only">
+            {notice}
+          </p>
+        </>
+      )}
+
       {rows.length === 0 ? (
         <p className="p-6 text-center text-xs text-slate-500 font-sans">No one is past the days allowed.</p>
       ) : pageRows.length === 0 ? (
@@ -172,12 +384,27 @@ export const StuckList = React.memo(function StuckList({
           {needle ? `No overdue candidates match “${query.trim()}”.` : "No match. Change the filters."}
         </p>
       ) : (
+        <>
+        {selectable && (
+          <label className="flex min-h-11 cursor-pointer items-center gap-1 border-b border-slate-200 bg-slate-50 pl-1 pr-3 text-xs font-semibold text-slate-700 md:min-h-9">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center md:h-9 md:w-9">
+              <input ref={pageBoxRef} type="checkbox" checked={allOnPage} onChange={togglePage} className={CHECKBOX} />
+            </span>
+            Select all on this page
+          </label>
+        )}
         <ul className="divide-y divide-slate-200">
           {pageRows.map((r, i) => {
             const style = URGENCY[r.urgency];
             return (
-              <li key={r.applicationId} className="px-3 py-2.5">
-                <div className="flex items-center justify-between gap-3">
+              <li key={r.applicationId} className={selectable ? "flex items-start gap-1 py-2.5 pl-1 pr-3" : "px-3 py-2.5"}>
+                {selectable && (
+                  <label className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center md:h-9 md:w-9">
+                    <input type="checkbox" aria-label={`Select ${r.candidateName}`} checked={selected.has(r.applicationId)} onChange={() => toggle(r.applicationId)} className={CHECKBOX} />
+                  </label>
+                )}
+                <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center justify-between gap-x-3">
                   <div className="flex min-w-0 items-center gap-2">
                     <span className={`shrink-0 px-1.5 py-0.5 text-xs font-semibold ${style.badge}`}>{style.label}</span>
                     {admin ? (
@@ -199,8 +426,8 @@ export const StuckList = React.memo(function StuckList({
                       </Link>
                     )}
                   </div>
-                  <div className="flex shrink-0 items-center gap-3">
-                    <span className={`text-xs font-semibold tabular-nums ${r.urgency === "critical" ? TEXT_LOSS : TEXT_AMBER}`}>
+                  <div className="flex flex-wrap items-center gap-x-3">
+                    <span className={`px-1.5 py-0.5 text-xs font-semibold tabular-nums ${style.badge}`}>
                       {r.daysOver} {r.daysOver === 1 ? "day" : "days"} over
                     </span>
                     {!admin && (
@@ -216,6 +443,11 @@ export const StuckList = React.memo(function StuckList({
                         Move stage
                       </button>
                     )}
+                    {rowActions.map((a) => (
+                      <button key={a.key} type="button" disabled={busy} aria-label={`${a.label}: ${r.candidateName}`} onClick={() => void runRow(a, r)} className={ROW_BUTTON}>
+                        {a.label}
+                      </button>
+                    ))}
                     <button
                       type="button"
                       aria-label={`Quick view: ${r.candidateName}`}
@@ -267,10 +499,12 @@ export const StuckList = React.memo(function StuckList({
                     {r.lastNote ? ` · ${r.lastNote}` : ""}
                   </p>
                 )}
+                </div>
               </li>
             );
           })}
         </ul>
+        </>
       )}
 
       <StuckPreviewDialog

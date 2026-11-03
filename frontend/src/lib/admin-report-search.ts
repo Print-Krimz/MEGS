@@ -37,7 +37,7 @@ const boundedText = (v: unknown, max: number): string | undefined =>
 const dateOnly = (v: unknown): string | undefined => (typeof v === "string" && DATE_ONLY.test(v) ? v : undefined);
 
 const RANGES = ["7d", "30d", "90d", "custom"] as const;
-const TABS = ["waiting", "requests", "recruiters"] as const;
+const TABS = ["waiting", "requests", "recruiters", "actions"] as const;
 const HEALTH = ["ALL", "NONE", "LATE", "NO_OPENING", "OVERDUE", "AT_RISK", "ON_TRACK", "FILLED"] as const;
 const URGENCY = ["ALL", "critical"] as const;
 
@@ -56,7 +56,7 @@ export interface AdminReportSearch {
   stage?: string;
 }
 
-export const parseAdminReportSearch = (input: unknown): AdminReportSearch => {
+const parseReportSearch = (input: unknown): AdminReportSearch => {
   const o = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
   const parsed: AdminReportSearch = {
     range: oneOf(RANGES, o.range),
@@ -73,6 +73,12 @@ export const parseAdminReportSearch = (input: unknown): AdminReportSearch => {
   };
   // Drop undefined keys so the URL stays clean.
   return Object.fromEntries(Object.entries(parsed).filter(([, v]) => v !== undefined)) as AdminReportSearch;
+};
+
+/** The Action items tab is the recruiter page's own, so the Admin page treats it as no tab. */
+export const parseAdminReportSearch = (input: unknown): AdminReportSearch => {
+  const { tab, ...rest } = parseReportSearch(input);
+  return tab === "actions" ? rest : parseReportSearch(input);
 };
 
 export const searchToFilters = (s: AdminReportSearch): AnalyticsFilterState => {
@@ -108,7 +114,7 @@ export const readReportReturnState = (state: unknown): AdminReportSearch => {
 
 /** The recruiter Reports page shows only the signed-in recruiter's work: no recruiter filter and no Recruiters tab. */
 export const parseTAReportSearch = (input: unknown): AdminReportSearch => {
-  const { recruiterId: _recruiterId, ...rest } = parseAdminReportSearch(input);
+  const { recruiterId: _recruiterId, ...rest } = parseReportSearch(input);
   if (rest.tab === "recruiters") delete rest.tab;
   return rest;
 };

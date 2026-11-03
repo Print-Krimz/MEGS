@@ -317,6 +317,11 @@ vi.mock("../../../lib/api/ta.api", () => ({
     searchTalentPool: vi.fn().mockResolvedValue([]),
     getDashboardSummary: vi.fn().mockResolvedValue({
       dateRange: { startDate: "2026-08-01", endDate: "2026-08-07", days: 7 },
+      previousPeriod: { startDate: "2026-07-25", endDate: "2026-07-31", placementsStarted: 1, newStarts: 1, redeployStarts: 0, medianDaysToFill: 9, daysToFillSample: 1, backoutRate: 40, backoutRateBase: 5 },
+      clientReview: { avgDays: null, sample: 0, clients: [] },
+      dueSoon: [],
+      dueSoonTotal: 0,
+      trend: { granularity: "day", points: [] },
       kpis: {
         fillRate: 40, filledSeats: 4, requestedSeats: 10, openSeats: 6,
         requisitions: { total: 2, open: 2, overdue: 0, atRisk: 1, filled: 0 },
@@ -798,12 +803,16 @@ describe("Talent Acquisition Interface Suite", () => {
     expect(await screen.findByRole("heading", { name: "Reports" })).toBeDefined();
     await screen.findByText("Candidates by stage");
     const names = screen.getAllByRole("heading", { level: 2, hidden: true }).map((h) => h.textContent);
-    const order = ["Needs action", "Headline numbers", "Candidates by stage", "Overdue candidates", "Client requests", "Why people backed out"].map((n) => names.indexOf(n));
+    const order = ["Needs action", "Headline numbers", "Candidates by stage", "Starts and backouts", "Action items", "Overdue candidates", "Client requests"].map((n) => names.indexOf(n));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
     expect(screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent).slice(0, 2)).toEqual(["Right now", "In these dates"]);
-    expect(screen.getByText("Days to fill: 6 days")).toBeDefined();
+    expect(screen.getByText("2 new · 1 redeployed")).toBeDefined();
+    expect(screen.getByText("+2")).toBeDefined();
+    expect(screen.getAllByText("vs previous 7 days").length).toBe(2);
     expect(screen.getAllByText("Backout rate").length).toBeGreaterThan(0);
+    expect(screen.getByText("Due soon")).toBeDefined();
+    expect(screen.getByText("Why candidates backed out")).toBeDefined();
     expect(await screen.findByText("Export")).toBeDefined();
     expect(screen.queryByRole("checkbox", { name: /My requisitions only/i })).toBeNull();
   });
@@ -828,11 +837,13 @@ describe("Talent Acquisition Interface Suite", () => {
     expect(screen.getByText("Client answers: 3 accepted, 1 declined")).toBeDefined();
   });
 
-  it("links the tasks chip to the Overview and the late requests chip to the requests tab", async () => {
+  it("opens the Action items tab from the tasks chip and the requests tab from the late requests chip", async () => {
     navigateMock.mockClear();
     renderWithClient(<AnalyticsPage />);
     fireEvent.click(await screen.findByRole("link", { name: /1\s*task waiting on you/ }));
-    expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ to: "/ta" }));
+    expect(screen.getByRole("tab", { name: /Action items/ }).getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByText("Schedule Screening")).toBeDefined();
+    expect(screen.getByText(/Showing 1 of 1/)).toBeDefined();
     fireEvent.click(screen.getByRole("link", { name: /1\s*overdue or at-risk request/ }));
     expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ to: "/ta/analytics", search: expect.objectContaining({ tab: "requests", health: "LATE" }) }));
   });
