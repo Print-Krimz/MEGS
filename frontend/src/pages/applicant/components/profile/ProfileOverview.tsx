@@ -20,7 +20,6 @@ export interface ProfileOverviewProps {
   resumeUploadPending: boolean;
   privacyConsented: boolean;
   privacyConsentPending: boolean;
-  onPrivacyConsent: () => void;
   pendingResumeCount: number;
   onViewPdf: () => void;
   onReviewResume: () => void;
@@ -41,7 +40,6 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
   resumeUploadPending,
   privacyConsented,
   privacyConsentPending,
-  onPrivacyConsent,
   pendingResumeCount,
   onViewPdf,
   onReviewResume,
@@ -51,12 +49,15 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
 }) => {
   const [isDragging, setIsDragging] = React.useState(false);
   const [privacyNoticeOpen, setPrivacyNoticeOpen] = React.useState(false);
+  // Ticking only enables the upload; consent is saved when the resume is sent (see handleResumeFile).
+  const [agreed, setAgreed] = React.useState(false);
+  const consentOk = privacyConsented || agreed;
   const fullName = [profile?.firstName, profile?.middleName, profile?.lastName].filter(Boolean).join(" ") || "Your candidate profile";
 
   const handleDragOver = (e: React.DragEvent<HTMLElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!resumeUploadPending && privacyConsented) {
+    if (!resumeUploadPending && consentOk) {
       e.dataTransfer.dropEffect = "copy";
       if (!isDragging) {
         setIsDragging(true);
@@ -77,7 +78,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    if (resumeUploadPending || !privacyConsented) return;
+    if (resumeUploadPending || !consentOk) return;
     const file = e.dataTransfer.files?.[0];
     if (file) {
       onResumeFile(file);
@@ -158,9 +159,9 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
           <div className="mt-2 flex items-start gap-3">
             <Checkbox
               id="resume-privacy-consent"
-              checked={privacyConsented}
+              checked={consentOk}
               disabled={privacyConsented || privacyConsentPending}
-              onCheckedChange={(checked) => { if (checked === true) onPrivacyConsent(); }}
+              onCheckedChange={(checked) => setAgreed(checked === true)}
               className="mt-0.5"
             />
             <label htmlFor="resume-privacy-consent" className="text-sm leading-relaxed text-[#102A43]">
@@ -174,7 +175,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
                 Data Privacy Notice
               </button>{" "}
               and I consent to MEGS collecting and processing my personal information from my job application. I understand that my uploaded resume is read by Google's Gemini AI service to fill in my profile automatically.
-              {!privacyConsented && <span aria-hidden="true" className="text-red-600"> *</span>}
+              {!consentOk && <span aria-hidden="true" className="text-red-600"> *</span>}
             </label>
           </div>
         </div>
@@ -189,7 +190,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
               type="file"
               accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,image/png,image/jpeg,image/webp"
               className="sr-only"
-              disabled={resumeUploadPending || !privacyConsented}
+              disabled={resumeUploadPending || !consentOk}
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 event.target.value = "";
@@ -209,7 +210,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
                 accept="image/*"
                 capture="environment"
                 className="sr-only"
-                disabled={resumeUploadPending || !privacyConsented}
+                disabled={resumeUploadPending || !consentOk}
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   event.target.value = "";

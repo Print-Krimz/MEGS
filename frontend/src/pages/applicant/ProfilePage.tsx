@@ -1080,7 +1080,12 @@ export const ProfilePage: React.FC = () => {
     }
     const formData = new FormData();
     formData.append("file", file);
-    uploadResumeMutation.mutate(formData);
+    if (profile?.dataPrivacyConsentAt) {
+      uploadResumeMutation.mutate(formData);
+      return;
+    }
+    // The applicant ticked the box: record consent first, then send the resume.
+    privacyConsentMutation.mutate(undefined, { onSuccess: () => uploadResumeMutation.mutate(formData) });
   };
 
   return (
@@ -1109,7 +1114,6 @@ export const ProfilePage: React.FC = () => {
               resumeUploadPending={uploadResumeMutation.isPending}
               privacyConsented={Boolean(profile?.dataPrivacyConsentAt)}
               privacyConsentPending={privacyConsentMutation.isPending}
-              onPrivacyConsent={() => privacyConsentMutation.mutate()}
               pendingResumeCount={reviewProposal ? countActionable(reviewProposal.proposal) : 0}
               onViewPdf={() => {
                 if (profile?.resumeUrl) {
