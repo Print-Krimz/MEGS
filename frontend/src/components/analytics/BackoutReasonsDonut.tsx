@@ -14,9 +14,15 @@ export const BackoutReasonsDonut: React.FC<{ data: BackoutSummary; className?: s
     ...(other > 0 ? [{ key: "other", label: "Other", value: other, color: REASON_COLORS[REASON_COLORS.length - 1] }] : []),
   ];
   return (
-    <AnalyticsPanel tone="reports" id="backout-reasons" title="Why candidates backed out" className={className}>
-      <div className="p-3.5">
-        <DonutChart label="Why candidates backed out" slices={slices} centerValue={String(total)} centerLabel={total === 1 ? "backout" : "backouts"} />
+    <AnalyticsPanel tone="reports" id="backout-reasons" title="Why candidates backed out" className={`flex flex-col ${className ?? ""}`}>
+      <div className="flex flex-1 flex-col justify-center p-3.5">
+        <DonutChart
+          size={160}
+          label="Why candidates backed out"
+          slices={slices}
+          centerValue={String(total)}
+          centerLabel={total === 1 ? "backout" : "backouts"}
+        />
       </div>
     </AnalyticsPanel>
   );

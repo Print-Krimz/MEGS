@@ -90,6 +90,21 @@ export const searchToFilters = (s: AdminReportSearch): AnalyticsFilterState => {
     ...(s.mrfId ? { mrfId: s.mrfId } : {}),
     ...(s.jobPostingId ? { jobPostingId: s.jobPostingId } : {}),
     ...(s.recruiterId ? { recruiterId: s.recruiterId } : {}),
+    ...(s.stage ? { stage: s.stage } : {}),
+    ...(s.urgency || s.health
+      ? {
+          status:
+            s.urgency === "critical"
+              ? "critical"
+              : s.urgency === "ALL"
+                ? "overdue"
+                : s.health === "LATE"
+                  ? "late_request"
+                  : s.health === "FILLED"
+                    ? "filled_request"
+                    : s.health,
+        }
+      : {}),
   };
 };
 
@@ -101,6 +116,18 @@ export const filtersToSearch = (f: AnalyticsFilterState): Partial<AdminReportSea
   mrfId: f.mrfId,
   jobPostingId: f.jobPostingId,
   recruiterId: f.recruiterId,
+  stage: f.stage,
+  ...(f.status === "critical"
+    ? { urgency: "critical" }
+    : f.status === "overdue"
+      ? { urgency: "ALL" }
+      : f.status === "late_request"
+        ? { health: "LATE" }
+        : f.status === "filled_request"
+          ? { health: "FILLED" }
+          : f.status
+            ? { health: f.status as any }
+            : {}),
 });
 
 /** History state a detail link carries so its back link can return to the same report. */

@@ -24,12 +24,14 @@ export const ClientReviewPanel: React.FC<ClientReviewPanelProps> = ({ data, clas
       id="client-review"
       title="Slowest client reviews"
       subtitle="Average days in client review vs each client's limit"
-      className={className}
+      className={`flex flex-col ${className ?? ""}`}
     >
       {clients.length === 0 ? (
-        <p className="p-4 text-center text-xs text-slate-600 font-sans">No candidates in client review.</p>
+        <div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-slate-600 font-sans">
+          No candidates in client review.
+        </div>
       ) : (
-        <div className="px-3.5 pb-3.5">
+        <div className="flex flex-1 flex-col justify-between px-3.5 pb-3.5">
           <ol className="divide-y divide-slate-200">
             {clients.map((c, i) => {
               const over = c.avgDays !== null && c.avgDays > c.limitDays;
@@ -67,14 +69,16 @@ export const ClientReviewPanel: React.FC<ClientReviewPanelProps> = ({ data, clas
               );
             })}
           </ol>
-          <DataTableToggle
-            caption="Client review waits"
-            columns={["Client", "In review", "Average days", "Limit days", "Overdue"]}
-            rows={clients.map((c) => ({
-              key: String(c.clientId),
-              cells: [c.clientName, c.inReview, c.avgDays === null ? "Too few" : c.avgDays, c.limitDays, c.overdue],
-            }))}
-          />
+          <div className="mt-auto pt-2">
+            <DataTableToggle
+              caption="Client review waits"
+              columns={["Client", "In review", "Average days", "Limit days", "Overdue"]}
+              rows={clients.map((c) => ({
+                key: String(c.clientId),
+                cells: [c.clientName, c.inReview, c.avgDays === null ? "Too few" : c.avgDays, c.limitDays, c.overdue],
+              }))}
+            />
+          </div>
         </div>
       )}
     </AnalyticsPanel>

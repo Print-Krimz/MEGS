@@ -96,7 +96,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ rows, total, b
               return (
                 <li
                   key={r.id}
-                  className={`flex flex-col gap-1.5 px-3.5 py-3 transition-colors hover:bg-navy-soft focus-within:bg-navy-soft motion-reduce:transition-none @3xl:grid @3xl:items-center @3xl:gap-x-4 ${COLUMNS}`}
+                  className={`flex flex-col gap-2 px-3.5 py-3.5 transition-colors hover:bg-navy-soft focus-within:bg-navy-soft motion-reduce:transition-none @3xl:grid @3xl:items-center @3xl:gap-x-4 ${COLUMNS}`}
                 >
                   <p className="min-w-0 line-clamp-2 text-sm font-semibold text-slate-900" title={r.title}>
                     {r.title}

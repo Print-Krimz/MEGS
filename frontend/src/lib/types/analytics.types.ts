@@ -9,6 +9,8 @@ export interface AnalyticsFilterState {
   jobPostingId?: number;
   /** Admin only. A TA's numbers are always their own. */
   recruiterId?: string;
+  stage?: string;
+  status?: string;
 }
 
 export interface TAPendingActionItem {

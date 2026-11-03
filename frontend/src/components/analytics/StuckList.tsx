@@ -137,14 +137,17 @@ export const StuckList = React.memo(function StuckList({
   const pageBoxRef = useRef<HTMLInputElement>(null);
 
 
+  const focusNonce = focus?.nonce;
+  const focusUrgency = focus?.urgency;
+  const focusStage = focus?.stage;
   useEffect(() => {
-    if (!focus) return;
-    setUrgency(focus.urgency ?? "ALL");
-    setStage(focus.stage ?? "ALL");
+    if (focusNonce === undefined) return;
+    setUrgency(focusUrgency ?? "ALL");
+    setStage(focusStage ?? "ALL");
     setQuery("");
     setPreviewId(null);
     setPage(1);
-  }, [focus?.nonce, focus?.urgency, focus?.stage]);
+  }, [focusNonce, focusUrgency, focusStage]);
 
   // A stage picked from the chart may have no row in the loaded list (only the longest waits load); keep it selectable so the select shows the real filter.
   const stages = useMemo(() => {
@@ -373,7 +376,7 @@ export const StuckList = React.memo(function StuckList({
             return (
               <li
                 key={r.applicationId}
-                className={`flex flex-col gap-1.5 relative py-3 transition-colors hover:bg-navy-soft focus-within:bg-navy-soft motion-reduce:transition-none @3xl:grid @3xl:items-center @3xl:gap-x-4 ${selectable ? "pl-3.5 pr-12 @3xl:pl-1 @3xl:pr-3.5" : "pl-3.5 pr-3.5"} ${columns}`}
+                className={`flex flex-col gap-2 relative py-3.5 transition-colors hover:bg-navy-soft focus-within:bg-navy-soft motion-reduce:transition-none @3xl:grid @3xl:items-center @3xl:gap-x-4 ${selectable ? "pl-3.5 pr-12 @3xl:pl-1 @3xl:pr-3.5" : "pl-3.5 pr-3.5"} ${columns}`}
               >
                 {selectable && (
                   <label className="absolute right-1 top-1 flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center @3xl:static md:h-9 md:w-9">

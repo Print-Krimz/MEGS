@@ -79,7 +79,13 @@ export const AnalyticsPage: React.FC = () => {
     },
     [navigate],
   );
-  const setFilters = (next: AnalyticsFilterState) => update({ ...filtersToSearch(next), health: undefined, urgency: undefined, stage: undefined });
+  const setFilters = (next: AnalyticsFilterState) =>
+    update({
+      ...filtersToSearch(next),
+      urgency: next.status === "critical" ? "critical" : next.status === "overdue" ? "ALL" : undefined,
+      health: next.status === "late_request" ? "LATE" : next.status === "filled_request" ? "FILLED" : undefined,
+      stage: next.stage,
+    });
   const setTab = (key: WorkspaceKey) => {
     setTabState(key);
     requestAnimationFrame(() =>
@@ -271,13 +277,22 @@ export const AnalyticsPage: React.FC = () => {
                   emptyText="No starts or backouts in these dates."
                 />
               </div>
-              <div className="flex min-w-0 flex-col gap-5">
-                <BackoutReasonsDonut data={data.backouts} />
-                <DueSoonList rows={data.dueSoon} total={data.dueSoonTotal} viewer="ta" className="flex-1" />
+              <div className="flex min-w-0 flex-col gap-5 justify-start">
+                <BackoutReasonsDonut
+                  data={data.backouts}
+                  className={data.backouts.withdrawals + data.backouts.backouts >= 4 ? "flex-1" : ""}
+                />
+                <DueSoonList
+                  rows={data.dueSoon}
+                  total={data.dueSoonTotal}
+                  viewer="ta"
+                  className={data.dueSoon.length >= 4 ? "flex-1" : ""}
+                />
               </div>
             </div>
 
-            <OperationsWorkspace<WorkspaceKey>
+            <div className="pt-2">
+              <OperationsWorkspace<WorkspaceKey>
               active={tab}
               onChange={setTab}
               tabs={[
@@ -306,6 +321,7 @@ export const AnalyticsPage: React.FC = () => {
                 },
               ]}
             />
+            </div>
           </>
         )}
       </div>

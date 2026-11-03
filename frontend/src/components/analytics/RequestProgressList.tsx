@@ -71,12 +71,14 @@ export const RequestProgressList = React.memo(function RequestProgressList({
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
 
+  const focusNonce = focus?.nonce;
+  const focusHealth = focus?.health;
   useEffect(() => {
-    if (!focus) return;
-    setHealth(focus.health);
+    if (focusNonce === undefined || !focusHealth) return;
+    setHealth(focusHealth);
     setQuery("");
     setPage(1);
-  }, [focus?.nonce, focus?.health]);
+  }, [focusNonce, focusHealth]);
 
   const counts = useMemo(() => {
     const c: Record<RequestHealthFilter, number> = { ALL: rows.length, NONE: 0, LATE: 0, NO_OPENING: 0, OVERDUE: 0, AT_RISK: 0, ON_TRACK: 0, FILLED: 0 };
@@ -183,7 +185,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
               return (
                 <li
                   key={row.mrfId}
-                  className={`flex flex-col gap-1.5 px-3.5 py-3 transition-colors hover:bg-navy-soft focus-within:bg-navy-soft motion-reduce:transition-none @2xl:grid @2xl:items-center @2xl:gap-x-4 ${columns}`}
+                  className={`flex flex-col gap-2 px-3.5 py-3.5 transition-colors hover:bg-navy-soft focus-within:bg-navy-soft motion-reduce:transition-none @2xl:grid @2xl:items-center @2xl:gap-x-4 ${columns}`}
                 >
                   <div className="min-w-0">
                     <Link

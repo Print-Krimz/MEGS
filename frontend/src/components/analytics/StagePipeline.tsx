@@ -119,7 +119,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
               const frame = `${ROW_GRID} w-full px-1.5 py-1.5 text-left`;
               const hover = "hover:bg-navy-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
               return (
-                <li key={row.stage} className="min-w-0 border-b border-navy-line last:border-b-0">
+                <li key={row.stage} className="min-w-0 border-b border-slate-200 last:border-b-0">
                   {link ? (
                     <Link to="/ta/applications" search={{ stage: row.stage as ApplicationStatus }} aria-describedby={describedBy} className={`${frame} ${hover}`}>
                       {content}
@@ -159,7 +159,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
           </div>
         </div>
       )}
-      {footer && empty && <div className="border-t border-navy-line px-3.5 py-2.5 text-xs font-sans text-slate-700">{footer}</div>}
+      {footer && empty && <div className="border-t border-slate-200 px-3.5 py-2.5 text-xs font-sans text-slate-700">{footer}</div>}
     </AnalyticsPanel>
   );
 };

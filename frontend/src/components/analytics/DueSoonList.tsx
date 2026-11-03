@@ -31,18 +31,21 @@ export const DueSoonList: React.FC<DueSoonListProps> = ({ rows, total, viewer, s
         <>
           <ul className="divide-y divide-slate-200 px-3.5">
             {shown.map((r) => (
-              <li key={r.applicationId} className="flex items-center justify-between gap-3 py-2">
+              <li key={r.applicationId} className="flex items-center justify-between gap-3 py-2.5">
+                {/* 1. Candidate name first, 2. Supporting details second */}
                 <div className="min-w-0 text-xs font-sans">
-                  <p className="truncate text-sm font-semibold text-slate-900">{r.candidateName}</p>
-                  <p className="truncate text-slate-600">
+                  <p className="truncate text-sm font-semibold text-slate-950">{r.candidateName}</p>
+                  <p className="truncate text-xs text-slate-600 mt-0.5">
+                    {r.jobTitle ? <span>{r.jobTitle} · </span> : null}
                     {r.stageLabel} · <span className={`font-semibold tabular-nums ${TEXT_AMBER}`}>{dueText(r.daysLeft)}</span>
                   </p>
                 </div>
+                {/* 3. Quick View tertiary */}
                 <button
                   type="button"
                   aria-label={`Quick view: ${r.candidateName}`}
                   onClick={() => setOpenId(r.applicationId)}
-                  className="inline-flex min-h-11 shrink-0 items-center px-1 text-xs font-semibold text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9"
+                  className="inline-flex min-h-11 shrink-0 items-center px-1 text-xs font-medium text-slate-600 underline underline-offset-2 decoration-slate-300 hover:text-navy hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9"
                 >
                   Quick view
                 </button>

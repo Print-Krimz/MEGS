@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useId, useMemo, useRef } from "react";
 import { formatRecruiterName } from "../../lib/recruiter-label";
+import { STAGE_RAMP } from "../../lib/chart-palette";
 import { Filter, RotateCcw, Calendar as CalendarIcon, X } from "lucide-react";
 import { formatDate } from "../../lib/utils";
 import { Button, ComboBox } from "../ui";
@@ -29,6 +30,13 @@ const customRangeProblem = (startDate: string, endDate: string): string | null =
       : inclusiveRangeDays(startDate, endDate) > 366
         ? "Choose a date range of 366 days or fewer."
         : null;
+
+const STATUS_OPTIONS: ComboBoxOption[] = [
+  { value: "critical", label: "Critical wait (≥2x limit)" },
+  { value: "overdue", label: "Overdue candidates" },
+  { value: "late_request", label: "Overdue or at-risk requests" },
+  { value: "filled_request", label: "Filled requests" },
+];
 
 const PRESETS = [
   { key: "7d", label: "Last 7 days" },
@@ -90,6 +98,8 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
       mrfId: undefined,
       jobPostingId: undefined,
       recruiterId: undefined,
+      stage: undefined,
+      status: undefined,
     });
   };
 
@@ -116,6 +126,8 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
     filters.mrfId !== undefined ||
     filters.jobPostingId !== undefined ||
     filters.recruiterId !== undefined ||
+    filters.stage !== undefined ||
+    filters.status !== undefined ||
     Boolean(filters.startDate) ||
     Boolean(filters.endDate);
 
@@ -162,6 +174,13 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
     }));
   }, [options?.recruiters]);
 
+  const stageOptions: ComboBoxOption[] = useMemo(() => {
+    const list = options?.stages && options.stages.length > 0
+      ? options.stages.map((s) => ({ value: s.key, label: s.label }))
+      : STAGE_RAMP.map((s) => ({ value: s.key, label: s.label }));
+    return list;
+  }, [options?.stages]);
+
   // Active filters in words, for the chips and the screen-reader announcement.
   const activeChips = useMemo(() => {
     const chips: { key: keyof AnalyticsFilterState; label: string; value: string }[] = [];
@@ -195,8 +214,18 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
       chips.push({ key: "recruiterId", label: "Recruiter", value: r ? formatRecruiterName(r.name).label : filters.recruiterId });
     }
 
+    if (filters.stage) {
+      const s = stageOptions.find((x) => x.value === filters.stage);
+      chips.push({ key: "stage", label: "Stage", value: s?.label || filters.stage });
+    }
+
+    if (filters.status) {
+      const st = STATUS_OPTIONS.find((x) => x.value === filters.status);
+      chips.push({ key: "status", label: "Status", value: st?.label || filters.status });
+    }
+
     return chips;
-  }, [filters, options]);
+  }, [filters, options, stageOptions]);
 
   // Announce the result of a change, not the first render.
   const summary = [
@@ -293,7 +322,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
         </div>
 
         {/* Full width, so it sits on its own line under the date controls */}
-        <p id={dateNoteId} className="col-span-2 w-full text-xs text-slate-600">
+        <p id={dateNoteId} className="col-span-2 w-full text-xs text-slate-600 leading-relaxed">
           Dates apply to “In these dates”, the starts and backouts chart and Why candidates backed out. “Right now” figures are live.
         </p>
       </div>
@@ -338,7 +367,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
 
       {/* Searchable dropdowns; each choice applies at once */}
       {options && showMoreFilters && (
-        <div id={moreFiltersId} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-1">
+        <div id={moreFiltersId} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 pt-1">
           {showClientFilter && options.clients && options.clients.length > 0 && (
             <ComboBox
               label="Client"
@@ -409,6 +438,28 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
               size="sm"
             />
           )}
+
+          {stageOptions.length > 0 && (
+            <ComboBox
+              label="Stage"
+              options={stageOptions}
+              value={filters.stage || ""}
+              onChange={(val) => onChange({ ...filters, stage: val || undefined })}
+              placeholder="All stages"
+              clearable={true}
+              size="sm"
+            />
+          )}
+
+          <ComboBox
+            label="Status"
+            options={STATUS_OPTIONS}
+            value={filters.status || ""}
+            onChange={(val) => onChange({ ...filters, status: val || undefined })}
+            placeholder="All statuses"
+            clearable={true}
+            size="sm"
+          />
         </div>
       )}
 

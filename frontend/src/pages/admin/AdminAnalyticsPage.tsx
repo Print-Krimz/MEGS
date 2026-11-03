@@ -128,7 +128,13 @@ export const AdminAnalyticsPage: React.FC = () => {
     },
     [navigate],
   );
-  const setFilters = (next: AnalyticsFilterState) => update({ ...filtersToSearch(next), health: undefined, urgency: undefined, stage: undefined });
+  const setFilters = (next: AnalyticsFilterState) =>
+    update({
+      ...filtersToSearch(next),
+      urgency: next.status === "critical" ? "critical" : next.status === "overdue" ? "ALL" : undefined,
+      health: next.status === "late_request" ? "LATE" : next.status === "filled_request" ? "FILLED" : undefined,
+      stage: next.stage,
+    });
   const setTab = (key: WorkspaceKey) => {
     setTabState(key);
     // A router navigation re-renders the whole layout; running it after the next paint keeps the click responsive.
@@ -303,8 +309,20 @@ export const AdminAnalyticsPage: React.FC = () => {
                 <AnalyticsKpi label="Open requests" value={kpis.requisitions.open} detail={`${kpis.lateRequests} overdue or at risk`} />
                 <AnalyticsKpi
                   label="Client review wait"
-                  value={formatSampled(data.clientReview.avgDays, data.clientReview.sample, "days")}
-                  detail={clientsOverLimit > 0 ? `${clientsOverLimit} ${plural(clientsOverLimit, "client")} past their limit` : "Average across clients in review"}
+                  value={
+                    data.clientReview.avgDays !== null
+                      ? formatSampled(data.clientReview.avgDays, data.clientReview.sample, "days")
+                      : data.clientReview.sample > 0
+                        ? `${data.clientReview.sample} in review`
+                        : "No reviews"
+                  }
+                  detail={
+                    clientsOverLimit > 0
+                      ? `${clientsOverLimit} ${plural(clientsOverLimit, "client")} past their limit`
+                      : data.clientReview.sample > 0
+                        ? `${data.clientReview.sample} ${plural(data.clientReview.sample, "candidate")} waiting on client`
+                        : "No candidates in client review"
+                  }
                   tone={clientsOverLimit > 0 ? "alert" : "default"}
                   href="#client-review"
                 />
@@ -320,11 +338,11 @@ export const AdminAnalyticsPage: React.FC = () => {
             </KpiRow>
           </section>
 
+          {/* Row 1: Pipeline stages (wide, 2 cols) paired with Client reviews (1 col) */}
           <div className="grid gap-5 lg:grid-cols-3">
-            {/* The trend sits under the stages and takes the rest of the column. LineChart is h-full, so it needs a sized
-                wrapper; without one it took the whole row height and ran over the worklist below. */}
-            <div className="flex min-w-0 flex-col gap-5 lg:col-span-2">
+            <div className="min-w-0 lg:col-span-2">
               <StagePipeline
+                className="h-full"
                 rows={data.stageTable}
                 footer={`Client answers: ${data.clientDecisions.accepted} accepted, ${data.clientDecisions.declined} declined`}
                 onSelectStage={(stage) => {
@@ -332,7 +350,15 @@ export const AdminAnalyticsPage: React.FC = () => {
                   scrollToWorkspace();
                 }}
               />
-              <div className="flex-1">
+            </div>
+            <div className="min-w-0 lg:col-span-1">
+              <ClientReviewPanel data={data.clientReview} className="h-full" />
+            </div>
+          </div>
+
+          {/* Row 2: Starts and backouts trend (wide, 2 cols) paired with Why candidates backed out (1 col) */}
+          <div className="grid gap-5 lg:grid-cols-3">
+            <div className="min-w-0 lg:col-span-2">
               <LineChart
                 id="trend"
                 title="Starts and backouts"
@@ -341,16 +367,14 @@ export const AdminAnalyticsPage: React.FC = () => {
                 series={[{ key: "starts", label: "Starts" }, { key: "backouts", label: "Backed out" }]}
                 emptyText="No starts or backouts in these dates."
               />
-              </div>
             </div>
-            {/* Both side panels grow so the column ends level with the stages and trend on the left. */}
-            <div className="flex min-w-0 flex-col gap-5">
-              <ClientReviewPanel data={data.clientReview} className="flex-1" />
-              <BackoutReasonsDonut data={data.backouts} className="flex-1" />
+            <div className="min-w-0 lg:col-span-1">
+              <BackoutReasonsDonut data={data.backouts} className="h-full" />
             </div>
           </div>
 
-          <OperationsWorkspace<WorkspaceKey>
+          <div className="pt-2">
+            <OperationsWorkspace<WorkspaceKey>
             banner={
               filters.recruiterId ? (
                 <div role="status" className="flex items-center justify-between gap-3 border-b border-navy-line bg-navy-soft px-3 py-2 text-xs text-slate-800">
@@ -395,6 +419,7 @@ export const AdminAnalyticsPage: React.FC = () => {
               },
             ]}
           />
+          </div>
         </>
       )}
       </div>
