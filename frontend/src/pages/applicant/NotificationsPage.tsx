@@ -368,20 +368,7 @@ export const NotificationsPage: React.FC = () => {
                     </div>
 
                     <div className="flex shrink-0 flex-wrap items-center gap-2 pl-11 sm:pl-0">
-                      {notificationLink && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          rightIcon={<ExternalLink className="w-3.5 h-3.5" />}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openRecord(n, notificationLink);
-                          }}
-                        >
-                          View details
-                        </Button>
-                      )}
-                      {/* Fixed-width slot so "View details" stays in the same column on read and unread rows. */}
+                      {/* Fixed-width slot on the left, so "View details" stays flush right in the same column on read and unread rows. */}
                       <div className="sm:w-[7.5rem]">
                         {!n.isRead && (
                           <Button
@@ -399,6 +386,19 @@ export const NotificationsPage: React.FC = () => {
                           </Button>
                         )}
                       </div>
+                      {notificationLink && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          rightIcon={<ExternalLink className="w-3.5 h-3.5" />}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openRecord(n, notificationLink);
+                          }}
+                        >
+                          View details
+                        </Button>
+                      )}
                     </div>
                   </li>
                 );
