@@ -342,6 +342,7 @@ export const AdminAnalyticsPage: React.FC = () => {
           <div className="grid gap-5 lg:grid-cols-3">
             <div className="min-w-0 lg:col-span-2">
               <StagePipeline
+                everyRow
                 className="h-full"
                 rows={data.stageTable}
                 footer={`Client answers: ${data.clientDecisions.accepted} accepted, ${data.clientDecisions.declined} declined`}

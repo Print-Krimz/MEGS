@@ -317,7 +317,11 @@ export const StuckList = React.memo(function StuckList({
         <p className="p-6 text-center text-xs text-slate-500 font-sans">No one is past the days allowed.</p>
       ) : pageRows.length === 0 ? (
         <p className="p-6 text-center text-xs text-slate-500 font-sans">
-          {needle ? `No overdue candidates match “${query.trim()}”.` : "No match. Change the filters."}
+          {needle
+            ? `No overdue candidates match “${query.trim()}”.`
+            : stage !== "ALL" && urgency === "ALL"
+              ? `No one in ${STAGE_RAMP.find((s) => s.key === stage)?.label ?? stage} is past the days allowed.`
+              : "No match. Change the filters."}
         </p>
       ) : (
         <>

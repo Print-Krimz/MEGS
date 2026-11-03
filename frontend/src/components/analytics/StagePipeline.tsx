@@ -14,6 +14,8 @@ interface StagePipelineProps {
   onSelectStage?: (stage: string) => void;
   /** A TA's rows link to their applications list filtered to that stage. */
   linkStages?: boolean;
+  /** Every row can be chosen, not only rows with overdue candidates. Rows show a chevron instead of "Show". */
+  everyRow?: boolean;
   /** Shown under the rows, e.g. the Client answers line. */
   footer?: React.ReactNode;
   /** E.g. "h-full" so the panel matches the height of the panels beside it. */
@@ -51,7 +53,7 @@ const BAR_CELL = "col-span-2 row-start-2 @xl:col-span-1 @xl:col-start-2 @xl:row-
  * now (every bar on the same scale); the part past the limit is red, the rest is the on-track blue. Exact values are
  * under View as table.
  */
-export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStage, linkStages = false, footer, className }) => {
+export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStage, linkStages = false, everyRow = false, footer, className }) => {
   const empty = rows.every((r) => r.inStageNow === 0 && r.entered === 0 && r.backedOut === 0);
   const maxInStage = Math.max(1, ...rows.map((r) => r.inStageNow));
   const baseId = useId();
@@ -86,7 +88,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
               const describedBy = avg ? avgId : undefined;
               const summary = `${name}, ${row.inStageNow}${share ? ` · ${share}` : ""}`;
               const link = linkStages && row.stage !== "APPLIED" && row.stage !== "DEPLOYED";
-              const pick = !link && !!onSelectStage && late > 0;
+              const pick = !link && !!onSelectStage && (everyRow || late > 0);
               const label = link || pick ? `${summary}. Show these candidates` : summary;
               const content = (
                 <>
@@ -107,7 +109,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
                     {late > 0 && <span className={`font-semibold ${TEXT_LOSS}`}> · {share}</span>}
                     {pick && (
                       <span aria-hidden="true" className="ml-1 inline-flex items-center text-xs font-semibold text-navy">
-                        <span className="hidden @xl:inline">Show</span>
+                        {!everyRow && <span className="hidden @xl:inline">Show</span>}
                         <ChevronRight size={14} className="shrink-0" />
                       </span>
                     )}
