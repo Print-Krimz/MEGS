@@ -220,7 +220,7 @@ export const enrollMfaChange = async (token: string, userId: string, email: stri
 
 export const isDefiniteRejection = (error: unknown): boolean => {
   const candidate = error as { status?: number; code?: string } | null;
-  return candidate?.status === 400 && candidate.code === "mfa_verification_failed";
+  return (candidate?.status === 400 || candidate?.status === 422) && candidate.code === "mfa_verification_failed";
 };
 
 export const replaceMfaFactor = async (token: string, userId: string, email: string, grant: string, factorId: string, code: string) => {

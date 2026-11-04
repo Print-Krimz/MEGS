@@ -14,7 +14,22 @@ describe('authenticator change', () => {
  beforeEach(() => { vi.clearAllMocks(); m.alert.mockResolvedValue(undefined); m.find.mockImplementation(async ({where}) => where.purpose === 'MFA_CHANGE_OLD' ? (where.otpHash === hashToken('grant:old:old') ? {id:2} : null) : grantRow); m.update.mockResolvedValue({count:1}); m.list.mockResolvedValue({ data: { factors }, error:null }); m.remove.mockResolvedValue({error:null}); m.challenge.mockResolvedValue({data:{id:'challenge'},error:null}); m.verify.mockResolvedValue({data:{access_token:'access',refresh_token:'refresh',expires_in:60,user:{}},error:null}); m.enroll.mockResolvedValue({data:{id:'new',type:'totp',totp:{qr_code:'qr',secret:'secret',uri:'uri'}},error:null}); });
  it('rejects a missing grant before contacting Supabase', async () => { m.find.mockResolvedValue(null); await expect(enrollMfaChange(token,'u','u@example.com','bad')).rejects.toThrow(); expect(m.list).not.toHaveBeenCalled(); });
  it('binds enrollment to its new factor', async () => { await enrollMfaChange(token,'u','u@example.com','grant'); expect(m.update).toHaveBeenCalledWith(expect.objectContaining({ data: {otpHash:hashToken('grant:new')} })); });
- it('keeps the old factor and releases the grant for a definite wrong app code', async () => { m.verify.mockResolvedValue({data:null,error:{message:'Invalid code',status:400,code:'mfa_verification_failed'}}); await expect(replaceMfaFactor(token,'u','u@example.com','grant','new','123456')).rejects.toThrow(); expect(m.remove).not.toHaveBeenCalled(); expect(m.update).toHaveBeenCalledTimes(2); });
+ it('keeps the old factor and releases the grant for a definite wrong app code', async () => { m.verify.mockResolvedValue({data:null,error:{message:'Invalid code',status:422,code:'mfa_verification_failed'}}); await expect(replaceMfaFactor(token,'u','u@example.com','grant','new','123456')).rejects.toThrow(); expect(m.remove).not.toHaveBeenCalled(); expect(m.update).toHaveBeenCalledTimes(2); });
+ it('allows the same grant and factor to succeed after a 422 wrong-code response', async () => {
+   m.verify.mockResolvedValueOnce({data:null,error:{status:422,code:'mfa_verification_failed'}});
+   await expect(replaceMfaFactor(token,'u','u@example.com','grant','new','000000')).rejects.toThrow('Invalid authentication code');
+   expect(m.update).toHaveBeenLastCalledWith(expect.objectContaining({data:{isUsed:false}}));
+   expect(m.remove).not.toHaveBeenCalled();
+   const result = await replaceMfaFactor(token,'u','u@example.com','grant','new','123456');
+   expect(result.oldRemoved).toBe(true);
+ });
+ it('keeps the grant consumed on the fifth definite wrong code', async () => {
+   m.find.mockResolvedValue({...grantRow,attempts:4});
+   m.verify.mockResolvedValue({data:null,error:{status:422,code:'mfa_verification_failed'}});
+   await expect(replaceMfaFactor(token,'u','u@example.com','grant','new','000000')).rejects.toThrow('Invalid authentication code');
+   expect(m.update).toHaveBeenCalledTimes(1);
+   expect(m.remove).toHaveBeenCalledWith({id:'new',userId:'u'});
+ });
  it('does not release or delete after an unknown verification outcome', async () => { m.verify.mockResolvedValue({data:null,error:{message:'timeout',status:500}}); await expect(replaceMfaFactor(token,'u','u@example.com','grant','new','123456')).rejects.toThrow(); expect(m.remove).not.toHaveBeenCalled(); expect(m.update).toHaveBeenCalledTimes(1); });
  it('removes only recorded old factors and keeps backup codes', async () => { m.list.mockResolvedValue({data:{factors:[...factors,{id:'other',status:'verified'}]},error:null}); const result = await replaceMfaFactor(token,'u','u@example.com','grant','new','123456'); expect(m.remove).toHaveBeenCalledOnce(); expect(m.remove).toHaveBeenCalledWith({id:'old',userId:'u'}); expect(result.oldRemoved).toBe(true); expect(m.transaction).not.toHaveBeenCalled(); });
  it('reports an uncertain old-factor removal and keeps the new factor', async () => { m.remove.mockResolvedValue({error:{message:'failed'}}); const result = await replaceMfaFactor(token,'u','u@example.com','grant','new','123456'); expect(result.oldRemoved).toBe(false); expect(m.alert).toHaveBeenCalled(); });
@@ -46,5 +61,5 @@ describe('authenticator change', () => {
    expect(m.list).not.toHaveBeenCalled(); expect(m.verify).not.toHaveBeenCalled();
  });
  it('refuses a second claim', async () => { m.update.mockResolvedValue({count:0}); await expect(replaceMfaFactor(token,'u','u@example.com','grant','new','123456')).rejects.toThrow(); expect(m.list).not.toHaveBeenCalled(); });
- it('classifies only explicit wrong-code errors as definite', () => { expect(isDefiniteRejection({status:400,code:'mfa_verification_failed'})).toBe(true); expect(isDefiniteRejection({status:500})).toBe(false); });
+ it('classifies only explicit wrong-code errors as definite', () => { expect(isDefiniteRejection({status:422,code:'mfa_verification_failed'})).toBe(true); expect(isDefiniteRejection({status:400,code:'mfa_verification_failed'})).toBe(true); expect(isDefiniteRejection({status:500,code:'mfa_verification_failed'})).toBe(false); expect(isDefiniteRejection({status:422,code:'mfa_challenge_expired'})).toBe(false); expect(isDefiniteRejection(new Error('timeout'))).toBe(false); });
 });
