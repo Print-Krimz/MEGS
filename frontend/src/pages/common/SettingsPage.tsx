@@ -15,6 +15,8 @@ const ChangePasswordModal = lazy(() =>
   import("../../components/common/ChangePasswordModal").then((module) => ({ default: module.ChangePasswordModal })),
 );
 
+const ChangeMfaModal = lazy(() => import("../../components/common/ChangeMfaModal").then((module) => ({ default: module.ChangeMfaModal })));
+
 const roleLabels: Record<Role, string> = {
   [Role.ADMINISTRATOR]: "Administrator",
   [Role.TALENT_ACQUISITION]: "Talent Acquisition",
@@ -110,6 +112,7 @@ function SettingsContent({ userId, sessionGeneration, identityRef, refreshUser }
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [mfaOpen, setMfaOpen] = useState(false);
   const saveMutation = useMutation({
     mutationFn: (displayName: string) => settingsApi.updateProfile({ displayName }),
   });
@@ -282,7 +285,7 @@ function SettingsContent({ userId, sessionGeneration, identityRef, refreshUser }
                 <Button type="button" variant="outline" onClick={() => void settingsQuery.refetch()} loading={settingsQuery.isFetching}>
                   Try again
                 </Button>
-              ) : undefined}
+              ) : settingsQuery.data.mfa?.enrolled === true ? <Button type="button" variant="outline" size="sm" onClick={() => setMfaOpen(true)}>Change authenticator app</Button> : undefined}
             >
               {mfaStatus}
             </SettingsRow>
@@ -311,6 +314,7 @@ function SettingsContent({ userId, sessionGeneration, identityRef, refreshUser }
       </div>
 
       {dirtyGuard.discardDialog}
+      {mfaOpen && <Suspense fallback={null}><ChangeMfaModal open onClose={() => setMfaOpen(false)} email={account.email ?? ""} /></Suspense>}
       {passwordOpen && (
         <Suspense fallback={null}>
           <ChangePasswordModal open onClose={() => setPasswordOpen(false)} />

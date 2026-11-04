@@ -19,13 +19,14 @@ import {
   claimComplete,
 } from '../../controllers/core/auth.controller.js';
 import {
+  requestMfaChangeCodeHandler, verifyMfaChangeCodeHandler, enrollMfaChangeHandler, confirmMfaChangeHandler,
   enrollMfaHandler,
   verifyMfaEnrollmentHandler,
   verifyMfaLoginHandler,
   verifyMfaRecoveryHandler,
   getMfaStatusHandler,
 } from '../../controllers/core/mfa.controller.js';
-import { authenticateJWT } from '../../middleware/auth.middleware.js';
+import { authenticateJWT, requireRole } from '../../middleware/auth.middleware.js';
 import { validate } from '../../middleware/validate.middleware.js';
 import { authSchema } from '../../schemas/auth.schema.js';
 import { claimSchema } from '../../schemas/claim.schema.js';
@@ -90,6 +91,11 @@ router.post(
 router.get("/mfa/status", authLimiter, getMfaStatusHandler);
 
 // Authenticated Endpoints
+const staff = requireRole("ADMINISTRATOR", "TALENT_ACQUISITION");
+router.post("/mfa/change/code", authenticateJWT, staff, ...operationLimiters("mfa-change-code", 5, 300), validate(authSchema.requestPasswordChangeCode), requestMfaChangeCodeHandler);
+router.post("/mfa/change/verify", authenticateJWT, staff, ...operationLimiters("mfa-change", 20, 200, 15 * 60 * 1000), validate(authSchema.verifyMfaChangeCode), verifyMfaChangeCodeHandler);
+router.post("/mfa/change/enroll", authenticateJWT, staff, ...operationLimiters("mfa-change", 20, 200, 15 * 60 * 1000), validate(authSchema.enrollMfaChange), enrollMfaChangeHandler);
+router.post("/mfa/change/confirm", authenticateJWT, staff, ...operationLimiters("mfa-change", 20, 200, 15 * 60 * 1000), validate(authSchema.confirmMfaChange), confirmMfaChangeHandler);
 router.post(
   "/change-password/code",
   authenticateJWT,

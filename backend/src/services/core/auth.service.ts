@@ -876,7 +876,7 @@ export const getResetSessionStatus = async (token: string) => {
 };
 
 // Sends a 6-digit code to the account's stored email (or stored phone when the email is a placeholder).
-export const requestPasswordChangeCode = async (userId: string, currentPassword: string) => {
+export const requestPasswordChangeCode = async (userId: string, currentPassword: string, purpose: "PASSWORD_CHANGE" | "MFA_CHANGE" = "PASSWORD_CHANGE") => {
   const dbUser = await prisma.user.findUnique({ where: { id: userId } });
   if (!dbUser || !isActiveAccount(dbUser.isActive, dbUser.accountStatus)) {
     throw new Error("User account not found");
@@ -891,7 +891,7 @@ export const requestPasswordChangeCode = async (userId: string, currentPassword:
 
   const otpCreatedAt = new Date();
   const latestOtp = await prisma.authOtp.findFirst({
-    where: { email: dbUser.email, purpose: "PASSWORD_CHANGE" },
+    where: { email: dbUser.email, purpose },
     orderBy: { createdAt: "desc" },
   });
   if (latestOtp && !(await getSecurityControls()).rateLimitDisabled) {
@@ -902,16 +902,17 @@ export const requestPasswordChangeCode = async (userId: string, currentPassword:
   }
 
   await prisma.authOtp.updateMany({
-    where: { email: dbUser.email, purpose: "PASSWORD_CHANGE", isUsed: false },
+    where: { email: dbUser.email, purpose, isUsed: false },
     data: { isUsed: true },
   });
 
+  const label = purpose === "MFA_CHANGE" ? "authenticator change" : "password change";
   const plainOtp = generateNumericOtp();
   await prisma.authOtp.create({
     data: {
       email: dbUser.email,
       otpHash: hashOtp(plainOtp),
-      purpose: "PASSWORD_CHANGE",
+      purpose,
       attempts: 0,
       maxAttempts: 5,
       createdAt: otpCreatedAt,
@@ -937,20 +938,20 @@ export const requestPasswordChangeCode = async (userId: string, currentPassword:
   try {
     if (phone) {
       // TextBee reports failure in its result instead of throwing.
-      const sms = await sendSmsViaTextBee(phone, `Your MEGS password change code is ${plainOtp}. Valid for 10 minutes.`);
+      const sms = await sendSmsViaTextBee(phone, `Your MEGS ${label} code is ${plainOtp}. Valid for 10 minutes.`);
       if (!sms.success) throw new Error(sms.error || "SMS delivery failed");
       sentTo = maskPhoneNumber(phone);
     } else {
       const html = renderBrandedEmail({
-        heading: "Confirm your password change",
-        preheader: "Your MEGS password change code expires in 10 minutes.",
+        heading: `Confirm your ${label}`,
+        preheader: `Your MEGS ${label} code expires in 10 minutes.`,
         bodyHtml: `<p style="margin: 0 0 16px 0;">Enter this 6-digit code to confirm the change:</p><p style="margin: 0 0 16px 0; font-family: 'Courier New', monospace; font-size: 32px; font-weight: 700; letter-spacing: 8px;">${plainOtp}</p><p style="margin: 0;">This code expires in <strong>10 minutes</strong> and can only be used once.</p>`,
-        footnote: "If you did not try to change your password, change it now and contact your administrator.",
+        footnote: purpose === "PASSWORD_CHANGE" ? "If you did not try to change your password, change it now and contact your administrator." : "If you did not try to change your authenticator app, change your password and contact your administrator.",
       });
       await sendMail(
         dbUser.email,
-        "MEGS Inc.: Confirm your password change",
-        `Your MEGS password change code is ${plainOtp}.\n\nThis code expires in 10 minutes.`,
+        `MEGS Inc.: Confirm your ${label}`,
+        `Your MEGS ${label} code is ${plainOtp}.\n\nThis code expires in 10 minutes.`,
         html
       );
       sentTo = maskEmail(dbUser.email);
@@ -960,12 +961,12 @@ export const requestPasswordChangeCode = async (userId: string, currentPassword:
     throw new Error("Failed to deliver the verification code. Please try again later.");
   }
 
-  logAudit(userId, "PASSWORD_CHANGE_CODE_SENT", "User", userId, { channel });
+  logAudit(userId, purpose === "PASSWORD_CHANGE" ? "PASSWORD_CHANGE_CODE_SENT" : "MFA_CHANGE_CODE_SENT", "User", userId, { channel });
   return { message: `We sent a 6-digit code to ${sentTo}.`, sentTo, ...otpDeadlines(otpCreatedAt) };
 };
 
 // Checks and consumes the PASSWORD_CHANGE code, with the same attempt rules as verifyOtp.
-const consumePasswordChangeCode = async (userId: string, email: string, otp: string) => {
+export const consumePasswordChangeCode = async (userId: string, email: string, otp: string, purpose: "PASSWORD_CHANGE" | "MFA_CHANGE" = "PASSWORD_CHANGE") => {
   const invalid = () => new Error("Invalid or expired verification code. Please request a new one.");
   const lockout = async (id: number) => {
     await prisma.authOtp.update({ where: { id }, data: { isUsed: true } });
@@ -977,7 +978,7 @@ const consumePasswordChangeCode = async (userId: string, email: string, otp: str
   if (!/^\d{6}$/.test(code)) throw new Error("Verification code must be exactly 6 numeric digits");
 
   const row = await prisma.authOtp.findFirst({
-    where: { email, purpose: "PASSWORD_CHANGE", isUsed: false },
+    where: { email, purpose, isUsed: false },
     orderBy: { createdAt: "desc" },
   });
   if (!row) throw invalid();

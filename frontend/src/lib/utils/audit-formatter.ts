@@ -9,6 +9,9 @@ export const ACTION_LABELS: Record<string, string> = {
   PASSWORD_RESET_REQUESTED: "Password Reset Requested",
   PASSWORD_RESET_COMPLETED: "Password Reset Completed",
   PASSWORD_CHANGED: "Password Changed",
+  MFA_CHANGED: "Authenticator Changed",
+  MFA_CHANGE_CODE_SENT: "Authenticator Change Code Sent",
+  MFA_CHANGE_INCOMPLETE: "Authenticator Change Incomplete",
   ACCOUNT_ACTIVATED: "Account Activated",
   USER_REGISTERED: "User Registered",
 
@@ -83,6 +86,9 @@ const ACTION_CATEGORY_MAP: Record<string, AuditCategory> = {
   PASSWORD_RESET_REQUESTED: "Authentication",
   PASSWORD_RESET_COMPLETED: "Authentication",
   PASSWORD_CHANGED: "Authentication",
+  MFA_CHANGED: "Authentication",
+  MFA_CHANGE_CODE_SENT: "Authentication",
+  MFA_CHANGE_INCOMPLETE: "Authentication",
   ACCOUNT_ACTIVATED: "Authentication",
   USER_REGISTERED: "Authentication",
 

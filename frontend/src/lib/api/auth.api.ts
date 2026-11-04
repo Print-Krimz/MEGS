@@ -70,6 +70,10 @@ export const authApi = {
   requestPasswordChangeCode: (currentPassword: string) =>
     api.post<PasswordChangeCodeResponse>("/api/auth/change-password/code", { currentPassword }),
 
+  requestMfaChangeCode: (currentPassword: string) => api.post<PasswordChangeCodeResponse>("/api/auth/mfa/change/code", { currentPassword }),
+  verifyMfaChangeCode: (otp: string) => api.post<{ grant: string; expiresAt: string }>("/api/auth/mfa/change/verify", { otp }),
+  enrollMfaChange: (grant: string) => api.post<import("../types/auth.types").MfaEnrollResponse>("/api/auth/mfa/change/enroll", { grant }),
+  confirmMfaChange: (data: { grant: string; factorId: string; code: string }) => api.post<import("../types/auth.types").VerifyMfaChangeResponse>("/api/auth/mfa/change/confirm", data),
   enrollMfa: (token?: string) =>
     api.post<import("../types/auth.types").MfaEnrollResponse>(
       "/api/auth/mfa/enroll",

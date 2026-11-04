@@ -142,6 +142,9 @@ export const authSchema = {
       purpose: z.enum(["REGISTRATION", "PASSWORD_RESET"]),
     }),
   }),
+  verifyMfaChangeCode: z.object({ body: z.object({ otp: z.string().regex(/^\d{6}$/) }) }),
+  enrollMfaChange: z.object({ body: z.object({ grant: z.string().min(1).max(256) }) }),
+  confirmMfaChange: z.object({ body: z.object({ grant: z.string().min(1).max(256), factorId: z.string().min(1).max(FIELD_LIMITS.shortText), code: z.string().regex(/^\d{6}$/) }) }),
   enrollMfa: z.object({
     body: z.object({
       token: token.optional(),

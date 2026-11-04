@@ -47,6 +47,7 @@ export interface LoginResponse {
   factorId?: string;
   challengeId?: string;
   tempToken?: string;
+  oldRemoved?: boolean;
 }
 
 export interface MfaEnrollResponse {
@@ -71,6 +72,8 @@ export interface VerifyMfaEnrollResponse {
   expires_in?: number;
   user: User;
 }
+
+export type VerifyMfaChangeResponse = Omit<VerifyMfaEnrollResponse, "recoveryCodes"> & { recoveryCodes?: never; oldRemoved: boolean };
 
 export interface VerifyMfaLoginRequest {
   token: string;

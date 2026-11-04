@@ -14,7 +14,7 @@ import { Field, FieldGroup, FieldLabel } from "@/components/shadcn/field";
 import { Spinner } from "@/components/shadcn/spinner";
 import { authApi } from "../../lib/api/auth.api";
 import { notify, formatErrorMessage } from "../../lib/feedback";
-import type { LoginResponse, MfaEnrollResponse, VerifyMfaEnrollResponse } from "../../lib/types/auth.types";
+import type { LoginResponse, MfaEnrollResponse, VerifyMfaEnrollResponse, VerifyMfaChangeResponse } from "../../lib/types/auth.types";
 import { AuthError } from "./AuthChrome";
 import { OtpCodeField } from "./OtpCodeField";
 import { MfaDisabledContinuation } from "./MfaDisabledContinuation";
@@ -25,6 +25,9 @@ interface MfaSetupModalProps {
   tempToken: string;
   email: string;
   onSuccess: (data: LoginResponse) => void;
+  enroll?: () => Promise<MfaEnrollResponse>;
+  verify?: (factorId: string, code: string) => Promise<VerifyMfaChangeResponse | VerifyMfaEnrollResponse>;
+  finishLabel?: string;
 }
 
 export const MfaSetupModal: React.FC<MfaSetupModalProps> = ({
@@ -33,6 +36,7 @@ export const MfaSetupModal: React.FC<MfaSetupModalProps> = ({
   tempToken,
   email,
   onSuccess,
+  enroll, verify, finishLabel = "Continue to workspace",
 }) => {
   const [step, setStep] = useState<"ENROLL" | "BACKUP">("ENROLL");
   const [enrollData, setEnrollData] = useState<MfaEnrollResponse | null>(null);
@@ -51,8 +55,7 @@ export const MfaSetupModal: React.FC<MfaSetupModalProps> = ({
     if (!tempToken) return;
     setIsLoading(true);
     setError(null);
-    authApi
-      .enrollMfa(tempToken)
+    (enroll ? enroll() : authApi.enrollMfa(tempToken))
       .then((res) => {
         setEnrollData(res);
       })
@@ -65,7 +68,7 @@ export const MfaSetupModal: React.FC<MfaSetupModalProps> = ({
         setIsLoading(false);
         enrollingRef.current = false;
       });
-  }, [tempToken]);
+  }, [tempToken, enroll]);
 
   useEffect(() => {
     if (open && tempToken && !enrollData && !enrollingRef.current) {
@@ -96,17 +99,21 @@ export const MfaSetupModal: React.FC<MfaSetupModalProps> = ({
     setError(null);
     setIsLoading(true);
     try {
-      const res = await authApi.verifyMfaEnrollment({
+      const res = verify ? await verify(enrollData.factorId, code.trim()) : await authApi.verifyMfaEnrollment({
         token: tempToken,
         factorId: enrollData.factorId,
         code: code.trim(),
       });
-      setRecoveryCodes(res.recoveryCodes);
-      setVerifiedSession(res);
+      if (verify && !res.recoveryCodes) {
+        onSuccess({ access_token: res.access_token, refresh_token: res.refresh_token, expires_in: res.expires_in, user: res.user, oldRemoved: "oldRemoved" in res ? res.oldRemoved : undefined });
+        return;
+      }
+      setRecoveryCodes(res.recoveryCodes ?? []);
+      setVerifiedSession({ ...res, recoveryCodes: res.recoveryCodes ?? [] });
       setStep("BACKUP");
-      notify.success("MFA enabled", "Authenticator verified. Please save your recovery backup codes.");
+      if (!verify) notify.success("MFA enabled", "Authenticator verified. Please save your recovery backup codes.");
     } catch (err: any) {
-      const formatted = formatErrorMessage(err);
+      const formatted = verify && err instanceof Error && err.message.includes("old one could not be removed") ? err.message : formatErrorMessage(err);
       setError(formatted);
     } finally {
       setIsLoading(false);
@@ -159,7 +166,7 @@ export const MfaSetupModal: React.FC<MfaSetupModalProps> = ({
     }
   };
 
-  const locked = step === "BACKUP";
+  const locked = step === "BACKUP" || Boolean(verify && isLoading && enrollData);
 
   return (
     <Dialog
@@ -189,7 +196,7 @@ export const MfaSetupModal: React.FC<MfaSetupModalProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <MfaDisabledContinuation token={tempToken} open={open} onSuccess={onSuccess} />
+        {!verify && <MfaDisabledContinuation token={tempToken} open={open} onSuccess={onSuccess} />}
 
         <AuthError message={error} />
 
@@ -327,7 +334,7 @@ export const MfaSetupModal: React.FC<MfaSetupModalProps> = ({
 
             <DialogFooter className="flex-col gap-3 sm:flex-col sm:justify-stretch">
               <Button type="button" size="lg" onClick={handleFinish} disabled={!acknowledged} className="w-full">
-                Continue to workspace
+                {finishLabel}
               </Button>
             </DialogFooter>
           </div>

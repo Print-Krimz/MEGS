@@ -7,7 +7,7 @@ import { resolveAuthIdentifier, findUserByIdentifier, findClaimableUser } from "
 
 export type SecurityEvent =
   | "SIGN_IN_LIMITED" | "RESET_LIMITED" | "CODE_LOCKOUT" | "MFA_RECOVERY_FAILED" | "CLAIM_LIMITED" // suspicious: deduped
-  | "PASSWORD_RESET" | "PASSWORD_CHANGED" | "MFA_RECOVERY_CODE_USED" | "MFA_RESET_BY_ADMIN"; // credential change: never deduped
+  | "MFA_CHANGED" | "PASSWORD_RESET" | "PASSWORD_CHANGED" | "MFA_RECOVERY_CODE_USED" | "MFA_RESET_BY_ADMIN"; // credential change: never deduped
 
 const SUSPICIOUS_CLOSING = "If this was you, no action needed. If not, change your password now.";
 const CREDENTIAL_CLOSING = "If this was not you, reset your password now and contact your administrator.";
@@ -38,6 +38,7 @@ const COPY: Record<SecurityEvent, { subject: string; what: string; sms: string }
     what: "We blocked repeated attempts to claim your MEGS account.",
     sms: "Repeated attempts to claim your account were blocked.",
   },
+  MFA_CHANGED: { subject: "Authenticator app changed", what: "The authenticator app on your MEGS account was changed or a change was attempted.", sms: "Your authenticator app was changed or a change was attempted." },
   PASSWORD_RESET: {
     subject: "Your password was reset",
     what: "The password of your MEGS account was reset.",
@@ -60,7 +61,7 @@ const COPY: Record<SecurityEvent, { subject: string; what: string; sms: string }
   },
 };
 
-const CREDENTIAL_EVENTS: SecurityEvent[] = ["PASSWORD_RESET", "PASSWORD_CHANGED", "MFA_RECOVERY_CODE_USED", "MFA_RESET_BY_ADMIN"];
+const CREDENTIAL_EVENTS: SecurityEvent[] = ["MFA_CHANGED", "PASSWORD_RESET", "PASSWORD_CHANGED", "MFA_RECOVERY_CODE_USED", "MFA_RESET_BY_ADMIN"];
 
 const timeFormat = new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", dateStyle: "medium", timeStyle: "short" });
 

@@ -1,3 +1,5 @@
+import { requestPasswordChangeCode, consumePasswordChangeCode } from "../../services/core/auth.service.js";
+import { createMfaChangeGrant, enrollMfaChange, replaceMfaFactor } from "../../services/core/mfa.service.js";
 import { Request, Response } from 'express';
 import { sendSuccess, sendError } from '../../utils/response.js';
 import supabase from '../../utils/supabase.js';
@@ -180,4 +182,28 @@ export const getMfaStatusHandler = async (req: Request, res: Response): Promise<
   } catch (error: any) {
     sendError(res, error.message || 'Failed to retrieve MFA status', 500);
   }
+};
+
+export const requestMfaChangeCodeHandler = async (req: Request, res: Response): Promise<void> => {
+  try { const result = await requestPasswordChangeCode(req.user!.id, req.body.currentPassword, "MFA_CHANGE"); sendSuccess(res, result.message, result); }
+  catch (error: any) { sendError(res, error.message, error.message.includes("Please wait") ? 429 : 400); }
+};
+export const verifyMfaChangeCodeHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id, email } = req.user!;
+    await consumePasswordChangeCode(id, email, req.body.otp, "MFA_CHANGE");
+    const result = await createMfaChangeGrant(id, email);
+    sendSuccess(res, "Verification complete", result);
+  } catch (error: any) { sendError(res, error.message, 400); }
+};
+export const enrollMfaChangeHandler = async (req: Request, res: Response): Promise<void> => {
+  try { const result = await enrollMfaChange(extractToken(req), req.user!.id, req.user!.email, req.body.grant); sendSuccess(res, "Authenticator setup initialized", result); }
+  catch (error: any) { sendError(res, error.message, 400); }
+};
+export const confirmMfaChangeHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const result = await replaceMfaFactor(extractToken(req), req.user!.id, req.user!.email, req.body.grant, req.body.factorId, req.body.code);
+    const user = await prisma.user.findUnique({ where: { id: req.user!.id }, select: { id: true, email: true, displayName: true, role: true, accountStatus: true, mustChangePassword: true } });
+    sendSuccess(res, "Authenticator changed", { oldRemoved: result.oldRemoved, access_token: result.session.access_token, refresh_token: result.session.refresh_token, expires_in: result.session.expires_in, user });
+  } catch (error: any) { sendError(res, error.message, error.message.includes("old one could not") ? 500 : 400); }
 };
