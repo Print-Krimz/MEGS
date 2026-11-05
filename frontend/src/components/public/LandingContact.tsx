@@ -37,7 +37,7 @@ const INDUSTRY_OPTIONS = [
 const BRANCH_OPTIONS = [
   { value: "No preference", label: "No preference" },
   { value: "Valenzuela (Central Office)", label: "Valenzuela (central office)" },
-  { value: "Quezon City Branch", label: "Quezon City (Cubao)" },
+  { value: "Quezon City Cooperative", label: "Quezon City Cooperative (Cubao)" },
   { value: "Biñan Laguna Branch", label: "Biñan, Laguna" },
   { value: "Tanauan Batangas Branch", label: "Tanauan, Batangas" },
   { value: "Cebu Branch", label: "Cebu (Mandaue City)" },

@@ -28,7 +28,7 @@ export const BRANCHES: Branch[] = [
   },
   {
     id: "quezon-city",
-    name: "Quezon City Branch",
+    name: "Quezon City Cooperative",
     region: "Luzon & NCR",
     isHQ: false,
     address: "Rm 207, 2nd Floor, STG Bldg., 109 P. Tuazon, Cubao, Quezon City",
