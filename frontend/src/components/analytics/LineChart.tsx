@@ -92,12 +92,15 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
         <p className="px-3.5 py-3 text-xs text-slate-600 font-sans">{emptyText}</p>
       ) : (
         <div className="flex flex-1 flex-col p-3.5">
-          <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-sans text-slate-700" aria-label="Legend">
+          <ul className="mb-3 flex flex-wrap gap-2 font-sans text-sm text-slate-900" aria-label="Legend">
             {shown.map((s, i) => (
-              <li key={s.key} className="flex items-center gap-1.5">
-                <span className="inline-block h-0.5 w-4 shrink-0" style={{ backgroundColor: SERIES_COLORS[i] }} aria-hidden="true" />
+              <li key={s.key} className="flex items-center gap-2 rounded-md border border-slate-300 bg-white px-2.5 py-1 font-medium">
+                {/* Solid line for the first series, dashed for the second: the two differ by shape, not only by color. */}
+                <svg width="22" height="8" className="shrink-0" aria-hidden="true">
+                  <line x1="0" x2="22" y1="4" y2="4" stroke={SERIES_COLORS[i]} strokeWidth={3} strokeLinecap="round" strokeDasharray={i === 1 ? "5 3" : undefined} />
+                </svg>
                 {s.label}
-                <strong className="tabular-nums text-slate-950">{totals[i]}</strong>
+                <strong className="text-base font-semibold tabular-nums" style={{ color: SERIES_COLORS[i] }}>{totals[i]}</strong>
               </li>
             ))}
           </ul>
@@ -122,7 +125,7 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
               const seriesMax = Math.max(0, ...points.map((p) => p.values[s.key] ?? 0));
               return (
                 <g key={s.key}>
-                  <path d={d} fill="none" stroke={SERIES_COLORS[si]} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+                  <path d={d} fill="none" stroke={SERIES_COLORS[si]} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" strokeDasharray={si === 1 ? "6 4" : undefined} />
                   {(points.length >= 3 || points.length === 1) &&
                     points.map((p, i) => (
                       <circle key={i} cx={x(i)} cy={y(p.values[s.key] ?? 0)} r={3} fill="#FFFFFF" stroke={SERIES_COLORS[si]} strokeWidth={1.5}>

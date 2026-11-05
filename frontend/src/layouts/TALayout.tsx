@@ -361,7 +361,7 @@ export const TALayout: React.FC = () => {
   if (idle.expired) return null;
 
   return (
-    <div className="ta-portal min-h-screen bg-ta-page flex flex-col lg:flex-row overflow-x-hidden">
+    <div className="ta-portal min-h-screen bg-ta-page flex flex-col lg:flex-row overflow-x-clip">
       <title>MEGS Talent Acquisition</title>
       <meta name="robots" content="noindex" />
       <RealtimeToastContainer toasts={activeToasts} onDismiss={dismissToast} onToastClick={handleToastClick} />
