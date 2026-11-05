@@ -69,7 +69,7 @@ const CandidateProfile: React.FC<{ applicationId: number; viewer: "admin" | "ta"
           <Fact label="Email">{email ? <a href={`mailto:${email}`} className={linkCls}>{email}</a> : "Not provided"}</Fact>
           <Fact label="Phone">{phone ? <a href={`tel:${phone}`} className={linkCls}>{phone}</a> : "Not provided"}</Fact>
           <Fact label="Applied">{formatDate(app.createdAt)}</Fact>
-          {score != null && <Fact label="Match score">{Math.round(score)}</Fact>}
+          {score != null && <Fact label="AI match score">{Math.round(score)}</Fact>}
         </dl>
       )}
     </section>

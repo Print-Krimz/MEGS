@@ -10,7 +10,7 @@ export const PoolMatchScore: React.FC<{ result: TalentPoolMatchResult }> = ({ re
   if (typeof result.matchScore === "number") {
     return (
       <div className="text-right">
-        <div className="text-xs text-slate-600">Match score</div>
+        <div className="text-xs text-slate-600">AI match score</div>
         <ScoreBadge score={result.matchScore} size="md" />
       </div>
     );

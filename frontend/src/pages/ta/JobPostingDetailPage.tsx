@@ -319,7 +319,7 @@ export const JobPostingDetailPage: React.FC = () => {
     },
     {
       key: "match",
-      header: "Match score",
+      header: "AI match score",
       align: "center",
       cell: (row) => <ScoreBadge score={row.score.finalFitScore} size="md" />,
     },

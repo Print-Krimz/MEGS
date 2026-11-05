@@ -46,7 +46,7 @@ const toPercent = (value: number | string | null | undefined) => {
 export const MatchBreakdown: React.FC<MatchBreakdownProps> = ({ scores, explanation, requirementsResult }) => (
   <section id="eval-qualifications" aria-labelledby="match-heading" className="space-y-3">
     <h3 id="match-heading" className="border-b border-slate-200 pb-2 text-base font-semibold text-slate-900">
-      Match
+      AI match
     </h3>
 
     {scores ? (

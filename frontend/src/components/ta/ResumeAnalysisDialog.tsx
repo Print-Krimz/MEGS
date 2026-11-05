@@ -167,12 +167,12 @@ export const ResumeAnalysisDialog: React.FC<ResumeAnalysisDialogProps> = ({
                 <p>Done. The assessment on this page is updated.</p>
                 {typeof data?.fitScore === "number" ? (
                   <p>
-                    Match score:{" "}
+                    AI match score:{" "}
                     <span className="font-semibold tabular-nums">{data.fitScore.toFixed(1)}/100</span>
                   </p>
                 ) : typeof data?.score === "number" ? (
                   <p>
-                    Match score:{" "}
+                    AI match score:{" "}
                     <span className="font-semibold tabular-nums">{data.score}/100</span>
                   </p>
                 ) : null}

@@ -63,7 +63,7 @@ export const ScoreBadge: React.FC<ScoreBadgeProps> = ({
         sizeStyles[size],
         className
       )}
-      title={`Match score: ${formatScore(num)} out of 100`}
+      title={`AI match score: ${formatScore(num)} out of 100. Graded by the system, not by a recruiter.`}
     >
       <span>{Math.round(num)}</span>
       <span className="text-xs font-medium opacity-75">/100</span>

@@ -703,7 +703,7 @@ export const ApplicationsPage: React.FC = () => {
     },
     {
       key: "score",
-      header: "Match score",
+      header: "AI match score",
       align: "center",
       cell: (app) => {
         const score = app.candidateFitScore ?? app.aiScore;
@@ -758,7 +758,7 @@ export const ApplicationsPage: React.FC = () => {
           <dd className="mt-0.5 text-slate-800">{formatDate(app.createdAt)}</dd>
         </div>
         <div>
-          <dt className="text-slate-600">Match score</dt>
+          <dt className="text-slate-600">AI match score</dt>
           <dd className="mt-0.5">
             <ScoreBadge
               score={(app.candidateFitScore ?? app.aiScore) == null ? undefined : Math.round((app.candidateFitScore ?? app.aiScore) as number)}
