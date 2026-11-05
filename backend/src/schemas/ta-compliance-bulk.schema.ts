@@ -23,32 +23,7 @@ const mappingFromJson = z.string().max(4000).transform((raw, ctx) => {
   })
 );
 
-export const BULK_APPROVE_MAX = 20;
-
-const dateOnly = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid date");
-
-const approveEntry = z.object({
-  requirementId: boundedId,
-  validityStatus: z.enum(["HAS_EXPIRY", "NO_EXPIRY"]),
-  expiresAt: dateOnly.optional().nullable(),
-}).strict().superRefine((entry, ctx) => {
-  if (entry.validityStatus === "HAS_EXPIRY" && !entry.expiresAt) {
-    ctx.addIssue({ code: "custom", path: ["expiresAt"], message: "Enter the expiry date" });
-  }
-});
-
 export const taComplianceBulkSchema = {
-  bulkApprove: z.object({
-    params: z.object({ id: boundedIdText }).strict(),
-    body: z.object({
-      reviewNotes: z.string().trim().min(1, "Notes are required").max(1000),
-      entries: z.array(approveEntry).min(1, "Choose at least one document").max(BULK_APPROVE_MAX).superRefine((entries, ctx) => {
-        if (new Set(entries.map((e) => e.requirementId)).size !== entries.length) {
-          ctx.addIssue({ code: "custom", message: "Each requirement can be approved once per request" });
-        }
-      }),
-    }).strict(),
-  }),
   bulkUpload: z.object({
     params: z.object({ id: boundedIdText }).strict(),
     body: z.object({ mapping: mappingFromJson }).strict(),

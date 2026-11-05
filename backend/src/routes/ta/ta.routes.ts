@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { taComplianceBulkSchema, BULK_UPLOAD_MAX_FILES } from "../../schemas/ta-compliance-bulk.schema.js";
-import { requestDocumentUpdateHandler, uploadComplianceDocumentForApplicantHandler, bulkUploadComplianceDocumentsHandler, bulkApproveRequirementsHandler } from "../../controllers/ta/ta.compliance.controller.js";
+import { requestDocumentUpdateHandler, uploadComplianceDocumentForApplicantHandler, bulkUploadComplianceDocumentsHandler } from "../../controllers/ta/ta.compliance.controller.js";
 import { aiLimiters, reportLimiters, analyticsLimiters } from '../../middleware/rate-limiter.middleware.js';
 import { authenticateJWT, requireRole } from '../../middleware/auth.middleware.js';
 import { upload } from '../../middleware/upload.middleware.js';
@@ -274,7 +274,6 @@ router.get("/compliance/queue", validate(taSchema.complianceQueueQuery), getScop
 router.post("/applications/:id/compliance", validate(taSchema.createComplianceRequirement), requireOwned("application"), createRequirementHandler);
 router.get("/applications/:id/compliance", validate(taSchema.idParams), requireOwned("application"), listRequirementsHandler);
 router.post("/applications/:id/compliance/bulk-upload", upload.array("files", BULK_UPLOAD_MAX_FILES), validate(taComplianceBulkSchema.bulkUpload), requireOwned("application"), bulkUploadComplianceDocumentsHandler);
-router.post("/applications/:id/compliance/bulk-approve", validate(taComplianceBulkSchema.bulkApprove), requireOwned("application"), bulkApproveRequirementsHandler);
 router.post("/compliance/:requirementId/upload", upload.single("file"), validate(taSchema.uploadComplianceDocument), requireOwned("requirement", "requirementId"), uploadComplianceDocumentForApplicantHandler);
 router.post("/compliance/:requirementId/submit", validate(taSchema.submitComplianceDocument), requireOwned("requirement", "requirementId"), submitDocumentHandler);
 router.patch("/compliance/:requirementId/review", validate(taSchema.reviewComplianceRequirement), requireOwned("requirement", "requirementId"), reviewRequirementHandler);

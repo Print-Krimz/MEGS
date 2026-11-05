@@ -214,9 +214,7 @@ export const reviewComplianceRequirement = async (
   expiresAt?: string | Date | null,
   toFollowExpectedAt?: string | Date | null,
   issuedAt?: string | Date | null,
-  validityStatus?: "UNKNOWN" | "HAS_EXPIRY" | "NO_EXPIRY",
-  /** When set, the write only lands if the row still has this status and file, so two reviewers cannot both act on it. */
-  expected?: { reviewStatus: string; documentId: number }
+  validityStatus?: "UNKNOWN" | "HAS_EXPIRY" | "NO_EXPIRY"
 ) => {
   const requirement = await prisma.complianceRequirement.findUnique({
     where: { id: requirementId },
@@ -350,14 +348,10 @@ export const reviewComplianceRequirement = async (
   }
 
   const updated = await prisma.$transaction(async (tx) => {
-    let nextRequirement;
-    if (expected) {
-      const claimed = await tx.complianceRequirement.updateMany({ where: { id: requirementId, ...expected }, data: updateData });
-      if (claimed.count === 0) throw new Error("This requirement changed while you were reviewing it. Reload and try again.");
-      nextRequirement = await tx.complianceRequirement.findUniqueOrThrow({ where: { id: requirementId } });
-    } else {
-      nextRequirement = await tx.complianceRequirement.update({ where: { id: requirementId }, data: updateData });
-    }
+    const nextRequirement = await tx.complianceRequirement.update({
+      where: { id: requirementId },
+      data: updateData,
+    });
     if (requirement.documentId && reviewStatus !== "PENDING") {
       await tx.complianceDocumentVersion.upsert({
         where: { requirementId_documentId: { requirementId, documentId: requirement.documentId } },

@@ -38,8 +38,6 @@ export interface RequirementRowProps {
   applicantHasPortalAccess?: boolean;
   /** True before the Requirements stage or once the application is closed: the row can be viewed but not changed. */
   readOnly?: boolean;
-  /** Present when the list offers bulk approval. Only rows with a document waiting for review get a checkbox; the others keep the slot so the list lines up. */
-  selection?: { eligible: boolean; checked: boolean; viewed: boolean; onChange: (checked: boolean) => void };
 }
 
 const STATUS_STYLE: Record<string, string> = {
@@ -50,7 +48,7 @@ const STATUS_STYLE: Record<string, string> = {
   PENDING: "border-slate-200 bg-slate-100 text-slate-700",
 };
 
-export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, onView, onReview, onRequestCopy, onEditDeadline, onRemove, onUpload, applicantHasPortalAccess = true, readOnly = false, selection }) => {
+export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, onView, onReview, onRequestCopy, onEditDeadline, onRemove, onUpload, applicantHasPortalAccess = true, readOnly = false }) => {
   const status = requirementRowStatus(req);
   const isApproved = status === "APPROVED";
   const isRejected = status === "REJECTED";
@@ -76,8 +74,6 @@ export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, 
       ? req.documentId ? { label: "View", onClick: onView } : null
       : isToFollow && !req.documentId
       ? { label: "Change target", onClick: onReview }
-      : !req.documentId
-      ? { label: "Mark to follow", onClick: onReview }
       : { label: "Review", onClick: onReview };
 
   const menu: ActionMenuItem[] = [];
@@ -87,7 +83,7 @@ export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, 
   // Upload takes the primary slot for a walk-in with nothing on file, so the follow-up decision moves into the menu.
   if (uploadPrimary) menu.push({ label: "Mark as to follow", onSelect: onReview });
   if (isApproved) menu.push({ label: "Request updated copy", onSelect: onRequestCopy });
-  if (!isToFollow) menu.push({ label: deadlineDate ? "Edit deadline" : "Set deadline", onSelect: onEditDeadline });
+  if (!isToFollow && !isApproved) menu.push({ label: deadlineDate ? "Edit deadline" : "Set deadline", onSelect: onEditDeadline });
   if (canRemove) menu.push({ label: "Remove requirement", onSelect: onRemove, tone: "danger" });
   }
 
@@ -97,21 +93,6 @@ export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, 
   return (
     <div role="listitem" className={cn("flex flex-col gap-3 p-3 sm:flex-row sm:items-center sm:justify-between", (isDueSoon || isOverdue) && "bg-amber-50/30")}>
       <div className="flex min-w-0 items-start gap-2.5">
-        {selection && (
-          <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
-            {selection.eligible && (
-              <input
-                type="checkbox"
-                className="focus-ring h-4 w-4 accent-navy disabled:cursor-not-allowed disabled:opacity-50"
-                checked={selection.checked}
-                disabled={!selection.viewed}
-                onChange={(e) => selection.onChange(e.target.checked)}
-                aria-label={selection.viewed ? `Select ${req.documentLabel}` : `Select ${req.documentLabel} (open the document first)`}
-                title={selection.viewed ? undefined : "Open the document with View document in the row menu before approving it"}
-              />
-            )}
-          </span>
-        )}
         <Icon className={cn("mt-0.5 h-4 w-4 shrink-0", iconColor)} aria-hidden="true" />
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
