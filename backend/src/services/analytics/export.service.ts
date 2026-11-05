@@ -26,7 +26,9 @@ import {
 import { displayEmail } from "../../utils/display-email.js";
 import {
   applyDataRowsAndFormatting,
-  applySpreadsheetHeaderBlock,
+  addSheet,
+  applyReportInfoBlock,
+  applyPrintSetup,
   applySectionSheetHeader,
   applyTableHeaders,
   createHRExcelWorkbook,
@@ -695,7 +697,7 @@ async function writePdf(meta: ReportMetadata, model: ReportModel): Promise<Buffe
 
 async function writeXlsx(meta: ReportMetadata, model: ReportModel): Promise<Buffer> {
   const { workbook, worksheet } = await createHRExcelWorkbook(meta, "Summary");
-  applySpreadsheetHeaderBlock(worksheet, meta, 5);
+  // Summary sheet: report details first, then the key figures. Nothing is frozen here, so the page scrolls normally.
   const kpiColumns: ExcelColumnDef[] = [
     { header: "What we count", key: "label", minWidth: 28 },
     { header: "Number", key: "value", minWidth: 12, align: "right" },
@@ -703,17 +705,23 @@ async function writeXlsx(meta: ReportMetadata, model: ReportModel): Promise<Buff
     { header: "Time window", key: "basis", minWidth: 16, align: "center" },
     { header: "What it means", key: "definition", minWidth: 60 },
   ];
-  applyTableHeaders(worksheet, 8, kpiColumns);
+  const nextRow = applyReportInfoBlock(worksheet, meta, kpiColumns.length - 1);
+  worksheet.getCell(`A${nextRow}`).value = "Key figures";
+  worksheet.getCell(`A${nextRow}`).font = { name: "Arial", size: 12, bold: true, color: { argb: "FF0B315D" } };
+  worksheet.getRow(nextRow).height = 26;
+  const kpiHeader = nextRow + 1;
+  applyTableHeaders(worksheet, kpiHeader, kpiColumns, { freeze: false });
   applyDataRowsAndFormatting(
     worksheet,
-    8,
+    kpiHeader,
     kpiColumns,
     model.kpis.map((k) => ({ ...k }))
   );
+  applyPrintSetup(worksheet, meta);
 
   for (const section of model.sections) {
-    const sheet = workbook.addWorksheet(section.sheet.replace(/[\\/*?[\]:]/g, " ").slice(0, 31), { properties: { defaultRowHeight: 20 } });
-    applySectionSheetHeader(
+    const sheet = addSheet(workbook, section.sheet);
+    const headerRow = applySectionSheetHeader(
       sheet,
       meta,
       `${section.title} (${section.rows.length})`,
@@ -726,10 +734,10 @@ async function writeXlsx(meta: ReportMetadata, model: ReportModel): Promise<Buff
       minWidth: Math.max(10, Math.round(c.weight / 6)),
       align: c.align,
     }));
-    applyTableHeaders(sheet, 4, columns);
+    applyTableHeaders(sheet, headerRow, columns);
     applyDataRowsAndFormatting(
       sheet,
-      4,
+      headerRow,
       columns,
       section.rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, typeof v === "string" ? clean(v) : v])))
     );

@@ -12,7 +12,9 @@ import {
 } from "../analytics/report-pdf-builder.js";
 import {
   createHRExcelWorkbook,
-  applySpreadsheetHeaderBlock,
+  addSheet,
+  applyReportInfoBlock,
+  applySectionSheetHeader,
   applyTableHeaders,
   applyDataRowsAndFormatting,
   writeWorkbookToBuffer,
@@ -164,9 +166,21 @@ export const generateAuditReportXLSX = async (
     { header: AUDIT_HEADERS[4], key: "role", minWidth: 14, align: "center" },
     { header: AUDIT_HEADERS[5], key: "record", minWidth: 20 },
   ];
-  applySpreadsheetHeaderBlock(worksheet, meta, columns.length);
-  applyTableHeaders(worksheet, 7, columns);
-  applyDataRowsAndFormatting(worksheet, 7, columns, logs.map(toAuditRow) as unknown as Record<string, any>[]);
+  // Sheet 1 is just the table, so the data gets the screen. The report details sit on a second sheet.
+  const headerRow = applySectionSheetHeader(
+    worksheet,
+    meta,
+    `Audit trail (${logs.length})`,
+    `${buildAuditFilterSummary(filters)}  •  Times are Philippine time. Newest first.`,
+    columns.length
+  );
+  applyTableHeaders(worksheet, headerRow, columns);
+  applyDataRowsAndFormatting(worksheet, headerRow, columns, logs.map(toAuditRow) as unknown as Record<string, any>[]);
+
+  const info = addSheet(workbook, "Report Info");
+  info.getColumn(1).width = 18;
+  for (let c = 2; c <= 5; c++) info.getColumn(c).width = 24;
+  applyReportInfoBlock(info, meta, 4);
 
   const buffer = await writeWorkbookToBuffer(workbook);
   await recordExport(requestedBy, "SECURITY_AUDIT_REPORT_EXPORT_XLSX", logs.length, filters);
