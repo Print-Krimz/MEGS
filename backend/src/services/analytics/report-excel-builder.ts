@@ -1,5 +1,6 @@
+import fs from "fs";
 import type ExcelJS from "exceljs";
-import { ReportMetadata } from "./report-theme.js";
+import { BRAND_ARGB, BRAND_LOGO_PATH, ReportMetadata } from "./report-theme.js";
 
 export interface ExcelColumnDef {
   header: string;
@@ -22,7 +23,7 @@ export async function createHRExcelWorkbook(meta: ReportMetadata, sheetName: str
   workbook.modified = new Date();
   workbook.title = meta.reportTitle;
   workbook.subject = `${meta.reportTitle} - ${meta.documentCode}`;
-  workbook.company = "MAR Employment and Services (MEGS)";
+  workbook.company = meta.organization;
 
   const cleanSheetName = sheetName.replace(/[\\/*?[\]:]/g, " ").slice(0, 31);
   const worksheet = workbook.addWorksheet(cleanSheetName, {
@@ -33,37 +34,110 @@ export async function createHRExcelWorkbook(meta: ReportMetadata, sheetName: str
   return { workbook, worksheet };
 }
 
-export function applySpreadsheetHeaderBlock(worksheet: ExcelJS.Worksheet, meta: ReportMetadata): void {
-  // Row 1: Title Header Banner
-  worksheet.mergeCells("A1:H1");
+const colLetter = (n: number): string => {
+  let out = "";
+  for (let x = n; x > 0; x = Math.floor((x - 1) / 26)) out = String.fromCharCode(65 + ((x - 1) % 26)) + out;
+  return out;
+};
+
+const fill = (argb: string): ExcelJS.Fill => ({ type: "pattern", pattern: "solid", fgColor: { argb } });
+
+// One embedded copy of the logo per workbook, shared by every sheet, so the file does not grow by 60 KB per sheet.
+const logoIds = new WeakMap<ExcelJS.Workbook, number>();
+
+/** Prints the MEGS logo in the top-left of a sheet, sized in pixels. No-op when the logo file is missing. */
+function placeLogo(worksheet: ExcelJS.Worksheet, heightPx: number): void {
+  if (!fs.existsSync(BRAND_LOGO_PATH)) return;
+  let id = logoIds.get(worksheet.workbook);
+  if (id === undefined) {
+    id = worksheet.workbook.addImage({ buffer: fs.readFileSync(BRAND_LOGO_PATH) as any, extension: "jpeg" });
+    logoIds.set(worksheet.workbook, id);
+  }
+  // The logo is 960x696, so the width follows the height.
+  worksheet.addImage(id, { tl: { col: 0.05, row: 0.05 }, ext: { width: Math.round(heightPx * (960 / 696)), height: heightPx }, editAs: "oneCell" });
+}
+
+const PAGE_SETUP = (headerRow: number): Partial<ExcelJS.PageSetup> => ({
+  orientation: "landscape",
+  paperSize: 9,
+  fitToPage: true,
+  fitToWidth: 1,
+  fitToHeight: 0,
+  printTitlesRow: `${headerRow}:${headerRow}`,
+});
+
+/**
+ * Compact branded banner for the extra sheets of a workbook: company name, sheet title and one note line.
+ * Occupies rows 1-3, so the table header goes in row 4.
+ */
+export function applySectionSheetHeader(
+  worksheet: ExcelJS.Worksheet,
+  meta: ReportMetadata,
+  title: string,
+  note: string,
+  columnCount: number
+): void {
+  const width = Math.max(columnCount, 5);
+  const last = colLetter(width);
+  const hasLogo = fs.existsSync(BRAND_LOGO_PATH);
+  const indent = hasLogo ? 9 : 1;
+
+  worksheet.mergeCells(`A1:${last}1`);
+  const orgCell = worksheet.getCell("A1");
+  orgCell.value = `${meta.organization}  •  ${meta.reportTitle}`;
+  orgCell.font = { name: "Arial", size: 9, bold: true, color: { argb: "FF475569" } };
+  orgCell.alignment = { vertical: "bottom", horizontal: "left", indent };
+  worksheet.getRow(1).height = 20;
+
+  worksheet.mergeCells(`A2:${last}2`);
+  const titleCell = worksheet.getCell("A2");
+  titleCell.value = title;
+  titleCell.font = { name: "Arial", size: 14, bold: true, color: { argb: BRAND_ARGB.navy } };
+  titleCell.alignment = { vertical: "middle", horizontal: "left", indent };
+  worksheet.getRow(2).height = 28;
+  for (let c = 1; c <= width; c++) {
+    worksheet.getCell(2, c).border = { bottom: { style: "thick", color: { argb: BRAND_ARGB.red } } };
+  }
+  placeLogo(worksheet, 58);
+
+  worksheet.mergeCells(`A3:${last}3`);
+  const noteCell = worksheet.getCell("A3");
+  noteCell.value = note;
+  noteCell.font = { name: "Arial", size: 9, italic: true, color: { argb: "FF475569" } };
+  noteCell.alignment = { vertical: "middle", horizontal: "left", indent: 1, wrapText: true };
+  worksheet.getRow(3).height = note.length > 140 ? 30 : 20;
+  worksheet.pageSetup = PAGE_SETUP(4);
+}
+
+export function applySpreadsheetHeaderBlock(worksheet: ExcelJS.Worksheet, meta: ReportMetadata, columnCount = 8): void {
+  const last = colLetter(Math.max(columnCount, 5));
+  const width = Math.max(columnCount, 5);
+
+  // Rows 1-2: logo on the left, report title and company name beside it, a red rule underneath.
+  const hasLogo = fs.existsSync(BRAND_LOGO_PATH);
+  const indent = hasLogo ? 11 : 1;
+  worksheet.mergeCells(`A1:${last}1`);
   const titleCell = worksheet.getCell("A1");
   titleCell.value = meta.reportTitle;
-  titleCell.font = { name: "Arial", size: 12, bold: true, color: { argb: "FFFFFFFF" } };
-  titleCell.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FF0F172A" }, // Slate 900
-  };
-  titleCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-  worksheet.getRow(1).height = 28;
+  titleCell.font = { name: "Arial", size: 16, bold: true, color: { argb: BRAND_ARGB.navy } };
+  titleCell.alignment = { vertical: "bottom", horizontal: "left", indent };
+  worksheet.getRow(1).height = 34;
 
-  // Row 2: Agency & Division
-  worksheet.mergeCells("A2:H2");
+  worksheet.mergeCells(`A2:${last}2`);
   const orgCell = worksheet.getCell("A2");
-  orgCell.value = `${meta.organization} • ${meta.division}`;
-  orgCell.font = { name: "Arial", size: 9, italic: true, color: { argb: "FF334155" } };
-  orgCell.fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FFF1F5F9" }, // Slate 100
-  };
-  orgCell.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
-  worksheet.getRow(2).height = 20;
+  orgCell.value = `${meta.organization}  •  ${meta.division}`;
+  orgCell.font = { name: "Arial", size: 9, bold: true, color: { argb: "FF475569" } };
+  orgCell.alignment = { vertical: "top", horizontal: "left", indent };
+  worksheet.getRow(2).height = 22;
+  for (let c = 1; c <= width; c++) {
+    worksheet.getCell(2, c).border = { bottom: { style: "thick", color: { argb: BRAND_ARGB.red } } };
+  }
+  placeLogo(worksheet, 64);
 
   // Each details line is one merged cell across the whole banner, so it never depends on the width of the table
   // columns below it and nothing gets cut off.
   const detailsLine = (rowNumber: number, pairs: [string, string][]) => {
-    worksheet.mergeCells(`A${rowNumber}:H${rowNumber}`);
+    worksheet.mergeCells(`A${rowNumber}:${last}${rowNumber}`);
     const cell = worksheet.getCell(`A${rowNumber}`);
     const font = { name: "Arial", size: 9 };
     cell.value = {
@@ -91,6 +165,7 @@ export function applySpreadsheetHeaderBlock(worksheet: ExcelJS.Worksheet, meta: 
   // Rows 5 & 6 are clean blank buffer rows
   worksheet.getRow(5).height = 8;
   worksheet.getRow(6).height = 8;
+  worksheet.pageSetup = PAGE_SETUP(7);
 }
 
 export function applyTableHeaders(
@@ -108,7 +183,7 @@ export function applyTableHeaders(
     cell.fill = {
       type: "pattern",
       pattern: "solid",
-      fgColor: { argb: "FF1E293B" }, // Slate 800
+      fgColor: { argb: BRAND_ARGB.navy },
     };
     // Headers are never right-aligned: the filter button sits on the right edge and would cover the text.
     cell.alignment = {
@@ -119,7 +194,7 @@ export function applyTableHeaders(
     cell.border = {
       top: { style: "thin", color: { argb: "FF94A3B8" } },
       left: { style: "thin", color: { argb: "FF94A3B8" } },
-      bottom: { style: "medium", color: { argb: "FF0F172A" } },
+      bottom: { style: "medium", color: { argb: BRAND_ARGB.red } },
       right: { style: "thin", color: { argb: "FF94A3B8" } },
     };
   });
@@ -151,7 +226,9 @@ export function applyDataRowsAndFormatting(
       const cell = row.getCell(colIdx + 1);
       const val = rowData[col.key];
 
-      cell.value = val !== undefined && val !== null && val !== "" ? val : "—";
+      const empty = val === undefined || val === null || val === "";
+      // Number columns keep a truly empty cell so they still sort, filter and sum as numbers; text columns show a dash.
+      cell.value = empty ? (col.align === "right" ? null : "—") : val;
       cell.font = { name: "Arial", size: 9, color: { argb: "FF0F172A" } };
       // Long text wraps onto more lines in the cell instead of being hidden behind the next column.
       cell.alignment = {
@@ -167,14 +244,14 @@ export function applyDataRowsAndFormatting(
       cell.fill = {
         type: "pattern",
         pattern: "solid",
-        fgColor: { argb: isZebra ? "FFF8FAFC" : "FFFFFFFF" },
+        fgColor: { argb: isZebra ? BRAND_ARGB.zebra : "FFFFFFFF" },
       };
 
       cell.border = {
-        top: { style: "thin", color: { argb: "FFE2E8F0" } },
-        left: { style: "thin", color: { argb: "FFE2E8F0" } },
-        bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
-        right: { style: "thin", color: { argb: "FFE2E8F0" } },
+        top: { style: "thin", color: { argb: BRAND_ARGB.line } },
+        left: { style: "thin", color: { argb: BRAND_ARGB.line } },
+        bottom: { style: "thin", color: { argb: BRAND_ARGB.line } },
+        right: { style: "thin", color: { argb: BRAND_ARGB.line } },
       };
 
       const strLen = String(cell.value || "").length;

@@ -1,3 +1,5 @@
+import path from "path";
+
 export type ReportType = "PIPELINE" | "DEPLOYMENT" | "AUDIT";
 export type ReportRoleScope = "TALENT_ACQUISITION" | "ADMINISTRATOR";
 
@@ -25,21 +27,26 @@ export interface ReportMetadata {
   suggestedFilenameBase: string;
 }
 
+/** The MEGS logo. The server always runs from the backend folder, so it lives in backend/assets (same file the contract PDF uses). */
+export const BRAND_LOGO_PATH = path.resolve(process.cwd(), "assets", "megs-logo.jpg");
+
+export const BRAND_ARGB = { navy: "FF0B315D", red: "FFC8102E", navySoft: "FFEAF0F7", line: "FFD9E2EC", zebra: "FFF4F7FB" };
+
 export const HR_THEME = {
   colors: {
-    primaryNavy: "#0F172A", // Slate 900
+    primaryNavy: "#0B315D", // MEGS navy (frontend --color-navy)
     secondarySlate: "#334155", // Slate 700
-    accentTeal: "#0F766E", // Teal 700
-    tableHeaderFill: "#1E293B", // Slate 800
+    accentTeal: "#C8102E", // MEGS red accent (name kept so existing callers keep working)
+    tableHeaderFill: "#0B315D",
     tableHeaderText: "#FFFFFF",
-    tableBorder: "#CBD5E1", // Slate 300
-    zebraRowFill: "#F8FAFC", // Slate 50
+    tableBorder: "#D9E2EC", // navy line
+    zebraRowFill: "#F4F7FB",
     whiteRowFill: "#FFFFFF",
     textPrimary: "#0F172A",
     textSecondary: "#475569",
     textMuted: "#64748B",
-    kpiCardFill: "#F1F5F9",
-    kpiCardBorder: "#E2E8F0",
+    kpiCardFill: "#EAF0F7", // navy soft
+    kpiCardBorder: "#D9E2EC",
   },
   fonts: {
     titleSize: 13,
@@ -80,33 +87,33 @@ export function getReportMetadata(opts: ReportMetadataOptions): ReportMetadata {
 
   let codePrefix = "MEGS";
   let typeCode = "REP";
-  let title = "MEGS RECRUITMENT REPORT";
+  let title = "Recruitment Report";
   let filenameBase = "MEGS_Report";
 
   if (opts.roleScope === "TALENT_ACQUISITION") {
     codePrefix = "MEGS-TA";
     if (opts.reportType === "PIPELINE") {
       typeCode = "PIP";
-      title = "MEGS — Candidates by stage (Recruiter)";
+      title = "Candidates by Stage";
       filenameBase = `MEGS_TA_Candidate_Pipeline_Report_${dateHyphenated}`;
     } else if (opts.reportType === "DEPLOYMENT") {
       typeCode = "DEP";
-      title = "MEGS — Starts and backouts (Recruiter)";
+      title = "Starts and Backouts";
       filenameBase = `MEGS_TA_Deployment_Report_${dateHyphenated}`;
     }
   } else {
     codePrefix = "MEGS-ADM";
     if (opts.reportType === "PIPELINE") {
       typeCode = "PIP";
-      title = "MEGS — Candidates by stage (Admin)";
+      title = "Candidates by Stage";
       filenameBase = `MEGS_Admin_Workforce_Pipeline_Report_${dateHyphenated}`;
     } else if (opts.reportType === "DEPLOYMENT") {
       typeCode = "DEP";
-      title = "MEGS — Starts and backouts (Admin)";
+      title = "Starts and Backouts";
       filenameBase = `MEGS_Admin_Deployment_Governance_${dateHyphenated}`;
     } else if (opts.reportType === "AUDIT") {
       typeCode = "AUD";
-      title = "MEGS — Security Audit Report";
+      title = "Audit Trail";
       filenameBase = `MEGS_Admin_Security_Audit_${dateHyphenated}`;
     }
   }
@@ -139,8 +146,8 @@ export function getReportMetadata(opts: ReportMetadataOptions): ReportMetadata {
     reportTitle: title,
     roleBadge,
     classification,
-    organization: "MAR EMPLOYMENT AND SERVICES (MEGS)",
-    division: "Human Resources & Talent Management",
+    organization: "MAR Employment for Good Services Inc.",
+    division: "Recruitment and Manpower Services",
     generatedAtFormatted: formattedDate,
     requestedByEmail: opts.requestedByEmail,
     filterSummary: opts.filterSummary || "All records",

@@ -310,6 +310,31 @@ const AUDIT_CATEGORY_ACTIONS: Record<string, string[]> = {
   ],
 };
 
+const AUDIT_CATEGORY_LABELS: Record<string, string> = {
+  AUTHENTICATION: "Authentication",
+  USER_MANAGEMENT: "User Management",
+  RECRUITMENT: "Recruitment",
+  TALENT_POOL: "Talent Pool",
+  CONFIGURATION: "Configuration",
+  COMPLIANCE: "Compliance",
+  DEPLOYMENT: "Deployment",
+};
+
+/** Reader-friendly category for an audit action, used by the exports. Unlisted actions are matched by keyword, defaulting to Recruitment like the Audit Logs page. */
+export const auditCategoryOf = (action: string): string => {
+  for (const [key, label] of Object.entries(AUDIT_CATEGORY_LABELS)) {
+    if (AUDIT_CATEGORY_ACTIONS[key]?.includes(action)) return label;
+  }
+  // Same keyword rules the Audit Logs page uses for actions that are not listed above.
+  if (/LOGIN|AUTH|PASSWORD|MFA/.test(action)) return "Authentication";
+  if (/USER|ROLE|STATUS/.test(action)) return "User Management";
+  if (/TALENT_POOL|KNN/.test(action)) return "Talent Pool";
+  if (/SCORING|CONFIG|DATABASE|BACKUP|RESTORE|MAINTENANCE/.test(action)) return "Configuration";
+  if (/COMPLIANCE|DOCUMENT|CONTRACT/.test(action)) return "Compliance";
+  if (/DEPLOY|EMPLOYEE/.test(action)) return "Deployment";
+  return "Recruitment";
+};
+
 export const fetchAuditLogs = async (filters: {
   action?: string;
   userId?: string;

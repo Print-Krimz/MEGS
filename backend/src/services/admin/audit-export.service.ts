@@ -1,5 +1,5 @@
 import { resolveUserName } from "../../utils/user-name.js";
-import { fetchAuditLogs } from "./admin.service.js";
+import { auditCategoryOf, fetchAuditLogs } from "./admin.service.js";
 import { logAudit } from "../../utils/audit.js";
 import { getReportMetadata } from "../analytics/report-theme.js";
 import {
@@ -19,126 +19,132 @@ import {
   ExcelColumnDef,
 } from "../analytics/report-excel-builder.js";
 
-const safeFormatDate = (date: Date | string | null | undefined): string => {
-  if (!date) return "N/A";
-  try {
-    const d = typeof date === "string" ? new Date(date) : date;
-    return isNaN(d.getTime()) ? "N/A" : d.toISOString().replace("T", " ").slice(0, 19);
-  } catch {
-    return "N/A";
-  }
+/**
+ * What an audit export contains. Only plain facts a manager can read: when, what kind of event, what happened, who did it,
+ * and which kind of record it touched. The IP address, the raw details and internal ids stay in the audit log itself
+ * (the Audit Logs page) and are never written to a downloaded file.
+ */
+const AUDIT_HEADERS = ["Date and time (PHT)", "Category", "Action", "Performed by", "Role", "Record"] as const;
+
+const ROLE_LABELS: Record<string, string> = {
+  ADMINISTRATOR: "Admin",
+  TALENT_ACQUISITION: "Recruiter",
+  APPLICANT: "Applicant",
 };
 
-const resolveActorName = (log: any): string => {
-  if (log.user && resolveUserName(log.user, "")) return resolveUserName(log.user, "");
+const PHT_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+  timeZone: "Asia/Manila",
+});
 
-  let details: any = {};
-  try {
-    details = typeof log.details === "string" ? JSON.parse(log.details) : log.details || {};
-  } catch {}
-
-  const explicit =
-    details.actorName ||
-    details.interviewerName ||
-    details.evaluatorName ||
-    details.recruiterName ||
-    details.userName ||
-    details.actorEmail;
-  if (explicit) return String(explicit);
-
-  const action = (log.action || "").toUpperCase();
-  if (action.includes("INTERVIEW") || action.includes("STAGE") || action.includes("APPLICATION") || action.includes("ENDORSEMENT")) {
-    return "Talent Acquisition Specialist";
-  }
-  if (action.includes("BACKUP") || action.includes("CONFIG")) {
-    return "System Administrator";
-  }
-  if (action.includes("COMPLIANCE")) {
-    return "Compliance Officer";
-  }
-  return "System Administrator";
+const formatWhen = (date: Date | string | null | undefined): string => {
+  if (!date) return "Not recorded";
+  const d = typeof date === "string" ? new Date(date) : date;
+  return isNaN(d.getTime()) ? "Not recorded" : PHT_FORMAT.format(d);
 };
+
+/** USER_LOGGED_IN -> "User logged in". MFA stays upper case. */
+export const humanizeAction = (code: string | null | undefined): string => {
+  if (!code) return "System action";
+  const words = code
+    .toLowerCase()
+    .split("_")
+    .filter(Boolean)
+    .map((w) => (w === "mfa" ? "MFA" : w === "ta" ? "recruiter" : w));
+  const text = words.join(" ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+};
+
+const humanizeEntity = (entity: string | null | undefined): string => {
+  if (!entity) return "Not applicable";
+  return entity.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/_/g, " ");
+};
+
+interface AuditRow {
+  when: string;
+  category: string;
+  action: string;
+  actor: string;
+  role: string;
+  record: string;
+}
+
+export const toAuditRow = (log: any): AuditRow => ({
+  when: formatWhen(log.createdAt),
+  category: auditCategoryOf(log.action),
+  action: humanizeAction(log.action),
+  actor: log.user ? resolveUserName(log.user, "System") : "System",
+  role: ROLE_LABELS[log.user?.role] ?? "System",
+  record: humanizeEntity(log.entity),
+});
+
+const rowValues = (r: AuditRow): string[] => [r.when, r.category, r.action, r.actor, r.role, r.record];
 
 const buildAuditFilterSummary = (filters?: any): string => {
-  if (!filters || Object.keys(filters).length === 0) return "All Audit Events (Unfiltered)";
   const parts: string[] = [];
-  if (filters.action) parts.push(`Action: ${filters.action}`);
-  if (filters.entity) parts.push(`Entity: ${filters.entity}`);
-  if (filters.category) parts.push(`Category: ${filters.category}`);
-  if (filters.search) parts.push(`Query: "${filters.search}"`);
-  if (filters.startDate && filters.endDate) {
-    parts.push(`Date: ${filters.startDate} to ${filters.endDate}`);
-  }
-  return parts.length > 0 ? parts.join(" | ") : "All Audit Events";
+  if (filters?.category) parts.push(`Category: ${filters.category}`);
+  if (filters?.action) parts.push(`Action: ${humanizeAction(filters.action)}`);
+  if (filters?.entity) parts.push(`Record: ${humanizeEntity(filters.entity)}`);
+  if (filters?.search) parts.push(`Search: "${filters.search}"`);
+  if (filters?.startDate && filters?.endDate) parts.push(`Dates: ${filters.startDate} to ${filters.endDate}`);
+  else if (filters?.startDate) parts.push(`From: ${filters.startDate}`);
+  else if (filters?.endDate) parts.push(`Up to: ${filters.endDate}`);
+  return parts.length > 0 ? parts.join("  |  ") : "All activity";
 };
+
+const loadLogs = (filters: any, defaultLimit: number) =>
+  fetchAuditLogs({
+    ...filters,
+    limit: filters?.limit ? parseInt(String(filters.limit), 10) : defaultLimit,
+  });
+
+const metaFor = (requestedBy: { email: string }, filters?: any) =>
+  getReportMetadata({
+    reportType: "AUDIT",
+    roleScope: "ADMINISTRATOR",
+    requestedByEmail: requestedBy.email,
+    filterSummary: buildAuditFilterSummary(filters),
+  });
+
+const recordExport = (requestedBy: { id: string }, action: string, count: number, filters?: any) =>
+  logAudit(requestedBy.id, action, "AuditLog", null, { recordsCount: count, filters: filters || {} });
 
 export const generateAuditReportPDF = async (
   requestedBy: { id: string; email: string },
   filters?: any
 ): Promise<Buffer> => {
-  const logs = await fetchAuditLogs({
-    ...filters,
-    limit: filters?.limit ? parseInt(String(filters.limit), 10) : 500,
-  });
+  const logs = await loadLogs(filters, 500);
+  const meta = metaFor(requestedBy, filters);
 
-  const filterSummary = buildAuditFilterSummary(filters);
-  const meta = getReportMetadata({
-    reportType: "AUDIT",
-    roleScope: "ADMINISTRATOR",
-    requestedByEmail: requestedBy.email,
-    filterSummary,
-  });
-
-  const doc = await createHRDocument({ orientation: "landscape" });
+  const doc = await createHRDocument({ orientation: "landscape", meta });
   renderCorporateHeader(doc, meta);
 
-  // Compute summary KPI metrics
-  const totalEvents = logs.length;
-  const uniqueActors = new Set(logs.map((l: any) => l.userId || resolveActorName(l))).size;
-  const authEvents = logs.filter((l: any) => (l.action || "").includes("LOGIN") || (l.action || "").includes("AUTH")).length;
-  const adminEvents = logs.filter((l: any) => (l.action || "").includes("CONFIG") || (l.action || "").includes("BACKUP") || (l.action || "").includes("USER_ROLE")).length;
-
+  const rows = logs.map(toAuditRow);
   renderSummaryKPIs(doc, [
-    { label: "Total Audit Events", value: totalEvents },
-    { label: "Distinct Actors", value: uniqueActors },
-    { label: "Authentication Events", value: authEvents },
-    { label: "Administrative Actions", value: adminEvents },
+    { label: "Events listed", value: rows.length },
+    { label: "People involved", value: new Set(rows.map((r) => r.actor)).size },
+    { label: "Sign-in and password events", value: rows.filter((r) => r.category === "Authentication").length },
+    { label: "Account and setting changes", value: rows.filter((r) => r.category === "User Management" || r.category === "Configuration").length },
   ]);
 
+  // Widths add up to the full landscape A4 content width (770pt).
   const columns: ColumnDef[] = [
-    { header: "Log ID", width: 50, align: "center" },
-    { header: "Timestamp (UTC)", width: 120, align: "center" },
-    { header: "Action Taxonomy", width: 170, align: "left", badge: true },
-    { header: "Acting User", width: 165, align: "left" },
-    { header: "Actor Role", width: 110, align: "center" },
-    { header: "Target Entity", width: 155, align: "left" },
+    { header: AUDIT_HEADERS[0], width: 120, align: "center" },
+    { header: AUDIT_HEADERS[1], width: 120, align: "left" },
+    { header: AUDIT_HEADERS[2], width: 200, align: "left" },
+    { header: AUDIT_HEADERS[3], width: 170, align: "left" },
+    { header: AUDIT_HEADERS[4], width: 70, align: "center" },
+    { header: AUDIT_HEADERS[5], width: 90, align: "left" },
   ];
-
-  const rows = logs.map((log: any) => {
-    const actor = resolveActorName(log);
-    const target = log.entity ? `${log.entity}${log.entityId ? ` #${log.entityId}` : ""}` : "N/A";
-    return [
-      `#${log.id}`,
-      safeFormatDate(log.createdAt),
-      log.action,
-      actor,
-      log.user?.role || "SYSTEM",
-      target,
-    ];
-  });
-
-  renderGridTable(doc, { columns, rows });
+  renderGridTable(doc, { columns, rows: rows.map(rowValues) });
 
   const buffer = await renderFootersAndPagination(doc, meta);
-
-  logAudit(
-    requestedBy.id,
-    "SECURITY_AUDIT_REPORT_EXPORT_PDF",
-    "AuditLog",
-    null,
-    { recordsCount: logs.length, filters: filters || {} }
-  ).catch(() => null);
-
+  recordExport(requestedBy, "SECURITY_AUDIT_REPORT_EXPORT_PDF", logs.length, filters).catch(() => null);
   return buffer;
 };
 
@@ -146,130 +152,40 @@ export const generateAuditReportXLSX = async (
   requestedBy: { id: string; email: string },
   filters?: any
 ): Promise<Buffer> => {
-  const logs = await fetchAuditLogs({
-    ...filters,
-    limit: filters?.limit ? parseInt(String(filters.limit), 10) : 2000,
-  });
-
-  const filterSummary = buildAuditFilterSummary(filters);
-  const meta = getReportMetadata({
-    reportType: "AUDIT",
-    roleScope: "ADMINISTRATOR",
-    requestedByEmail: requestedBy.email,
-    filterSummary,
-  });
+  const logs = await loadLogs(filters, 2000);
+  const meta = metaFor(requestedBy, filters);
 
   const { workbook, worksheet } = await createHRExcelWorkbook(meta, "Audit Trail");
-  applySpreadsheetHeaderBlock(worksheet, meta);
-
   const columns: ExcelColumnDef[] = [
-    { header: "Log ID", key: "id", minWidth: 12, align: "center" },
-    { header: "Timestamp (UTC)", key: "createdAt", minWidth: 20, align: "center" },
-    { header: "Action Taxonomy", key: "action", minWidth: 26 },
-    { header: "Acting User", key: "actor", minWidth: 26 },
-    { header: "Actor Role", key: "userRole", minWidth: 18, align: "center" },
-    { header: "Target Entity", key: "entity", minWidth: 18 },
-    { header: "Entity Record ID", key: "entityId", minWidth: 16, align: "center" },
-    { header: "Client IP Address", key: "ipAddress", minWidth: 18, align: "center" },
-    { header: "Audit Details", key: "details", minWidth: 35 },
+    { header: AUDIT_HEADERS[0], key: "when", minWidth: 22, align: "center" },
+    { header: AUDIT_HEADERS[1], key: "category", minWidth: 18 },
+    { header: AUDIT_HEADERS[2], key: "action", minWidth: 32 },
+    { header: AUDIT_HEADERS[3], key: "actor", minWidth: 28 },
+    { header: AUDIT_HEADERS[4], key: "role", minWidth: 14, align: "center" },
+    { header: AUDIT_HEADERS[5], key: "record", minWidth: 20 },
   ];
-
-  const rows = logs.map((log: any) => {
-    let ip = "N/A";
-    try {
-      const details = typeof log.details === "string" ? JSON.parse(log.details) : log.details || {};
-      ip = details.ip || details.ipAddress || "N/A";
-    } catch {}
-
-    return {
-      id: log.id,
-      createdAt: safeFormatDate(log.createdAt),
-      action: log.action,
-      actor: resolveActorName(log),
-      userRole: log.user?.role || "SYSTEM",
-      entity: log.entity || "N/A",
-      entityId: log.entityId || "N/A",
-      ipAddress: ip,
-      details: typeof log.details === "object" ? JSON.stringify(log.details) : String(log.details || ""),
-    };
-  });
-
+  applySpreadsheetHeaderBlock(worksheet, meta, columns.length);
   applyTableHeaders(worksheet, 7, columns);
-  applyDataRowsAndFormatting(worksheet, 7, columns, rows);
+  applyDataRowsAndFormatting(worksheet, 7, columns, logs.map(toAuditRow) as unknown as Record<string, any>[]);
 
   const buffer = await writeWorkbookToBuffer(workbook);
-
-  await logAudit(
-    requestedBy.id,
-    "SECURITY_AUDIT_REPORT_EXPORT_XLSX",
-    "AuditLog",
-    null,
-    { recordsCount: logs.length, filters: filters || {} }
-  );
-
+  await recordExport(requestedBy, "SECURITY_AUDIT_REPORT_EXPORT_XLSX", logs.length, filters);
   return buffer;
+};
+
+const csvCell = (value: string): string => {
+  // A cell that starts with = + - @ would run as a formula when the file is opened in a spreadsheet.
+  const safe = /^[=+\-@]/.test(value) ? `'${value}` : value;
+  return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 };
 
 export const generateAuditReportCSV = async (
   requestedBy: { id: string; email: string },
   filters?: any
 ): Promise<Buffer> => {
-  const logs = await fetchAuditLogs({
-    ...filters,
-    limit: filters?.limit ? parseInt(String(filters.limit), 10) : 5000,
-  });
-
-  const { default: ExcelJS } = await import("exceljs");
-  const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet("Security Audit Trail");
-
-  worksheet.columns = [
-    { header: "Log ID", key: "id", width: 10 },
-    { header: "Timestamp", key: "createdAt", width: 22 },
-    { header: "Action", key: "action", width: 30 },
-    { header: "Actor", key: "actor", width: 30 },
-    { header: "Actor Role", key: "userRole", width: 20 },
-    { header: "Target Entity", key: "entity", width: 20 },
-    { header: "Entity ID", key: "entityId", width: 12 },
-    { header: "IP Address", key: "ipAddress", width: 18 },
-    { header: "Details", key: "details", width: 45 },
-  ];
-
-  for (const log of logs) {
-    let ip = "N/A";
-    try {
-      const details = typeof log.details === "string" ? JSON.parse(log.details) : log.details || {};
-      ip = details.ip || details.ipAddress || "N/A";
-    } catch {}
-
-    worksheet.addRow({
-      id: log.id,
-      createdAt: safeFormatDate(log.createdAt),
-      action: log.action,
-      actor: resolveActorName(log),
-      userRole: log.user?.role || "N/A",
-      entity: log.entity || "N/A",
-      entityId: log.entityId || "N/A",
-      ipAddress: ip,
-      details: typeof log.details === "object" ? JSON.stringify(log.details) : String(log.details || ""),
-    });
-  }
-
-  // Format header row
-  worksheet.getRow(1).font = { bold: true };
-
-  const buffer = await workbook.csv.writeBuffer();
-
-  await logAudit(
-    requestedBy.id,
-    "SECURITY_AUDIT_REPORT_EXPORT_CSV",
-    "AuditLog",
-    null,
-    {
-      recordsCount: logs.length,
-      filters: filters || {},
-    }
-  );
-
-  return Buffer.from(buffer);
+  const logs = await loadLogs(filters, 5000);
+  const lines = [AUDIT_HEADERS.join(","), ...logs.map((log: any) => rowValues(toAuditRow(log)).map(csvCell).join(","))];
+  await recordExport(requestedBy, "SECURITY_AUDIT_REPORT_EXPORT_CSV", logs.length, filters);
+  // The BOM makes Excel read the file as UTF-8.
+  return Buffer.from(`﻿${lines.join("\r\n")}\r\n`, "utf-8");
 };

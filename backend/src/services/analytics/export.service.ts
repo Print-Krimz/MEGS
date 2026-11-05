@@ -27,6 +27,7 @@ import { displayEmail } from "../../utils/display-email.js";
 import {
   applyDataRowsAndFormatting,
   applySpreadsheetHeaderBlock,
+  applySectionSheetHeader,
   applyTableHeaders,
   createHRExcelWorkbook,
   writeWorkbookToBuffer,
@@ -654,7 +655,7 @@ function columnWidths(doc: PDFKit.PDFDocument, columns: Column[], contentWidth: 
 }
 
 async function writePdf(meta: ReportMetadata, model: ReportModel): Promise<Buffer> {
-  const doc = await createHRDocument({ orientation: "landscape" });
+  const doc = await createHRDocument({ orientation: "landscape", meta });
   renderCorporateHeader(doc, meta);
   const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
   // Nothing is shortened: long labels and cells wrap onto extra lines so every word stays readable.
@@ -694,7 +695,7 @@ async function writePdf(meta: ReportMetadata, model: ReportModel): Promise<Buffe
 
 async function writeXlsx(meta: ReportMetadata, model: ReportModel): Promise<Buffer> {
   const { workbook, worksheet } = await createHRExcelWorkbook(meta, "Summary");
-  applySpreadsheetHeaderBlock(worksheet, meta);
+  applySpreadsheetHeaderBlock(worksheet, meta, 5);
   const kpiColumns: ExcelColumnDef[] = [
     { header: "What we count", key: "label", minWidth: 28 },
     { header: "Number", key: "value", minWidth: 12, align: "right" },
@@ -712,20 +713,23 @@ async function writeXlsx(meta: ReportMetadata, model: ReportModel): Promise<Buff
 
   for (const section of model.sections) {
     const sheet = workbook.addWorksheet(section.sheet.replace(/[\\/*?[\]:]/g, " ").slice(0, 31), { properties: { defaultRowHeight: 20 } });
-    sheet.getCell("A1").value = `${section.title} (${section.rows.length})`;
-    sheet.getCell("A1").font = { name: "Arial", size: 11, bold: true, color: { argb: "FF0F172A" } };
-    sheet.getCell("A2").value = section.rows.length === 0 ? "Nothing to show for the dates and filters you picked." : section.note ?? "";
-    sheet.getCell("A2").font = { name: "Arial", size: 9, italic: true, color: { argb: "FF475569" } };
+    applySectionSheetHeader(
+      sheet,
+      meta,
+      `${section.title} (${section.rows.length})`,
+      section.rows.length === 0 ? "Nothing to show for the dates and filters you picked." : section.note ?? "",
+      section.columns.length
+    );
     const columns: ExcelColumnDef[] = section.columns.map((c) => ({
       header: c.header,
       key: c.key,
       minWidth: Math.max(10, Math.round(c.weight / 6)),
       align: c.align,
     }));
-    applyTableHeaders(sheet, 3, columns);
+    applyTableHeaders(sheet, 4, columns);
     applyDataRowsAndFormatting(
       sheet,
-      3,
+      4,
       columns,
       section.rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, typeof v === "string" ? clean(v) : v])))
     );

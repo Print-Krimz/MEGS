@@ -1,4 +1,5 @@
-import { HR_THEME, ReportMetadata, getStatusBadgeTheme } from "./report-theme.js";
+import fs from "fs";
+import { HR_THEME, BRAND_LOGO_PATH, ReportMetadata, getStatusBadgeTheme } from "./report-theme.js";
 
 export interface ColumnDef {
   header: string;
@@ -25,6 +26,8 @@ export interface KPIItem {
 
 export interface CreateHRDocumentOptions {
   orientation?: "landscape" | "portrait";
+  /** Sets the PDF file properties (title, author) shown in a PDF viewer. */
+  meta?: Pick<ReportMetadata, "reportTitle" | "organization" | "documentCode">;
 }
 
 /**
@@ -39,6 +42,9 @@ export async function createHRDocument(options?: CreateHRDocumentOptions): Promi
     layout,
     margins: { top: 36, bottom: 36, left: 36, right: 36 },
     bufferPages: true,
+    info: options?.meta
+      ? { Title: `${options.meta.reportTitle} (${options.meta.documentCode})`, Author: options.meta.organization, Producer: "MEGS Recruitment Management System" }
+      : undefined,
   });
 }
 
@@ -49,32 +55,36 @@ export function renderCorporateHeader(doc: PDFKit.PDFDocument, meta: ReportMetad
   const margin = doc.page.margins.left;
   const contentWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
-  // Top decorative corporate accent band
+  // Top accent band in MEGS red
   doc.rect(margin, 30, contentWidth, 4).fill(HR_THEME.colors.accentTeal);
 
-  // Agency branding
-  doc.fontSize(10).font("Helvetica-Bold").fillColor(HR_THEME.colors.primaryNavy);
-  doc.text(meta.organization, margin, 40);
+  // Logo (left) with the company name beside it. Without the logo file the text starts at the margin.
+  const hasLogo = fs.existsSync(BRAND_LOGO_PATH);
+  const logoWidth = 62;
+  const textX = hasLogo ? margin + logoWidth + 12 : margin;
+  if (hasLogo) doc.image(BRAND_LOGO_PATH, margin, 40, { width: logoWidth });
 
-  doc.fontSize(7.5).font("Helvetica").fillColor(HR_THEME.colors.textMuted);
-  doc.text(meta.division, margin, 52);
+  doc.fontSize(11).font("Helvetica-Bold").fillColor(HR_THEME.colors.primaryNavy);
+  doc.text(meta.organization, textX, 44, { lineBreak: false });
 
-  // Classification Badge (Top Right)
+  doc.fontSize(8).font("Helvetica").fillColor(HR_THEME.colors.textMuted);
+  doc.text(meta.division, textX, 58, { lineBreak: false });
+
+  // Privacy label (top right)
   const classText = meta.classification;
   doc.font("Helvetica-Bold").fontSize(7);
   const classWidth = doc.widthOfString(classText) + 14;
   const classX = margin + contentWidth - classWidth;
-  doc.roundedRect(classX, 39, classWidth, 16, 2)
+  doc.roundedRect(classX, 43, classWidth, 16, 2)
     .fillAndStroke(HR_THEME.colors.zebraRowFill, HR_THEME.colors.tableBorder);
-  doc.fillColor(HR_THEME.colors.secondarySlate).text(classText, classX + 7, 44);
+  doc.fillColor(HR_THEME.colors.secondarySlate).text(classText, classX + 7, 48, { lineBreak: false });
 
-  // Document Title
-  doc.moveDown(1.5);
-  doc.fontSize(HR_THEME.fonts.titleSize).font("Helvetica-Bold").fillColor(HR_THEME.colors.primaryNavy);
-  doc.text(meta.reportTitle, margin, 68);
+  // Report title
+  doc.fontSize(HR_THEME.fonts.titleSize + 3).font("Helvetica-Bold").fillColor(HR_THEME.colors.primaryNavy);
+  doc.text(meta.reportTitle, margin, 88, { lineBreak: false });
 
   // Metadata Card Box
-  const metaY = 88;
+  const metaY = 112;
   const col1X = margin + 10;
   const col2X = margin + contentWidth * 0.35;
   const col3X = margin + contentWidth * 0.70;
@@ -340,7 +350,7 @@ export function renderFootersAndPagination(doc: PDFKit.PDFDocument, meta: Report
       // Running Header on subsequent pages
       if (i > 0) {
         doc.fontSize(6.5).font("Helvetica").fillColor(HR_THEME.colors.textMuted);
-        doc.text(`${meta.organization} • ${meta.documentCode}`, pageMargin, 16, { lineBreak: false });
+        doc.text(`${meta.organization}  •  ${meta.reportTitle}  •  ${meta.documentCode}`, pageMargin, 16, { lineBreak: false });
 
         const classText = meta.classification;
         doc.font("Helvetica-Bold");
@@ -357,7 +367,7 @@ export function renderFootersAndPagination(doc: PDFKit.PDFDocument, meta: Report
 
       doc.font("Helvetica").fillColor(HR_THEME.colors.textMuted);
       doc.text(
-        "For MEGS staff only • Do not share outside the company",
+        `${meta.organization} • For MEGS staff only`,
         pageMargin + 160,
         footerY,
         { lineBreak: false }
