@@ -3,8 +3,8 @@ import { formatSampled } from "../analytics-format";
 
 describe("formatSampled", () => {
   it("explains a missing rate with its sample size", () => {
-    expect(formatSampled(null, 4, "%")).toBe("Too few to show (4 cases)");
-    expect(formatSampled(null, 1, "days")).toBe("Too few to show (1 case)");
+    expect(formatSampled(null, 4, "%")).toBe("No data yet");
+    expect(formatSampled(null, 1, "days")).toBe("No data yet");
   });
   it("says there is no data yet when nothing was recorded", () => {
     expect(formatSampled(null, 0, "%")).toBe("No data yet");

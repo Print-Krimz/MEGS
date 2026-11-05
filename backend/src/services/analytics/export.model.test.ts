@@ -186,10 +186,10 @@ describe("report models use the screen's words", () => {
     const pipeline = await __reportModels.buildPipelineModel(admin, {});
     const deployment = await __reportModels.buildDeploymentModel(admin, {});
     for (const model of [pipeline, deployment]) {
-      expect(model.kpis.find((k) => k.label === METRICS.backoutRate.label)!.value).toBe("Too few to show (3 cases)");
+      expect(model.kpis.find((k) => k.label === METRICS.backoutRate.label)!.value).toBe("No data yet");
     }
-    expect(deployment.kpis.find((k) => k.label === METRICS.seatsFilled.label)!.value).toBe("Too few to show (4 cases)");
-    expect(deployment.kpis.find((k) => k.label === METRICS.daysToFill.label)!.value).toBe("Too few to show (2 cases)");
+    expect(deployment.kpis.find((k) => k.label === METRICS.seatsFilled.label)!.value).toBe("No data yet");
+    expect(deployment.kpis.find((k) => k.label === METRICS.daysToFill.label)!.value).toBe("No data yet");
     const text = JSON.stringify([pipeline.kpis, deployment.kpis]);
     expect(text).not.toContain("null");
   });
@@ -219,16 +219,16 @@ describe("report models use the screen's words", () => {
     vi.mocked(getAdminReportData).mockResolvedValue(data as any);
     const model = await __reportModels.buildPipelineModel(admin, {});
     const row = sectionNamed(model, "Candidates by stage").rows[1];
-    expect(row.median).toBe("Too few to show (2 cases)");
-    expect(row.avg).toBe("Too few to show (2 cases)");
+    expect(row.median).toBe("No data yet");
+    expect(row.avg).toBe("No data yet");
   });
 
   it("recruiters sheet prints Not enough data instead of 0 for a null rate", async () => {
     vi.mocked(getAdminReportData).mockResolvedValue(adminData() as any);
     const model = await __reportModels.buildPipelineModel(admin, {});
     const row = sectionNamed(model, "Recruiters").rows[0];
-    expect(row.backoutRate).toBe("Too few to show (3 cases)");
-    expect(row.days).toBe("Too few to show (2 cases)");
+    expect(row.backoutRate).toBe("No data yet");
+    expect(row.days).toBe("No data yet");
     expect(row.fill).toBe(25);
   });
   it("no column header or note uses a retired word", async () => {

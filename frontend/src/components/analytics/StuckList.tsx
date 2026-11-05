@@ -82,10 +82,10 @@ const csvRow = (r: StuckCandidate) => [
 ];
 
 const BULK_BUTTON =
-  "inline-flex min-h-11 items-center gap-1.5 border border-navy bg-white px-2.5 text-xs font-semibold text-navy hover:bg-navy-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50 md:min-h-8";
+  "inline-flex min-h-11 items-center gap-1.5 rounded-md border border-navy bg-white px-2.5 text-xs font-semibold text-navy hover:bg-navy-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50 md:min-h-8";
 
 const SELECT =
-  "min-h-11 md:min-h-9 border border-slate-300 bg-white px-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+  "min-h-11 md:min-h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 /** Days in the stage as a bar: a pale baseline up to the limit, then only the days past it in colour. */
 const WaitBar: React.FC<{ row: number; r: StuckCandidate; color: string; index: number; className?: string }> = ({ row: scale, r, color, index, className }) => (
@@ -270,7 +270,7 @@ export const StuckList = React.memo(function StuckList({
                 type="button"
                 aria-pressed={urgency === key}
                 onClick={() => reset(() => setUrgency(key))}
-                className={`min-h-11 md:min-h-9 px-2.5 text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+                className={`min-h-11 md:min-h-9 rounded-md px-2.5 text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
                   urgency === key ? "bg-navy text-white border-navy" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
                 }`}
               >
@@ -299,7 +299,7 @@ export const StuckList = React.memo(function StuckList({
                 setPage(1);
               }}
               placeholder={withRecruiter ? "Candidate, job, client or recruiter" : "Candidate, job or client"}
-              className="min-h-11 md:min-h-9 w-full border border-slate-300 bg-white px-2.5 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:w-64"
+              className="min-h-11 md:min-h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:w-64"
             />
           </label>
         </div>
@@ -314,9 +314,9 @@ export const StuckList = React.memo(function StuckList({
       )}
 
       {rows.length === 0 ? (
-        <p className="p-6 text-center text-xs text-slate-500 font-sans">No one is past the days allowed.</p>
+        <p className="p-6 text-center text-xs text-slate-600 font-sans">No one is past the days allowed.</p>
       ) : pageRows.length === 0 ? (
-        <p className="p-6 text-center text-xs text-slate-500 font-sans">
+        <p className="p-6 text-center text-xs text-slate-600 font-sans">
           {needle
             ? `No overdue candidates match “${query.trim()}”.`
             : stage !== "ALL" && urgency === "ALL"
@@ -401,7 +401,7 @@ export const StuckList = React.memo(function StuckList({
                         {r.candidateName}
                       </Link>
                     ) : (
-                      <Link to="/ta/applications/$applicationId" params={{ applicationId: String(r.applicationId) }} className={link}>
+                      <Link to="/ta/applications/$applicationId" params={{ applicationId: String(r.applicationId) }} {...(linkState ? { state: linkState as never } : {})} className={link}>
                         {r.candidateName}
                       </Link>
                     )}
@@ -411,7 +411,7 @@ export const StuckList = React.memo(function StuckList({
                       <Link
                         to={admin ? "/admin/mrfs/$mrfId" : "/ta/mrfs/$mrfId"}
                         params={{ mrfId: String(r.mrfId) }}
-                        {...(admin && linkState ? { state: linkState as never } : {})}
+                        {...(linkState ? { state: linkState as never } : {})}
                         className="text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
                         {r.jobTitle}
@@ -444,7 +444,7 @@ export const StuckList = React.memo(function StuckList({
                     </span>
                   ) : (
                     <>
-                      <span aria-hidden="true" className="text-slate-500">—</span>
+                      <span aria-hidden="true" className="text-slate-600">—</span>
                       <span className="sr-only">No activity recorded</span>
                     </>
                   )}

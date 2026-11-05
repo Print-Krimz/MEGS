@@ -21,7 +21,7 @@ import {
   StuckList,
 } from "../../components/analytics";
 import type { RequestHealthFilter } from "../../components/analytics";
-import { filtersToSearch, parseTAReportSearch, searchToFilters, type AdminReportSearch } from "../../lib/admin-report-search";
+import { filtersToSearch, parseTAReportSearch, reportReturnState, searchToFilters, type AdminReportSearch } from "../../lib/admin-report-search";
 import type { AnalyticsFilterState } from "../../lib/types/analytics.types";
 import { scrollToId } from "../../lib/scroll-to";
 import { TA_COPY } from "../../lib/ta-copy";
@@ -64,6 +64,10 @@ export const AnalyticsPage: React.FC = () => {
   const { urgency, stage, health } = search;
   const waitingFocus = useMemo<WaitingFocus | undefined>(() => (urgency || stage ? { urgency, stage, nonce } : undefined), [urgency, stage, nonce]);
   const requestFocus = useMemo<RequestFocus | undefined>(() => (health ? { health, nonce } : undefined), [health, nonce]);
+  const { tab: _openTab, ...searchWithoutTab } = search;
+  const returnKey = JSON.stringify(searchWithoutTab);
+  const waitingReturn = useMemo(() => reportReturnState({ ...JSON.parse(returnKey), tab: "waiting" }), [returnKey]);
+  const requestsReturn = useMemo(() => reportReturnState({ ...JSON.parse(returnKey), tab: "requests" }), [returnKey]);
   const searchRef = useRef(search);
   searchRef.current = search;
 
@@ -134,6 +138,7 @@ export const AnalyticsPage: React.FC = () => {
     <PageHeader
       title={TA_COPY.pageTitles.reports}
       description={asOf}
+      flush
       breadcrumbs={[{ label: TA_COPY.navigation.overview, href: "/ta" }, { label: TA_COPY.navigation.reports }]}
       actions={
         <ExportMenu
@@ -152,7 +157,7 @@ export const AnalyticsPage: React.FC = () => {
       <div className="space-y-5">
         {header}
         <AnalyticsFilterBar filters={filters} onChange={setFilters} showClientFilter />
-        <div className="h-11 motion-safe:animate-pulse border border-slate-300 bg-white" aria-hidden="true" />
+        <div className="h-11 motion-safe:animate-pulse rounded-md border border-slate-300 bg-white" aria-hidden="true" />
         <LoadingState variant="cards" rows={4} className="lg:grid-cols-4" />
         <LoadingState variant="table" rows={4} />
       </div>
@@ -207,13 +212,13 @@ export const AnalyticsPage: React.FC = () => {
       {/* Dim only while a filter change loads (old numbers on screen), not on a quiet background refresh. */}
       <div className={`space-y-5 transition-opacity ${dashboardQuery.isPlaceholderData ? "opacity-70" : ""}`}>
         {isEmpty ? (
-          <div className="border border-slate-300 bg-white p-6 text-center text-sm font-sans text-slate-700">
+          <div className="rounded-md border border-slate-300 bg-white p-6 text-center text-sm font-sans text-slate-700">
             <p>Nothing recorded for these dates. Try a longer range.</p>
             {filters.range === "7d" && (
               <button
                 type="button"
                 onClick={() => setFilters({ ...filters, range: "30d" })}
-                className="mt-3 inline-flex min-h-11 items-center border border-navy px-3 text-xs font-semibold text-navy hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9"
+                className="mt-3 inline-flex min-h-11 items-center rounded-md border border-navy px-3 text-xs font-semibold text-navy hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9"
               >
                 Last 30 days
               </button>
@@ -221,7 +226,6 @@ export const AnalyticsPage: React.FC = () => {
           </div>
         ) : (
           <>
-
             <section aria-label="Headline numbers">
               <h2 className="sr-only">Headline numbers</h2>
               <KpiRow definitions={KPI_DEFINITIONS}>
@@ -254,9 +258,10 @@ export const AnalyticsPage: React.FC = () => {
                 </KpiGroup>
               </KpiRow>
             </section>
-            <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-              {/* Every panel in this row stretches to the row height so the three columns end on one line. */}
-              <div className="min-w-0 md:col-span-2 lg:col-span-1">
+
+            {/* Row 1: Pipeline stages (7 cols) paired with Starts and backouts trend (5 cols) */}
+            <div className="grid gap-5 lg:grid-cols-12">
+              <div className="min-w-0 lg:col-span-7">
                 <StagePipeline
                   className="h-full"
                   rows={data.stageTable}
@@ -267,7 +272,7 @@ export const AnalyticsPage: React.FC = () => {
                   }}
                 />
               </div>
-              <div className="min-w-0">
+              <div className="min-w-0 lg:col-span-5">
                 <LineChart
                   id="trend"
                   title="Starts and backouts"
@@ -277,50 +282,74 @@ export const AnalyticsPage: React.FC = () => {
                   emptyText="No starts or backouts in these dates."
                 />
               </div>
-              <div className="flex min-w-0 flex-col gap-5 justify-start">
-                <BackoutReasonsDonut
-                  data={data.backouts}
-                  className={data.backouts.withdrawals + data.backouts.backouts >= 4 ? "flex-1" : ""}
-                />
+            </div>
+
+            {/* Row 2: Why candidates backed out (5 cols) paired with Due soon (7 cols) */}
+            <div className="grid gap-5 lg:grid-cols-12">
+              <div className="min-w-0 lg:col-span-5">
+                <BackoutReasonsDonut data={data.backouts} className="h-full" />
+              </div>
+              <div className="min-w-0 lg:col-span-7">
                 <DueSoonList
                   rows={data.dueSoon}
                   total={data.dueSoonTotal}
                   viewer="ta"
-                  className={data.dueSoon.length >= 4 ? "flex-1" : ""}
+                  linkState={waitingReturn} className="h-full"
                 />
               </div>
             </div>
 
             <div className="pt-2">
               <OperationsWorkspace<WorkspaceKey>
-              active={tab}
-              onChange={setTab}
-              tabs={[
-                {
-                  key: "actions",
-                  label: "Action items",
-                  shortLabel: "Tasks",
-                  count: data.pendingActionsTotal,
-                  content: <ActionItemsList bare rows={data.pendingActions} total={data.pendingActionsTotal} />,
-                },
-                {
-                  key: "waiting",
-                  label: "Overdue candidates",
-                  shortLabel: "Overdue",
-                  count: data.stuckTotal,
-                  content: (
-                    <StuckList bare viewer="ta" showRecruiter={false} title="Overdue candidates" rows={data.stuck} total={data.stuckTotal} closedOpenings={kpis.closedOpenings} focus={waitingFocus} selectable />
-                  ),
-                },
-                {
-                  key: "requests",
-                  label: "Client requests",
-                  shortLabel: "Requests",
-                  count: data.requests.length,
-                  content: <RequestProgressList bare rows={data.requests} linkTo="/ta/mrfs/$mrfId" showOwner={false} note={staleNote} focus={requestFocus} />,
-                },
-              ]}
-            />
+                active={tab}
+                onChange={setTab}
+                tabs={[
+                  {
+                    key: "actions",
+                    label: "Action items",
+                    shortLabel: "Tasks",
+                    count: data.pendingActionsTotal,
+                    content: <ActionItemsList bare rows={data.pendingActions} total={data.pendingActionsTotal} />,
+                  },
+                  {
+                    key: "waiting",
+                    label: "Overdue candidates",
+                    shortLabel: "Overdue",
+                    count: data.stuckTotal,
+                    content: (
+                      <StuckList
+                        bare
+                        viewer="ta"
+                        showRecruiter={false}
+                        title="Overdue candidates"
+                        rows={data.stuck}
+                        total={data.stuckTotal}
+                        closedOpenings={kpis.closedOpenings}
+                        focus={waitingFocus}
+                        linkState={waitingReturn}
+                        selectable
+                      />
+                    ),
+                  },
+                  {
+                    key: "requests",
+                    label: "Client requests",
+                    shortLabel: "Requests",
+                    count: data.requests.length,
+                    content: (
+                      <RequestProgressList
+                        bare
+                        rows={data.requests}
+                        linkTo="/ta/mrfs/$mrfId"
+                        showOwner={false}
+                        note={staleNote}
+                        focus={requestFocus}
+                        linkState={requestsReturn}
+                      />
+                    ),
+                  },
+                ]}
+              />
             </div>
           </>
         )}

@@ -130,7 +130,7 @@ const WorkGroup: React.FC<{ label: string; count: number; children: React.ReactN
     <div>
       <h3 className="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-semibold text-slate-700">
         {label}
-        <span className="tabular-nums text-slate-500">{count}</span>
+        <span className="tabular-nums text-slate-600">{count}</span>
       </h3>
       <ul className="divide-y divide-slate-200 border-b border-slate-200 last:border-b-0">{children}</ul>
     </div>
@@ -268,7 +268,7 @@ export const TADashboard: React.FC = () => {
             action={
               moreTasks ? (
                 <Button asChild variant="ghost" size="sm" className="max-md:min-h-11">
-                  <Link to="/ta/analytics">
+                  <Link to="/ta/analytics" search={{ tab: "actions" }}>
                     See all {plural(tasksTotal, "pending task")}
                     <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
                   </Link>

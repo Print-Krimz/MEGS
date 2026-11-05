@@ -38,7 +38,7 @@ export function OperationsWorkspace<K extends string>({ tabs, active, onChange, 
   };
 
   return (
-    <section id={id} aria-label="Operations workspace" className="scroll-mt-4 border border-slate-300 bg-white">
+    <section id={id} aria-label="Operations workspace" className="scroll-mt-4 overflow-hidden rounded-md border border-slate-300 bg-white">
       {banner}
       <div role="tablist" aria-label="Lists to work through" className="flex overflow-x-auto border-b border-slate-300 bg-slate-100">
         {tabs.map((tab, index) => {

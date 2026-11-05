@@ -855,6 +855,17 @@ describe("Talent Acquisition Interface Suite", () => {
     expect(await screen.findByText("Batch 1 Electricians")).toBeDefined();
   });
 
+  it("keeps Open requests as a non-link KPI and opens Overdue candidates when clicked", async () => {
+    navigateMock.mockClear();
+    renderWithClient(<AnalyticsPage />);
+    const kpi = await screen.findByRole("link", { name: /Overdue candidates/ });
+    fireEvent.click(kpi);
+    expect(screen.queryByRole("link", { name: /Open requests/ })).toBeNull();
+    expect(navigateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: "/ta/analytics", search: expect.objectContaining({ tab: "waiting" }) }),
+    );
+  });
+
   it("ignores recruiterId in the URL and never sends it", async () => {
     routerSearch.value = { recruiterId: "ta-9", tab: "recruiters", clientId: "1" };
     vi.mocked(taApi.getDashboardSummary).mockClear();

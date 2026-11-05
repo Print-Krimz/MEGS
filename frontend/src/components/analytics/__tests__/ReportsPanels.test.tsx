@@ -150,7 +150,7 @@ describe("ClientReviewPanel", () => {
     expect(items[0].textContent).toContain("6.2 days avg");
     expect(items[0].textContent).toContain("over the 5 days limit");
     expect(items[0].textContent).toContain("2 overdue");
-    expect(items[1].textContent).toContain("Too few to show (3 cases)");
+    expect(items[1].textContent).toContain("No data yet");
     expect(within(items[1]).queryByRole("img")).toBeNull();
     expect(within(items[0]).getByRole("img", { name: /Acme, average 6.2 days, limit 5 days/ })).toBeDefined();
   });
@@ -158,6 +158,13 @@ describe("ClientReviewPanel", () => {
   it("says when no one is in client review", () => {
     render(<ClientReviewPanel data={{ avgDays: null, sample: 0, clients: [] }} />);
     expect(screen.getByText("No candidates in client review.")).toBeDefined();
+  });
+
+  it("calls onSelectClient with the clientId when a client name is clicked", () => {
+    const onSelectClient = vi.fn();
+    render(<ClientReviewPanel data={data} onSelectClient={onSelectClient} />);
+    fireEvent.click(screen.getByRole("button", { name: "Acme" }));
+    expect(onSelectClient).toHaveBeenCalledWith(1);
   });
 });
 
@@ -186,6 +193,16 @@ describe("DueSoonList", () => {
     const dialog = screen.getByRole("dialog");
     expect(within(dialog).getByText("Due")).toBeDefined();
     expect(within(dialog).queryByText("Over by")).toBeNull();
+  });
+
+  it("expands to show all rows when 'Show all 6' is clicked and collapses when 'Show fewer' is clicked", () => {
+    const rows = [due(1, 0), due(2, 1), due(3, 2), due(4, 2), due(5, 2), due(6, 2)];
+    renderWithQuery(<DueSoonList rows={rows} total={6} viewer="ta" />);
+    expect(screen.getAllByRole("listitem")).toHaveLength(5);
+    fireEvent.click(screen.getByRole("button", { name: "Show all 6" }));
+    expect(screen.getAllByRole("listitem")).toHaveLength(6);
+    fireEvent.click(screen.getByRole("button", { name: "Show fewer" }));
+    expect(screen.getAllByRole("listitem")).toHaveLength(5);
   });
 });
 
@@ -243,7 +260,7 @@ describe("ActionItemsList", () => {
   });
 
   it("lists each task with its urgency in words, age, and an Open link, and counts what is shown", () => {
-    render(<ActionItemsList rows={[item("a"), item("b", { urgency: "NORMAL", agingDays: undefined, deadline: "2026-11-05T00:00:00Z" })]} total={9} />);
+    render(<ActionItemsList now={new Date("2026-11-02T04:00:00Z")} rows={[item("a"), item("b", { urgency: "NORMAL", agingDays: undefined, deadline: "2026-11-05T00:00:00Z" })]} total={9} />);
     expect(screen.getByText("High")).toBeDefined();
     expect(screen.getByText("Low")).toBeDefined();
     expect(screen.getByText("Waiting 4 days")).toBeDefined();

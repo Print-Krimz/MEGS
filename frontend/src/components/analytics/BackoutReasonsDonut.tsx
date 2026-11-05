@@ -15,7 +15,7 @@ export const BackoutReasonsDonut: React.FC<{ data: BackoutSummary; className?: s
   ];
   return (
     <AnalyticsPanel tone="reports" id="backout-reasons" title="Why candidates backed out" className={`flex flex-col ${className ?? ""}`}>
-      <div className="flex flex-1 flex-col justify-center p-3.5">
+      <div className="flex flex-1 flex-col p-3.5">
         <DonutChart
           size={160}
           label="Why candidates backed out"

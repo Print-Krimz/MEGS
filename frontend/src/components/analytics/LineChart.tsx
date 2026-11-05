@@ -82,6 +82,7 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
   // Label about 5 evenly spaced periods, always the first and the last.
   const every = Math.max(1, Math.ceil((points.length - 1) / 4));
   const xLabelIdx = points.map((_, i) => i).filter((i) => i === points.length - 1 || (i % every === 0 && points.length - 1 - i >= every / 2));
+  const xLabelSet = new Set(xLabelIdx);
 
   const summary = shown.map((s) => summarise(points, s)).join(" ");
 
@@ -90,7 +91,7 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
       {isEmpty ? (
         <p className="px-3.5 py-3 text-xs text-slate-600 font-sans">{emptyText}</p>
       ) : (
-        <div className="p-3.5 flex-1">
+        <div className="flex flex-1 flex-col p-3.5">
           <ul className="mb-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-sans text-slate-700" aria-label="Legend">
             {shown.map((s, i) => (
               <li key={s.key} className="flex items-center gap-1.5">
@@ -100,7 +101,7 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
               </li>
             ))}
           </ul>
-          <div ref={wrapRef} className="w-full">
+          <div ref={wrapRef} className="my-auto w-full">
           <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block h-60 w-full max-w-full" role="img" aria-label={title}>
             <title>{title}</title>
             {ticks.map((t) => (
@@ -118,6 +119,7 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
             ))}
             {shown.map((s, si) => ({ s, si })).reverse().map(({ s, si }) => {
               const d = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)} ${y(p.values[s.key] ?? 0).toFixed(1)}`).join(" ");
+              const seriesMax = Math.max(0, ...points.map((p) => p.values[s.key] ?? 0));
               return (
                 <g key={s.key}>
                   <path d={d} fill="none" stroke={SERIES_COLORS[si]} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
@@ -127,10 +129,11 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
                         <title>{`${p.label}, ${s.label}: ${p.values[s.key] ?? 0}`}</title>
                       </circle>
                     ))}
-                  {/* The count over each non-zero point: the first line labels above, the second below, so they do not collide. */}
+                  {/* The count over each non-zero point (or strided + peak on dense >14-point series so numbers do not overlap). */}
                   {points.map((p, i) => {
                     const v = p.values[s.key] ?? 0;
                     if (v === 0) return null;
+                    if (points.length > 14 && !xLabelSet.has(i) && v !== seriesMax) return null;
                     const below = si === 1 && y(v) + 16 < M.top + PLOT_H;
                     return (
                       <text
@@ -156,7 +159,7 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
           </div>
           <p className="sr-only">{summary}</p>
           <DataTableToggle
-            caption={title}
+            className="mt-auto pt-2" caption={title}
             columns={["Period", ...shown.map((s) => s.label)]}
             rows={points.map((p, i) => ({ key: `${i}-${p.label}`, cells: [p.label, ...shown.map((s) => p.values[s.key] ?? 0)] }))}
           />

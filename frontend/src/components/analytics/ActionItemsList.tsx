@@ -77,7 +77,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ rows, total, b
       aside={<span className="tabular-nums">{total} waiting</span>}
     >
       {rows.length === 0 ? (
-        <p className="p-6 text-center text-xs text-slate-500 font-sans">Nothing is waiting on you.</p>
+        <p className="p-6 text-center text-xs text-slate-600 font-sans">Nothing is waiting on you.</p>
       ) : (
         // Container queries: the side menu takes width, so the table starts when this panel is wide enough, not at a screen width.
         <div className="@container">
@@ -120,7 +120,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ rows, total, b
                     <Link
                       to={r.targetUrl as never}
                       aria-label={`Open: ${r.title}, ${r.candidateName}`}
-                      className="inline-flex min-h-11 items-center justify-center border border-navy bg-white px-3 text-xs font-semibold text-navy transition-colors hover:bg-navy hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none md:min-h-8"
+                      className="inline-flex min-h-11 items-center justify-center rounded-md border border-navy bg-white px-3 text-xs font-semibold text-navy transition-colors hover:bg-navy hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none md:min-h-8"
                     >
                       Open
                     </Link>

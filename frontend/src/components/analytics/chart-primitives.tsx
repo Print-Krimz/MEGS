@@ -145,7 +145,7 @@ interface DataTableToggleProps {
 /** Text alternative for a chart. The first column is the row header. */
 export const DataTableToggle: React.FC<DataTableToggleProps> = ({ caption, columns, rows, className = "", summary = "View as table" }) => (
   <details className={`group mt-3 ${className}`}>
-    <summary className="inline-flex min-h-11 cursor-pointer list-none items-center text-xs font-semibold text-navy hover:underline [&::-webkit-details-marker]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-8">
+    <summary className="inline-flex min-h-11 cursor-pointer list-none items-center text-xs font-semibold text-navy hover:underline [&::-webkit-details-marker]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-6">
       {summary}
     </summary>
     <div tabIndex={0} role="region" aria-label={caption} className="mt-1 overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
@@ -232,8 +232,8 @@ export const DonutChart: React.FC<DonutChartProps> = ({ label, slices, centerVal
 
   return (
     // Legend goes under the ring in narrow side panels so long reason names keep one line.
-    <div className="@container w-full">
-      <div className="flex flex-col items-center gap-4 @md:flex-row @md:items-start">
+    <div className="@container flex flex-1 flex-col w-full">
+      <div className="my-auto flex flex-col items-center gap-4 @md:flex-row @md:items-center">
         <div className="relative shrink-0" style={{ width: size, height: size }}>
           <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={summary} focusable="false" className="block">
             {total === 0 ? (
@@ -293,7 +293,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({ label, slices, centerVal
                 ))}
               </ul>
               {/* Repeats the legend line for the slice in focus, larger, next to the ring. */}
-              <p className="mt-2 min-h-5 text-xs font-semibold tabular-nums text-slate-900" aria-hidden="true">
+              <p className={`text-xs font-semibold tabular-nums text-slate-900 ${activeSlice ? "mt-2" : "sr-only"}`} aria-hidden="true">
                 {activeSlice ? `${activeSlice.label}: ${activeSlice.value} (${pctText(activeSlice.value, total)})` : ""}
               </p>
             </>
@@ -302,7 +302,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({ label, slices, centerVal
       </div>
       {total > 0 && (
         <DataTableToggle
-          caption={label}
+          className="mt-auto pt-2" caption={label}
           columns={["Category", "Count", "Share"]}
           rows={slices.map((s) => ({ key: s.key, cells: [s.label, s.value, pctText(s.value, total)] }))}
         />

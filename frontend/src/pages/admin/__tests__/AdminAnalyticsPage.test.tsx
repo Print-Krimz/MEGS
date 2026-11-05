@@ -348,4 +348,25 @@ describe("AdminAnalyticsPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Filter by recruiter: Candidate 11" }));
     expect(navigateMock).toHaveBeenCalledWith(expect.objectContaining({ search: expect.objectContaining({ recruiterId: "ta-1" }) }));
   });
+
+  it("renders Starts KPI in In these dates, checks definitions, and filters by client on Acme click", async () => {
+    renderPage();
+    await screen.findByText("Candidates by stage");
+
+    const inTheseDates = screen.getByRole("region", { name: "In these dates" });
+    expect(within(inTheseDates).getByText("Starts")).toBeDefined();
+    expect(within(inTheseDates).getByText("5")).toBeDefined();
+    expect(within(inTheseDates).getByText("3 new · 2 redeployed")).toBeDefined();
+
+    const howCounted = screen.getByText("How these are counted").closest("details")!;
+    expect(within(howCounted).getByText("Starts")).toBeDefined();
+    expect(within(howCounted).queryByText("Critical wait")).toBeNull();
+    expect(within(howCounted).queryByText("Overdue request")).toBeNull();
+
+    const clientReviewPanel = screen.getByText("Slowest client reviews").closest("section")!;
+    fireEvent.click(within(clientReviewPanel).getByRole("button", { name: "Acme" }));
+    expect(navigateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ search: expect.objectContaining({ clientId: 1 }) }),
+    );
+  });
 });

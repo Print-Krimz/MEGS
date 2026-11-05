@@ -158,7 +158,7 @@ const metricKpi = (key: MetricKey, value: string | number, detail: string): Kpi 
 
 /** Same five-case rule as the screen: a rate or typical time with fewer than MIN_SAMPLE cases is not printed as a number. */
 // Same words as the screen (frontend/src/lib/analytics-format.ts sampleNote).
-const notEnoughData = (n: number): string => (n === 0 ? "No data yet" : `Too few to show (${n} ${n === 1 ? "case" : "cases"})`);
+const notEnoughData = (_n: number): string => "No data yet";
 const valueOrNote = (value: number | null, n: number, format: (v: number) => string | number = (v) => v): string | number =>
   value === null ? notEnoughData(n) : format(value);
 const pct = (v: number): string => `${v}%`;

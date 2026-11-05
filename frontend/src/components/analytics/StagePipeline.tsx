@@ -32,7 +32,7 @@ const overdueText = (row: StageTableRow) =>
   row.overdueEstimated > 0 ? `${row.overdue} + ${row.overdueEstimated} estimated` : String(row.overdue);
 
 const waitText = (row: StageTableRow) =>
-  row.inStageNow === 0 ? "No one in this stage" : formatSampled(row.medianDaysInStage, row.typicalWaitSample, "days");
+  row.stage === "DEPLOYED" ? "None" : row.inStageNow === 0 ? "No one in this stage" : formatSampled(row.medianDaysInStage, row.typicalWaitSample, "days");
 
 const limitText = (row: StageTableRow) =>
   row.stage === "DEPLOYED" ? "None" : row.stage === "CLIENT_ENDORSEMENT" ? "Set per client" : `${row.slaDays} days`;
@@ -59,11 +59,11 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
   const baseId = useId();
 
   return (
-    <AnalyticsPanel tone="reports" id="stage-pipeline" title="Candidates by stage" className={className}>
+    <AnalyticsPanel tone="reports" id="stage-pipeline" title="Candidates by stage" className={`flex flex-col ${className ?? ""}`}>
       {empty ? (
         <p className="p-4 text-center text-xs text-slate-600 font-sans">No candidates in the pipeline and none moved in these dates.</p>
       ) : (
-        <div className="@container p-3.5">
+        <div className="@container flex flex-1 flex-col p-3.5">
           <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs font-sans text-slate-600">
             <p>How many candidates are in each stage right now. Red is the part past the stage&apos;s days allowed.</p>
             <div className="flex items-center gap-3" data-testid="stage-legend">
@@ -78,7 +78,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
               ))}
             </div>
           </div>
-          <ol>
+          <ol className="flex flex-1 flex-col justify-between">
             {rows.map((row, i) => {
               const late = overdueIn(row);
               const name = row.label;
@@ -139,9 +139,9 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
               );
             })}
           </ol>
-          <div className="flex flex-wrap items-start justify-between gap-x-4">
+          <div className="mt-auto flex flex-wrap items-start justify-between gap-x-4 pt-2">
           <DataTableToggle
-            className="min-w-[10rem] flex-1"
+            className="mt-0 min-w-[10rem] flex-1"
             caption="Exact counts and waits for each stage"
             columns={["Stage", "Entered", "In stage", "Overdue", "Typical wait", "Days allowed", "Backed out"]}
             rows={rows.map((r) => ({
@@ -157,7 +157,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
               ],
             }))}
           />
-          {footer && <div className="mt-3 flex min-h-11 items-center text-xs font-sans text-slate-700 md:min-h-8">{footer}</div>}
+          {footer && <div className="flex min-h-11 items-center text-xs font-sans text-slate-700 md:min-h-6">{footer}</div>}
           </div>
         </div>
       )}

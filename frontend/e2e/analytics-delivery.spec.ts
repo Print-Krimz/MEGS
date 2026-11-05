@@ -721,17 +721,17 @@ test.describe("Team leader reports (/admin/analytics)", () => {
 
     const period = page.getByRole("region", { name: "In these dates" });
     // The client with four candidates in review has no average to show. The number from a base of four is not a headline tile any more.
-    await expect(page.locator("#client-review").getByRole("listitem").filter({ hasText: "Beta Fabrication" })).toContainText("Too few to show (4 cases)");
+    await expect(page.locator("#client-review").getByRole("listitem").filter({ hasText: "Beta Fabrication" })).toContainText("No data yet");
     // Days to fill has five starts behind it, so the number shows.
     await expect(period.getByText("18.5 days")).toBeVisible();
 
     const team = await openTab(page, /^Recruiters/);
-    await expect(team.getByRole("row", { name: /Bob Recruiter/ })).toContainText("Too few to show (4 cases)");
+    await expect(team.getByRole("row", { name: /Bob Recruiter/ })).toContainText("No data yet");
     await expect(team.getByRole("row", { name: /Alice Recruiter/ })).toContainText("33.3%");
 
     const stages = page.locator("#stage-pipeline");
     await stages.getByText("View as table").click();
-    await expect(stages.getByRole("row", { name: /Client review/ })).toContainText("Too few to show (4 cases)");
+    await expect(stages.getByRole("row", { name: /Client review/ })).toContainText("No data yet");
     await expect(stages.getByRole("row", { name: /Requirements/ })).toContainText("8 days");
   });
 
@@ -1192,10 +1192,10 @@ test.describe("Recruiter reports (/ta/analytics)", () => {
     await setup(page, "recruiter", smallTa);
     await page.goto("/ta/analytics");
     await expectReportsLoaded(page);
-    await expect(page.getByRole("region", { name: "In these dates" }).getByRole("link", { name: /^Backout rate/ })).toContainText("Too few to show (4 cases)");
+    await expect(page.getByRole("region", { name: "In these dates" }).getByRole("link", { name: /^Backout rate/ })).toContainText("No data yet");
     const stages = page.locator("#stage-pipeline");
     await stages.getByText("View as table").click();
-    await expect(stages.getByRole("row", { name: /Client review/ })).toContainText("Too few to show (4 cases)");
+    await expect(stages.getByRole("row", { name: /Client review/ })).toContainText("No data yet");
   });
 
   test("the attention chips open the matching list with its filter", async ({ page }) => {

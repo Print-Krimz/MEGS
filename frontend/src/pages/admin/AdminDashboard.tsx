@@ -21,7 +21,7 @@ function MetricValue<T>({ query, children }: { query: UseQueryResult<T>; childre
   if (query.isError) {
     return (
       <div className="mt-1 flex h-9 items-center gap-2">
-        <span className="text-2xl font-semibold text-slate-500" aria-hidden="true">—</span>
+        <span className="text-2xl font-semibold text-slate-600" aria-hidden="true">—</span>
         <span className="sr-only">Unavailable</span>
         <button type="button" onClick={() => { void query.refetch(); }} className="focus-ring relative z-10 min-h-11 px-1 text-xs font-medium text-slate-900 underline md:min-h-0">
           Try again
@@ -76,12 +76,16 @@ export const AdminDashboard: React.FC = () => {
 
   return (
     <div className="space-y-5">
-      <PageHeader title="Overview" flush
-        breadcrumbs={[{ label: "Administration" }]}
-        actions={<>
-          <Button asChild variant="secondary"><Link to="/admin/analytics">View reports</Link></Button>
-          <Button asChild><Link to="/admin/users">Manage users</Link></Button>
-        </>} />
+      <PageHeader
+        title="Overview"
+        flush
+        actions={
+          <>
+            <Button asChild variant="secondary"><Link to="/admin/analytics">View reports</Link></Button>
+            <Button asChild><Link to="/admin/users">Manage users</Link></Button>
+          </>
+        }
+      />
 
       <section aria-labelledby="admin-needs-attention" className="space-y-2">
         <h2 id="admin-needs-attention" className="text-sm font-semibold text-slate-950">Needs attention</h2>
@@ -95,7 +99,7 @@ export const AdminDashboard: React.FC = () => {
           <MetricTile label="Failed scoring jobs" to="/admin/scoring/quality">
             <MetricValue query={userSummaryQuery}>{users => <><Value tone={users.failedJobs > 0 ? "alert" : "default"}>{users.failedJobs}</Value><Caption>{users.failedJobs > 0 ? "Need a retry" : "None"}</Caption></>}</MetricValue>
           </MetricTile>
-          <MetricTile label="Applicant requests">
+          <MetricTile label="Applicant requests" to="/admin/analytics" search={{ tab: "waiting" }}>
             <MetricValue query={userSummaryQuery}>{users => <><Value tone={users.pendingRequests > 0 ? "alert" : "default"}>{users.pendingRequests}</Value><Caption>{users.pendingRequests > 0 ? "Reschedules waiting on recruiters" : "None waiting"}</Caption></>}</MetricValue>
           </MetricTile>
           <MetricTile label="Latest backup" to="/admin/maintenance">
@@ -111,13 +115,13 @@ export const AdminDashboard: React.FC = () => {
       <section aria-labelledby="admin-team" className="space-y-2">
         <h2 id="admin-team" className="text-sm font-semibold text-slate-950">Team</h2>
         <div className="grid grid-cols-1 gap-px overflow-hidden rounded-md border border-slate-300 bg-slate-300 sm:grid-cols-2 lg:grid-cols-4">
-          <MetricTile label="Overdue candidates" to="/admin/analytics">
+          <MetricTile label="Overdue candidates" to="/admin/analytics" search={{ tab: "waiting" }}>
             <MetricValue query={teamQuery}>{data => <><Value tone={data.stuckTotal > 0 ? "alert" : "default"}>{data.stuckTotal}</Value><Caption>Past their stage limit</Caption></>}</MetricValue>
           </MetricTile>
-          <MetricTile label="Open seats" to="/admin/analytics">
+          <MetricTile label="Open seats" to="/admin/analytics" search={{ tab: "requests" }}>
             <MetricValue query={teamQuery}>{data => <><Value>{data.kpis.openSeats}</Value><Caption>{data.kpis.requestedSeats === 0 ? "No seats requested" : `${formatSampled(data.kpis.fillRate, data.kpis.requestedSeats, "%")} filled`}</Caption></>}</MetricValue>
           </MetricTile>
-          <MetricTile label="Requests at risk" to="/admin/analytics">
+          <MetricTile label="Requests at risk" to="/admin/analytics" search={{ tab: "requests", health: "LATE" }}>
             <MetricValue query={teamQuery}>{data => <><Value tone={data.kpis.requisitions.overdue > 0 ? "alert" : "default"}>{data.kpis.requisitions.overdue + data.kpis.requisitions.atRisk}</Value><Caption>{data.kpis.requisitions.overdue} overdue · {data.kpis.requisitions.atRisk} at risk</Caption></>}</MetricValue>
           </MetricTile>
           <MetricTile label="Started this week" to="/admin/analytics">
@@ -154,12 +158,18 @@ export const AdminDashboard: React.FC = () => {
             if (data.team.length === 0) return <EmptyState title="No recruiters yet" description="Recruiters will appear here once they are invited." />;
             const rows = [...data.team].sort((a, b) => b.overdue - a.overdue || b.active - a.active);
             return <ul className="divide-y divide-slate-200">{rows.map(row => (
-              <li key={row.recruiterId} className="flex items-center justify-between gap-3 px-3.5 py-2.5 text-sm">
-                <div className="min-w-0">
-                  <p className="truncate font-semibold text-slate-950" title={row.name}>{row.name}</p>
-                  <p className="text-xs text-slate-600 tabular-nums">{row.active} active · {row.requestedSeats === 0 ? "no seats requested" : `${formatSampled(row.fillRate, row.requestedSeats, "%")} filled`}</p>
-                </div>
-                <span className={`shrink-0 text-xs font-medium tabular-nums ${row.overdue > 0 ? "text-rose-700" : "text-slate-600"}`}>{row.overdue} overdue</span>
+              <li key={row.recruiterId}>
+                <Link
+                  to="/admin/analytics"
+                  search={{ recruiterId: row.recruiterId, tab: "recruiters" } as never}
+                  className="focus-ring-inset flex items-center justify-between gap-3 px-3.5 py-2.5 text-sm transition-colors hover:bg-slate-50"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-slate-950" title={row.name}>{row.name}</p>
+                    <p className="text-xs text-slate-600 tabular-nums">{row.active} active · {row.requestedSeats === 0 ? "no seats requested" : `${formatSampled(row.fillRate, row.requestedSeats, "%")} filled`}</p>
+                  </div>
+                  <span className={`shrink-0 text-xs font-medium tabular-nums ${row.overdue > 0 ? "text-rose-700" : "text-slate-600"}`}>{row.overdue} overdue</span>
+                </Link>
               </li>
             ))}</ul>;
           }}</SectionData>

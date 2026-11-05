@@ -40,9 +40,8 @@ const KPI_DEFINITIONS = [
   { label: "Seats filled", definition: "Seats with a worker who started, out of seats clients asked for." },
   { label: "Open requests", definition: "Requests still needing workers." },
   { label: "Client review wait", definition: "Average days candidates have been waiting for the client's answer, across all clients." },
+  { label: "Starts", definition: "Workers who started work, compared with the previous dates of the same length." },
   { label: "Days to fill", definition: "Typical days from request opened to worker start, compared with the previous dates of the same length." },
-  { label: "Critical wait", definition: "Overdue by twice the days allowed or more." },
-  { label: "Overdue request", definition: "Open request past its target date, or due within 7 days with too few candidates." },
 ];
 
 type WorkspaceKey = "waiting" | "requests" | "recruiters";
@@ -213,9 +212,9 @@ export const AdminAnalyticsPage: React.FC = () => {
       <div className="space-y-5">
         {header}
         <AnalyticsFilterBar filters={filters} onChange={setFilters} showClientFilter showRecruiterFilter />
-        <div className="h-11 motion-safe:animate-pulse border border-slate-300 bg-white" aria-hidden="true" />
+        <div className="h-11 motion-safe:animate-pulse rounded-md border border-slate-300 bg-white" aria-hidden="true" />
         <LoadingState variant="cards" rows={4} className="lg:grid-cols-4" />
-        <div className="h-60 motion-safe:animate-pulse border border-slate-300 bg-white" aria-hidden="true" />
+        <div className="h-60 motion-safe:animate-pulse rounded-md border border-slate-300 bg-white" aria-hidden="true" />
         <LoadingState variant="table" rows={4} />
       </div>
     );
@@ -279,13 +278,13 @@ export const AdminAnalyticsPage: React.FC = () => {
       {/* Dim only while a filter change loads (old numbers on screen), not on a quiet background refresh. */}
       <div className={`space-y-5 transition-opacity ${dashboardQuery.isPlaceholderData ? "opacity-70" : ""}`}>
       {isEmpty ? (
-        <div className="border border-slate-300 bg-white p-6 text-center text-sm font-sans text-slate-700">
+        <div className="rounded-md border border-slate-300 bg-white p-6 text-center text-sm font-sans text-slate-700">
           <p>Nothing recorded for these dates. Try a longer range.</p>
           {filters.range === "7d" && (
             <button
               type="button"
               onClick={() => setFilters({ ...filters, range: "30d" })}
-              className="mt-3 inline-flex min-h-11 items-center border border-navy px-3 text-xs font-semibold text-navy hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9"
+              className="mt-3 inline-flex min-h-11 items-center rounded-md border border-navy px-3 text-xs font-semibold text-navy hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9"
             >
               Last 30 days
             </button>
@@ -329,6 +328,11 @@ export const AdminAnalyticsPage: React.FC = () => {
               </KpiGroup>
               <KpiGroup label="In these dates">
                 <AnalyticsKpi
+                  label="Starts"
+                  value={kpis.placementsStarted}
+                  detail={`${kpis.newStarts} new · ${kpis.redeployStarts} redeployed`}
+                />
+                <AnalyticsKpi
                   label="Days to fill"
                   value={formatSampled(kpis.medianDaysToFill, kpis.daysToFillSample, "days")}
                   detail={kpis.daysToFillSample === 0 ? "No starts" : `Typical, from ${kpis.daysToFillSample} ${kpis.daysToFillSample === 1 ? "start" : "starts"}`}
@@ -338,9 +342,9 @@ export const AdminAnalyticsPage: React.FC = () => {
             </KpiRow>
           </section>
 
-          {/* Row 1: Pipeline stages (wide, 2 cols) paired with Client reviews (1 col) */}
-          <div className="grid gap-5 lg:grid-cols-3">
-            <div className="min-w-0 lg:col-span-2">
+          {/* Row 1: Pipeline stages (7 cols) paired with Starts and backouts trend (5 cols) */}
+          <div className="grid gap-5 lg:grid-cols-12">
+            <div className="min-w-0 lg:col-span-7">
               <StagePipeline
                 everyRow
                 className="h-full"
@@ -352,14 +356,7 @@ export const AdminAnalyticsPage: React.FC = () => {
                 }}
               />
             </div>
-            <div className="min-w-0 lg:col-span-1">
-              <ClientReviewPanel data={data.clientReview} className="h-full" />
-            </div>
-          </div>
-
-          {/* Row 2: Starts and backouts trend (wide, 2 cols) paired with Why candidates backed out (1 col) */}
-          <div className="grid gap-5 lg:grid-cols-3 lg:items-start">
-            <div className="min-w-0 lg:col-span-2">
+            <div className="min-w-0 lg:col-span-5">
               <LineChart
                 id="trend"
                 title="Starts and backouts"
@@ -369,8 +366,21 @@ export const AdminAnalyticsPage: React.FC = () => {
                 emptyText="No starts or backouts in these dates."
               />
             </div>
-            <div className="min-w-0 lg:col-span-1">
-              <BackoutReasonsDonut data={data.backouts} />
+          </div>
+
+          {/* Row 2: Slowest client reviews (7 cols) paired with Why candidates backed out (5 cols) */}
+          <div className="grid gap-5 lg:grid-cols-12">
+            <div className="min-w-0 lg:col-span-7">
+              <ClientReviewPanel
+                data={data.clientReview}
+                className="h-full"
+                onSelectClient={(pickedClientId) => {
+                  setFilters({ ...filters, clientId: pickedClientId });
+                }}
+              />
+            </div>
+            <div className="min-w-0 lg:col-span-5">
+              <BackoutReasonsDonut data={data.backouts} className="h-full" />
             </div>
           </div>
 

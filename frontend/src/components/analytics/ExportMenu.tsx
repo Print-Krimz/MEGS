@@ -90,7 +90,7 @@ export const ExportMenu: React.FC<ExportMenuProps> = ({ onExport, fileNamePrefix
         {busy ? "Preparing the report" : ""}
       </span>
       {open && (
-        <div id={panelId} className="absolute right-0 z-20 mt-1 w-64 border border-slate-300 bg-white py-1 shadow-md">
+        <div id={panelId} className="absolute right-0 z-20 mt-1 w-64 rounded-md border border-slate-300 bg-white py-1 shadow-md">
           <p className="px-3 py-1.5 text-xs text-slate-600">Uses the dates and filters above.</p>
           {OPTIONS.map((o) => (
             <button
@@ -98,7 +98,7 @@ export const ExportMenu: React.FC<ExportMenuProps> = ({ onExport, fileNamePrefix
               type="button"
               disabled={busy}
               onClick={() => run(o.report, o.format)}
-              className="block min-h-11 w-full px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-100 focus-visible:bg-slate-100 focus-visible:outline-none disabled:opacity-60 md:min-h-0"
+              className="block min-h-11 w-full px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-100 focus-visible:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus disabled:opacity-60 md:min-h-0"
             >
               {o.label}
             </button>
@@ -106,7 +106,7 @@ export const ExportMenu: React.FC<ExportMenuProps> = ({ onExport, fileNamePrefix
         </div>
       )}
       {error && (
-        <p role="alert" className="absolute right-0 mt-1 w-64 border border-rose-300 bg-rose-50 p-2 text-xs text-rose-900">
+        <p role="alert" className="absolute right-0 mt-1 w-64 rounded-md border border-rose-300 bg-rose-50 p-2 text-xs text-rose-900">
           {error}
         </p>
       )}

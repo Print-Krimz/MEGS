@@ -154,7 +154,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
     return list.map((m) => ({
       value: String(m.id),
       label: m.title,
-       subtitle: `Request #${m.id}`,
+      subtitle: `Request #${m.id}`,
     }));
   }, [options?.mrfs, filters.clientId]);
 
@@ -162,7 +162,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
     return availableJobPostings.map((j) => ({
       value: String(j.id),
       label: j.title,
-       subtitle: j.mrfId ? `Linked to request #${j.mrfId}` : "Direct job opening",
+      subtitle: j.mrfId ? `Linked to request #${j.mrfId}` : "Direct job opening",
     }));
   }, [availableJobPostings]);
 
@@ -244,10 +244,10 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
 
   const errorProps = customRangeError ? { "aria-invalid": true, "aria-describedby": rangeErrorId } : {};
   const dateInputClass =
-    "border border-slate-300 bg-white px-2 py-1 pointer-coarse:min-h-11 text-xs text-slate-900 focus:outline-none focus:border-navy aria-[invalid=true]:border-rose-600";
+    "rounded-md border border-slate-300 bg-white px-2 py-1 pointer-coarse:min-h-11 text-xs text-slate-900 focus:outline-none focus:border-navy aria-[invalid=true]:border-rose-600";
 
   return (
-    <div className="border border-slate-300 bg-white p-3 space-y-3">
+    <div className="rounded-md border border-slate-300 bg-white p-3 space-y-3">
       <p aria-live="polite" aria-atomic="true" className="sr-only">
         {announcement}
       </p>
@@ -260,7 +260,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
           aria-describedby={dateNoteId}
           value={customOpen ? "custom" : (filters.range ?? "7d")}
           onChange={(e) => handleRangePreset(e.target.value as AnalyticsDateRangePreset)}
-          className="min-h-11 w-full min-w-0 border border-slate-300 bg-white px-2 text-sm font-semibold text-slate-800 md:hidden"
+          className="min-h-11 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 text-sm font-semibold text-slate-800 md:hidden"
         >
           {PRESETS.map((preset) => (
             <option key={preset.key} value={preset.key}>
@@ -271,7 +271,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
 
         <div role="group" aria-label="Date range" aria-describedby={dateNoteId} className="hidden flex-wrap items-center gap-1.5 md:flex">
           <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 mr-2">
-            <CalendarIcon className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
+            <CalendarIcon className="w-3.5 h-3.5 text-slate-600" aria-hidden="true" />
             <span>Date range</span>
           </div>
 
@@ -283,7 +283,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
                 type="button"
                 onClick={() => handleRangePreset(preset.key)}
                 aria-pressed={isActive}
-                className={`md:min-h-9 pointer-coarse:min-h-11 px-2.5 py-1 text-sm font-semibold border transition-colors cursor-pointer ${
+                className={`md:min-h-9 pointer-coarse:min-h-11 rounded-md px-2.5 py-1 text-sm font-semibold border transition-colors cursor-pointer ${
                   isActive
                     ? "bg-slate-900 text-white border-slate-900"
                     : "bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100"
@@ -301,7 +301,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
               variant="outline"
               size="sm"
               onClick={handleClearAll}
-              leftIcon={<RotateCcw className="w-3 h-3 text-slate-500" />}
+              leftIcon={<RotateCcw className="w-3 h-3 text-slate-600" />}
               className="text-slate-700 hover:text-slate-950 text-sm max-md:min-h-11 pointer-coarse:min-h-11"
             >
               Clear filters
@@ -329,7 +329,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
 
       {/* Custom dates apply once both are chosen and valid */}
       {showCustomDates && (
-        <div className="p-2.5 bg-slate-50 border border-slate-200 flex flex-wrap items-center gap-3 animate-in fade-in duration-150">
+        <div className="rounded-md p-2.5 bg-slate-50 border border-slate-200 flex flex-wrap items-center gap-3 animate-in fade-in duration-150">
           <div className="flex items-center gap-2 text-xs">
             <label htmlFor="analytics-start-date" className="text-slate-600 font-semibold">From</label>
             <input
@@ -367,7 +367,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
 
       {/* Searchable dropdowns; each choice applies at once */}
       {options && showMoreFilters && (
-        <div id={moreFiltersId} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 pt-1">
+        <div id={moreFiltersId} className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-6 gap-3 pt-1">
           {showClientFilter && options.clients && options.clients.length > 0 && (
             <ComboBox
               label="Client"
@@ -469,7 +469,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
           <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 mr-1">
             <Filter className="w-3.5 h-3.5 text-navy" aria-hidden="true" />
             <span>Filters applied</span>
-            <span className="px-1.5 py-0.2 bg-navy-soft text-navy text-xs border border-navy-line font-semibold">
+            <span className="rounded-sm px-1.5 py-0.2 bg-navy-soft text-navy text-xs border border-navy-line font-semibold">
               {activeChips.length}
             </span>
           </div>
@@ -478,14 +478,14 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
             <span
               key={chip.key}
               data-testid={`active-filter-chip-${chip.key}`}
-              className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-slate-100 text-slate-800 border border-slate-300 text-xs"
+              className="inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 bg-slate-100 text-slate-800 border border-slate-300 text-xs"
             >
               <span className="text-slate-600 font-semibold text-xs">{chip.label}:</span>
               <span className="font-bold text-slate-900 max-w-[200px] truncate">{chip.value}</span>
               <button
                 type="button"
                 onClick={() => handleRemoveFilter(chip.key)}
-                className="relative inline-flex min-h-6 min-w-6 items-center justify-center max-md:min-h-11 max-md:min-w-11 hover:text-rose-700 text-slate-500 font-bold ml-0.5 cursor-pointer pointer-coarse:before:absolute pointer-coarse:before:-inset-3.5 pointer-coarse:before:content-['']"
+                className="relative inline-flex min-h-6 min-w-6 items-center justify-center max-md:min-h-11 max-md:min-w-11 hover:text-rose-700 text-slate-600 font-bold ml-0.5 cursor-pointer pointer-coarse:before:absolute pointer-coarse:before:-inset-3.5 pointer-coarse:before:content-['']"
                 title={`Remove ${chip.label} filter`}
                 aria-label={`Remove ${chip.label} filter`}
               >

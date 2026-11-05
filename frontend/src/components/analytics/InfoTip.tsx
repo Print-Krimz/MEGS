@@ -40,7 +40,7 @@ export const InfoTip: React.FC<InfoTipProps> = ({ children, label, align = "left
         type="button"
         aria-label={`About ${label}`}
         data-own-hit-area
-        aria-describedby={id}
+        aria-describedby={open ? id : undefined}
         aria-expanded={open}
         onClick={() => setPinned((p) => !p)}
         onFocus={() => setHovered(true)}
@@ -53,7 +53,7 @@ export const InfoTip: React.FC<InfoTipProps> = ({ children, label, align = "left
         id={id}
         role="tooltip"
         hidden={!open}
-        className={`absolute top-full z-30 mt-1 w-64 max-w-[80vw] border border-slate-300 bg-white p-2.5 text-xs font-sans font-normal normal-case leading-snug tracking-normal text-slate-700 shadow-md ${
+        className={`absolute top-full z-30 mt-1 w-64 max-w-[80vw] rounded-md border border-slate-300 bg-white p-2.5 text-xs font-sans font-normal normal-case leading-snug tracking-normal text-slate-700 shadow-md ${
           align === "right" ? "right-0" : "left-0"
         }`}
       >

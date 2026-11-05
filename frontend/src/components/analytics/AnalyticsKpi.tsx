@@ -153,7 +153,7 @@ interface KpiGroupProps {
   children: React.ReactNode;
 }
 
-const SPAN: Record<number, string> = { 1: "md:col-span-1", 2: "md:col-span-2", 3: "md:col-span-3", 4: "md:col-span-4" };
+const SPAN: Record<number, string> = { 1: "lg:col-span-1", 2: "lg:col-span-2", 3: "lg:col-span-3", 4: "lg:col-span-4" };
 
 /** Tiles that share a time base, under one label. */
 export const KpiGroup: React.FC<KpiGroupProps> = ({ label, children }) => (
@@ -161,7 +161,7 @@ export const KpiGroup: React.FC<KpiGroupProps> = ({ label, children }) => (
   <section aria-label={label} className={`flex min-w-0 flex-col ${SPAN[React.Children.count(children)] ?? ""}`}>
     <h3 className="mb-1.5 text-xs font-semibold text-slate-700">{label}</h3>
     {/* A lone tile fills its group; two columns would leave it half width. */}
-    <div className={`grid ${React.Children.count(children) === 1 ? "grid-cols-1" : "grid-cols-2"} flex-1 divide-x divide-y divide-slate-300 border border-slate-300 bg-white md:grid-flow-col md:auto-cols-fr md:divide-y-0 max-md:[&>*:last-child:nth-child(odd)]:col-span-2`}>
+    <div className={`grid ${React.Children.count(children) === 1 ? "grid-cols-1" : "grid-cols-2"} flex-1 overflow-hidden rounded-md divide-x divide-y divide-slate-300 border border-slate-300 bg-white md:grid-flow-col md:auto-cols-fr md:divide-y-0 max-md:[&>*:last-child:nth-child(odd)]:col-span-2`}>
       {children}
     </div>
   </section>
@@ -175,32 +175,39 @@ interface KpiRowProps {
 }
 
 /** The row of headline numbers, with one disclosure that says how each is counted. */
-export const KpiRow: React.FC<KpiRowProps> = ({ children, definitions }) => (
-  <div>
-    <div className="grid gap-3 md:grid-cols-4 md:gap-4">{children}</div>
-    <details className="mt-2">
-      <summary className="group inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-xs font-semibold text-navy underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-8">
-        <span aria-hidden="true" className="inline-block transition-transform group-open:rotate-90 motion-reduce:transition-none">
-          &#9656;
-        </span>
-        How these are counted
-      </summary>
-      <dl className="mt-1 grid gap-x-4 gap-y-1.5 text-xs text-slate-700 sm:grid-cols-[max-content_1fr]">
-        {definitions.map((d) => (
-          <React.Fragment key={d.label}>
-            <dt className="font-semibold text-slate-900">{d.label}</dt>
-            <dd>{d.definition}</dd>
-          </React.Fragment>
-        ))}
-      </dl>
-    </details>
-  </div>
-);
+export const KpiRow: React.FC<KpiRowProps> = ({ children, definitions }) => {
+  const totalTiles = React.Children.toArray(children).reduce<number>(
+    (sum, group) => sum + (React.isValidElement<{ children?: React.ReactNode }>(group) ? React.Children.count(group.props.children) : 1),
+    0,
+  );
+  const gridCols = totalTiles === 5 ? "lg:grid-cols-5" : "lg:grid-cols-4";
+  return (
+    <div>
+      <div className={`grid gap-3 ${gridCols} md:gap-4`}>{children}</div>
+      <details className="mt-2">
+        <summary className="group inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-xs font-semibold text-navy underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-8">
+          <span aria-hidden="true" className="inline-block transition-transform group-open:rotate-90 motion-reduce:transition-none">
+            &#9656;
+          </span>
+          How these are counted
+        </summary>
+        <dl className="mt-1 grid gap-x-4 gap-y-1.5 text-xs text-slate-700 sm:grid-cols-[max-content_1fr]">
+          {definitions.map((d) => (
+            <React.Fragment key={d.label}>
+              <dt className="font-semibold text-slate-900">{d.label}</dt>
+              <dd>{d.definition}</dd>
+            </React.Fragment>
+          ))}
+        </dl>
+      </details>
+    </div>
+  );
+};
 
 /** Plain grid of tiles for pages that show a few headline numbers with no time-base groups or definitions. */
 export const KpiStrip: React.FC<{ children: React.ReactNode; columns: string }> = ({ children, columns }) => (
   <div
-    className={`grid grid-cols-2 ${columns} border border-slate-300 bg-white divide-x divide-y md:divide-y-0 divide-slate-300 max-md:[&>*:last-child:nth-child(odd)]:col-span-2`}
+    className={`grid grid-cols-2 ${columns} overflow-hidden rounded-md border border-slate-300 bg-white divide-x divide-y md:divide-y-0 divide-slate-300 max-md:[&>*:last-child:nth-child(odd)]:col-span-2`}
   >
     {children}
   </div>

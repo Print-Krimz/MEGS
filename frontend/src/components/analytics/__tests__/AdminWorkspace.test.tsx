@@ -169,7 +169,7 @@ describe("StagePipeline", () => {
     expect(req.textContent).toContain("20 + 6 estimated");
     expect(req.textContent).toContain("8 days");
     expect(req.textContent).toContain("14 days");
-    expect(within(table).getByRole("row", { name: /Final interview/, hidden: true }).textContent).toContain("Too few to show (4 cases)");
+    expect(within(table).getByRole("row", { name: /Final interview/, hidden: true }).textContent).toContain("No data yet");
     expect(within(table).getByRole("row", { name: /Contract signing/, hidden: true }).textContent).toContain("No one in this stage");
     expect(within(table).getByRole("row", { name: /Deployed/, hidden: true }).textContent).toContain("None");
   });
@@ -494,7 +494,7 @@ describe("admin lists", () => {
     expect(row.textContent).toContain("+2 projected");
     expect(row.textContent).toContain("40%");
     expect(row.textContent).toContain("12 / 30 seats");
-    expect(row.textContent).toContain("Too few to show (3 cases)");
+    expect(row.textContent).toContain("No data yet");
     const pick = screen.getByRole("button", { name: /Filter the page to this recruiter/ });
     expect(pick.getAttribute("title")).toBe("Filter the page to this recruiter");
     fireEvent.click(pick);

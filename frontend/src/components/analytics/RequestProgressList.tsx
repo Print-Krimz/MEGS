@@ -132,7 +132,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                   setHealth(f.key);
                   setPage(1);
                 }}
-                className={`min-h-11 md:min-h-9 px-2.5 text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+                className={`min-h-11 md:min-h-9 rounded-md px-2.5 text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
                   health === f.key ? "bg-navy text-white border-navy" : "bg-white text-slate-700 border-navy-line hover:bg-navy-soft"
                 }`}
               >
@@ -153,16 +153,16 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                 setPage(1);
               }}
               placeholder={showOwner ? "Request, client or recruiter" : "Request or client"}
-              className="min-h-11 md:min-h-9 w-56 border border-slate-300 bg-white px-2.5 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              className="min-h-11 md:min-h-9 w-56 rounded-md border border-slate-300 bg-white px-2.5 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             />
           </label>
         </div>
       )}
 
       {rows.length === 0 ? (
-        <p className="p-6 text-center text-xs text-slate-500 font-sans">No client requests in this view.</p>
+        <p className="p-6 text-center text-xs text-slate-600 font-sans">No client requests in this view.</p>
       ) : pageRows.length === 0 ? (
-        <p className="p-6 text-center text-xs text-slate-500 font-sans">No match. Change the status or search.</p>
+        <p className="p-6 text-center text-xs text-slate-600 font-sans">No match. Change the status or search.</p>
       ) : (
         // Container queries, not viewport ones: the side menu takes width, so the table starts when this panel is wide enough.
         <div className="@container">

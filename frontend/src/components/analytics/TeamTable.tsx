@@ -114,8 +114,8 @@ const flagsFor = (row: TeamRow, bench: Benchmarks) => {
 /** A hidden rate: "—", with how few cases stood behind it when there were some. */
 const NoValue: React.FC<{ n: number }> = ({ n }) => (
   <>
-    <span aria-hidden="true" className="text-slate-500">—</span>
-    {n === 0 ? <span className="sr-only">{sampleNote(0)}</span> : <span className={`${SUB} text-slate-500`}>{sampleNote(n)}</span>}
+    <span aria-hidden="true" className="text-slate-600">—</span>
+    {n === 0 ? <span className="sr-only">{sampleNote(0)}</span> : <span className={`${SUB} text-slate-600`}>{sampleNote(n)}</span>}
   </>
 );
 
@@ -172,7 +172,7 @@ export const TeamTable = React.memo(function TeamTable({
               setPage(1);
             }}
             placeholder="Recruiter name"
-            className="min-h-11 md:min-h-9 w-52 border border-slate-300 bg-white px-2.5 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            className="min-h-11 md:min-h-9 w-52 rounded-md border border-slate-300 bg-white px-2.5 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           />
         </label>
         <p className="text-xs font-sans text-slate-600">
@@ -183,11 +183,11 @@ export const TeamTable = React.memo(function TeamTable({
       </div>
 
       {pageRows.length === 0 ? (
-        <p className="p-6 text-center text-xs text-slate-500 font-sans">{rows.length === 0 ? "No recruiters in this view." : "No match."}</p>
+        <p className="p-6 text-center text-xs text-slate-600 font-sans">{rows.length === 0 ? "No recruiters in this view." : "No match."}</p>
       ) : (
         <div className="relative max-h-[32rem] overflow-auto">
           <table className="w-full min-w-[50rem] text-sm">
-            <thead className="sticky top-0 z-10 bg-white shadow-[inset_0_-1px_0_var(--color-slate-200)]">
+            <thead className="sticky top-0 z-10 bg-white shadow-[inset_0_-1px_0_var(--color-ta-line)]">
               <tr>
                 {COLUMNS.map((col) => {
                   const active = shown.key === col.key;
@@ -204,7 +204,7 @@ export const TeamTable = React.memo(function TeamTable({
                         className="min-h-11 md:min-h-9 inline-flex items-center gap-1 font-semibold hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
                         {col.label}
-                        <span aria-hidden="true" className={`text-xs ${active ? "text-slate-900" : "text-slate-500"}`}>
+                        <span aria-hidden="true" className={`text-xs ${active ? "text-slate-900" : "text-slate-600"}`}>
                           {active ? (shown.dir === "asc" ? "▲" : "▼") : "↕"}
                         </span>
                       </button>
@@ -249,7 +249,7 @@ export const TeamTable = React.memo(function TeamTable({
                       {row.active}
                       <FlagText flag={flag.load} />
                     </td>
-                    <td className={`${TD} ${late > 0 ? "" : "text-slate-500"}`}>
+                    <td className={`${TD} ${late > 0 ? "" : "text-slate-600"}`}>
                       {late === 0 ? (
                         "0"
                       ) : onViewOverdue ? (
@@ -277,14 +277,14 @@ export const TeamTable = React.memo(function TeamTable({
                     <td className={TD}>{row.openRequisitions}</td>
                     <td className={TD}>
                       {row.requestedSeats === 0 ? (
-                        <span aria-hidden="true" className="text-slate-500">—</span>
+                        <span aria-hidden="true" className="text-slate-600">—</span>
                       ) : (
                         <>
                           <span className="text-slate-950">
                             <strong>{row.filledSeats}</strong> / {row.requestedSeats} seats
                           </span>
                           {row.fillRate === null ? (
-                            <span className={`${SUB} text-slate-500`}>{sampleNote(row.requestedSeats)}</span>
+                            <span className={`${SUB} text-slate-600`}>{sampleNote(row.requestedSeats)}</span>
                           ) : (
                             <span className={`${SUB} text-slate-600`}>{row.fillRate}%</span>
                           )}

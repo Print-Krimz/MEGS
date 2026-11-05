@@ -63,7 +63,7 @@ const SectionBlock: React.FC<{ section: Section }> = ({ section }) => {
     <div>
       <h3 className="flex items-center gap-2 border-b border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-semibold text-slate-700">
         {section.label}
-        <span className="tabular-nums text-slate-500">{section.items.length}</span>
+        <span className="tabular-nums text-slate-600">{section.items.length}</span>
       </h3>
       <ul className="divide-y divide-slate-200 border-b border-slate-200">
         {shown.map((item) => (

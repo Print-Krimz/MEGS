@@ -21,15 +21,16 @@ const dueText = (daysLeft: number) => (daysLeft === 0 ? "Due today" : `Due in ${
 /** Candidates who reach their stage limit within two days, soonest first. */
 export const DueSoonList: React.FC<DueSoonListProps> = ({ rows, total, viewer, showRecruiter = false, linkState, className }) => {
   const [openId, setOpenId] = useState<number | null>(null);
-  const shown = rows.slice(0, SHOWN);
+  const [expanded, setExpanded] = useState(false);
+  const shown = expanded ? rows : rows.slice(0, SHOWN);
 
   return (
-    <AnalyticsPanel tone="reports" id="due-soon" title="Due soon" subtitle="Reach the stage limit within 2 days" className={className}>
+    <AnalyticsPanel tone="reports" id="due-soon" title="Due soon" subtitle="Reach the stage limit within 2 days" className={`flex flex-col ${className ?? ""}`}>
       {shown.length === 0 ? (
         <p className="p-4 text-center text-xs text-slate-600 font-sans">Nothing due in the next 2 days.</p>
       ) : (
         <>
-          <ul className="divide-y divide-slate-200 px-3.5">
+          <ul className="flex-1 divide-y divide-slate-200 px-3.5">
             {shown.map((r) => (
               <li key={r.applicationId} className="flex items-center justify-between gap-3 py-2.5">
                 {/* 1. Candidate name first, 2. Supporting details second */}
@@ -52,11 +53,24 @@ export const DueSoonList: React.FC<DueSoonListProps> = ({ rows, total, viewer, s
               </li>
             ))}
           </ul>
-          {total > shown.length && <p className="border-t border-slate-200 px-3.5 py-2 text-xs font-sans text-slate-600">+{total - shown.length} more</p>}
+          {(total > shown.length || rows.length > SHOWN) && (
+            <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-200 px-3.5 py-2 text-xs font-sans text-slate-600">
+              {total > shown.length ? <span>+{total - shown.length} more</span> : <span />}
+              {rows.length > SHOWN && (
+                <button
+                  type="button"
+                  onClick={() => setExpanded((prev) => !prev)}
+                  className="font-semibold text-navy underline underline-offset-2 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                >
+                  {expanded ? "Show fewer" : `Show all ${rows.length}`}
+                </button>
+              )}
+            </div>
+          )}
         </>
       )}
       <StuckPreviewDialog
-        rows={shown}
+        rows={rows}
         openId={openId}
         onSelect={setOpenId}
         onClose={() => setOpenId(null)}
