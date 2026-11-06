@@ -48,13 +48,15 @@ export const AnalyticsPanel: React.FC<AnalyticsPanelProps> = ({ id, title, subti
             : "border-navy-line bg-navy-soft"
         } flex items-center justify-between gap-3`}
       >
-        <div className="min-w-0 flex items-center gap-2">
-          <h2 className="text-sm font-bold tracking-tight text-slate-950">{title}</h2>
-          {subtitle && !reports && <InfoTip label={title}>{subtitle}</InfoTip>}
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-bold tracking-tight text-slate-950">{title}</h2>
+            {subtitle && !reports && <InfoTip label={title}>{subtitle}</InfoTip>}
+          </div>
+          {reports && subtitle && <p className="mt-0.5 text-xs font-sans text-slate-600">{subtitle}</p>}
         </div>
         {aside && <div className="shrink-0 text-xs text-slate-600">{aside}</div>}
       </div>
-      {reports && subtitle && <p className="border-b border-slate-200 bg-white px-4 py-2 text-xs font-sans text-slate-600">{subtitle}</p>}
       {children}
     </section>
   );

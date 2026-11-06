@@ -48,15 +48,17 @@ export const ClientReviewPanel: React.FC<ClientReviewPanelProps> = ({ data, clas
           No candidates in client review.
         </div>
       ) : (
-        <div className="flex flex-1 flex-col justify-between px-4 pb-3.5">
+        <div className="@container flex flex-1 flex-col px-4 pb-3.5">
           {/* Client Review Summary Strip */}
           <div
             aria-hidden="true"
-            className="mt-3 mb-2 grid grid-cols-3 gap-2 rounded-md border border-slate-200/90 bg-slate-50/80 px-3 py-2 text-xs font-sans"
+            className="mt-3 mb-3 grid grid-cols-3 gap-2 rounded-md border border-slate-200/90 bg-slate-50/80 px-3 py-2 text-xs font-sans"
           >
             <div>
               <span className="block text-[11px] font-medium text-slate-500">Total waiting</span>
-              <span className="text-sm font-bold tabular-nums text-slate-950">{data.sample} candidates</span>
+              <span className="text-sm font-bold tabular-nums text-slate-950">
+                {data.sample} {data.sample === 1 ? "candidate" : "candidates"}
+              </span>
             </div>
             <div className="border-l border-slate-200/80 pl-2.5">
               <span className="block text-[11px] font-medium text-slate-500">Average wait</span>
@@ -72,40 +74,35 @@ export const ClientReviewPanel: React.FC<ClientReviewPanelProps> = ({ data, clas
             </div>
           </div>
 
-          <ol className="divide-y divide-slate-200/90">
+          <ol className="divide-y divide-slate-200 rounded-md border border-slate-200 bg-white">
             {clients.map((c, i) => {
               const over = c.avgDays !== null && c.avgDays > c.limitDays;
               return (
-                <li key={c.clientId} className="py-3 transition-colors hover:bg-slate-50/70">
-                  <div className="flex items-baseline justify-between gap-3 text-xs font-sans">
-                    <span className="min-w-0 truncate font-semibold text-slate-900">
-                      {onSelectClient ? (
-                        <button
-                          type="button"
-                          onClick={() => onSelectClient(c.clientId)}
-                          className="truncate text-left text-sm font-semibold text-navy underline underline-offset-2 decoration-slate-300 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                        >
-                          {c.clientName}
-                        </button>
-                      ) : (
-                        <span className="truncate text-sm">{c.clientName}</span>
-                      )}
-                    </span>
-                    <span
-                      className={`flex shrink-0 items-center gap-1 rounded-sm px-2 py-0.5 tabular-nums ${
-                        over ? `border border-[#F3D19E] bg-[#FFF4DC] font-semibold ${TEXT_AMBER}` : "bg-slate-100 font-semibold text-slate-700"
-                      }`}
-                    >
-                      {over && <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />}
-                      {c.avgDays === null ? formatSampled(null, c.inReview, "days") : `${days(c.avgDays)} avg`}
-                      {over && <span className="sr-only"> (over the {days(c.limitDays)} limit)</span>}
-                    </span>
+                <li
+                  key={c.clientId}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2.5 transition-colors hover:bg-slate-50/70 @xl:grid-cols-[11rem_minmax(0,1fr)_15rem] @xl:gap-y-0"
+                >
+                  <div className="col-start-1 row-start-1 min-w-0 font-semibold text-slate-900">
+                    {onSelectClient ? (
+                      <button
+                        type="button"
+                        onClick={() => onSelectClient(c.clientId)}
+                        className="block max-w-full truncate text-left text-xs font-semibold text-navy underline underline-offset-2 decoration-slate-300 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                      >
+                        {c.clientName}
+                      </button>
+                    ) : (
+                      <span className="block truncate text-xs">{c.clientName}</span>
+                    )}
+                    <p className="mt-0.5 truncate text-[11px] font-normal font-sans tabular-nums text-slate-600">
+                      {c.inReview} in review · limit {days(c.limitDays)}
+                    </p>
                   </div>
-                  {c.avgDays !== null && (
+                  {c.avgDays !== null ? (
                     <StackedBar
-                      className="mt-2"
+                      className="col-span-2 row-start-2 @xl:col-span-1 @xl:col-start-2 @xl:row-start-1"
                       label={`${c.clientName}, average ${days(c.avgDays)}, limit ${days(c.limitDays)}`}
-                      heightClass="h-2.5"
+                      heightClass="h-3"
                       max={scale}
                       index={i}
                       segments={[
@@ -113,17 +110,25 @@ export const ClientReviewPanel: React.FC<ClientReviewPanelProps> = ({ data, clas
                         { key: "over", label: "past the limit", value: Math.max(0, c.avgDays - c.limitDays), color: WORKLOAD.overdue },
                       ]}
                     />
+                  ) : (
+                    <div aria-hidden="true" className="col-span-2 row-start-2 h-3 rounded-[3px] bg-slate-100 @xl:col-span-1 @xl:col-start-2 @xl:row-start-1" />
                   )}
-                  <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 text-xs font-sans tabular-nums text-slate-600">
-                    <span>
-                      {c.inReview} in review · limit {days(c.limitDays)}
+                  <div className="col-start-2 row-start-1 flex flex-col items-end gap-0.5 text-right text-xs font-sans tabular-nums @xl:col-start-3">
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-sm px-2 py-0.5 ${
+                        over ? `border border-[#F3D19E] bg-[#FFF4DC] font-semibold ${TEXT_AMBER}` : "bg-slate-100 font-semibold text-slate-700"
+                      }`}
+                    >
+                      {over && <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />}
+                      {c.avgDays === null ? formatSampled(null, c.inReview, "days") : `${days(c.avgDays)} avg`}
+                      {over && <span className="sr-only"> (over the {days(c.limitDays)} limit)</span>}
                     </span>
                     {c.overdue > 0 && (
-                      <span className={`rounded-sm bg-[#FDF1F2] px-1.5 py-0.5 font-semibold ${TEXT_LOSS}`}>
-                        {` · ${c.overdue} overdue`}
+                      <span className={`text-[11px] font-semibold ${TEXT_LOSS}`}>
+                        {c.overdue} overdue
                       </span>
                     )}
-                  </p>
+                  </div>
                 </li>
               );
             })}
