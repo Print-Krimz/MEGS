@@ -63,15 +63,10 @@ const deltaLine = ({ current, previous, unit, better, periodLabel }: KpiDelta) =
   const Icon = flat ? Minus : up ? ArrowUp : ArrowDown;
   const good = !flat && up === (better === "up");
   const tone = flat ? "text-slate-600" : good ? TEXT_GOOD : TEXT_LOSS;
-  const badgeBg = flat
-    ? "bg-slate-100 border-slate-200"
-    : good
-      ? "bg-[#EAF6EE] border-[#CBE7D4]"
-      : "bg-[#FDF1F2] border-[#F5C2C7]";
   const { short, spoken } = deltaParts(change, unit);
   const word = flat ? "No change" : up ? "Up" : "Down";
   return (
-    <div className={`mt-1.5 inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-sm border px-2 py-0.5 text-xs font-sans font-semibold tabular-nums ${badgeBg} ${tone}`}>
+    <div className={`mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-sans font-semibold tabular-nums ${tone}`}>
       <span aria-hidden="true" className="inline-flex items-center gap-1 whitespace-nowrap">
         <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         {flat ? "No change" : short}
@@ -107,8 +102,6 @@ export const AnalyticsKpi: React.FC<AnalyticsKpiProps> = ({ label, value, detail
   // Words ("Too few to show (3 cases)", "No seats") read as an absence, so they sit below headline numbers in size.
   const text = typeof value === "string" && !/^-?\d[\d.,]*\s?(%|days?)?$/.test(value);
   const isInteractive = Boolean(href || onClick);
-  const pctMatch = typeof value === "string" ? /^(\d+(?:\.\d+)?)%$/.exec(value) : null;
-  const pctNum = pctMatch ? Math.min(100, Math.max(0, Number(pctMatch[1]))) : null;
 
   const topSurface =
     tone === "alert"
@@ -129,17 +122,6 @@ export const AnalyticsKpi: React.FC<AnalyticsKpiProps> = ({ label, value, detail
       >
         {renderValue(value)}
       </div>
-      {pctNum !== null && (
-        <div aria-hidden="true" className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-          <div
-            className="h-full rounded-full transition-all duration-300"
-            style={{
-              width: `${pctNum}%`,
-              backgroundColor: label.toLowerCase().includes("backout") ? "#B42318" : "#0B315D",
-            }}
-          />
-        </div>
-      )}
       {delta && deltaLine(delta)}
       {detail && <div className="mt-1.5 text-balance text-xs font-sans text-slate-600">{detail}</div>}
       {isInteractive && (
@@ -192,10 +174,10 @@ interface KpiGroupProps {
 }
 
 const SPAN: Record<number, string> = {
-  1: "md:col-span-1 lg:col-span-1",
-  2: "md:col-span-2 lg:col-span-2",
-  3: "md:col-span-3 lg:col-span-3",
-  4: "md:col-span-4 lg:col-span-4",
+  1: "xl:col-span-1",
+  2: "xl:col-span-2",
+  3: "xl:col-span-3",
+  4: "xl:col-span-4",
 };
 
 /** Tiles that share a time base, under one label. */
@@ -225,7 +207,8 @@ export const KpiRow: React.FC<KpiRowProps> = ({ children, definitions }) => {
     (sum, group) => sum + (React.isValidElement<{ children?: React.ReactNode }>(group) ? React.Children.count(group.props.children) : 1),
     0,
   );
-  const gridCols = totalTiles === 5 ? "md:grid-cols-5 lg:grid-cols-5" : "md:grid-cols-4 lg:grid-cols-4";
+  // Groups sit side by side only from xl; below that each group gets the full width so values never clip.
+  const gridCols = totalTiles === 5 ? "xl:grid-cols-5" : "xl:grid-cols-4";
   return (
     <div>
       <div className={`grid gap-3.5 ${gridCols} md:gap-4`}>{children}</div>

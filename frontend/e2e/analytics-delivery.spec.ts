@@ -721,7 +721,7 @@ test.describe("Team leader reports (/admin/analytics)", () => {
 
     const period = page.getByRole("region", { name: "In these dates" });
     // The client with four candidates in review has no average to show. The number from a base of four is not a headline tile any more.
-    await expect(page.locator("#client-review").getByRole("listitem").filter({ hasText: "Beta Fabrication" })).toContainText("No data yet");
+    await expect(page.locator("#client-review").getByRole("listitem").filter({ hasText: "Beta Fabrication" })).toContainText("Too few to average");
     // Days to fill has five starts behind it, so the number shows.
     await expect(period.getByText("18.5 days")).toBeVisible();
 
@@ -1401,7 +1401,7 @@ test.describe("Recruiter reports (/ta/analytics)", () => {
       expect(trail[i], trail[i].text).toMatchObject({ focusVisible: true, ring: true });
     }
     await page.keyboard.press("ArrowRight");
-    await expect(page.getByRole("tab", { name: /^Client requests/ })).toBeFocused();
+    await expect(page.getByRole("tab", { name: /^Action items/ })).toBeFocused();
     expect(await focusedStop(page)).toMatchObject({ role: "tab", focusVisible: true, ring: true });
   });
 

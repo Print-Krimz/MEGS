@@ -150,7 +150,7 @@ describe("ClientReviewPanel", () => {
     expect(items[0].textContent).toContain("6.2 days avg");
     expect(items[0].textContent).toContain("over the 5 days limit");
     expect(items[0].textContent).toContain("2 overdue");
-    expect(items[1].textContent).toContain("No data yet");
+    expect(items[1].textContent).toContain("Too few to average");
     expect(within(items[1]).queryByRole("img")).toBeNull();
     expect(within(items[0]).getByRole("img", { name: /Acme, average 6.2 days, limit 5 days/ })).toBeDefined();
   });

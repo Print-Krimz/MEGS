@@ -292,7 +292,7 @@ export const StuckList = React.memo(function StuckList({
                         : "bg-slate-100 text-slate-600 font-semibold"
                   }`}
                 >
-                  {key === "ALL" ? rows.length : criticalCount}
+                  {key === "ALL" ? Math.max(total, rows.length) : criticalCount}
                 </span>
               </button>
             ))}
@@ -471,7 +471,7 @@ export const StuckList = React.memo(function StuckList({
                       <WaitBar className="mt-1.5 max-w-44" row={scale} index={i} r={r} color={r.urgency === "critical" ? WAIT.critical : WAIT.late} />
                     </div>
 
-                    <div className="min-w-0 text-xs text-slate-600 font-sans" title={r.lastActivityAt ? formatDate(r.lastActivityAt) : undefined}>
+                    <div className={`min-w-0 text-xs text-slate-600 font-sans ${r.lastActivityAt ? "" : "@max-3xl:hidden"}`} title={r.lastActivityAt ? formatDate(r.lastActivityAt) : undefined}>
                       {r.lastActivityAt ? (
                         <span className="line-clamp-2">
                           Last activity: {daysAgoText(r.lastActivityAt)}
@@ -487,7 +487,7 @@ export const StuckList = React.memo(function StuckList({
 
                     <div className="flex flex-wrap items-center gap-1.5 @3xl:flex-col @3xl:items-start @3xl:gap-1">
                       <span className={`hidden px-1.5 py-0.5 text-xs font-semibold @3xl:inline-block ${style.badge}`}>{style.label}</span>
-                      <span className={`px-1.5 py-0.5 text-xs font-semibold tabular-nums ${style.badge}`}>
+                      <span className={`text-xs font-semibold tabular-nums ${r.urgency === "critical" ? "text-[#B42318]" : "text-[#7A4800]"}`}>
                         {r.daysOver} {r.daysOver === 1 ? "day" : "days"} over
                       </span>
                     </div>

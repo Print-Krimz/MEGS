@@ -19,9 +19,6 @@ export const BackoutReasonsDonut: React.FC<{ data: BackoutSummary; className?: s
       data.byParty &&
         (data.byParty.APPLICANT > 0 || data.byParty.CLIENT > 0 || data.byParty.AGENCY > 0)
     );
-  const partyTotal = hasPartyBreakdown
-    ? data.byParty.APPLICANT + data.byParty.CLIENT + data.byParty.AGENCY
-    : 0;
 
   return (
     <AnalyticsPanel
@@ -30,11 +27,12 @@ export const BackoutReasonsDonut: React.FC<{ data: BackoutSummary; className?: s
       title="Why candidates backed out"
       aside={
         total > 0 ? (
-          <div className="flex items-center gap-1.5 text-xs tabular-nums">
-            <span className="rounded-sm border border-[#F5C2C7] bg-[#FDF1F2] px-2 py-0.5 font-semibold text-[#B42318]">
+          <div className="flex items-center gap-1.5 whitespace-nowrap text-xs tabular-nums">
+            <span className="font-semibold text-[#B42318]">
               {data.backouts} after review
             </span>
-            <span className="rounded-sm border border-slate-200 bg-slate-100 px-2 py-0.5 font-semibold text-slate-700">
+            <span aria-hidden="true" className="text-slate-300">·</span>
+            <span className="font-semibold text-slate-700">
               {data.withdrawals} early
             </span>
           </div>
@@ -51,13 +49,9 @@ export const BackoutReasonsDonut: React.FC<{ data: BackoutSummary; className?: s
           centerLabel={total === 1 ? "backout" : "backouts"}
           footer={
             total > 0 ? (
-              <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                <div className="rounded-md border border-slate-200 bg-slate-50/90 p-2.5 text-xs font-sans text-slate-700">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Stage timing</div>
-                  <div aria-hidden="true" className="mt-1.5 flex h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
-                    <span style={{ width: `${(data.backouts / total) * 100}%`, backgroundColor: "#B42318" }} />
-                    <span style={{ width: `${(data.withdrawals / total) * 100}%`, backgroundColor: "#0B315D" }} />
-                  </div>
+              <div className="mt-4 grid grid-cols-1 gap-3 border-t border-slate-200 pt-3 sm:grid-cols-2">
+                <div className="text-xs font-sans text-slate-700">
+                  <div className="text-xs font-semibold text-slate-600">Stage timing</div>
                   <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 tabular-nums">
                     <span>
                       After client review: <strong className="font-bold text-[#B42318]">{data.backouts}</strong>
@@ -77,13 +71,8 @@ export const BackoutReasonsDonut: React.FC<{ data: BackoutSummary; className?: s
                   </div>
                 </div>
                 {hasPartyBreakdown && (
-                  <div className="rounded-md border border-slate-200 bg-slate-50/90 p-2.5 text-xs font-sans text-slate-700">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Initiated by</div>
-                    <div aria-hidden="true" className="mt-1.5 flex h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
-                      <span style={{ width: `${partyTotal > 0 ? (data.byParty.APPLICANT / partyTotal) * 100 : 0}%`, backgroundColor: "#0B315D" }} />
-                      <span style={{ width: `${partyTotal > 0 ? (data.byParty.CLIENT / partyTotal) * 100 : 0}%`, backgroundColor: "#9A5B00" }} />
-                      <span style={{ width: `${partyTotal > 0 ? (data.byParty.AGENCY / partyTotal) * 100 : 0}%`, backgroundColor: "#64748B" }} />
-                    </div>
+                  <div className="text-xs font-sans text-slate-700">
+                    <div className="text-xs font-semibold text-slate-600">Initiated by</div>
                     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 tabular-nums">
                       <span>
                         Applicant: <strong className="font-bold text-navy">{data.byParty.APPLICANT}</strong>

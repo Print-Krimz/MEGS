@@ -32,9 +32,7 @@ export const DueSoonList: React.FC<DueSoonListProps> = ({ rows, total, viewer, s
       subtitle="Reach the stage limit within 2 days"
       aside={
         total > 0 ? (
-          <span className="rounded-sm border border-[#F3D19E] bg-[#FFF4DC] px-2 py-0.5 text-xs tabular-nums font-semibold text-[#7A4800]">
-            <strong className="text-slate-900">{total}</strong> approaching limit
-          </span>
+          <span className="whitespace-nowrap text-xs font-semibold tabular-nums text-[#7A4800]">{total} approaching limit</span>
         ) : undefined
       }
       className={`flex flex-col ${className ?? ""}`}

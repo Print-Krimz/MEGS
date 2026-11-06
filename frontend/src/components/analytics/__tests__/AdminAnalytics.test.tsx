@@ -165,10 +165,10 @@ describe("Analytics Components Test Suite", () => {
     );
     const row = container.firstElementChild!.firstElementChild as HTMLElement;
     expect(row.className).toContain("grid");
-    expect(row.className).toContain("md:grid-cols-4");
+    expect(row.className).toContain("xl:grid-cols-4");
     expect(row.className).not.toContain("flex");
-    expect(screen.getByRole("region", { name: "Right now" }).className).toContain("md:col-span-1");
-    expect(screen.getByRole("region", { name: "In these dates" }).className).toContain("md:col-span-3");
+    expect(screen.getByRole("region", { name: "Right now" }).className).toContain("xl:col-span-1");
+    expect(screen.getByRole("region", { name: "In these dates" }).className).toContain("xl:col-span-3");
     const summary = container.querySelector("summary")!;
     expect(summary.className).toContain("underline");
     expect(summary.querySelector("[aria-hidden=true]")).not.toBeNull();

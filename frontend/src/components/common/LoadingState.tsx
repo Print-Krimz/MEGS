@@ -85,16 +85,17 @@ export const LoadingState: React.FC<LoadingStateProps> = ({
 
   // Default: Table skeleton
   return (
-    <div className={cn("w-full bg-white border border-slate-300 rounded-md overflow-hidden my-3 animate-pulse", className)} role="status" aria-live="polite">
+    <div className={cn("w-full bg-white border border-slate-300 rounded-md overflow-hidden my-3", className)} role="status" aria-live="polite">
       <div className="bg-slate-100 px-4 py-2.5 border-b border-slate-300 flex justify-between items-center">
         {message ? (
           <span className="text-xs text-slate-600 font-sans">{message}</span>
         ) : (
-          <div className="h-3.5 bg-slate-300 w-1/4" />
+          <div className="h-3.5 bg-slate-300 w-1/4 animate-pulse" />
         )}
-        <div className="h-3.5 bg-slate-300 w-1/6" />
+        <div className="h-3.5 bg-slate-300 w-1/6 animate-pulse" />
       </div>
-      <div className="divide-y divide-slate-200">
+      {/* Only the placeholders pulse, so the loading message keeps full contrast. */}
+      <div className="divide-y divide-slate-200 animate-pulse">
         {Array.from({ length: rows }).map((_, idx) => (
           <div key={idx} className="px-4 py-3 flex items-center justify-between gap-4">
             <div className="space-y-1 flex-1">

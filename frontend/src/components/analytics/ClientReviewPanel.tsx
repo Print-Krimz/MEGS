@@ -1,7 +1,6 @@
 import React from "react";
-import { AlertTriangle } from "lucide-react";
 import type { ClientReview } from "../../lib/types/analytics.types";
-import { BAR_ON_TRACK, TEXT_AMBER, TEXT_LOSS, WORKLOAD } from "../../lib/chart-palette";
+import { BAR_ON_TRACK, TEXT_LOSS, WORKLOAD } from "../../lib/chart-palette";
 import { formatSampled } from "../../lib/analytics-format";
 import { AnalyticsPanel } from "./AnalyticsPanel";
 import { DataTableToggle, StackedBar } from "./chart-primitives";
@@ -29,14 +28,13 @@ export const ClientReviewPanel: React.FC<ClientReviewPanelProps> = ({ data, clas
       subtitle="Average days in client review vs each client's limit"
       aside={
         clients.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-1.5 tabular-nums font-medium text-slate-700">
-            <span className="rounded-sm border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold text-slate-800 shadow-[0_1px_1px_0_rgb(15_23_42/0.03)]">
-              <strong className="text-slate-950">{data.sample}</strong> in review
-            </span>
+          <div className="flex items-center gap-1.5 whitespace-nowrap text-xs font-semibold tabular-nums text-slate-800">
+            <span>{data.sample} in review</span>
             {overLimitCount > 0 && (
-              <span className={`rounded-sm border border-[#F5C2C7] bg-[#FDF1F2] px-2 py-0.5 text-xs font-semibold ${TEXT_LOSS}`}>
-                {overLimitCount} past limit
-              </span>
+              <>
+                <span aria-hidden="true" className="text-slate-300">·</span>
+                <span className={TEXT_LOSS}>{overLimitCount} past limit</span>
+              </>
             )}
           </div>
         ) : undefined
@@ -90,12 +88,9 @@ export const ClientReviewPanel: React.FC<ClientReviewPanelProps> = ({ data, clas
                   )}
                   <div className="col-start-2 row-start-1 flex flex-col items-end gap-0.5 text-right text-xs font-sans tabular-nums @xl:col-start-3">
                     <span
-                      className={`inline-flex items-center gap-1 rounded-sm px-2 py-0.5 ${
-                        over ? `border border-[#F3D19E] bg-[#FFF4DC] font-semibold ${TEXT_AMBER}` : "bg-slate-100 font-semibold text-slate-700"
-                      }`}
+                      className={`text-sm font-semibold ${over ? TEXT_LOSS : c.avgDays === null ? "text-slate-600" : "text-slate-800"}`}
                     >
-                      {over && <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />}
-                      {c.avgDays === null ? formatSampled(null, c.inReview, "days") : `${days(c.avgDays)} avg`}
+                      {c.avgDays === null ? (c.inReview > 0 ? "Too few to average" : formatSampled(null, 0, "days")) : `${days(c.avgDays)} avg`}
                       {over && <span className="sr-only"> (over the {days(c.limitDays)} limit)</span>}
                     </span>
                     {c.overdue > 0 && (

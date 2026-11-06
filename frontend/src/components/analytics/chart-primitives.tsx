@@ -269,7 +269,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({ label, slices, centerVal
           </svg>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
             <span className="font-display text-2xl font-bold leading-none tabular-nums text-slate-950">{centerValue ?? String(total)}</span>
-            {centerLabel && <span className="mt-1 text-[11px] font-semibold uppercase tracking-wider font-sans text-slate-500">{centerLabel}</span>}
+            {centerLabel && <span className="mt-1 text-xs font-medium font-sans text-slate-600">{centerLabel}</span>}
           </div>
         </div>
 
@@ -278,9 +278,8 @@ export const DonutChart: React.FC<DonutChartProps> = ({ label, slices, centerVal
             <p className="py-2 text-sm font-sans text-slate-600">Nothing recorded in these dates.</p>
           ) : (
             <>
-              <ul className="space-y-1.5" aria-label={`${label} legend`}>
+              <ul aria-label={`${label} legend`}>
                 {slices.map((s) => {
-                  const pctNum = total > 0 ? Math.round((s.value / total) * 100) : 0;
                   return (
                     <li key={s.key}>
                       <button
@@ -289,16 +288,13 @@ export const DonutChart: React.FC<DonutChartProps> = ({ label, slices, centerVal
                         onMouseLeave={() => setActive(null)}
                         onFocus={() => setActive(s.key)}
                         onBlur={() => setActive(null)}
-                        className="group flex min-h-11 w-full flex-col justify-center gap-1 rounded-md border border-transparent px-2 py-1 text-left text-xs font-sans text-slate-700 hover:border-slate-200 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-8"
+                        className="group flex min-h-11 w-full flex-col justify-center rounded-md border border-transparent px-2 py-1 text-left text-xs font-sans text-slate-700 hover:border-slate-200 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-8"
                       >
                         <span className="flex w-full items-center gap-2">
                           <span aria-hidden="true" className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: s.color }} />
                           <span className="min-w-0 flex-1 font-medium text-slate-800">{s.label}</span>
                           <span className="font-bold tabular-nums text-slate-950">{s.value}</span>
-                          <span className="w-10 rounded-xs bg-slate-100 px-1 py-0.5 text-right font-semibold tabular-nums text-slate-600">{pctText(s.value, total)}</span>
-                        </span>
-                        <span aria-hidden="true" className="block h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                          <span className="block h-full rounded-full transition-all duration-300" style={{ width: `${pctNum}%`, backgroundColor: s.color }} />
+                          <span className="w-10 text-right tabular-nums text-slate-600">{pctText(s.value, total)}</span>
                         </span>
                       </button>
                     </li>

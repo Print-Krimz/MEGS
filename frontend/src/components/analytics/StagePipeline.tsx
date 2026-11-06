@@ -45,7 +45,7 @@ const avgText = (row: StageTableRow) => {
 };
 
 // Phones: name and count on one line, the bar full width under them. Wider screens: three aligned columns.
-const ROW_GRID = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 @xl:grid-cols-[11rem_minmax(0,1fr)_15rem] @xl:gap-y-0";
+const ROW_GRID = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 @xl:grid-cols-[9.5rem_minmax(0,1fr)_12.5rem] @xl:gap-y-0";
 const BAR_CELL = "col-span-2 row-start-2 @xl:col-span-1 @xl:col-start-2 @xl:row-start-1";
 
 /**
@@ -67,14 +67,13 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
       title="Candidates by stage"
       aside={
         !empty ? (
-          <div className="flex items-center gap-2 text-xs tabular-nums">
-            <span className="rounded-sm border border-navy-line bg-navy-soft px-2 py-0.5 font-semibold text-navy">
-              {activeInPipeline} active
-            </span>
+          <div className="flex items-center gap-1.5 whitespace-nowrap text-xs tabular-nums">
+            <span className="font-semibold text-slate-800">{activeInPipeline} active</span>
             {totalOverdue > 0 && (
-              <span className="rounded-sm border border-[#F5C2C7] bg-[#FDF1F2] px-2 py-0.5 font-semibold text-[#B42318]">
-                {totalOverdue} overdue
-              </span>
+              <>
+                <span aria-hidden="true" className="text-slate-300">·</span>
+                <span className="font-semibold text-[#B42318]">{totalOverdue} overdue</span>
+              </>
             )}
           </div>
         ) : undefined
@@ -92,7 +91,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
                 ["On track", BAR_ON_TRACK],
                 ["Overdue", WORKLOAD.overdue],
               ].map(([name, color]) => (
-                <span key={name} className="flex items-center gap-1.5 rounded-sm border border-slate-200 bg-slate-50 px-2 py-0.5 font-semibold text-slate-700">
+                <span key={name} className="flex items-center gap-1.5 font-semibold text-slate-700">
                   <span aria-hidden="true" className="inline-block h-2.5 w-2.5 rounded-xs" style={{ backgroundColor: color }} />
                   {name}
                 </span>
@@ -128,18 +127,18 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
                     ]}
                   />
                   <span className="col-start-2 row-start-1 whitespace-nowrap text-right text-xs font-sans tabular-nums text-slate-700 @xl:col-start-3">
-                    <strong className="inline-flex min-w-5 items-center justify-center rounded-xs bg-slate-100 px-1.5 py-0.5 text-slate-950">
+                    <strong className="text-sm text-slate-950">
                       {row.inStageNow}
                     </strong>
                     {late > 0 && (
                       <span className={`font-semibold ${TEXT_LOSS}`}>
                         {" · "}
-                        <span className="rounded-xs bg-[#FDF1F2] px-1 py-0.5">{share}</span>
+                        {share}
                       </span>
                     )}
                     {pick && (
                       <span aria-hidden="true" className="ml-1 inline-flex items-center text-xs font-semibold text-navy">
-                        {!everyRow && <span className="hidden @xl:inline">Show</span>}
+                        <span className="hidden @xl:inline">Show</span>
                         <ChevronRight size={14} className="shrink-0" />
                       </span>
                     )}
@@ -176,7 +175,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
           </ol>
           <div className="relative mt-auto pt-3">
             {footer && (
-              <div className="mb-2 inline-flex min-h-11 items-center rounded-sm border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium font-sans text-slate-700 sm:absolute sm:right-0 sm:top-3 sm:mb-0 md:min-h-6">
+              <div className="mb-2 text-xs font-sans text-slate-700 sm:absolute sm:right-0 sm:top-5 sm:mb-0">
                 {footer}
               </div>
             )}

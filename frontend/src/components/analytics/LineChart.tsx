@@ -28,9 +28,9 @@ interface LineChartProps {
 const SERIES_COLORS = [BAR_PRIMARY, TREND.backouts] as const;
 
 /** Fixed height and real pixel text: only the width follows the container, so the chart is the same height at every screen width. */
-const H = 280;
+const H = 240;
 const DEFAULT_W = 640;
-const M = { top: 18, right: 18, bottom: 28, left: 36 };
+const M = { top: 20, right: 28, bottom: 26, left: 32 };
 const PLOT_H = H - M.top - M.bottom;
 
 /** Round the top of the scale up to a value that gives whole-number gridlines. */
@@ -99,9 +99,9 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
       ) : (
         <div className="flex flex-1 flex-col p-4">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <ul className="flex flex-wrap gap-2 font-sans text-sm text-slate-900" aria-label="Legend">
+            <ul className="flex flex-wrap gap-x-5 gap-y-1 font-sans text-sm text-slate-900" aria-label="Legend">
               {shown.map((s, i) => (
-                <li key={s.key} className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50/90 px-3 py-1 font-semibold">
+                <li key={s.key} className="flex items-center gap-2 font-semibold">
                   {/* Solid line for the first series, dashed for the second: the two differ by shape, not only by color. */}
                   <span
                     aria-hidden="true"
@@ -121,8 +121,8 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
               ))}
             </ul>
           </div>
-          <div ref={wrapRef} className="flex flex-1 flex-col justify-center w-full rounded-md border border-slate-200/80 bg-[#FCFDFE] p-2">
-            <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block h-60 w-full max-w-full" role="img" aria-label={title}>
+          <div ref={wrapRef} className="flex flex-1 flex-col justify-center w-full">
+            <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block h-auto w-full max-w-full" role="img" aria-label={title}>
               <title>{title}</title>
               {xLabelIdx.map((i) => (
                 <line
@@ -139,7 +139,7 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
               {ticks.map((t) => (
                 <g key={t}>
                   <line x1={M.left} x2={W - M.right} y1={y(t)} y2={y(t)} stroke={t === 0 ? "#94A3B8" : "#E2E8F0"} strokeWidth={1} />
-                  <text x={M.left - 6} y={y(t) + 4} textAnchor="end" fontSize={11} fill="#475569" className="tabular-nums">
+                  <text x={M.left - 8} y={y(t) + 4} textAnchor="end" fontSize={11} fill="#475569" className="tabular-nums">
                     {t}
                   </text>
                 </g>
@@ -182,9 +182,9 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
                       return (
                         <text
                           key={`v${i}`}
-                          x={x(i)}
-                          y={below ? y(v) + 16 : y(v) - 8}
-                          textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}
+                          x={i === points.length - 1 && points.length > 1 ? x(i) + 7 : x(i)}
+                          y={i === points.length - 1 && points.length > 1 ? y(v) + 4 : below ? y(v) + 16 : y(v) - 8}
+                          textAnchor={i === 0 || (i === points.length - 1 && points.length > 1) ? "start" : "middle"}
                           fontSize={11}
                           fontWeight={700}
                           fill="#0F172A"

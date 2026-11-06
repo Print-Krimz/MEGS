@@ -39,6 +39,7 @@ mkdirSync(SHOT_DIR, { recursive: true });
 const ALL_WIDTHS = [
   { width: 375, height: 812 },
   { width: 768, height: 1024 },
+  { width: 1024, height: 768 },
   { width: 1280, height: 900 },
   { width: 1440, height: 900 },
 ] as const;
@@ -911,7 +912,7 @@ const RESULTS: Record<string, Record<string, unknown>> = {};
 
 /** One fresh page at one width, routed like captureState. The caller closes the context. */
 async function openAt(browser: Browser, role: Role, state: StateName, width: number) {
-  const vp = ALL_WIDTHS.find((w) => w.width === width) ?? ALL_WIDTHS[2];
+  const vp = ALL_WIDTHS.find((w) => w.width === width) ?? ALL_WIDTHS[3];
   const context = await browser.newContext({
     viewport: { width: vp.width, height: vp.height },
     deviceScaleFactor: 1,

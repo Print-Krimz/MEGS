@@ -67,7 +67,7 @@ describe("AdminLayout Navigation & Account Menu", () => {
   it("uses role initials and shows email once in the menu when unnamed", () => {
     identity.unnamed = true;
     renderWithClient(<AdminLayout />);
-    const button = screen.getByRole("button", { name: "Account menu for chief.admin@megs.ph" });
+    const button = screen.getByRole("button", { name: /^chief.admin@megs.ph .*account menu$/i });
     expect(button).toHaveTextContent("AD");
     fireEvent.click(button);
     expect(screen.getByRole("menu").textContent?.split("chief.admin@megs.ph")).toHaveLength(2);
@@ -76,7 +76,7 @@ describe("AdminLayout Navigation & Account Menu", () => {
   it("renders Admin identity trigger button with accessible attributes in top-right header", () => {
     renderWithClient(<AdminLayout />);
 
-    const accountButton = screen.getByRole("button", { name: /Account menu for Alex Admin/i });
+    const accountButton = screen.getByRole("button", { name: /^Alex Admin .*account menu$/i });
     expect(accountButton).toBeDefined();
     expect(accountButton.getAttribute("aria-haspopup")).toBe("menu");
     expect(accountButton.getAttribute("aria-expanded")).toBe("false");
@@ -87,7 +87,7 @@ describe("AdminLayout Navigation & Account Menu", () => {
   it("opens account dropdown menu when clicking identity trigger and displays administrator details", () => {
     renderWithClient(<AdminLayout />);
 
-    const accountButton = screen.getByRole("button", { name: /Account menu for Alex Admin/i });
+    const accountButton = screen.getByRole("button", { name: /^Alex Admin .*account menu$/i });
     fireEvent.click(accountButton);
 
     expect(accountButton.getAttribute("aria-expanded")).toBe("true");
@@ -116,7 +116,7 @@ describe("AdminLayout Navigation & Account Menu", () => {
   it("navigates to Settings when clicking the account menu item", () => {
     renderWithClient(<AdminLayout />);
 
-    const accountButton = screen.getByRole("button", { name: /Account menu for Alex Admin/i });
+    const accountButton = screen.getByRole("button", { name: /^Alex Admin .*account menu$/i });
     fireEvent.click(accountButton);
 
     const settingsItem = screen.getByRole("menuitem", { name: /Settings/i });

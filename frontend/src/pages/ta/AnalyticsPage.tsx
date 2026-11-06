@@ -260,8 +260,8 @@ export const AnalyticsPage: React.FC = () => {
             </section>
 
             {/* Row 1: Pipeline stages (7 cols) paired with Starts and backouts trend (5 cols) */}
-            <div className="grid gap-5 lg:grid-cols-12">
-              <div className="min-w-0 lg:col-span-7">
+            <div className="grid gap-5 xl:grid-cols-12">
+              <div className="min-w-0 xl:col-span-7">
                 <StagePipeline
                   className="h-full"
                   rows={data.stageTable}
@@ -272,7 +272,7 @@ export const AnalyticsPage: React.FC = () => {
                   }}
                 />
               </div>
-              <div className="min-w-0 lg:col-span-5">
+              <div className="min-w-0 xl:col-span-5">
                 <LineChart
                   id="trend"
                   title="Starts and backouts"
@@ -285,11 +285,11 @@ export const AnalyticsPage: React.FC = () => {
             </div>
 
             {/* Row 2: Why candidates backed out (5 cols) paired with Due soon (7 cols) */}
-            <div className="grid gap-5 lg:grid-cols-12">
-              <div className="min-w-0 lg:col-span-5">
+            <div className="grid gap-5 xl:grid-cols-12">
+              <div className="min-w-0 xl:col-span-5">
                 <BackoutReasonsDonut data={data.backouts} className="h-full" />
               </div>
-              <div className="min-w-0 lg:col-span-7">
+              <div className="min-w-0 xl:col-span-7">
                 <DueSoonList
                   rows={data.dueSoon}
                   total={data.dueSoonTotal}
@@ -304,13 +304,6 @@ export const AnalyticsPage: React.FC = () => {
                 active={tab}
                 onChange={setTab}
                 tabs={[
-                  {
-                    key: "actions",
-                    label: "Action items",
-                    shortLabel: "Tasks",
-                    count: data.pendingActionsTotal,
-                    content: <ActionItemsList bare rows={data.pendingActions} total={data.pendingActionsTotal} />,
-                  },
                   {
                     key: "waiting",
                     label: "Overdue candidates",
@@ -330,6 +323,13 @@ export const AnalyticsPage: React.FC = () => {
                         selectable
                       />
                     ),
+                  },
+                  {
+                    key: "actions",
+                    label: "Action items",
+                    shortLabel: "Tasks",
+                    count: data.pendingActionsTotal,
+                    content: <ActionItemsList bare rows={data.pendingActions} total={data.pendingActionsTotal} />,
                   },
                   {
                     key: "requests",

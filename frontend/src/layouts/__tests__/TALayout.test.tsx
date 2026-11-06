@@ -93,7 +93,7 @@ describe("TALayout Navigation & Account Menu", () => {
   it("uses role initials and shows email once in the menu when unnamed", () => {
     identity.unnamed = true;
     renderWithClient(<TALayout />);
-    const button = screen.getByRole("button", { name: "Account menu for recruiter@megs.ph" });
+    const button = screen.getByRole("button", { name: /^recruiter@megs.ph .*account menu$/i });
     expect(button).toHaveTextContent("TA");
     fireEvent.click(button);
     expect(screen.getByRole("menu").textContent?.split("recruiter@megs.ph")).toHaveLength(2);
@@ -102,7 +102,7 @@ describe("TALayout Navigation & Account Menu", () => {
   it("renders TA identity trigger button with accessible attributes in top-right header", () => {
     renderWithClient(<TALayout />);
 
-    const accountButton = screen.getByRole("button", { name: /Account menu for Morgan Lee/i });
+    const accountButton = screen.getByRole("button", { name: /^Morgan Lee .*account menu$/i });
     expect(accountButton).toBeDefined();
     expect(accountButton.getAttribute("aria-haspopup")).toBe("menu");
     expect(accountButton.getAttribute("aria-expanded")).toBe("false");
@@ -113,7 +113,7 @@ describe("TALayout Navigation & Account Menu", () => {
   it("opens account dropdown menu when clicking identity trigger and displays recruiter details", () => {
     renderWithClient(<TALayout />);
 
-    const accountButton = screen.getByRole("button", { name: /Account menu for Morgan Lee/i });
+    const accountButton = screen.getByRole("button", { name: /^Morgan Lee .*account menu$/i });
     fireEvent.click(accountButton);
 
     expect(accountButton.getAttribute("aria-expanded")).toBe("true");
@@ -142,7 +142,7 @@ describe("TALayout Navigation & Account Menu", () => {
   it("navigates to Settings when clicking the account menu item", () => {
     renderWithClient(<TALayout />);
 
-    const accountButton = screen.getByRole("button", { name: /Account menu for Morgan Lee/i });
+    const accountButton = screen.getByRole("button", { name: /^Morgan Lee .*account menu$/i });
     fireEvent.click(accountButton);
 
     const settingsItem = screen.getByRole("menuitem", { name: /Settings/i });
@@ -156,7 +156,7 @@ describe("TALayout Navigation & Account Menu", () => {
   it("triggers sign out confirmation dialog when clicking Sign Out in account menu", async () => {
     renderWithClient(<TALayout />);
 
-    const accountButton = screen.getByRole("button", { name: /Account menu for Morgan Lee/i });
+    const accountButton = screen.getByRole("button", { name: /^Morgan Lee .*account menu$/i });
     fireEvent.click(accountButton);
 
     const signOutItem = screen.getByRole("menuitem", { name: /Sign out/i });
@@ -180,7 +180,7 @@ describe("TALayout Navigation & Account Menu", () => {
   it("closes account menu when Escape is pressed and restores focus to trigger button", () => {
     renderWithClient(<TALayout />);
 
-    const accountButton = screen.getByRole("button", { name: /Account menu for Morgan Lee/i });
+    const accountButton = screen.getByRole("button", { name: /^Morgan Lee .*account menu$/i });
     fireEvent.click(accountButton);
     expect(screen.getByRole("menu")).toBeDefined();
 
@@ -193,7 +193,7 @@ describe("TALayout Navigation & Account Menu", () => {
   it("closes account menu when clicking outside", () => {
     renderWithClient(<TALayout />);
 
-    const accountButton = screen.getByRole("button", { name: /Account menu for Morgan Lee/i });
+    const accountButton = screen.getByRole("button", { name: /^Morgan Lee .*account menu$/i });
     fireEvent.click(accountButton);
     expect(screen.getByRole("menu")).toBeDefined();
 

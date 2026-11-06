@@ -384,14 +384,14 @@ export const AdminLayout: React.FC = () => {
                 type="button"
                 onClick={() => setAccountMenuOpen((prev) => !prev)}
                 className="group min-h-11 flex items-center gap-2 sm:gap-2.5 p-1 sm:px-2 sm:py-1 rounded-md text-slate-700 hover:bg-slate-100 hover:text-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1 cursor-pointer"
-                aria-label={`Account menu for ${fullName}`}
                 aria-haspopup="menu"
                 aria-expanded={accountMenuOpen}
                 aria-controls="admin-account-menu"
               >
-                <div className="w-7 h-7 bg-navy text-white rounded-md text-xs font-bold flex items-center justify-center shrink-0">
+                <div aria-hidden="true" className="w-7 h-7 bg-navy text-white rounded-md text-xs font-bold flex items-center justify-center shrink-0">
                   {initials}
                 </div>
+                <span className="sr-only sm:hidden">{fullName}</span>
                 <div className="hidden sm:block text-left leading-tight">
                   <div className="text-xs font-bold text-slate-900 truncate max-w-[140px]">
                     {fullName}
@@ -400,6 +400,7 @@ export const AdminLayout: React.FC = () => {
                     Administrator
                   </div>
                 </div>
+                <span className="sr-only">, account menu</span>
                 <ChevronDown
                   className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-transform duration-150 shrink-0 ${
                     accountMenuOpen ? "rotate-180" : ""
