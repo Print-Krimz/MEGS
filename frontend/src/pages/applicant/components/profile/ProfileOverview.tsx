@@ -56,6 +56,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
 }) => {
   const [isDragging, setIsDragging] = React.useState(false);
   const [privacyNoticeOpen, setPrivacyNoticeOpen] = React.useState(false);
+  const [consentConfirmOpen, setConsentConfirmOpen] = React.useState(false);
   const fullName = [profile?.firstName, profile?.middleName, profile?.lastName].filter(Boolean).join(" ") || "Your candidate profile";
 
   const handleDragOver = (e: React.DragEvent<HTMLElement>) => {
@@ -185,7 +186,7 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
                 id="resume-privacy-consent"
                 checked={privacyConsented}
                 disabled={privacyConsentPending}
-                onCheckedChange={(checked) => { if (checked === true) onPrivacyConsent(); }}
+                onCheckedChange={(checked) => { if (checked === true) setConsentConfirmOpen(true); }}
                 className="mt-0.5"
               />
               <label htmlFor="resume-privacy-consent" className="text-sm leading-relaxed text-[#102A43]">
@@ -337,6 +338,35 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
           View full Privacy Notice<span className="sr-only"> (opens in a new tab)</span>
         </a>
         <Button type="button" variant="outline" onClick={() => setPrivacyNoticeOpen(false)}>Close</Button>
+      </div>
+    </Dialog>
+    <Dialog
+      open={consentConfirmOpen}
+      onClose={() => setConsentConfirmOpen(false)}
+      title="Confirm your consent"
+      size="md"
+    >
+      <p className="text-sm leading-relaxed text-[#102A43]">
+        By agreeing, you consent to MEGS collecting and processing your personal information from your job application.
+        Your uploaded resume is read by Google's Gemini AI service to fill in your profile automatically.
+      </p>
+      <a
+        href="/privacy"
+        target="_blank"
+        rel="noreferrer"
+        className="mt-3 inline-flex min-h-11 items-center rounded text-sm font-semibold text-[#0B315D] underline underline-offset-2 hover:text-[#082747] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+      >
+        Read the full Data Privacy Notice<span className="sr-only"> (opens in a new tab)</span>
+      </a>
+      <div className="mt-5 flex flex-col-reverse gap-3 border-t border-[#D9E2EC] pt-4 sm:flex-row sm:justify-end">
+        <Button type="button" variant="outline" onClick={() => setConsentConfirmOpen(false)}>Cancel</Button>
+        <Button
+          type="button"
+          disabled={privacyConsentPending}
+          onClick={() => { onPrivacyConsent(); setConsentConfirmOpen(false); }}
+        >
+          I agree
+        </Button>
       </div>
     </Dialog>
   </div>
