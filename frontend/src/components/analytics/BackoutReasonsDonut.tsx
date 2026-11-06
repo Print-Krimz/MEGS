@@ -49,58 +49,60 @@ export const BackoutReasonsDonut: React.FC<{ data: BackoutSummary; className?: s
           slices={slices}
           centerValue={String(total)}
           centerLabel={total === 1 ? "backout" : "backouts"}
-        />
-        {total > 0 && (
-          <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            <div className="rounded-md border border-slate-200 bg-slate-50/90 p-2.5 text-xs font-sans text-slate-700">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Stage timing</div>
-              <div aria-hidden="true" className="mt-1.5 flex h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
-                <span style={{ width: `${(data.backouts / total) * 100}%`, backgroundColor: "#B42318" }} />
-                <span style={{ width: `${(data.withdrawals / total) * 100}%`, backgroundColor: "#0B315D" }} />
-              </div>
-              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 tabular-nums">
-                <span>
-                  After client review: <strong className="font-bold text-[#B42318]">{data.backouts}</strong>
-                </span>
-                <span aria-hidden="true" className="text-slate-300">·</span>
-                <span>
-                  Early withdrawal: <strong className="font-bold text-navy">{data.withdrawals}</strong>
-                </span>
-                {data.noShows > 0 && (
-                  <>
+          footer={
+            total > 0 ? (
+              <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <div className="rounded-md border border-slate-200 bg-slate-50/90 p-2.5 text-xs font-sans text-slate-700">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Stage timing</div>
+                  <div aria-hidden="true" className="mt-1.5 flex h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                    <span style={{ width: `${(data.backouts / total) * 100}%`, backgroundColor: "#B42318" }} />
+                    <span style={{ width: `${(data.withdrawals / total) * 100}%`, backgroundColor: "#0B315D" }} />
+                  </div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 tabular-nums">
+                    <span>
+                      After client review: <strong className="font-bold text-[#B42318]">{data.backouts}</strong>
+                    </span>
                     <span aria-hidden="true" className="text-slate-300">·</span>
                     <span>
-                      No-shows: <strong className="font-bold text-[#9A5B00]">{data.noShows}</strong>
+                      Early withdrawal: <strong className="font-bold text-navy">{data.withdrawals}</strong>
                     </span>
-                  </>
+                    {data.noShows > 0 && (
+                      <>
+                        <span aria-hidden="true" className="text-slate-300">·</span>
+                        <span>
+                          No-shows: <strong className="font-bold text-[#9A5B00]">{data.noShows}</strong>
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                {hasPartyBreakdown && (
+                  <div className="rounded-md border border-slate-200 bg-slate-50/90 p-2.5 text-xs font-sans text-slate-700">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Initiated by</div>
+                    <div aria-hidden="true" className="mt-1.5 flex h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                      <span style={{ width: `${partyTotal > 0 ? (data.byParty.APPLICANT / partyTotal) * 100 : 0}%`, backgroundColor: "#0B315D" }} />
+                      <span style={{ width: `${partyTotal > 0 ? (data.byParty.CLIENT / partyTotal) * 100 : 0}%`, backgroundColor: "#9A5B00" }} />
+                      <span style={{ width: `${partyTotal > 0 ? (data.byParty.AGENCY / partyTotal) * 100 : 0}%`, backgroundColor: "#64748B" }} />
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 tabular-nums">
+                      <span>
+                        Applicant: <strong className="font-bold text-navy">{data.byParty.APPLICANT}</strong>
+                      </span>
+                      <span aria-hidden="true" className="text-slate-300">·</span>
+                      <span>
+                        Client: <strong className="font-bold text-[#9A5B00]">{data.byParty.CLIENT}</strong>
+                      </span>
+                      <span aria-hidden="true" className="text-slate-300">·</span>
+                      <span>
+                        Agency: <strong className="font-bold text-slate-800">{data.byParty.AGENCY}</strong>
+                      </span>
+                    </div>
+                  </div>
                 )}
               </div>
-            </div>
-            {hasPartyBreakdown && (
-              <div className="rounded-md border border-slate-200 bg-slate-50/90 p-2.5 text-xs font-sans text-slate-700">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Initiated by</div>
-                <div aria-hidden="true" className="mt-1.5 flex h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
-                  <span style={{ width: `${partyTotal > 0 ? (data.byParty.APPLICANT / partyTotal) * 100 : 0}%`, backgroundColor: "#0B315D" }} />
-                  <span style={{ width: `${partyTotal > 0 ? (data.byParty.CLIENT / partyTotal) * 100 : 0}%`, backgroundColor: "#9A5B00" }} />
-                  <span style={{ width: `${partyTotal > 0 ? (data.byParty.AGENCY / partyTotal) * 100 : 0}%`, backgroundColor: "#64748B" }} />
-                </div>
-                <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 tabular-nums">
-                  <span>
-                    Applicant: <strong className="font-bold text-navy">{data.byParty.APPLICANT}</strong>
-                  </span>
-                  <span aria-hidden="true" className="text-slate-300">·</span>
-                  <span>
-                    Client: <strong className="font-bold text-[#9A5B00]">{data.byParty.CLIENT}</strong>
-                  </span>
-                  <span aria-hidden="true" className="text-slate-300">·</span>
-                  <span>
-                    Agency: <strong className="font-bold text-slate-800">{data.byParty.AGENCY}</strong>
-                  </span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+            ) : undefined
+          }
+        />
       </div>
     </AnalyticsPanel>
   );

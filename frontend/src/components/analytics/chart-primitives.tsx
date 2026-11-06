@@ -145,16 +145,19 @@ interface DataTableToggleProps {
 /** Text alternative for a chart. The first column is the row header. */
 export const DataTableToggle: React.FC<DataTableToggleProps> = ({ caption, columns, rows, className = "", summary = "View as table" }) => (
   <details className={`group mt-3 ${className}`}>
-    <summary className="inline-flex min-h-11 cursor-pointer list-none items-center rounded-sm border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-navy hover:bg-navy-soft/50 hover:underline [&::-webkit-details-marker]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-6">
+    <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-sm border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-navy hover:bg-navy-soft/50 hover:underline [&::-webkit-details-marker]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-6">
+      <span aria-hidden="true" className="inline-block transition-transform group-open:rotate-90 motion-reduce:transition-none">
+        &#9656;
+      </span>
       {summary}
     </summary>
-    <div tabIndex={0} role="region" aria-label={caption} className="mt-2 overflow-x-auto rounded-md border border-slate-200 bg-white p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
+    <div tabIndex={0} role="region" aria-label={caption} className="clear-both mt-2.5 overflow-x-auto rounded-md border border-slate-200 bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
       <table className="w-full min-w-[18rem] text-xs tabular-nums">
         <caption className="sr-only">{caption}</caption>
         <thead>
-          <tr className="border-b border-navy-line text-left text-slate-600">
+          <tr className="border-b border-slate-200 bg-slate-50/90 text-left text-slate-700">
             {columns.map((c, i) => (
-              <th key={c} scope="col" className={`py-1.5 font-semibold ${i === 0 ? "pr-3" : "px-2 text-right"}`}>
+              <th key={c} scope="col" className={`whitespace-nowrap py-2 font-semibold ${i === 0 ? "pl-3 pr-3" : "px-2.5 text-right"}`}>
                 {c}
               </th>
             ))}
@@ -162,14 +165,14 @@ export const DataTableToggle: React.FC<DataTableToggleProps> = ({ caption, colum
         </thead>
         <tbody className="divide-y divide-slate-100">
           {rows.map((row) => (
-            <tr key={row.key}>
+            <tr key={row.key} className="hover:bg-slate-50/60">
               {row.cells.map((cell, i) =>
                 i === 0 ? (
-                  <th key={i} scope="row" className="py-1.5 pr-3 text-left font-medium text-slate-900">
+                  <th key={i} scope="row" className="whitespace-nowrap py-2 pl-3 pr-3 text-left font-medium text-slate-900">
                     {cell}
                   </th>
                 ) : (
-                  <td key={i} className="px-2 py-1.5 text-right text-slate-800">
+                  <td key={i} className="whitespace-nowrap px-2.5 py-2 text-right text-slate-800">
                     {cell}
                   </td>
                 )
@@ -202,13 +205,15 @@ interface DonutChartProps {
   /** Small text under the centre value, e.g. "backouts". */
   centerLabel?: string;
   size?: number;
+  /** Rendered below the ring/legend and above "View as table", so "View as table" stays anchored at the bottom of the panel. */
+  footer?: React.ReactNode;
 }
 
 /**
  * Ring of slices with a legend. Each legend item is a button, so keyboard users can highlight a slice too:
  * hover or focus dims the other slices and shows "{label}: {value} ({pct})". Colour never stands alone.
  */
-export const DonutChart: React.FC<DonutChartProps> = ({ label, slices, centerValue, centerLabel, size = 168 }) => {
+export const DonutChart: React.FC<DonutChartProps> = ({ label, slices, centerValue, centerLabel, size = 168, footer }) => {
   const [active, setActive] = useState<string | null>(null);
   const total = slices.reduce((sum, s) => sum + s.value, 0);
   const shown = slices.filter((s) => s.value > 0);
@@ -233,7 +238,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({ label, slices, centerVal
   return (
     // Legend goes under the ring in narrow side panels so long reason names keep one line.
     <div className="@container flex flex-1 flex-col w-full">
-      <div className="my-auto flex flex-col items-center gap-5 @sm:flex-row @sm:items-center">
+      <div className="flex flex-1 flex-col items-center justify-center gap-5 @sm:flex-row @sm:items-center">
         <div className="relative shrink-0" style={{ width: size, height: size }}>
           <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={summary} focusable="false" className="block">
             {total === 0 ? (
@@ -308,9 +313,10 @@ export const DonutChart: React.FC<DonutChartProps> = ({ label, slices, centerVal
           )}
         </div>
       </div>
+      {footer}
       {total > 0 && (
         <DataTableToggle
-          className="mt-auto pt-2.5" caption={label}
+          className="mt-auto pt-3" caption={label}
           columns={["Category", "Count", "Share"]}
           rows={slices.map((s) => ({ key: s.key, cells: [s.label, s.value, pctText(s.value, total)] }))}
         />

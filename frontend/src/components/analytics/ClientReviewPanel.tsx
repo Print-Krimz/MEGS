@@ -128,8 +128,9 @@ export const ClientReviewPanel: React.FC<ClientReviewPanelProps> = ({ data, clas
               );
             })}
           </ol>
-          <div className="mt-auto pt-2.5">
+          <div className="mt-auto pt-3">
             <DataTableToggle
+              className="mt-0"
               caption="Client review waits"
               columns={["Client", "In review", "Average days", "Limit days", "Overdue"]}
               rows={clients.map((c) => ({

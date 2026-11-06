@@ -28,7 +28,7 @@ interface LineChartProps {
 const SERIES_COLORS = [BAR_PRIMARY, TREND.backouts] as const;
 
 /** Fixed height and real pixel text: only the width follows the container, so the chart is the same height at every screen width. */
-const H = 240;
+const H = 280;
 const DEFAULT_W = 640;
 const M = { top: 18, right: 18, bottom: 28, left: 36 };
 const PLOT_H = H - M.top - M.bottom;
@@ -144,8 +144,8 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
               </span>
             )}
           </div>
-          <div ref={wrapRef} className="my-auto w-full rounded-md border border-slate-200/80 bg-[#FCFDFE] p-2">
-            <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block h-60 w-full max-w-full" role="img" aria-label={title}>
+          <div ref={wrapRef} className="flex flex-1 flex-col justify-center w-full rounded-md border border-slate-200/80 bg-[#FCFDFE] p-2">
+            <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block h-[310px] w-full max-w-full" role="img" aria-label={title}>
               <title>{title}</title>
               {xLabelIdx.map((i) => (
                 <line
@@ -226,7 +226,7 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
           </div>
           <p className="sr-only">{summary}</p>
           <DataTableToggle
-            className="mt-auto pt-3" caption={title}
+            className="mt-3" caption={title}
             columns={["Period", ...shown.map((s) => s.label)]}
             rows={points.map((p, i) => ({ key: `${i}-${p.label}`, cells: [p.label, ...shown.map((s) => p.values[s.key] ?? 0)] }))}
           />

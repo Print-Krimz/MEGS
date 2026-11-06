@@ -197,9 +197,14 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
               );
             })}
           </ol>
-          <div className="mt-auto flex flex-wrap items-start justify-between gap-x-4 pt-3">
+          <div className="relative mt-auto pt-3">
+            {footer && (
+              <div className="mb-2 inline-flex min-h-11 items-center rounded-sm border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium font-sans text-slate-700 sm:absolute sm:right-0 sm:top-3 sm:mb-0 md:min-h-6">
+                {footer}
+              </div>
+            )}
             <DataTableToggle
-              className="mt-0 min-w-[10rem] flex-1"
+              className="mt-0"
               caption="Exact counts and waits for each stage"
               columns={["Stage", "Entered", "In stage", "Overdue", "Typical wait", "Days allowed", "Backed out"]}
               rows={rows.map((r) => ({
@@ -215,11 +220,6 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
                 ],
               }))}
             />
-            {footer && (
-              <div className="flex min-h-11 items-center rounded-sm border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium font-sans text-slate-700 md:min-h-6">
-                {footer}
-              </div>
-            )}
           </div>
         </div>
       )}
