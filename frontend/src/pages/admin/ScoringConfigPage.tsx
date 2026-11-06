@@ -9,7 +9,7 @@ import {
 } from "../../components/common";
 import { Button, Dialog, Input } from "../../components/ui";
 import { formatDate, formatDateTime } from "../../lib/utils";
-import { AlertTriangle, ChevronDown, History, RotateCcw, Save } from "lucide-react";
+import { AlertTriangle, History, RotateCcw, Save } from "lucide-react";
 import { AnalyticsPanel } from "../../components/analytics";
 import { FeedbackBanner } from "./admin-ui";
 import { DEFAULT_SCORING_WEIGHTS, maxFor, normalizeScoringWeights, remainingWeight, setScoringWeight, type ScoringDimension } from "../../lib/scoring-weights";
@@ -350,57 +350,6 @@ export const ScoringConfigPage: React.FC = () => {
           </div>
         </AnalyticsPanel>
 
-        {/* Talent Discovery & Match Parameters */}
-        <AnalyticsPanel title="Who to include in matching">
-          <div className="p-3.5 space-y-4">
-            <p className="text-sm text-slate-700">
-              Only active Talent Pool members are matched. Hired and currently deployed people are always left out.
-            </p>
-
-            <details className="group border border-slate-200 rounded-md p-3">
-              <summary className="focus-ring min-h-11 md:min-h-9 rounded-md text-sm font-semibold text-slate-900 cursor-pointer flex items-center gap-1.5 list-none [&::-webkit-details-marker]:hidden">
-                <ChevronDown className="h-4 w-4 text-slate-600 transition-transform group-open:rotate-180" aria-hidden="true" />
-                 Advanced matching options
-              </summary>
-              <div className="mt-3 pt-3 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Input
-                   label="Results shown by default"
-                  type="number"
-                  min={1}
-                  max={100}
-                  step={1}
-                  value={defaultK}
-                  required
-                  onKeyDown={blockNonDigits}
-                  onChange={(e) => { if (e.target.value !== "") setDefaultK(Math.min(100, Math.round(Number(e.target.value)))); }}
-                />
-                <Input
-                   label="Maximum results"
-                  type="number"
-                  min={1}
-                  max={100}
-                  step={1}
-                  value={maximumK}
-                  error={defaultK > maximumK ? "Maximum results must be at least the default count." : undefined}
-                  required
-                  onKeyDown={blockNonDigits}
-                  onChange={(e) => { if (e.target.value !== "") setMaximumK(Math.min(100, Math.round(Number(e.target.value)))); }}
-                />
-                <Input
-                   label="Lowest accepted similarity (0–1)"
-                  type="number"
-                  step="0.0001"
-                  min={0}
-                  max={1}
-                  value={minSimilarity}
-                  required
-                  onChange={(e) => { if (e.target.value !== "") setMinSimilarity(Math.max(0, Math.min(1, Number(e.target.value)))); }}
-                />
-              </div>
-            </details>
-          </div>
-        </AnalyticsPanel>
-
         {/* Save Bar */}
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-300 bg-white p-3.5">
           <div className="text-sm">
@@ -408,7 +357,7 @@ export const ScoringConfigPage: React.FC = () => {
               <span className="text-slate-600" role="status">Ready to save</span>
             ) : (
               <span className="text-rose-800 font-semibold flex items-center gap-1.5">
-                <AlertTriangle className="w-4 h-4 text-rose-700" aria-hidden="true" /> {isWeightValid ? "Review the threshold and advanced matching options." : `${allocationText}`}
+                <AlertTriangle className="w-4 h-4 text-rose-700" aria-hidden="true" /> {isWeightValid ? "Review the threshold." : `${allocationText}`}
               </span>
             )}
           </div>
