@@ -305,6 +305,13 @@ export const AnalyticsPage: React.FC = () => {
                 onChange={setTab}
                 tabs={[
                   {
+                    key: "actions",
+                    label: "Action items",
+                    shortLabel: "Tasks",
+                    count: data.pendingActionsTotal,
+                    content: <ActionItemsList bare rows={data.pendingActions} total={data.pendingActionsTotal} />,
+                  },
+                  {
                     key: "waiting",
                     label: "Overdue candidates",
                     shortLabel: "Overdue",
@@ -323,13 +330,6 @@ export const AnalyticsPage: React.FC = () => {
                         selectable
                       />
                     ),
-                  },
-                  {
-                    key: "actions",
-                    label: "Action items",
-                    shortLabel: "Tasks",
-                    count: data.pendingActionsTotal,
-                    content: <ActionItemsList bare rows={data.pendingActions} total={data.pendingActionsTotal} />,
                   },
                   {
                     key: "requests",

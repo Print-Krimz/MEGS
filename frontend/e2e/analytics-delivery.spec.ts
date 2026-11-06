@@ -1401,7 +1401,7 @@ test.describe("Recruiter reports (/ta/analytics)", () => {
       expect(trail[i], trail[i].text).toMatchObject({ focusVisible: true, ring: true });
     }
     await page.keyboard.press("ArrowRight");
-    await expect(page.getByRole("tab", { name: /^Action items/ })).toBeFocused();
+    await expect(page.getByRole("tab", { name: /^Client requests/ })).toBeFocused();
     expect(await focusedStop(page)).toMatchObject({ role: "tab", focusVisible: true, ring: true });
   });
 
