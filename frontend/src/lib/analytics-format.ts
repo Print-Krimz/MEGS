@@ -1,6 +1,5 @@
-/** What a hidden rate says instead: nothing recorded yet, or too few cases (under 5) to be a fair figure. */
-export const sampleNote = (_n?: number): string =>
-  _n === 0 ? "No data yet" : "No data yet";
+/** What a hidden rate says instead when nothing was recorded yet. */
+export const sampleNote = (_n?: number): string => "No data yet";
 
 /** Prints a sampled rate, or says how few records stood behind a hidden one. */
 export function formatSampled(value: number | null, n: number, unit: "%" | "days"): string {

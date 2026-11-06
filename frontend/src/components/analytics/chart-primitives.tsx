@@ -233,7 +233,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({ label, slices, centerVal
   return (
     // Legend goes under the ring in narrow side panels so long reason names keep one line.
     <div className="@container flex flex-1 flex-col w-full">
-      <div className="my-auto flex flex-col items-center gap-4 @md:flex-row @md:items-center">
+      <div className="my-auto flex flex-col items-center gap-5 @sm:flex-row @sm:items-center">
         <div className="relative shrink-0" style={{ width: size, height: size }}>
           <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label={summary} focusable="false" className="block">
             {total === 0 ? (

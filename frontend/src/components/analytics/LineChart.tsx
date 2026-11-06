@@ -85,6 +85,8 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
   const xLabelSet = new Set(xLabelIdx);
 
   const summary = shown.map((s) => summarise(points, s)).join(" ");
+  const showNet = shown.length === 2 && shown[0]?.key === "starts" && shown[1]?.key === "backouts";
+  const netRetained = showNet ? totals[0] - totals[1] : null;
 
   return (
     <AnalyticsPanel tone="reports" id={id} title={title} subtitle={subtitle} className="h-full flex flex-col">
@@ -92,73 +94,94 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
         <p className="px-3.5 py-3 text-xs text-slate-600 font-sans">{emptyText}</p>
       ) : (
         <div className="flex flex-1 flex-col p-3.5">
-          <ul className="mb-3 flex flex-wrap gap-2 font-sans text-sm text-slate-900" aria-label="Legend">
-            {shown.map((s, i) => (
-              <li key={s.key} className="flex items-center gap-2 rounded-md border border-slate-300 bg-white px-2.5 py-1 font-medium">
-                {/* Solid line for the first series, dashed for the second: the two differ by shape, not only by color. */}
-                <svg width="22" height="8" className="shrink-0" aria-hidden="true">
-                  <line x1="0" x2="22" y1="4" y2="4" stroke={SERIES_COLORS[i]} strokeWidth={3} strokeLinecap="round" strokeDasharray={i === 1 ? "5 3" : undefined} />
-                </svg>
-                {s.label}
-                <strong className="text-base font-semibold tabular-nums" style={{ color: SERIES_COLORS[i] }}>{totals[i]}</strong>
-              </li>
-            ))}
-          </ul>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <ul className="flex flex-wrap gap-2 font-sans text-sm text-slate-900" aria-label="Legend">
+              {shown.map((s, i) => (
+                <li key={s.key} className="flex items-center gap-2 rounded-md border border-slate-300 bg-slate-50/70 px-2.5 py-1 font-medium">
+                  {/* Solid line for the first series, dashed for the second: the two differ by shape, not only by color. */}
+                  <span
+                    aria-hidden="true"
+                    className={
+                      i === 1
+                        ? "inline-block h-0 w-[22px] shrink-0 border-t-[3px] border-dashed"
+                        : "inline-block h-[3px] w-[22px] shrink-0 rounded-full"
+                    }
+                    style={{
+                      borderColor: SERIES_COLORS[i],
+                      backgroundColor: i === 1 ? "transparent" : SERIES_COLORS[i],
+                    }}
+                  />
+                  {s.label}
+                  <strong className="text-base font-semibold tabular-nums" style={{ color: SERIES_COLORS[i] }}>{totals[i]}</strong>
+                </li>
+              ))}
+            </ul>
+            {netRetained !== null && (
+              <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-sans text-slate-700 tabular-nums">
+                Net gain: <strong className={netRetained >= 0 ? "text-slate-950" : "text-[#B42318]"}>{netRetained > 0 ? `+${netRetained}` : netRetained}</strong>
+              </span>
+            )}
+          </div>
           <div ref={wrapRef} className="my-auto w-full">
-          <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block h-60 w-full max-w-full" role="img" aria-label={title}>
-            <title>{title}</title>
-            {ticks.map((t) => (
-              <g key={t}>
-                <line x1={M.left} x2={W - M.right} y1={y(t)} y2={y(t)} stroke={t === 0 ? "#94A3B8" : "#E2E8F0"} strokeWidth={1} />
-                <text x={M.left - 6} y={y(t) + 4} textAnchor="end" fontSize={11} fill="#475569" className="tabular-nums">
-                  {t}
-                </text>
-              </g>
-            ))}
-            {xLabelIdx.map((i) => (
-              <text key={i} x={x(i)} y={H - 8} textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"} fontSize={11} fill="#475569">
-                {points[i].label}
-              </text>
-            ))}
-            {shown.map((s, si) => ({ s, si })).reverse().map(({ s, si }) => {
-              const d = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)} ${y(p.values[s.key] ?? 0).toFixed(1)}`).join(" ");
-              const seriesMax = Math.max(0, ...points.map((p) => p.values[s.key] ?? 0));
-              return (
-                <g key={s.key}>
-                  <path d={d} fill="none" stroke={SERIES_COLORS[si]} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" strokeDasharray={si === 1 ? "6 4" : undefined} />
-                  {(points.length >= 3 || points.length === 1) &&
-                    points.map((p, i) => (
-                      <circle key={i} cx={x(i)} cy={y(p.values[s.key] ?? 0)} r={3} fill="#FFFFFF" stroke={SERIES_COLORS[si]} strokeWidth={1.5}>
-                        <title>{`${p.label}, ${s.label}: ${p.values[s.key] ?? 0}`}</title>
-                      </circle>
-                    ))}
-                  {/* The count over each non-zero point (or strided + peak on dense >14-point series so numbers do not overlap). */}
-                  {points.map((p, i) => {
-                    const v = p.values[s.key] ?? 0;
-                    if (v === 0) return null;
-                    if (points.length > 14 && !xLabelSet.has(i) && v !== seriesMax) return null;
-                    const below = si === 1 && y(v) + 16 < M.top + PLOT_H;
-                    return (
-                      <text
-                        key={`v${i}`}
-                        x={x(i)}
-                        y={below ? y(v) + 16 : y(v) - 8}
-                        textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}
-                        fontSize={11}
-                        fontWeight={600}
-                        fill="#0F172A"
-                        style={{ fontVariantNumeric: "tabular-nums" }}
-                        data-point-value=""
-                        aria-hidden="true"
-                      >
-                        {v}
-                      </text>
-                    );
-                  })}
+            <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block h-60 w-full max-w-full" role="img" aria-label={title}>
+              <title>{title}</title>
+              {ticks.map((t) => (
+                <g key={t}>
+                  <line x1={M.left} x2={W - M.right} y1={y(t)} y2={y(t)} stroke={t === 0 ? "#94A3B8" : "#E2E8F0"} strokeWidth={1} />
+                  <text x={M.left - 6} y={y(t) + 4} textAnchor="end" fontSize={11} fill="#475569" className="tabular-nums">
+                    {t}
+                  </text>
                 </g>
-              );
-            })}
-          </svg>
+              ))}
+              {xLabelIdx.map((i) => (
+                <text key={i} x={x(i)} y={H - 8} textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"} fontSize={11} fill="#475569">
+                  {points[i].label}
+                </text>
+              ))}
+              {shown.map((s, si) => ({ s, si })).reverse().map(({ s, si }) => {
+                const d = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)} ${y(p.values[s.key] ?? 0).toFixed(1)}`).join(" ");
+                const areaPoints =
+                  si === 0 && points.length >= 2
+                    ? `${x(0).toFixed(1)},${y(0).toFixed(1)} ${points.map((p, i) => `${x(i).toFixed(1)},${y(p.values[s.key] ?? 0).toFixed(1)}`).join(" ")} ${x(points.length - 1).toFixed(1)},${y(0).toFixed(1)}`
+                    : null;
+                const seriesMax = Math.max(0, ...points.map((p) => p.values[s.key] ?? 0));
+                return (
+                  <g key={s.key}>
+                    {areaPoints && <polygon points={areaPoints} fill={SERIES_COLORS[si]} fillOpacity={0.07} aria-hidden="true" />}
+                    <path d={d} fill="none" stroke={SERIES_COLORS[si]} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" strokeDasharray={si === 1 ? "6 4" : undefined} />
+                    {(points.length >= 3 || points.length === 1) &&
+                      points.map((p, i) => (
+                        <circle key={i} cx={x(i)} cy={y(p.values[s.key] ?? 0)} r={3} fill="#FFFFFF" stroke={SERIES_COLORS[si]} strokeWidth={1.5}>
+                          <title>{`${p.label}, ${s.label}: ${p.values[s.key] ?? 0}`}</title>
+                        </circle>
+                      ))}
+                    {/* The count over each non-zero point (or strided + peak on dense >14-point series so numbers do not overlap). */}
+                    {points.map((p, i) => {
+                      const v = p.values[s.key] ?? 0;
+                      if (v === 0) return null;
+                      if (points.length > 14 && !xLabelSet.has(i) && v !== seriesMax) return null;
+                      const below = si === 1 && y(v) + 16 < M.top + PLOT_H;
+                      return (
+                        <text
+                          key={`v${i}`}
+                          x={x(i)}
+                          y={below ? y(v) + 16 : y(v) - 8}
+                          textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}
+                          fontSize={11}
+                          fontWeight={600}
+                          fill="#0F172A"
+                          style={{ fontVariantNumeric: "tabular-nums" }}
+                          data-point-value=""
+                          aria-hidden="true"
+                        >
+                          {v}
+                        </text>
+                      );
+                    })}
+                  </g>
+                );
+              })}
+            </svg>
           </div>
           <p className="sr-only">{summary}</p>
           <DataTableToggle

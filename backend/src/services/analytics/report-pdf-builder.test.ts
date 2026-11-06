@@ -125,7 +125,7 @@ describe("HR PDF Report Builder Engine", () => {
     const doc = await createHRDocument({ orientation: "landscape" });
     renderCorporateHeader(doc, meta);
 
-    // 100 rows across A4 landscape generates exactly 5 pages
+    // 100 rows across A4 landscape (with the logo header) generate exactly 6 pages
     const rows = Array.from({ length: 100 }, (_, i) => [
       `#${1000 + i}`,
       `Candidate Name ${i + 1}`,
@@ -156,8 +156,8 @@ describe("HR PDF Report Builder Engine", () => {
     const pageMatches = pdfContent.match(/\/Type\s*\/Page\b/g);
     const finalPageCount = pageMatches ? pageMatches.length : 0;
 
-    // Must match exact content pages (e.g. 5) and NOT multiply into 20 due to blank pages
+    // Must match exact content pages (e.g. 6) and NOT multiply into 20 due to blank pages
     expect(finalPageCount).toBe(contentPages);
-    expect(finalPageCount).toBe(5);
+    expect(finalPageCount).toBe(6);
   });
 });

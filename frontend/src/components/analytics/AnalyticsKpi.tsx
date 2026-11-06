@@ -33,7 +33,7 @@ interface AnalyticsKpiProps {
 }
 
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus";
-const ACTIVE = `block w-full p-3.5 text-left transition-shadow motion-reduce:transition-none hover:bg-slate-50 hover:shadow-sm ${FOCUS}`;
+const ACTIVE = `group block w-full p-3.5 text-left transition-colors motion-reduce:transition-none hover:bg-navy-soft/50 ${FOCUS}`;
 
 /** A change as shown ("+3", "-1.2 days", "+4.5 pts") and as read aloud ("3", "1.2 days", "4.5 percentage points"). */
 const deltaParts = (change: number, unit: KpiDelta["unit"]) => {
@@ -102,7 +102,7 @@ export const AnalyticsKpi: React.FC<AnalyticsKpiProps> = ({ label, value, detail
     <>
       <div className="text-xs font-semibold text-slate-700">{label}</div>
       <div
-        className={`mt-1 font-display font-semibold tabular-nums ${text ? "text-base leading-9" : "whitespace-nowrap text-3xl leading-9"} ${
+        className={`mt-1 font-display font-semibold tabular-nums ${text ? "text-base leading-9" : "whitespace-nowrap text-3xl max-lg:text-2xl leading-9"} ${
           tone === "alert" ? TEXT_LOSS : text ? "text-slate-700" : "text-slate-950"
         }`}
       >
@@ -153,15 +153,23 @@ interface KpiGroupProps {
   children: React.ReactNode;
 }
 
-const SPAN: Record<number, string> = { 1: "lg:col-span-1", 2: "lg:col-span-2", 3: "lg:col-span-3", 4: "lg:col-span-4" };
+const SPAN: Record<number, string> = {
+  1: "md:col-span-1 lg:col-span-1",
+  2: "md:col-span-2 lg:col-span-2",
+  3: "md:col-span-3 lg:col-span-3",
+  4: "md:col-span-4 lg:col-span-4",
+};
 
 /** Tiles that share a time base, under one label. */
 export const KpiGroup: React.FC<KpiGroupProps> = ({ label, children }) => (
   // A group spans as many columns as it has tiles, so every tile in the row is the same width.
   <section aria-label={label} className={`flex min-w-0 flex-col ${SPAN[React.Children.count(children)] ?? ""}`}>
-    <h3 className="mb-1.5 text-xs font-semibold text-slate-700">{label}</h3>
+    <h3 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-700">
+      <span aria-hidden="true" className={label === "Right now" ? "h-1.5 w-1.5 rounded-full bg-navy" : "h-1.5 w-1.5 rounded-full bg-slate-400"} />
+      {label}
+    </h3>
     {/* A lone tile fills its group; two columns would leave it half width. */}
-    <div className={`grid ${React.Children.count(children) === 1 ? "grid-cols-1" : "grid-cols-2"} flex-1 overflow-hidden rounded-md divide-x divide-y divide-slate-300 border border-slate-300 bg-white md:grid-flow-col md:auto-cols-fr md:divide-y-0 max-md:[&>*:last-child:nth-child(odd)]:col-span-2`}>
+    <div className={`grid ${React.Children.count(children) === 1 ? "grid-cols-1" : "grid-cols-2"} flex-1 overflow-hidden rounded-md divide-x divide-y divide-slate-200 border border-slate-300 bg-white shadow-xs md:grid-flow-col md:auto-cols-fr md:divide-y-0 max-md:[&>*:last-child:nth-child(odd)]:col-span-2`}>
       {children}
     </div>
   </section>
@@ -180,7 +188,7 @@ export const KpiRow: React.FC<KpiRowProps> = ({ children, definitions }) => {
     (sum, group) => sum + (React.isValidElement<{ children?: React.ReactNode }>(group) ? React.Children.count(group.props.children) : 1),
     0,
   );
-  const gridCols = totalTiles === 5 ? "lg:grid-cols-5" : "lg:grid-cols-4";
+  const gridCols = totalTiles === 5 ? "md:grid-cols-5 lg:grid-cols-5" : "md:grid-cols-4 lg:grid-cols-4";
   return (
     <div>
       <div className={`grid gap-3 ${gridCols} md:gap-4`}>{children}</div>
@@ -191,7 +199,7 @@ export const KpiRow: React.FC<KpiRowProps> = ({ children, definitions }) => {
           </span>
           How these are counted
         </summary>
-        <dl className="mt-1 grid gap-x-4 gap-y-1.5 text-xs text-slate-700 sm:grid-cols-[max-content_1fr]">
+        <dl className="mt-1.5 grid gap-x-4 gap-y-1.5 rounded-md border border-slate-200 bg-slate-50/80 p-3 text-xs text-slate-700 sm:grid-cols-[max-content_1fr]">
           {definitions.map((d) => (
             <React.Fragment key={d.label}>
               <dt className="font-semibold text-slate-900">{d.label}</dt>
@@ -207,7 +215,7 @@ export const KpiRow: React.FC<KpiRowProps> = ({ children, definitions }) => {
 /** Plain grid of tiles for pages that show a few headline numbers with no time-base groups or definitions. */
 export const KpiStrip: React.FC<{ children: React.ReactNode; columns: string }> = ({ children, columns }) => (
   <div
-    className={`grid grid-cols-2 ${columns} overflow-hidden rounded-md border border-slate-300 bg-white divide-x divide-y md:divide-y-0 divide-slate-300 max-md:[&>*:last-child:nth-child(odd)]:col-span-2`}
+    className={`grid grid-cols-2 ${columns} overflow-hidden rounded-md border border-slate-300 bg-white shadow-xs divide-x divide-y md:divide-y-0 divide-slate-200 max-md:[&>*:last-child:nth-child(odd)]:col-span-2`}
   >
     {children}
   </div>

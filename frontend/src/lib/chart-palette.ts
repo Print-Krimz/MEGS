@@ -82,7 +82,7 @@ export const OUTCOME = {
 
 /** Who caused a backout. */
 export const RESPONSIBILITY = {
-  APPLICANT: "#6D4FB5",
+  APPLICANT: "#1D4ED8",
   CLIENT: "#9A5B00",
   AGENCY: "#3B4A63",
 } as const;
@@ -122,7 +122,7 @@ export const NEUTRAL_MARK = "#4B5563";
  * Categorical slices for a split by reason (DonutChart). Hues used nowhere else in Reports: no red, blue, amber or
  * navy, so a reason never reads as an outcome or a stage. "Other" is last and neutral. Asserted >= 3:1 in chart-primitives.test.tsx.
  */
-export const REASON_COLORS = ["#7A3E9D", "#2E7D4F", "#8A5A2B", "#5B6B12", NEUTRAL_MARK] as const;
+export const REASON_COLORS = ["#0F5288", "#2E7D4F", "#8A5A2B", "#5B6B12", NEUTRAL_MARK] as const;
 
 export type HealthKey = "onTrack" | "watch" | "atRisk" | "bottleneck" | "overdue" | "filled";
 

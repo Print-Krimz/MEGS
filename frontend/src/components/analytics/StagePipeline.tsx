@@ -45,7 +45,7 @@ const avgText = (row: StageTableRow) => {
 };
 
 // Phones: name and count on one line, the bar full width under them. Wider screens: three aligned columns.
-const ROW_GRID = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 @xl:grid-cols-[9rem_minmax(0,1fr)_14rem] @xl:gap-y-0";
+const ROW_GRID = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 @xl:grid-cols-[9.5rem_minmax(0,1fr)_14.5rem] @xl:gap-y-0";
 const BAR_CELL = "col-span-2 row-start-2 @xl:col-span-1 @xl:col-start-2 @xl:row-start-1";
 
 /**
@@ -56,22 +56,37 @@ const BAR_CELL = "col-span-2 row-start-2 @xl:col-span-1 @xl:col-start-2 @xl:row-
 export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStage, linkStages = false, everyRow = false, footer, className }) => {
   const empty = rows.every((r) => r.inStageNow === 0 && r.entered === 0 && r.backedOut === 0);
   const maxInStage = Math.max(1, ...rows.map((r) => r.inStageNow));
+  const activeInPipeline = rows.filter((r) => r.stage !== "DEPLOYED").reduce((sum, r) => sum + r.inStageNow, 0);
+  const totalOverdue = rows.reduce((sum, r) => sum + overdueIn(r), 0);
   const baseId = useId();
 
   return (
-    <AnalyticsPanel tone="reports" id="stage-pipeline" title="Candidates by stage" className={`flex flex-col ${className ?? ""}`}>
+    <AnalyticsPanel
+      tone="reports"
+      id="stage-pipeline"
+      title="Candidates by stage"
+      aside={
+        !empty ? (
+          <span className="tabular-nums font-medium text-slate-700">
+            <strong className="text-slate-900">{activeInPipeline}</strong> active
+            {totalOverdue > 0 && <span className={`font-semibold ${TEXT_LOSS}`}> · {totalOverdue} overdue</span>}
+          </span>
+        ) : undefined
+      }
+      className={`flex flex-col ${className ?? ""}`}
+    >
       {empty ? (
         <p className="p-4 text-center text-xs text-slate-600 font-sans">No candidates in the pipeline and none moved in these dates.</p>
       ) : (
         <div className="@container flex flex-1 flex-col p-3.5">
-          <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs font-sans text-slate-600">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs font-sans text-slate-600">
             <p>How many candidates are in each stage right now. Red is the part past the stage&apos;s days allowed.</p>
             <div className="flex items-center gap-3" data-testid="stage-legend">
               {[
                 ["On track", BAR_ON_TRACK],
                 ["Overdue", WORKLOAD.overdue],
               ].map(([name, color]) => (
-                <span key={name} className="flex items-center gap-1">
+                <span key={name} className="flex items-center gap-1 font-medium text-slate-700">
                   <span aria-hidden="true" className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: color }} />
                   {name}
                 </span>
@@ -118,7 +133,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
                   {(link || pick) && <span className="sr-only">. Show these candidates</span>}
                 </>
               );
-              const frame = `${ROW_GRID} w-full px-1.5 py-1.5 text-left`;
+              const frame = `${ROW_GRID} w-full rounded-sm px-1.5 py-2 text-left transition-colors motion-reduce:transition-none`;
               const hover = "hover:bg-navy-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
               return (
                 <li key={row.stage} className="min-w-0 border-b border-slate-200 last:border-b-0">
@@ -139,25 +154,25 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
               );
             })}
           </ol>
-          <div className="mt-auto flex flex-wrap items-start justify-between gap-x-4 pt-2">
-          <DataTableToggle
-            className="mt-0 min-w-[10rem] flex-1"
-            caption="Exact counts and waits for each stage"
-            columns={["Stage", "Entered", "In stage", "Overdue", "Typical wait", "Days allowed", "Backed out"]}
-            rows={rows.map((r) => ({
-              key: r.stage,
-              cells: [
-                r.label,
-                r.entered,
-                r.inStageNow,
-                overdueText(r),
-                waitText(r),
-                limitText(r),
-                r.backedOut,
-              ],
-            }))}
-          />
-          {footer && <div className="flex min-h-11 items-center text-xs font-sans text-slate-700 md:min-h-6">{footer}</div>}
+          <div className="mt-auto flex flex-wrap items-start justify-between gap-x-4 pt-2.5">
+            <DataTableToggle
+              className="mt-0 min-w-[10rem] flex-1"
+              caption="Exact counts and waits for each stage"
+              columns={["Stage", "Entered", "In stage", "Overdue", "Typical wait", "Days allowed", "Backed out"]}
+              rows={rows.map((r) => ({
+                key: r.stage,
+                cells: [
+                  r.label,
+                  r.entered,
+                  r.inStageNow,
+                  overdueText(r),
+                  waitText(r),
+                  limitText(r),
+                  r.backedOut,
+                ],
+              }))}
+            />
+            {footer && <div className="flex min-h-11 items-center text-xs font-sans text-slate-700 md:min-h-6">{footer}</div>}
           </div>
         </div>
       )}

@@ -1,7 +1,7 @@
 import React from "react";
 import { AlertTriangle } from "lucide-react";
 import type { ClientReview } from "../../lib/types/analytics.types";
-import { BAR_ON_TRACK, TEXT_AMBER, WORKLOAD } from "../../lib/chart-palette";
+import { BAR_ON_TRACK, TEXT_AMBER, TEXT_LOSS, WORKLOAD } from "../../lib/chart-palette";
 import { formatSampled } from "../../lib/analytics-format";
 import { AnalyticsPanel } from "./AnalyticsPanel";
 import { DataTableToggle, StackedBar } from "./chart-primitives";
@@ -19,6 +19,7 @@ const days = (n: number) => `${n} ${n === 1 ? "day" : "days"}`;
 export const ClientReviewPanel: React.FC<ClientReviewPanelProps> = ({ data, className, onSelectClient }) => {
   const { clients } = data;
   const scale = Math.max(1, ...clients.map((c) => Math.max(c.avgDays ?? 0, c.limitDays)));
+  const overLimitCount = clients.filter((c) => c.avgDays !== null && c.avgDays > c.limitDays).length;
 
   return (
     <AnalyticsPanel
@@ -26,6 +27,14 @@ export const ClientReviewPanel: React.FC<ClientReviewPanelProps> = ({ data, clas
       id="client-review"
       title="Slowest client reviews"
       subtitle="Average days in client review vs each client's limit"
+      aside={
+        clients.length > 0 ? (
+          <span className="tabular-nums font-medium text-slate-700">
+            <strong className="text-slate-900">{data.sample}</strong> in review
+            {overLimitCount > 0 && <span className={`font-semibold ${TEXT_LOSS}`}> · {overLimitCount} past limit</span>}
+          </span>
+        ) : undefined
+      }
       className={`flex flex-col ${className ?? ""}`}
     >
       {clients.length === 0 ? (
@@ -38,7 +47,7 @@ export const ClientReviewPanel: React.FC<ClientReviewPanelProps> = ({ data, clas
             {clients.map((c, i) => {
               const over = c.avgDays !== null && c.avgDays > c.limitDays;
               return (
-                <li key={c.clientId} className="py-2">
+                <li key={c.clientId} className="py-2.5">
                   <div className="flex items-baseline justify-between gap-3 text-xs font-sans">
                     <span className="min-w-0 truncate font-semibold text-slate-900">
                       <span className="mr-1.5 tabular-nums text-slate-600">{i + 1}.</span>
@@ -62,7 +71,7 @@ export const ClientReviewPanel: React.FC<ClientReviewPanelProps> = ({ data, clas
                   </div>
                   {c.avgDays !== null && (
                     <StackedBar
-                      className="mt-1"
+                      className="mt-1.5"
                       label={`${c.clientName}, average ${days(c.avgDays)}, limit ${days(c.limitDays)}`}
                       heightClass="h-2"
                       max={scale}
@@ -73,15 +82,15 @@ export const ClientReviewPanel: React.FC<ClientReviewPanelProps> = ({ data, clas
                       ]}
                     />
                   )}
-                  <p className="mt-0.5 text-xs font-sans tabular-nums text-slate-600">
+                  <p className="mt-1 text-xs font-sans tabular-nums text-slate-600">
                     {c.inReview} in review · limit {days(c.limitDays)}
-                    {c.overdue > 0 && ` · ${c.overdue} overdue`}
+                    {c.overdue > 0 && <span className={`font-semibold ${TEXT_LOSS}`}>{` · ${c.overdue} overdue`}</span>}
                   </p>
                 </li>
               );
             })}
           </ol>
-          <div className="mt-auto pt-2">
+          <div className="mt-auto pt-2.5">
             <DataTableToggle
               caption="Client review waits"
               columns={["Client", "In review", "Average days", "Limit days", "Overdue"]}

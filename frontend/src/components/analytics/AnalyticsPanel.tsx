@@ -33,8 +33,8 @@ export const AnalyticsPanel: React.FC<AnalyticsPanelProps> = ({ id, title, subti
     );
   }
   return (
-    <section id={id} className={`scroll-mt-4 rounded-md border ${reports ? "border-slate-300 bg-white" : "border-navy-line bg-white"} ${className}`}>
-      <div className={`px-3.5 py-2.5 border-b ${reports ? "border-slate-200 bg-white" : "border-navy-line bg-navy-soft"} flex items-center justify-between gap-3`}>
+    <section id={id} className={`scroll-mt-4 rounded-md border ${reports ? "border-slate-300 bg-white shadow-xs" : "border-navy-line bg-white"} ${className}`}>
+      <div className={`px-3.5 py-2.5 border-b ${reports ? "border-slate-200 bg-slate-50/70" : "border-navy-line bg-navy-soft"} flex items-center justify-between gap-3`}>
         <div className="min-w-0 flex items-center gap-2">
           <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
           {subtitle && !reports && <InfoTip label={title}>{subtitle}</InfoTip>}

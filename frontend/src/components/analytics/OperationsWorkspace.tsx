@@ -38,9 +38,9 @@ export function OperationsWorkspace<K extends string>({ tabs, active, onChange, 
   };
 
   return (
-    <section id={id} aria-label="Operations workspace" className="scroll-mt-4 overflow-hidden rounded-md border border-slate-300 bg-white">
+    <section id={id} aria-label="Operations workspace" className="scroll-mt-4 overflow-hidden rounded-md border border-slate-300 bg-white shadow-xs">
       {banner}
-      <div role="tablist" aria-label="Lists to work through" className="flex overflow-x-auto border-b border-slate-300 bg-slate-100">
+      <div role="tablist" aria-label="Lists to work through" className="flex overflow-x-auto border-b border-slate-300 bg-slate-100/90">
         {tabs.map((tab, index) => {
           const selected = tab.key === active;
           return (
@@ -57,8 +57,8 @@ export function OperationsWorkspace<K extends string>({ tabs, active, onChange, 
               tabIndex={selected ? 0 : -1}
               onClick={() => onChange(tab.key)}
               onKeyDown={(event) => onKeyDown(event, index)}
-              className={`min-h-11 flex-1 sm:flex-none sm:shrink-0 border-r border-slate-300 px-4 text-sm font-semibold font-sans focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus ${
-                selected ? "bg-white text-slate-950 border-b-2 border-b-navy -mb-px" : "text-slate-600 hover:bg-slate-200"
+              className={`min-h-11 flex-1 sm:flex-none sm:shrink-0 border-r border-slate-300 px-4 text-sm font-semibold font-sans transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus ${
+                selected ? "bg-white text-slate-950 border-b-2 border-b-navy -mb-px" : "text-slate-600 hover:bg-slate-200/80 hover:text-slate-900"
               }`}
             >
               {tab.shortLabel ? (
@@ -69,7 +69,15 @@ export function OperationsWorkspace<K extends string>({ tabs, active, onChange, 
               ) : (
                 tab.label
               )}{" "}
-              {showCounts && <span className="ml-1 tabular-nums text-xs font-normal">{tab.count}</span>}
+              {showCounts && (
+                <span
+                  className={`ml-1 rounded-sm px-1.5 py-0.5 tabular-nums text-xs ${
+                    selected ? "bg-navy-soft font-semibold text-navy" : "bg-slate-200/80 font-normal text-slate-700"
+                  }`}
+                >
+                  {tab.count}
+                </span>
+              )}
             </button>
           );
         })}

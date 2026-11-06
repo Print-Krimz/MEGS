@@ -25,7 +25,20 @@ export const DueSoonList: React.FC<DueSoonListProps> = ({ rows, total, viewer, s
   const shown = expanded ? rows : rows.slice(0, SHOWN);
 
   return (
-    <AnalyticsPanel tone="reports" id="due-soon" title="Due soon" subtitle="Reach the stage limit within 2 days" className={`flex flex-col ${className ?? ""}`}>
+    <AnalyticsPanel
+      tone="reports"
+      id="due-soon"
+      title="Due soon"
+      subtitle="Reach the stage limit within 2 days"
+      aside={
+        total > 0 ? (
+          <span className="tabular-nums font-medium text-slate-700">
+            <strong className="text-slate-900">{total}</strong> approaching limit
+          </span>
+        ) : undefined
+      }
+      className={`flex flex-col ${className ?? ""}`}
+    >
       {shown.length === 0 ? (
         <p className="p-4 text-center text-xs text-slate-600 font-sans">Nothing due in the next 2 days.</p>
       ) : (
@@ -35,10 +48,20 @@ export const DueSoonList: React.FC<DueSoonListProps> = ({ rows, total, viewer, s
               <li key={r.applicationId} className="flex items-center justify-between gap-3 py-2.5">
                 {/* 1. Candidate name first, 2. Supporting details second */}
                 <div className="min-w-0 text-xs font-sans">
-                  <p className="truncate text-sm font-semibold text-slate-950">{r.candidateName}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm font-semibold text-slate-950">{r.candidateName}</p>
+                    <span
+                      className={`shrink-0 rounded-sm px-1.5 py-0.5 text-xs font-semibold tabular-nums ${
+                        r.daysLeft === 0 ? "bg-[#FFF4DC] text-[#7A4800]" : TEXT_AMBER
+                      }`}
+                    >
+                      {dueText(r.daysLeft)}
+                    </span>
+                  </div>
                   <p className="truncate text-xs text-slate-600 mt-0.5">
                     {r.jobTitle ? <span>{r.jobTitle} · </span> : null}
-                    {r.stageLabel} · <span className={`font-semibold tabular-nums ${TEXT_AMBER}`}>{dueText(r.daysLeft)}</span>
+                    {r.stageLabel}
+                    <span className="tabular-nums text-slate-500">{` · ${r.daysInStage} of ${r.slaDays} days`}</span>
                   </p>
                 </div>
                 {/* 3. Quick View tertiary */}
@@ -46,7 +69,7 @@ export const DueSoonList: React.FC<DueSoonListProps> = ({ rows, total, viewer, s
                   type="button"
                   aria-label={`Quick view: ${r.candidateName}`}
                   onClick={() => setOpenId(r.applicationId)}
-                  className="inline-flex min-h-11 shrink-0 items-center px-1 text-xs font-medium text-slate-600 underline underline-offset-2 decoration-slate-300 hover:text-navy hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9"
+                  className="inline-flex min-h-11 shrink-0 items-center rounded-md border border-slate-200 bg-slate-50 px-2.5 text-xs font-semibold text-navy hover:border-navy-line hover:bg-navy-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-8"
                 >
                   Quick view
                 </button>
@@ -54,7 +77,7 @@ export const DueSoonList: React.FC<DueSoonListProps> = ({ rows, total, viewer, s
             ))}
           </ul>
           {(total > shown.length || rows.length > SHOWN) && (
-            <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-200 px-3.5 py-2 text-xs font-sans text-slate-600">
+            <div className="mt-auto flex items-center justify-between gap-2 border-t border-slate-200 bg-slate-50/60 px-3.5 py-2 text-xs font-sans text-slate-600">
               {total > shown.length ? <span>+{total - shown.length} more</span> : <span />}
               {rows.length > SHOWN && (
                 <button

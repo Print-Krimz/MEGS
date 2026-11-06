@@ -426,7 +426,7 @@ export const AdminAnalyticsPage: React.FC = () => {
                 label: "Recruiters",
                 shortLabel: "Recruiters",
                 count: data.team.length,
-                content: <TeamTable bare rows={data.team} selectedRecruiterId={filters.recruiterId} onSelectRecruiter={selectRecruiter} onViewOverdue={viewRecruiterOverdue} />,
+                content: <TeamTable bare rows={data.team} unassigned={data.unassigned} selectedRecruiterId={filters.recruiterId} onSelectRecruiter={selectRecruiter} onViewOverdue={viewRecruiterOverdue} />,
               },
             ]}
           />

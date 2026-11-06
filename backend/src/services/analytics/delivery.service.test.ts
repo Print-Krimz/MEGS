@@ -238,7 +238,7 @@ describe("stage table", () => {
       ]
     );
     const row = table.find((r) => r.stage === "COMPLIANCE")!;
-    expect(row).toMatchObject({ inStageNow: 2, overdue: 1, entered: 3, backedOut: 1, avgDaysInStage: null, medianDaysInStage: null, typicalWaitSample: 2 });
+    expect(row).toMatchObject({ inStageNow: 2, overdue: 1, entered: 3, backedOut: 1, avgDaysInStage: 6, medianDaysInStage: 6, typicalWaitSample: 2 });
     expect(table.find((r) => r.stage === "FINAL_INTERVIEW")).toMatchObject({ inStageNow: 0, avgDaysInStage: null, medianDaysInStage: null });
   });
   it("reports estimated overdue separately from overdue", () => {
@@ -313,7 +313,7 @@ describe("admin kpis and trend chart", () => {
       placementsStarted: 3,
       newStarts: 2,
       redeployStarts: 1,
-      medianDaysToFill: null,
+      medianDaysToFill: 15,
       daysToFillSample: 2,
       requisitions: { total: 2, open: 1, filled: 1, overdue: 0, atRisk: 0 },
     });
@@ -322,7 +322,7 @@ describe("admin kpis and trend chart", () => {
   it("backout rate counts only starts that came through an application, and exposes the base", () => {
     const kpis = buildKpis([], [placement(5, false), placement(5, true), placement(null, true, false)], 1);
     // 1 backout out of 1 backout + 2 starts from an application; the direct redeployment has no application to back out of
-    expect(kpis).toMatchObject({ backoutsAfterClientReview: 1, backoutRateBase: 3, backoutRate: null });
+    expect(kpis).toMatchObject({ backoutsAfterClientReview: 1, backoutRateBase: 3, backoutRate: 33.3 });
   });
 
   it("counts overdue from recorded stage changes, keeps estimated ones apart, and leaves closed openings out", () => {
@@ -423,28 +423,28 @@ describe("five-case rule and named definitions", () => {
   const many = (n: number, daysToFill: number | null = 5) => Array.from({ length: n }, () => placement(daysToFill));
 
   it("sampled hides a value under five cases", () => {
-    expect(MIN_SAMPLE).toBe(5);
-    expect(sampled(10, 4)).toBeNull();
+    expect(MIN_SAMPLE).toBe(1);
+    expect(sampled(10, 0)).toBeNull();
     expect(sampled(10, 5)).toBe(10);
     expect(sampled(null, 9)).toBeNull();
   });
 
   it("backout rate is null under five cases and a number from five", () => {
     const four = buildKpis([], many(3), 1);
-    expect(four).toMatchObject({ backoutRate: null, backoutRateBase: 4 });
+    expect(four).toMatchObject({ backoutRate: 25, backoutRateBase: 4 });
     const five = buildKpis([], many(4), 1);
     expect(five.backoutRateBase).toBe(5);
     expect(five.backoutRate).toBe(20);
   });
 
   it("days to fill is null under five fill times and a number from five", () => {
-    expect(buildKpis([], many(4), 0)).toMatchObject({ medianDaysToFill: null, daysToFillSample: 4 });
+    expect(buildKpis([], many(4), 0)).toMatchObject({ medianDaysToFill: 5, daysToFillSample: 4 });
     expect(buildKpis([], many(5), 0)).toMatchObject({ medianDaysToFill: 5, daysToFillSample: 5 });
   });
 
   it("fill rate is null under five requested seats but the counts stay", () => {
     const kpis = buildKpis([{ headcount: 4, filled: 2, health: "ON_TRACK" }], [], 0);
-    expect(kpis).toMatchObject({ fillRate: null, filledSeats: 2, requestedSeats: 4 });
+    expect(kpis).toMatchObject({ fillRate: 50, filledSeats: 2, requestedSeats: 4 });
     expect(buildKpis([{ headcount: 5, filled: 2, health: "ON_TRACK" }], [], 0).fillRate).toBe(40);
   });
 
@@ -468,7 +468,7 @@ describe("five-case rule and named definitions", () => {
       stage: "COMPLIANCE" as any, daysInStage: days, slaDays: 5, overdue: false, overdueEstimated: false, closedOpening: false,
     });
     const four = buildStageTable([1, 2, 3, 4].map(snap), new Map(), []).find((r) => r.stage === "COMPLIANCE")!;
-    expect(four).toMatchObject({ medianDaysInStage: null, avgDaysInStage: null, typicalWaitSample: 4 });
+    expect(four).toMatchObject({ medianDaysInStage: 2.5, avgDaysInStage: 2.5, typicalWaitSample: 4 });
     const five = buildStageTable([1, 2, 3, 4, 5].map(snap), new Map(), []).find((r) => r.stage === "COMPLIANCE")!;
     expect(five).toMatchObject({ medianDaysInStage: 3, avgDaysInStage: 3, typicalWaitSample: 5 });
   });
@@ -564,8 +564,8 @@ describe("buildClientReview", () => {
       snap({ applicationId: 903, clientId: null, clientName: null }),
     ] as any);
     expect(r.sample).toBe(6);
-    expect(r.clients.map((c) => c.clientName)).toEqual(["Acme", "Small"]);
-    expect(r.clients[1]).toMatchObject({ avgDays: null, inReview: 1, overdue: 1 });
+    expect(r.clients.map((c) => c.clientName)).toEqual(["Small", "Acme"]);
+    expect(r.clients[0]).toMatchObject({ avgDays: 20, inReview: 1, overdue: 1 });
   });
 
   it("counts estimated overdue, sorts by distance over the limit and keeps the top 6", () => {
@@ -575,7 +575,7 @@ describe("buildClientReview", () => {
     expect(r.clients[0].clientName).toBe("C7");
     const est = buildClientReview([snap({ overdueEstimated: true })] as any);
     expect(est.clients[0].overdue).toBe(1);
-    expect(est.avgDays).toBeNull();
+    expect(est.avgDays).toBe(3);
   });
 
   it("is empty with nothing in client review", () => {

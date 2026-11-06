@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import type { TeamRow } from "../../lib/types/analytics.types";
+import type { TeamRow, UnassignedWork } from "../../lib/types/analytics.types";
 import { sampleNote } from "../../lib/analytics-format";
 import { formatRecruiterName } from "../../lib/recruiter-label";
 import { AnalyticsPanel } from "./AnalyticsPanel";
@@ -19,6 +19,8 @@ interface TeamTableProps {
   subtitle?: string;
   /** Filters the page to this recruiter and opens their overdue candidates. Without it the overdue count is plain text. */
   onViewOverdue?: (recruiterId: string) => void;
+  /** Unassigned applicants and client requests not yet assigned to a recruiter. */
+  unassigned?: UnassignedWork;
 }
 
 type SortKey = "name" | "active" | "overdue" | "openRequisitions" | "seats" | "placed" | "backoutRate" | "medianDaysToFill";
@@ -65,7 +67,7 @@ const compare = (a: TeamRow, b: TeamRow, { key, dir }: Sort): number => {
   return dir === "asc" ? order : -order;
 };
 
-const TD = "px-3 py-2 text-right tabular-nums whitespace-nowrap text-slate-700 align-top";
+const TD = "px-3 py-2.5 text-right tabular-nums whitespace-nowrap text-slate-700 align-top";
 const SUB = "block text-xs font-normal";
 
 /** A recruiter flag: what it says and how it reads (red = act now, amber = watch, green = strong). */
@@ -130,6 +132,7 @@ export const TeamTable = React.memo(function TeamTable({
   initialQuery = "",
   subtitle = "Select a row to filter the whole page to that recruiter. Active, Overdue, Open requests and Seats filled are right now. Starts, Backout rate and Days to fill use the dates above.",
   onViewOverdue,
+  unassigned,
 }: TeamTableProps) {
   const [query, setQuery] = useState(initialQuery);
   const [page, setPage] = useState(1);
@@ -159,9 +162,11 @@ export const TeamTable = React.memo(function TeamTable({
     setPage(1);
   };
 
+  const hasUnassigned = Boolean(unassigned && (unassigned.applicants > 0 || unassigned.requests > 0));
+
   return (
     <AnalyticsPanel tone="reports" id="recruiter-table" title="Recruiters" subtitle={subtitle} bare={bare}>
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-slate-200 px-3.5 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-slate-200 px-3.5 py-2.5">
         <label className="flex items-center gap-2 text-xs text-slate-700">
           <span className="text-xs font-semibold text-slate-600">Search</span>
           <input
@@ -187,7 +192,7 @@ export const TeamTable = React.memo(function TeamTable({
       ) : (
         <div className="relative max-h-[32rem] overflow-auto">
           <table className="w-full min-w-[50rem] text-sm">
-            <thead className="sticky top-0 z-10 bg-white shadow-[inset_0_-1px_0_var(--color-ta-line)]">
+            <thead className="sticky top-0 z-10 bg-slate-50/95 shadow-[inset_0_-1px_0_var(--color-ta-line)]">
               <tr>
                 {COLUMNS.map((col) => {
                   const active = shown.key === col.key;
@@ -213,7 +218,7 @@ export const TeamTable = React.memo(function TeamTable({
                 })}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-200">
               {pageRows.map((row) => {
                 const selected = row.recruiterId === selectedRecruiterId;
                 const { label, email } = formatRecruiterName(row.name);
@@ -229,7 +234,7 @@ export const TeamTable = React.memo(function TeamTable({
                     onClick={toggle}
                     className={`cursor-pointer transition-colors hover:bg-navy-soft motion-reduce:transition-none ${selected ? "bg-navy-soft outline outline-1 -outline-offset-1 outline-navy" : ""}`}
                   >
-                    <th scope="row" className="px-3 py-2 text-left font-sans font-semibold whitespace-nowrap align-top">
+                    <th scope="row" className="px-3 py-2.5 text-left font-sans font-semibold whitespace-nowrap align-top">
                       <button
                         type="button"
                         aria-pressed={selected}
@@ -319,6 +324,19 @@ export const TeamTable = React.memo(function TeamTable({
               })}
             </tbody>
           </table>
+        </div>
+      )}
+      {hasUnassigned && unassigned && (
+        <div className="border-t border-slate-200 bg-slate-50/70 px-3.5 py-2 text-xs font-sans text-slate-700 tabular-nums">
+          <span className="font-semibold text-slate-900">Unassigned work:</span>{" "}
+          {unassigned.applicants} active {unassigned.applicants === 1 ? "applicant" : "applicants"}
+          {unassigned.overdue + unassigned.overdueEstimated > 0 && (
+            <span className={`font-semibold ${TEXT_LOSS}`}>
+              {` (${unassigned.overdue + unassigned.overdueEstimated} overdue)`}
+            </span>
+          )}
+          {" · "}
+          {unassigned.requests} open {unassigned.requests === 1 ? "request" : "requests"} ({unassigned.requestedSeats} {unassigned.requestedSeats === 1 ? "seat" : "seats"})
         </div>
       )}
       <PaginationBar page={currentPage} pageSize={pageSize} total={visible.length} onPageChange={setPage} noun="recruiters" />
