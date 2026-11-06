@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { User } from "lucide-react";
 import type { DueSoonCandidate } from "../../lib/types/analytics.types";
 import { TEXT_AMBER } from "../../lib/chart-palette";
 import { AnalyticsPanel } from "./AnalyticsPanel";
@@ -71,37 +70,29 @@ export const DueSoonList: React.FC<DueSoonListProps> = ({ rows, total, viewer, s
               return (
                 <li key={r.applicationId} className="flex items-center justify-between gap-3 py-3 transition-colors hover:bg-slate-50/70">
                   {/* 1. Candidate name first, 2. Supporting details second */}
-                  <div className="flex min-w-0 items-center gap-3 text-xs font-sans">
-                    <span
-                      aria-hidden="true"
-                      className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border border-navy-line bg-navy-soft text-navy sm:inline-flex"
-                    >
-                      <User className="h-3.5 w-3.5" aria-hidden="true" />
-                    </span>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-semibold text-slate-950">{r.candidateName}</p>
-                        <span
-                          className={`shrink-0 rounded-sm border px-1.5 py-0.5 text-xs font-semibold tabular-nums ${
-                            r.daysLeft === 0
-                              ? "border-[#F3D19E] bg-[#FFF4DC] text-[#7A4800]"
-                              : `border-slate-200 bg-slate-50 ${TEXT_AMBER}`
-                          }`}
-                        >
-                          {dueText(r.daysLeft)}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 truncate text-xs text-slate-600">
-                        {r.jobTitle ? <span>{r.jobTitle} · </span> : null}
-                        {r.stageLabel}
-                        <span className="tabular-nums text-slate-500">{` · ${r.daysInStage} of ${r.slaDays} days`}</span>
-                      </p>
-                      <div aria-hidden="true" className="mt-1.5 h-1.5 w-32 overflow-hidden rounded-full bg-slate-200/90">
-                        <div
-                          className={`h-full rounded-full ${r.daysLeft === 0 ? "bg-[#9A5B00]" : "bg-[#1D4ED8]"}`}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
+                  <div className="min-w-0 text-xs font-sans">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-semibold text-slate-950">{r.candidateName}</p>
+                      <span
+                        className={`shrink-0 rounded-sm border px-1.5 py-0.5 text-xs font-semibold tabular-nums ${
+                          r.daysLeft === 0
+                            ? "border-[#F3D19E] bg-[#FFF4DC] text-[#7A4800]"
+                            : `border-slate-200 bg-slate-50 ${TEXT_AMBER}`
+                        }`}
+                      >
+                        {dueText(r.daysLeft)}
+                      </span>
+                    </div>
+                    <p className="mt-0.5 truncate text-xs text-slate-600">
+                      {r.jobTitle ? <span>{r.jobTitle} · </span> : null}
+                      {r.stageLabel}
+                      <span className="tabular-nums text-slate-500">{` · ${r.daysInStage} of ${r.slaDays} days`}</span>
+                    </p>
+                    <div aria-hidden="true" className="mt-1.5 h-1.5 w-32 overflow-hidden rounded-full bg-slate-200/90">
+                      <div
+                        className={`h-full rounded-full ${r.daysLeft === 0 ? "bg-[#9A5B00]" : "bg-[#3A6FB0]"}`}
+                        style={{ width: `${pct}%` }}
+                      />
                     </div>
                   </div>
                   {/* 3. Quick View tertiary */}

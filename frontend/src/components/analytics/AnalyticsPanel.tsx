@@ -37,26 +37,24 @@ export const AnalyticsPanel: React.FC<AnalyticsPanelProps> = ({ id, title, subti
       id={id}
       className={`scroll-mt-4 overflow-hidden rounded-lg border ${
         reports
-          ? "border-slate-300 bg-white shadow-[0_1px_3px_0_rgb(15_23_42/0.06)]"
+          ? "border-slate-300 bg-white shadow-[0_1px_2px_0_rgb(15_23_42/0.04)]"
           : "border-navy-line bg-white"
       } ${className}`}
     >
-      {reports && <div aria-hidden="true" className="h-0.5 w-full bg-navy/85" />}
       <div
         className={`px-4 py-3 border-b ${
           reports
-            ? "border-slate-200 bg-gradient-to-r from-[#F4F7FB] via-white to-[#F8FAFC]"
+            ? "border-slate-200 bg-slate-50/70"
             : "border-navy-line bg-navy-soft"
         } flex items-center justify-between gap-3`}
       >
-        <div className="min-w-0 flex items-center gap-2.5">
-          {reports && <span aria-hidden="true" className="h-4 w-1 shrink-0 rounded-full bg-navy" />}
+        <div className="min-w-0 flex items-center gap-2">
           <h2 className="text-sm font-bold tracking-tight text-slate-950">{title}</h2>
           {subtitle && !reports && <InfoTip label={title}>{subtitle}</InfoTip>}
         </div>
         {aside && <div className="shrink-0 text-xs text-slate-600">{aside}</div>}
       </div>
-      {reports && subtitle && <p className="border-b border-slate-200 bg-slate-50/50 px-4 py-2 text-xs font-sans text-slate-600">{subtitle}</p>}
+      {reports && subtitle && <p className="border-b border-slate-200 bg-white px-4 py-2 text-xs font-sans text-slate-600">{subtitle}</p>}
       {children}
     </section>
   );

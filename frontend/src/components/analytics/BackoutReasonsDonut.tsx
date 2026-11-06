@@ -80,13 +80,13 @@ export const BackoutReasonsDonut: React.FC<{ data: BackoutSummary; className?: s
               <div className="rounded-md border border-slate-200 bg-slate-50/90 p-2.5 text-xs font-sans text-slate-700">
                 <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Initiated by</div>
                 <div aria-hidden="true" className="mt-1.5 flex h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
-                  <span style={{ width: `${partyTotal > 0 ? (data.byParty.APPLICANT / partyTotal) * 100 : 0}%`, backgroundColor: "#1D4ED8" }} />
-                  <span style={{ width: `${partyTotal > 0 ? (data.byParty.CLIENT / partyTotal) * 100 : 0}%`, backgroundColor: "#B45309" }} />
-                  <span style={{ width: `${partyTotal > 0 ? (data.byParty.AGENCY / partyTotal) * 100 : 0}%`, backgroundColor: "#475569" }} />
+                  <span style={{ width: `${partyTotal > 0 ? (data.byParty.APPLICANT / partyTotal) * 100 : 0}%`, backgroundColor: "#0B315D" }} />
+                  <span style={{ width: `${partyTotal > 0 ? (data.byParty.CLIENT / partyTotal) * 100 : 0}%`, backgroundColor: "#9A5B00" }} />
+                  <span style={{ width: `${partyTotal > 0 ? (data.byParty.AGENCY / partyTotal) * 100 : 0}%`, backgroundColor: "#64748B" }} />
                 </div>
                 <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 tabular-nums">
                   <span>
-                    Applicant: <strong className="font-bold text-[#1D4ED8]">{data.byParty.APPLICANT}</strong>
+                    Applicant: <strong className="font-bold text-navy">{data.byParty.APPLICANT}</strong>
                   </span>
                   <span aria-hidden="true" className="text-slate-300">·</span>
                   <span>

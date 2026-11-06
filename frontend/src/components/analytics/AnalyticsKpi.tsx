@@ -112,22 +112,16 @@ export const AnalyticsKpi: React.FC<AnalyticsKpiProps> = ({ label, value, detail
 
   const topSurface =
     tone === "alert"
-      ? "bg-gradient-to-b from-[#FDF1F2]/60 to-white"
+      ? "bg-[#FDF1F2]/35"
       : isInteractive
-        ? "bg-white hover:bg-[#F4F7FB]"
+        ? "bg-white hover:bg-slate-50/90"
         : "bg-white";
-  const accentColor =
-    tone === "alert"
-      ? "bg-[#B42318]"
-      : isInteractive
-        ? "bg-navy"
-        : "bg-[#1D4ED8]";
 
-  const frameClass = `group relative block w-full p-4 pt-4.5 text-left transition-colors motion-reduce:transition-none ${topSurface} ${isInteractive ? FOCUS : ""}`;
+  const frameClass = `group relative block w-full p-4 text-left transition-colors motion-reduce:transition-none ${topSurface} ${isInteractive ? FOCUS : ""}`;
 
   const body = (
     <>
-      <div className="pr-5 text-xs font-bold uppercase tracking-wider text-slate-600">{label}</div>
+      <div className="pr-5 text-xs font-semibold text-slate-600">{label}</div>
       <div
         className={`mt-1.5 font-display font-bold tabular-nums ${text ? "text-base leading-9" : "whitespace-nowrap text-3xl max-lg:text-2xl leading-9"} ${
           tone === "alert" ? TEXT_LOSS : text ? "text-slate-700" : "text-slate-950"
@@ -147,15 +141,12 @@ export const AnalyticsKpi: React.FC<AnalyticsKpiProps> = ({ label, value, detail
         </div>
       )}
       {delta && deltaLine(delta)}
-      {detail && <div className="mt-1.5 text-balance text-xs font-medium font-sans text-slate-600">{detail}</div>}
-      <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-1 ${accentColor}`} />
+      {detail && <div className="mt-1.5 text-balance text-xs font-sans text-slate-600">{detail}</div>}
       {isInteractive && (
-        <span
+        <ArrowUpRight
           aria-hidden="true"
-          className=" absolute right-3 top-3.5 inline-flex h-5 w-5 items-center justify-center rounded-sm bg-slate-100 text-slate-500 transition-colors group-hover:bg-navy group-hover:text-white"
-        >
-          <ArrowUpRight className="h-3.5 w-3.5" />
-        </span>
+          className="absolute right-3.5 top-4 h-3.5 w-3.5 text-slate-400 transition-colors group-hover:text-navy"
+        />
       )}
     </>
   );
@@ -211,27 +202,11 @@ const SPAN: Record<number, string> = {
 export const KpiGroup: React.FC<KpiGroupProps> = ({ label, children }) => (
   // A group spans as many columns as it has tiles, so every tile in the row is the same width.
   <section aria-label={label} className={`flex min-w-0 flex-col ${SPAN[React.Children.count(children)] ?? ""}`}>
-    <div className="mb-2 flex items-center justify-between gap-2">
-      <div className="flex items-center gap-2">
-        <span
-          aria-hidden="true"
-          className={`h-2 w-2 rounded-full ${label === "Right now" ? "bg-navy" : "bg-[#1D4ED8]"}`}
-        />
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">{label}</h3>
-      </div>
-      <span
-        aria-hidden="true"
-        className={`rounded-sm border px-2 py-0.5 text-[11px] font-semibold ${
-          label === "Right now"
-            ? "border-navy-line bg-navy-soft text-navy"
-            : "border-slate-200 bg-slate-100 text-slate-700"
-        }`}
-      >
-        {label === "Right now" ? "Live pipeline" : "Selected range"}
-      </span>
+    <div className="mb-1.5 flex items-baseline justify-between gap-2">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-600">{label}</h3>
     </div>
     {/* A lone tile fills its group; two columns would leave it half width. */}
-    <div className={`grid ${React.Children.count(children) === 1 ? "grid-cols-1" : "grid-cols-2"} flex-1 overflow-hidden rounded-lg divide-x divide-y divide-slate-200 border border-slate-300 bg-white shadow-[0_1px_3px_0_rgb(15_23_42/0.06)] md:grid-flow-col md:auto-cols-fr md:divide-y-0 max-md:[&>*:last-child:nth-child(odd)]:col-span-2`}>
+    <div className={`grid ${React.Children.count(children) === 1 ? "grid-cols-1" : "grid-cols-2"} flex-1 overflow-hidden rounded-lg divide-x divide-y divide-slate-200 border border-slate-300 bg-white shadow-[0_1px_2px_0_rgb(15_23_42/0.04)] md:grid-flow-col md:auto-cols-fr md:divide-y-0 max-md:[&>*:last-child:nth-child(odd)]:col-span-2`}>
       {children}
     </div>
   </section>

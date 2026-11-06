@@ -247,14 +247,13 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
     "rounded-md border border-slate-300 bg-white px-2.5 py-1.5 pointer-coarse:min-h-11 text-xs font-medium text-slate-900 focus:outline-none focus:border-navy aria-[invalid=true]:border-rose-600";
 
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-[0_1px_3px_0_rgb(15_23_42/0.06)]">
-      <div aria-hidden="true" className="h-1 w-full bg-navy" />
+    <div className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-[0_1px_2px_0_rgb(15_23_42/0.04)]">
       <p aria-live="polite" aria-atomic="true" className="sr-only">
         {announcement}
       </p>
 
       {/* Top row: date range presets and actions */}
-      <div className="grid grid-cols-[1fr_auto] items-center gap-2 border-b border-slate-200 bg-gradient-to-r from-[#F4F7FB] via-white to-[#F8FAFC] px-4 py-3 md:flex md:flex-wrap md:justify-between md:gap-3">
+      <div className="grid grid-cols-[1fr_auto] items-center gap-2 border-b border-slate-200 bg-white px-4 py-3 md:flex md:flex-wrap md:justify-between md:gap-3">
         {/* Phones: one select keeps the bar to a single row */}
         <select
           aria-label="Date range"
@@ -271,8 +270,8 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
         </select>
 
         <div role="group" aria-label="Date range" aria-describedby={dateNoteId} className="hidden flex-wrap items-center gap-2 md:flex">
-          <div className="mr-1 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-slate-700">
-            <CalendarIcon className="h-3.5 w-3.5 text-navy" aria-hidden="true" />
+          <div className="mr-1 flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+            <CalendarIcon className="h-3.5 w-3.5 text-slate-500" aria-hidden="true" />
             <span>Date range</span>
           </div>
 

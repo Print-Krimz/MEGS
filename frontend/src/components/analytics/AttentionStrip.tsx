@@ -50,15 +50,9 @@ export const AttentionStrip: React.FC<AttentionStripProps> = ({ items, embedded 
       }
     >
       <div className="flex flex-wrap items-center gap-2.5">
-        <div className="mr-1 flex items-center gap-2">
-          <span
-            aria-hidden="true"
-            className={`h-2 w-2 rounded-full ${shown.length > 0 ? "bg-[#B42318]" : "bg-[#1B6B3A]"}`}
-          />
-          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-800">Needs action</h2>
-        </div>
+        <h2 className="mr-1 text-xs font-semibold uppercase tracking-wider text-slate-600">Needs action</h2>
         {shown.length === 0 && (
-          <p className="rounded-md border border-[#CBE7D4] bg-[#EAF6EE] px-2.5 py-1 text-xs font-medium font-sans text-[#1B6B3A]">
+          <p className="text-xs font-sans text-slate-600">
             Nothing needs action right now.
           </p>
         )}

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowRightLeft, Download, User, X, type LucideIcon } from "lucide-react";
+import { ArrowRightLeft, Download, X, type LucideIcon } from "lucide-react";
 import type { StuckCandidate } from "../../lib/types/analytics.types";
 import { formatRecruiterName } from "../../lib/recruiter-label";
 import { AnalyticsPanel } from "./AnalyticsPanel";
@@ -418,58 +418,46 @@ export const StuckList = React.memo(function StuckList({
                       </label>
                     )}
 
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <span
-                        aria-hidden="true"
-                        className={`hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border sm:inline-flex ${
-                          r.urgency === "critical"
-                            ? "border-[#F5C2C7] bg-[#FDF1F2] text-[#B42318]"
-                            : "border-navy-line bg-navy-soft text-navy"
-                        }`}
-                      >
-                        <User className="h-3.5 w-3.5" aria-hidden="true" />
-                      </span>
-                      <div className="min-w-0">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span className={`shrink-0 px-1.5 py-0.5 text-xs font-semibold @3xl:hidden ${style.badge}`}>{style.label}</span>
-                          {admin ? (
-                            <Link
-                              to="/admin/applications/$applicationId"
-                              params={{ applicationId: String(r.applicationId) }}
-                              {...(linkState ? { state: linkState as never } : {})}
-                              className={link}
-                            >
-                              {r.candidateName}
-                            </Link>
-                          ) : (
-                            <Link
-                              to="/ta/applications/$applicationId"
-                              params={{ applicationId: String(r.applicationId) }}
-                              {...(linkState ? { state: linkState as never } : {})}
-                              className={link}
-                            >
-                              {r.candidateName}
-                            </Link>
-                          )}
-                        </div>
-                        <p className="mt-0.5 text-xs text-slate-600 font-sans @3xl:truncate">
-                          {r.mrfId !== null ? (
-                            <Link
-                              to={admin ? "/admin/mrfs/$mrfId" : "/ta/mrfs/$mrfId"}
-                              params={{ mrfId: String(r.mrfId) }}
-                              {...(linkState ? { state: linkState as never } : {})}
-                              className="text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                            >
-                              {r.jobTitle}
-                            </Link>
-                          ) : (
-                            r.jobTitle
-                          )}
-                          {r.clientName ? ` · ${r.clientName}` : ""}
-                          {r.estimated && <span> · estimated from application date</span>}
-                          {withRecruiter && <span title={recruiter.full}> · {recruiter.label}</span>}
-                        </p>
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className={`shrink-0 px-1.5 py-0.5 text-xs font-semibold @3xl:hidden ${style.badge}`}>{style.label}</span>
+                        {admin ? (
+                          <Link
+                            to="/admin/applications/$applicationId"
+                            params={{ applicationId: String(r.applicationId) }}
+                            {...(linkState ? { state: linkState as never } : {})}
+                            className={link}
+                          >
+                            {r.candidateName}
+                          </Link>
+                        ) : (
+                          <Link
+                            to="/ta/applications/$applicationId"
+                            params={{ applicationId: String(r.applicationId) }}
+                            {...(linkState ? { state: linkState as never } : {})}
+                            className={link}
+                          >
+                            {r.candidateName}
+                          </Link>
+                        )}
                       </div>
+                      <p className="mt-0.5 text-xs text-slate-600 font-sans @3xl:truncate">
+                        {r.mrfId !== null ? (
+                          <Link
+                            to={admin ? "/admin/mrfs/$mrfId" : "/ta/mrfs/$mrfId"}
+                            params={{ mrfId: String(r.mrfId) }}
+                            {...(linkState ? { state: linkState as never } : {})}
+                            className="text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                          >
+                            {r.jobTitle}
+                          </Link>
+                        ) : (
+                          r.jobTitle
+                        )}
+                        {r.clientName ? ` · ${r.clientName}` : ""}
+                        {r.estimated && <span> · estimated from application date</span>}
+                        {withRecruiter && <span title={recruiter.full}> · {recruiter.label}</span>}
+                      </p>
                     </div>
 
                     {/* A short bar under the stage name: enough to compare waits, not a full-width line. */}

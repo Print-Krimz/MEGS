@@ -78,10 +78,7 @@ export const ClientReviewPanel: React.FC<ClientReviewPanelProps> = ({ data, clas
               return (
                 <li key={c.clientId} className="py-3 transition-colors hover:bg-slate-50/70">
                   <div className="flex items-baseline justify-between gap-3 text-xs font-sans">
-                    <span className="flex min-w-0 items-center gap-2 truncate font-semibold text-slate-900">
-                      <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-slate-100 text-[11px] font-bold tabular-nums text-slate-700">
-                        {i + 1}.
-                      </span>
+                    <span className="min-w-0 truncate font-semibold text-slate-900">
                       {onSelectClient ? (
                         <button
                           type="button"

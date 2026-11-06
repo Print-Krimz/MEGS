@@ -1,5 +1,4 @@
 import React, { useMemo, useState } from "react";
-import { User } from "lucide-react";
 import type { TeamRow, UnassignedWork } from "../../lib/types/analytics.types";
 import { sampleNote } from "../../lib/analytics-format";
 import { formatRecruiterName } from "../../lib/recruiter-label";
@@ -276,30 +275,20 @@ export const TeamTable = React.memo(function TeamTable({
                     className={`cursor-pointer transition-colors hover:bg-navy-soft motion-reduce:transition-none ${selected ? "bg-navy-soft outline outline-1 -outline-offset-1 outline-navy" : ""}`}
                   >
                     <th scope="row" className="px-3 py-3 text-left font-sans font-semibold whitespace-nowrap align-top">
-                      <div className="flex items-center gap-2.5">
-                        <span
-                          aria-hidden="true"
-                          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${
-                            selected ? "border-navy bg-navy text-white" : "border-navy-line bg-navy-soft text-navy"
-                          }`}
-                        >
-                          <User className="h-3.5 w-3.5" aria-hidden="true" />
-                        </span>
-                        <button
-                          type="button"
-                          aria-pressed={selected}
-                          aria-label={`${spokenName}. ${action}`}
-                          title={action}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggle();
-                          }}
-                          className="min-h-11 text-left text-sm font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-0 md:py-0.5"
-                        >
-                          {label}{email && " "}
-                          {email && <span className="block text-xs font-normal text-slate-600 truncate">{email}</span>}
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        aria-pressed={selected}
+                        aria-label={`${spokenName}. ${action}`}
+                        title={action}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggle();
+                        }}
+                        className="min-h-11 text-left text-sm font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-0 md:py-0.5"
+                      >
+                        {label}{email && " "}
+                        {email && <span className="block text-xs font-normal text-slate-600 truncate">{email}</span>}
+                      </button>
                     </th>
                     <td className={`${TD} font-semibold text-slate-950`}>
                       {row.active}

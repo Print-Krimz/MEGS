@@ -96,7 +96,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
             </div>
             <div className="border-l border-slate-300 pl-2.5">
               <div className="text-[11px] font-medium text-slate-500">Within stage limit</div>
-              <div className="mt-0.5 text-sm font-bold tabular-nums text-[#1D4ED8]">{onTrackTotal} ({onTrackPct}%)</div>
+              <div className="mt-0.5 text-sm font-bold tabular-nums text-navy">{onTrackTotal} ({onTrackPct}%)</div>
             </div>
             <div className="border-l border-slate-300 pl-2.5">
               <div className="text-[11px] font-medium text-slate-500">Past stage limit</div>
@@ -136,14 +136,8 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
               const label = link || pick ? `${summary}. Show these candidates` : summary;
               const content = (
                 <>
-                  <span className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 text-left text-xs font-semibold font-sans text-slate-900">
-                    <span
-                      aria-hidden="true"
-                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-navy-soft text-[11px] font-bold tabular-nums text-navy"
-                    >
-                      {i + 1}
-                    </span>
-                    <span className="truncate font-bold text-slate-900">{name}</span>
+                  <span className="col-start-1 row-start-1 truncate text-left text-xs font-semibold font-sans text-slate-900">
+                    {name}
                   </span>
                   <StackedBar
                     className={BAR_CELL}

@@ -41,14 +41,13 @@ export function OperationsWorkspace<K extends string>({ tabs, active, onChange, 
     <section
       id={id}
       aria-label="Operations workspace"
-      className="scroll-mt-4 overflow-hidden rounded-lg border border-slate-300 bg-white shadow-[0_1px_3px_0_rgb(15_23_42/0.06),0_1px_2px_-1px_rgb(15_23_42/0.04)]"
+      className="scroll-mt-4 overflow-hidden rounded-lg border border-slate-300 bg-white shadow-[0_1px_2px_0_rgb(15_23_42/0.04)]"
     >
-      <div aria-hidden="true" className="h-1 w-full bg-navy" />
       {banner}
       <div
         role="tablist"
         aria-label="Lists to work through"
-        className="flex overflow-x-auto border-b border-slate-300 bg-gradient-to-b from-[#F1F5F9] to-[#E9EEF5] px-2 pt-2 gap-1"
+        className="flex overflow-x-auto border-b border-slate-200 bg-slate-100/80 px-2 pt-2 gap-1"
       >
         {tabs.map((tab, index) => {
           const selected = tab.key === active;
