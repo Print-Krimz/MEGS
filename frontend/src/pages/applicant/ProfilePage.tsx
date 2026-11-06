@@ -1037,13 +1037,13 @@ export const ProfilePage: React.FC = () => {
   };
 
   const handlePhotoFile = (file: File) => {
-    if (file.size > 5 * 1024 * 1024) {
-      setFeedback({ type: "error", message: "Maximum photo upload size is 5 MB." });
-      return;
-    }
     const ext = file.name.split(".").pop()?.toLowerCase();
     if ((file.type && !["image/jpeg", "image/png", "image/jpg"].includes(file.type)) || !["jpg", "jpeg", "png"].includes(ext || "")) {
-      setFeedback({ type: "error", message: "Invalid photo format. Only JPG and PNG files up to 5 MB are accepted." });
+      setFeedback({ type: "error", message: "Photo must be a JPG or PNG file." });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setFeedback({ type: "error", message: "Photo is too large. Maximum size is 5 MB." });
       return;
     }
     const formData = new FormData();
@@ -1052,10 +1052,6 @@ export const ProfilePage: React.FC = () => {
   };
 
   const handleResumeFile = (file: File) => {
-    if (file.size > 5 * 1024 * 1024) {
-      setFeedback({ type: "error", message: "Maximum resume upload size is 5 MB." });
-      return;
-    }
     const ext = file.name.split(".").pop()?.toLowerCase();
     const allowedExtensions = ["pdf", "docx", "doc", "png", "jpg", "jpeg", "webp"];
     const allowedMimeTypes = [
@@ -1076,6 +1072,10 @@ export const ProfilePage: React.FC = () => {
         type: "error",
         message: "Invalid file format. Please upload a PDF, Word document (.docx), or image (.png, .jpg, .jpeg, .webp) up to 5 MB.",
       });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setFeedback({ type: "error", message: "Maximum resume upload size is 5 MB." });
       return;
     }
     const formData = new FormData();
@@ -1108,6 +1108,7 @@ export const ProfilePage: React.FC = () => {
               onResumeFile={handleResumeFile}
               resumeUploadPending={uploadResumeMutation.isPending}
               privacyConsented={Boolean(profile?.dataPrivacyConsentAt)}
+              privacyConsentedAt={profile?.dataPrivacyConsentAt}
               privacyConsentPending={privacyConsentMutation.isPending}
               onPrivacyConsent={() => privacyConsentMutation.mutate()}
               pendingResumeCount={reviewProposal ? countActionable(reviewProposal.proposal) : 0}
@@ -1118,6 +1119,16 @@ export const ProfilePage: React.FC = () => {
                     documentId: extractDocumentId(profile.resumeUrl),
                     fileUrl: profile.resumeUrl,
                     title: "Resume",
+                  });
+                }
+              }}
+              onViewPhoto={() => {
+                if (profile?.photoUrl) {
+                  setPreviewDocState({
+                    open: true,
+                    documentId: extractDocumentId(profile.photoUrl),
+                    fileUrl: profile.photoUrl,
+                    title: "Profile photo",
                   });
                 }
               }}

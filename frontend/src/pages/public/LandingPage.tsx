@@ -4,6 +4,7 @@ import { LandingHero } from "../../components/public/LandingHero";
 import { LandingAffiliates } from "../../components/public/LandingAffiliates";
 import { LandingAbout } from "../../components/public/LandingAbout";
 import { LandingFooter } from "../../components/public/LandingFooter";
+import { BackToTopButton } from "../../components/public/BackToTopButton";
 import { MotionRoot } from "../../components/public/motion";
 import { BRANCHES } from "../../components/public/landing-branches";
 
@@ -126,6 +127,7 @@ export const LandingPage: React.FC = () => {
         </main>
 
         <LandingFooter />
+        <BackToTopButton />
       </div>
     </MotionRoot>
   );

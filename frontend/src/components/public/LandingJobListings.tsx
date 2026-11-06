@@ -261,7 +261,7 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
                       <span>Apply</span>
                       <ArrowRight
                         aria-hidden="true"
-                        className="transition-transform duration-200 group-hover/card:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover/card:translate-x-0"
+                        className="transition-transform duration-200 group-hover/apply:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover/apply:translate-x-0"
                       />
                     </>
                   );
@@ -270,14 +270,12 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
                     <m.li key={job.id} {...staggerItem} className="flex">
                       <article
                         className={cn(
-                          "group/card relative flex w-full flex-col rounded-lg border border-border bg-background p-5 sm:p-6",
+                          "flex w-full flex-col rounded-lg border border-border bg-background p-5 sm:p-6",
                           CARD_MIN_HEIGHT,
-                          "transition-[transform,border-color] duration-200 hover:-translate-y-0.5 hover:border-secondary/50",
-                          "has-[:focus-visible]:border-accent has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring",
-                          "motion-reduce:transition-none motion-reduce:hover:translate-y-0"
+                          "has-[:focus-visible]:border-accent has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
                         )}
                       >
-                        <h3 className="line-clamp-2 text-xl font-bold leading-snug tracking-tight text-secondary decoration-accent decoration-2 underline-offset-4 transition-colors group-hover/card:text-accent group-hover/card:underline">
+                        <h3 className="line-clamp-2 text-xl font-bold leading-snug tracking-tight text-secondary decoration-accent decoration-2 underline-offset-4">
                           {job.title}
                         </h3>
 
@@ -318,7 +316,7 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
                             <Button
                               asChild
                               variant="outline"
-                              className="transition-[background-color,border-color,color,transform] duration-200 after:absolute after:inset-0 after:rounded-lg after:content-[''] active:scale-[0.97] group-hover/card:border-primary group-hover/card:bg-primary group-hover/card:text-primary-foreground motion-reduce:active:scale-100"
+                              className="group/apply transition-[background-color,border-color,color,transform] duration-200 active:scale-[0.97] hover:border-primary hover:bg-primary hover:text-primary-foreground motion-reduce:active:scale-100"
                             >
                               {isApplicant ? (
                                 <Link to="/app/jobs/$jobId" params={{ jobId: String(job.id) }} aria-label={`Apply for ${job.title}`}>

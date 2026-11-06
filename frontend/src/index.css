@@ -407,3 +407,11 @@ body {
     break-inside: avoid;
   }
 }
+
+/* Tailwind v4 no longer sets a pointer cursor on buttons. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}

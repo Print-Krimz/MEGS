@@ -1,8 +1,9 @@
 import React from "react";
-import { Camera, Lock } from "lucide-react";
+import { Camera, Check, Lock } from "lucide-react";
 import { Button, Dialog } from "../../../../components/ui";
 import { PrivacyNoticeSections } from "../../../../components/public/PrivacyNoticeSections";
 import { Checkbox } from "../../../../components/shadcn/checkbox";
+import { formatDate } from "../../../../lib/utils";
 import { isTouchDevice, shrinkImage } from "../../../../lib/camera-capture";
 import { ProfileHealthMeter } from "../../../../components/applicant/ProfileHealthMeter";
 import type { ApplicantProfile } from "../../../../lib/types/applicant.types";
@@ -19,10 +20,12 @@ export interface ProfileOverviewProps {
   onResumeFile: (file: File) => void;
   resumeUploadPending: boolean;
   privacyConsented: boolean;
+  privacyConsentedAt?: string | null;
   privacyConsentPending: boolean;
   onPrivacyConsent: () => void;
   pendingResumeCount: number;
   onViewPdf: () => void;
+  onViewPhoto: () => void;
   onReviewResume: () => void;
   onNavigate: (section: ProfileSection) => void;
   onJumpToSection: (target: string) => void;
@@ -40,10 +43,12 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
   onResumeFile,
   resumeUploadPending,
   privacyConsented,
+  privacyConsentedAt,
   privacyConsentPending,
   onPrivacyConsent,
   pendingResumeCount,
   onViewPdf,
+  onViewPhoto,
   onReviewResume,
   onNavigate,
   onJumpToSection,
@@ -109,6 +114,9 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
             <span className="block font-semibold text-[#102A43]">Candidate photo</span>
             <span>PNG or JPG up to 5 MB</span>
           </div>
+          {profile?.photoUrl && !imgError && (
+            <Button type="button" variant="outline" size="sm" onClick={onViewPhoto}>View photo</Button>
+          )}
           <label className="inline-flex min-h-11 applicant-touch:min-h-11 md:min-h-9 cursor-pointer items-center rounded-md border border-[#D9E2EC] bg-white px-3 text-xs sm:text-sm font-medium text-[#0B315D] hover:bg-[#EAF0F7] hover:text-[#082747] transition-colors focus-within:ring-2 focus-within:ring-[#0B315D] focus-within:ring-offset-2">
             <input
               data-testid="photo-upload-input"
@@ -148,39 +156,68 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
             <h2 id="overview-resume-heading" className="mt-1 text-base font-semibold text-[#102A43]">Save time on profile setup</h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#102A43]">Upload your resume (PDF, Word document, or image) and MEGS fills supported contact details, experience, education, and skills for you. Review and correct anything before you continue.</p>
           </div>
-          {profile?.resumeUrl && <Button type="button" variant="outline" size="sm" onClick={onViewPdf}>View PDF</Button>}
+          {profile?.resumeUrl && <Button type="button" variant="outline" size="sm" onClick={onViewPdf}>View resume</Button>}
         </div>
         <div className="mt-4 border-t border-[#D9E2EC] pt-4">
           <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[#0B315D]">
             <Lock className="h-3.5 w-3.5" aria-hidden="true" />
             Data privacy
           </p>
-          <div className="mt-2 flex items-start gap-3">
-            <Checkbox
-              id="resume-privacy-consent"
-              checked={privacyConsented}
-              disabled={privacyConsented || privacyConsentPending}
-              onCheckedChange={(checked) => { if (checked === true) onPrivacyConsent(); }}
-              className="mt-0.5"
-            />
-            <label htmlFor="resume-privacy-consent" className="text-sm leading-relaxed text-[#102A43]">
-              I have read and understood the{" "}
-              <button
-                type="button"
-                onClick={() => setPrivacyNoticeOpen(true)}
-                aria-haspopup="dialog"
-                className="rounded font-semibold text-[#0B315D] underline underline-offset-2 hover:text-[#082747] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
-              >
-                Data Privacy Notice
-              </button>{" "}
-              and I consent to MEGS collecting and processing my personal information from my job application. I understand that my uploaded resume is read by Google's Gemini AI service to fill in my profile automatically.
-              {!privacyConsented && <span aria-hidden="true" className="text-red-600"> *</span>}
-            </label>
-          </div>
+          {privacyConsented ? (
+            <p className="mt-2 flex items-start gap-2 text-sm leading-relaxed text-[#102A43]">
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#0B315D]" aria-hidden="true" />
+              <span>
+                You agreed to the{" "}
+                <button
+                    type="button"
+                    onClick={() => setPrivacyNoticeOpen(true)}
+                    aria-haspopup="dialog"
+                    className="rounded font-semibold text-[#0B315D] underline underline-offset-2 hover:text-[#082747] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+                  >
+                    Data Privacy Notice
+                  </button>{" "}
+                {privacyConsentedAt ? `on ${formatDate(privacyConsentedAt)}` : "earlier"}. This agreement is saved to your account.
+              </span>
+            </p>
+          ) : (
+            <div className="mt-2 flex items-start gap-3">
+              <Checkbox
+                id="resume-privacy-consent"
+                checked={privacyConsented}
+                disabled={privacyConsentPending}
+                onCheckedChange={(checked) => { if (checked === true) onPrivacyConsent(); }}
+                className="mt-0.5"
+              />
+              <label htmlFor="resume-privacy-consent" className="text-sm leading-relaxed text-[#102A43]">
+                I have read and understood the{" "}
+                <button
+                  type="button"
+                  onClick={() => setPrivacyNoticeOpen(true)}
+                  aria-haspopup="dialog"
+                  className="rounded font-semibold text-[#0B315D] underline underline-offset-2 hover:text-[#082747] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+                >
+                  Data Privacy Notice
+                </button>{" "}
+                and I consent to MEGS collecting and processing my personal information from my job application. I understand that my uploaded resume is read by Google's Gemini AI service to fill in my profile automatically.
+                {!privacyConsented && <span aria-hidden="true" className="text-red-600"> *</span>}
+              </label>
+            </div>
+          )}
         </div>
         <div className="mt-4 flex flex-col gap-3 border-t border-[#D9E2EC] pt-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0 text-sm text-[#102A43]">
-            <p className="font-semibold">{profile?.resumeUrl ? "Resume on file" : "No resume uploaded yet"}</p>
+            <p className="font-semibold">
+              {profile?.resumeUrl ? "Resume on file" : "No resume uploaded yet"}
+              {profile?.resumeUrl && (
+                <button
+                  type="button"
+                  onClick={onViewPdf}
+                  className="ml-2 rounded font-semibold text-[#0B315D] underline underline-offset-2 hover:text-[#082747] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+                >
+                  View
+                </button>
+              )}
+            </p>
             <p className="mt-1 text-xs text-[#486581]">PDF, DOCX, or Image (PNG, JPG, WEBP) up to 5 MB. Existing profile details stay unchanged when MEGS fills empty fields.</p>
           </div>
           <label className="inline-flex min-h-11 applicant-touch:min-h-11 md:min-h-9 shrink-0 cursor-pointer has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 items-center justify-center rounded-md bg-[#0B315D] px-4 text-xs sm:text-sm font-medium text-white hover:bg-[#082747] focus-within:ring-2 focus-within:ring-[#0B315D] focus-within:ring-offset-2 transition-colors">
