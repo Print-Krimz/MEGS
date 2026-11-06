@@ -45,7 +45,7 @@ const avgText = (row: StageTableRow) => {
 };
 
 // Phones: name and count on one line, the bar full width under them. Wider screens: three aligned columns.
-const ROW_GRID = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 @xl:grid-cols-[9.5rem_minmax(0,1fr)_14.5rem] @xl:gap-y-0";
+const ROW_GRID = "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 @xl:grid-cols-[11rem_minmax(0,1fr)_15rem] @xl:gap-y-0";
 const BAR_CELL = "col-span-2 row-start-2 @xl:col-span-1 @xl:col-start-2 @xl:row-start-1";
 
 /**
@@ -58,6 +58,9 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
   const maxInStage = Math.max(1, ...rows.map((r) => r.inStageNow));
   const activeInPipeline = rows.filter((r) => r.stage !== "DEPLOYED").reduce((sum, r) => sum + r.inStageNow, 0);
   const totalOverdue = rows.reduce((sum, r) => sum + overdueIn(r), 0);
+  const onTrackTotal = Math.max(0, activeInPipeline - totalOverdue);
+  const onTrackPct = activeInPipeline > 0 ? Math.round((onTrackTotal / activeInPipeline) * 100) : 100;
+  const totalEntered = rows.reduce((sum, r) => sum + r.entered, 0);
   const baseId = useId();
 
   return (
@@ -67,10 +70,16 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
       title="Candidates by stage"
       aside={
         !empty ? (
-          <span className="tabular-nums font-medium text-slate-700">
-            <strong className="text-slate-900">{activeInPipeline}</strong> active
-            {totalOverdue > 0 && <span className={`font-semibold ${TEXT_LOSS}`}> · {totalOverdue} overdue</span>}
-          </span>
+          <div className="flex items-center gap-2 text-xs tabular-nums">
+            <span className="rounded-sm border border-navy-line bg-navy-soft px-2 py-0.5 font-semibold text-navy">
+              {activeInPipeline} active
+            </span>
+            {totalOverdue > 0 && (
+              <span className="rounded-sm border border-[#F5C2C7] bg-[#FDF1F2] px-2 py-0.5 font-semibold text-[#B42318]">
+                {totalOverdue} overdue
+              </span>
+            )}
+          </div>
         ) : undefined
       }
       className={`flex flex-col ${className ?? ""}`}
@@ -78,22 +87,42 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
       {empty ? (
         <p className="p-4 text-center text-xs text-slate-600 font-sans">No candidates in the pipeline and none moved in these dates.</p>
       ) : (
-        <div className="@container flex flex-1 flex-col p-3.5">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs font-sans text-slate-600">
+        <div className="@container flex flex-1 flex-col p-4">
+          {/* Funnel Summary Strip */}
+          <div aria-hidden="true" className="mb-3 grid grid-cols-2 gap-2 rounded-md border border-slate-200 bg-slate-50/90 p-2.5 sm:grid-cols-4">
+            <div className="border-l border-slate-300 pl-2.5">
+              <div className="text-[11px] font-medium text-slate-500">Active funnel</div>
+              <div className="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{activeInPipeline} candidates</div>
+            </div>
+            <div className="border-l border-slate-300 pl-2.5">
+              <div className="text-[11px] font-medium text-slate-500">Within stage limit</div>
+              <div className="mt-0.5 text-sm font-bold tabular-nums text-[#1D4ED8]">{onTrackTotal} ({onTrackPct}%)</div>
+            </div>
+            <div className="border-l border-slate-300 pl-2.5">
+              <div className="text-[11px] font-medium text-slate-500">Past stage limit</div>
+              <div className={`mt-0.5 text-sm font-bold tabular-nums ${totalOverdue > 0 ? "text-[#B42318]" : "text-slate-700"}`}>{totalOverdue} overdue</div>
+            </div>
+            <div className="border-l border-slate-300 pl-2.5">
+              <div className="text-[11px] font-medium text-slate-500">Entered in period</div>
+              <div className="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{totalEntered} moved</div>
+            </div>
+          </div>
+
+          <div className="mb-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs font-sans text-slate-600">
             <p>How many candidates are in each stage right now. Red is the part past the stage&apos;s days allowed.</p>
             <div className="flex items-center gap-3" data-testid="stage-legend">
               {[
                 ["On track", BAR_ON_TRACK],
                 ["Overdue", WORKLOAD.overdue],
               ].map(([name, color]) => (
-                <span key={name} className="flex items-center gap-1 font-medium text-slate-700">
-                  <span aria-hidden="true" className="inline-block h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: color }} />
+                <span key={name} className="flex items-center gap-1.5 rounded-sm border border-slate-200 bg-slate-50 px-2 py-0.5 font-semibold text-slate-700">
+                  <span aria-hidden="true" className="inline-block h-2.5 w-2.5 rounded-xs" style={{ backgroundColor: color }} />
                   {name}
                 </span>
               ))}
             </div>
           </div>
-          <ol className="flex flex-1 flex-col justify-between">
+          <ol className="flex flex-1 flex-col justify-between divide-y divide-slate-200 rounded-md border border-slate-200 bg-white">
             {rows.map((row, i) => {
               const late = overdueIn(row);
               const name = row.label;
@@ -107,12 +136,20 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
               const label = link || pick ? `${summary}. Show these candidates` : summary;
               const content = (
                 <>
-                  <span className="col-start-1 row-start-1 truncate text-left text-xs font-semibold font-sans text-slate-900">{name}</span>
+                  <span className="col-start-1 row-start-1 flex min-w-0 items-center gap-2 text-left text-xs font-semibold font-sans text-slate-900">
+                    <span
+                      aria-hidden="true"
+                      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-navy-soft text-[11px] font-bold tabular-nums text-navy"
+                    >
+                      {i + 1}
+                    </span>
+                    <span className="truncate font-bold text-slate-900">{name}</span>
+                  </span>
                   <StackedBar
                     className={BAR_CELL}
                     label={name}
                     index={i}
-                    heightClass="h-3"
+                    heightClass="h-3.5"
                     max={maxInStage}
                     segments={[
                       { key: "ok", label: "on track", value: Math.max(0, row.inStageNow - late), color: BAR_ON_TRACK },
@@ -120,23 +157,35 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
                     ]}
                   />
                   <span className="col-start-2 row-start-1 whitespace-nowrap text-right text-xs font-sans tabular-nums text-slate-700 @xl:col-start-3">
-                    <strong className="text-slate-950">{row.inStageNow}</strong>
-                    {late > 0 && <span className={`font-semibold ${TEXT_LOSS}`}> · {share}</span>}
+                    <strong className="inline-flex min-w-5 items-center justify-center rounded-xs bg-slate-100 px-1.5 py-0.5 text-slate-950">
+                      {row.inStageNow}
+                    </strong>
+                    {late > 0 && (
+                      <span className={`font-semibold ${TEXT_LOSS}`}>
+                        {" · "}
+                        <span className="rounded-xs bg-[#FDF1F2] px-1 py-0.5">{share}</span>
+                      </span>
+                    )}
                     {pick && (
                       <span aria-hidden="true" className="ml-1 inline-flex items-center text-xs font-semibold text-navy">
                         {!everyRow && <span className="hidden @xl:inline">Show</span>}
                         <ChevronRight size={14} className="shrink-0" />
                       </span>
                     )}
-                    {avg && <span id={avgId} className={`block text-xs ${avg.over ? `font-semibold ${TEXT_LOSS}` : "text-slate-600"}`}>{avg.text}{avg.over && <span className="sr-only"> (over the limit)</span>}</span>}
+                    {avg && (
+                      <span id={avgId} className={`mt-0.5 block text-[11px] ${avg.over ? `font-semibold ${TEXT_LOSS}` : "text-slate-600"}`}>
+                        {avg.text}
+                        {avg.over && <span className="sr-only"> (over the limit)</span>}
+                      </span>
+                    )}
                   </span>
                   {(link || pick) && <span className="sr-only">. Show these candidates</span>}
                 </>
               );
-              const frame = `${ROW_GRID} w-full rounded-sm px-1.5 py-2 text-left transition-colors motion-reduce:transition-none`;
-              const hover = "hover:bg-navy-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+              const frame = `${ROW_GRID} w-full px-3 py-2 text-left transition-colors motion-reduce:transition-none`;
+              const hover = "hover:bg-[#F4F7FB] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus";
               return (
-                <li key={row.stage} className="min-w-0 border-b border-slate-200 last:border-b-0">
+                <li key={row.stage} className="min-w-0">
                   {link ? (
                     <Link to="/ta/applications" search={{ stage: row.stage as ApplicationStatus }} aria-describedby={describedBy} className={`${frame} ${hover}`}>
                       {content}
@@ -154,7 +203,7 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
               );
             })}
           </ol>
-          <div className="mt-auto flex flex-wrap items-start justify-between gap-x-4 pt-2.5">
+          <div className="mt-auto flex flex-wrap items-start justify-between gap-x-4 pt-3">
             <DataTableToggle
               className="mt-0 min-w-[10rem] flex-1"
               caption="Exact counts and waits for each stage"
@@ -172,11 +221,15 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
                 ],
               }))}
             />
-            {footer && <div className="flex min-h-11 items-center text-xs font-sans text-slate-700 md:min-h-6">{footer}</div>}
+            {footer && (
+              <div className="flex min-h-11 items-center rounded-sm border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium font-sans text-slate-700 md:min-h-6">
+                {footer}
+              </div>
+            )}
           </div>
         </div>
       )}
-      {footer && empty && <div className="border-t border-slate-200 px-3.5 py-2.5 text-xs font-sans text-slate-700">{footer}</div>}
+      {footer && empty && <div className="border-t border-slate-200 px-4 py-2.5 text-xs font-sans text-slate-700">{footer}</div>}
     </AnalyticsPanel>
   );
 };

@@ -88,7 +88,7 @@ export const StackedBar: React.FC<StackedBarProps> = ({ label, segments, max, he
       aria-label={text}
       title={text}
       tabIndex={focusable ? 0 : undefined}
-      className={`${heightClass} w-full overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${className}`}
+      className={`${heightClass} w-full overflow-hidden rounded-[3px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${className}`}
       style={{ backgroundColor: CHART_TRACK }}
     >
       <GrowFill
@@ -145,10 +145,10 @@ interface DataTableToggleProps {
 /** Text alternative for a chart. The first column is the row header. */
 export const DataTableToggle: React.FC<DataTableToggleProps> = ({ caption, columns, rows, className = "", summary = "View as table" }) => (
   <details className={`group mt-3 ${className}`}>
-    <summary className="inline-flex min-h-11 cursor-pointer list-none items-center text-xs font-semibold text-navy hover:underline [&::-webkit-details-marker]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-6">
+    <summary className="inline-flex min-h-11 cursor-pointer list-none items-center rounded-sm border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-navy hover:bg-navy-soft/50 hover:underline [&::-webkit-details-marker]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-6">
       {summary}
     </summary>
-    <div tabIndex={0} role="region" aria-label={caption} className="mt-1 overflow-x-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
+    <div tabIndex={0} role="region" aria-label={caption} className="mt-2 overflow-x-auto rounded-md border border-slate-200 bg-white p-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
       <table className="w-full min-w-[18rem] text-xs tabular-nums">
         <caption className="sr-only">{caption}</caption>
         <thead>
@@ -212,7 +212,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({ label, slices, centerVal
   const [active, setActive] = useState<string | null>(null);
   const total = slices.reduce((sum, s) => sum + s.value, 0);
   const shown = slices.filter((s) => s.value > 0);
-  const stroke = Math.round(size * 0.2);
+  const stroke = Math.round(size * 0.21);
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const gap = shown.length > 1 ? DONUT_GAP : 0;
@@ -263,8 +263,8 @@ export const DonutChart: React.FC<DonutChartProps> = ({ label, slices, centerVal
             )}
           </svg>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
-            <span className="font-display text-2xl font-semibold leading-none tabular-nums text-slate-950">{centerValue ?? String(total)}</span>
-            {centerLabel && <span className="mt-1 text-xs font-sans text-slate-600">{centerLabel}</span>}
+            <span className="font-display text-2xl font-bold leading-none tabular-nums text-slate-950">{centerValue ?? String(total)}</span>
+            {centerLabel && <span className="mt-1 text-[11px] font-semibold uppercase tracking-wider font-sans text-slate-500">{centerLabel}</span>}
           </div>
         </div>
 
@@ -273,24 +273,32 @@ export const DonutChart: React.FC<DonutChartProps> = ({ label, slices, centerVal
             <p className="py-2 text-sm font-sans text-slate-600">Nothing recorded in these dates.</p>
           ) : (
             <>
-              <ul className="space-y-0.5" aria-label={`${label} legend`}>
-                {slices.map((s) => (
-                  <li key={s.key}>
-                    <button
-                      type="button"
-                      onMouseEnter={() => setActive(s.key)}
-                      onMouseLeave={() => setActive(null)}
-                      onFocus={() => setActive(s.key)}
-                      onBlur={() => setActive(null)}
-                      className="flex min-h-11 w-full items-center gap-2 px-1 text-left text-xs font-sans text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-8"
-                    >
-                      <span aria-hidden="true" className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: s.color }} />
-                      <span className="min-w-0 flex-1">{s.label}</span>
-                      <span className="font-semibold tabular-nums text-slate-900">{s.value}</span>
-                      <span className="w-10 text-right tabular-nums text-slate-600">{pctText(s.value, total)}</span>
-                    </button>
-                  </li>
-                ))}
+              <ul className="space-y-1.5" aria-label={`${label} legend`}>
+                {slices.map((s) => {
+                  const pctNum = total > 0 ? Math.round((s.value / total) * 100) : 0;
+                  return (
+                    <li key={s.key}>
+                      <button
+                        type="button"
+                        onMouseEnter={() => setActive(s.key)}
+                        onMouseLeave={() => setActive(null)}
+                        onFocus={() => setActive(s.key)}
+                        onBlur={() => setActive(null)}
+                        className="group flex min-h-11 w-full flex-col justify-center gap-1 rounded-md border border-transparent px-2 py-1 text-left text-xs font-sans text-slate-700 hover:border-slate-200 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-8"
+                      >
+                        <span className="flex w-full items-center gap-2">
+                          <span aria-hidden="true" className="inline-block h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: s.color }} />
+                          <span className="min-w-0 flex-1 font-medium text-slate-800">{s.label}</span>
+                          <span className="font-bold tabular-nums text-slate-950">{s.value}</span>
+                          <span className="w-10 rounded-xs bg-slate-100 px-1 py-0.5 text-right font-semibold tabular-nums text-slate-600">{pctText(s.value, total)}</span>
+                        </span>
+                        <span aria-hidden="true" className="block h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                          <span className="block h-full rounded-full transition-all duration-300" style={{ width: `${pctNum}%`, backgroundColor: s.color }} />
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
               {/* Repeats the legend line for the slice in focus, larger, next to the ring. */}
               <p className={`text-xs font-semibold tabular-nums text-slate-900 ${activeSlice ? "mt-2" : "sr-only"}`} aria-hidden="true">
@@ -302,7 +310,7 @@ export const DonutChart: React.FC<DonutChartProps> = ({ label, slices, centerVal
       </div>
       {total > 0 && (
         <DataTableToggle
-          className="mt-auto pt-2" caption={label}
+          className="mt-auto pt-2.5" caption={label}
           columns={["Category", "Count", "Share"]}
           rows={slices.map((s) => ({ key: s.key, cells: [s.label, s.value, pctText(s.value, total)] }))}
         />

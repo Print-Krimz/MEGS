@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { User } from "lucide-react";
 import type { TeamRow, UnassignedWork } from "../../lib/types/analytics.types";
 import { sampleNote } from "../../lib/analytics-format";
 import { formatRecruiterName } from "../../lib/recruiter-label";
@@ -72,7 +73,11 @@ const SUB = "block text-xs font-normal";
 
 /** A recruiter flag: what it says and how it reads (red = act now, amber = watch, green = strong). */
 type Flag = { text: string; tone: "bad" | "watch" | "good" };
-const FLAG_TONE = { bad: TEXT_LOSS, watch: TEXT_AMBER, good: TEXT_GOOD } as const;
+const FLAG_TONE = {
+  bad: `bg-[#FDF1F2] ${TEXT_LOSS}`,
+  watch: `bg-[#FFF4DC] ${TEXT_AMBER}`,
+  good: `bg-[#EAF6EE] ${TEXT_GOOD}`,
+} as const;
 
 /**
  * Flags compare one recruiter with the rest of the team, so they only appear for a team of three or more.
@@ -121,7 +126,8 @@ const NoValue: React.FC<{ n: number }> = ({ n }) => (
   </>
 );
 
-const FlagText: React.FC<{ flag?: Flag }> = ({ flag }) => (flag ? <span className={`${SUB} font-semibold ${FLAG_TONE[flag.tone]}`}>{flag.text}</span> : null);
+const FlagText: React.FC<{ flag?: Flag }> = ({ flag }) =>
+  flag ? <span className={`mt-0.5 inline-block rounded-sm px-1.5 py-0.5 text-[11px] font-semibold ${FLAG_TONE[flag.tone]}`}>{flag.text}</span> : null;
 
 export const TeamTable = React.memo(function TeamTable({
   rows,
@@ -153,6 +159,15 @@ export const TeamTable = React.memo(function TeamTable({
 
   const bench = useMemo(() => benchmarks(rows), [rows]);
 
+  const totals = useMemo(() => {
+    const active = rows.reduce((t, r) => t + r.active, 0);
+    const overdue = rows.reduce((t, r) => t + r.overdue + r.overdueEstimated, 0);
+    const filled = rows.reduce((t, r) => t + r.filledSeats, 0);
+    const seats = rows.reduce((t, r) => t + r.requestedSeats, 0);
+    const starts = rows.reduce((t, r) => t + r.placed, 0);
+    return { active, overdue, filled, seats, starts };
+  }, [rows]);
+
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const pageRows = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -166,7 +181,32 @@ export const TeamTable = React.memo(function TeamTable({
 
   return (
     <AnalyticsPanel tone="reports" id="recruiter-table" title="Recruiters" subtitle={subtitle} bare={bare}>
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-slate-200 px-3.5 py-2.5">
+      {rows.length > 0 && (
+        <div
+          aria-hidden="true"
+          className="grid grid-cols-2 gap-2 border-b border-slate-200 bg-slate-50/85 px-4 py-2.5 text-xs font-sans sm:grid-cols-4"
+        >
+          <div className="rounded-md border border-slate-200/80 bg-white px-3 py-1.5 shadow-[0_1px_1px_0_rgb(15_23_42/0.03)]">
+            <span className="block text-[11px] font-medium text-slate-500">Team active pipeline</span>
+            <span className="text-sm font-bold tabular-nums text-slate-950">{totals.active}</span>
+          </div>
+          <div className="rounded-md border border-slate-200/80 bg-white px-3 py-1.5 shadow-[0_1px_1px_0_rgb(15_23_42/0.03)]">
+            <span className="block text-[11px] font-medium text-slate-500">Team overdue</span>
+            <span className={`text-sm font-bold tabular-nums ${totals.overdue > 0 ? TEXT_LOSS : "text-slate-700"}`}>{totals.overdue}</span>
+          </div>
+          <div className="rounded-md border border-slate-200/80 bg-white px-3 py-1.5 shadow-[0_1px_1px_0_rgb(15_23_42/0.03)]">
+            <span className="block text-[11px] font-medium text-slate-500">Assigned seats filled</span>
+            <span className="text-sm font-bold tabular-nums text-navy">
+              {totals.filled} / {totals.seats}
+            </span>
+          </div>
+          <div className="rounded-md border border-slate-200/80 bg-white px-3 py-1.5 shadow-[0_1px_1px_0_rgb(15_23_42/0.03)]">
+            <span className="block text-[11px] font-medium text-slate-500">Team starts</span>
+            <span className="text-sm font-bold tabular-nums text-[#1B6B3A]">{totals.starts}</span>
+          </div>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-slate-200 bg-white px-4 py-2.5">
         <label className="flex items-center gap-2 text-xs text-slate-700">
           <span className="text-xs font-semibold text-slate-600">Search</span>
           <input
@@ -177,7 +217,7 @@ export const TeamTable = React.memo(function TeamTable({
               setPage(1);
             }}
             placeholder="Recruiter name"
-            className="min-h-11 md:min-h-9 w-52 rounded-md border border-slate-300 bg-white px-2.5 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+            className="min-h-11 md:min-h-9 w-56 rounded-md border border-slate-300 bg-white px-2.5 text-sm shadow-[0_1px_1px_0_rgb(15_23_42/0.03)] placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           />
         </label>
         <p className="text-xs font-sans text-slate-600">
@@ -192,7 +232,7 @@ export const TeamTable = React.memo(function TeamTable({
       ) : (
         <div className="relative max-h-[32rem] overflow-auto">
           <table className="w-full min-w-[50rem] text-sm">
-            <thead className="sticky top-0 z-10 bg-slate-50/95 shadow-[inset_0_-1px_0_var(--color-ta-line)]">
+            <thead className="sticky top-0 z-10 bg-slate-100/95 shadow-[inset_0_-1px_0_var(--color-ta-line)]">
               <tr>
                 {COLUMNS.map((col) => {
                   const active = shown.key === col.key;
@@ -201,7 +241,7 @@ export const TeamTable = React.memo(function TeamTable({
                       key={col.key}
                       scope="col"
                       aria-sort={active ? (shown.dir === "asc" ? "ascending" : "descending") : undefined}
-                      className={`px-3 py-0.5 text-xs font-semibold text-slate-600 whitespace-nowrap ${col.key === "name" ? "text-left min-w-44" : "text-right"}`}
+                      className={`px-3 py-1 text-xs font-semibold text-slate-700 whitespace-nowrap ${col.key === "name" ? "text-left min-w-48" : "text-right"}`}
                     >
                       <button
                         type="button"
@@ -209,7 +249,7 @@ export const TeamTable = React.memo(function TeamTable({
                         className="min-h-11 md:min-h-9 inline-flex items-center gap-1 font-semibold hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                       >
                         {col.label}
-                        <span aria-hidden="true" className={`text-xs ${active ? "text-slate-900" : "text-slate-600"}`}>
+                        <span aria-hidden="true" className={`text-xs ${active ? "text-navy font-bold" : "text-slate-500"}`}>
                           {active ? (shown.dir === "asc" ? "▲" : "▼") : "↕"}
                         </span>
                       </button>
@@ -218,7 +258,7 @@ export const TeamTable = React.memo(function TeamTable({
                 })}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-200">
+            <tbody className="divide-y divide-slate-200/90">
               {pageRows.map((row) => {
                 const selected = row.recruiterId === selectedRecruiterId;
                 const { label, email } = formatRecruiterName(row.name);
@@ -227,6 +267,7 @@ export const TeamTable = React.memo(function TeamTable({
                 const late = row.overdue + row.overdueEstimated;
                 const flag = flagsFor(row, bench);
                 const toggle = () => onSelectRecruiter(selected ? undefined : row.recruiterId);
+                const seatPct = row.requestedSeats > 0 ? Math.min(100, Math.round((row.filledSeats / row.requestedSeats) * 100)) : 0;
                 return (
                   // The whole row is a click target (the name button is the keyboard route), because choosing a recruiter filters the page.
                   <tr
@@ -234,21 +275,31 @@ export const TeamTable = React.memo(function TeamTable({
                     onClick={toggle}
                     className={`cursor-pointer transition-colors hover:bg-navy-soft motion-reduce:transition-none ${selected ? "bg-navy-soft outline outline-1 -outline-offset-1 outline-navy" : ""}`}
                   >
-                    <th scope="row" className="px-3 py-2.5 text-left font-sans font-semibold whitespace-nowrap align-top">
-                      <button
-                        type="button"
-                        aria-pressed={selected}
-                        aria-label={`${spokenName}. ${action}`}
-                        title={action}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggle();
-                        }}
-                        className="min-h-11 text-left text-sm text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-0 md:py-0.5"
-                      >
-                        {label}{email && " "}
-                        {email && <span className="block text-xs font-normal text-slate-600 truncate">{email}</span>}
-                      </button>
+                    <th scope="row" className="px-3 py-3 text-left font-sans font-semibold whitespace-nowrap align-top">
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          aria-hidden="true"
+                          className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border ${
+                            selected ? "border-navy bg-navy text-white" : "border-navy-line bg-navy-soft text-navy"
+                          }`}
+                        >
+                          <User className="h-3.5 w-3.5" aria-hidden="true" />
+                        </span>
+                        <button
+                          type="button"
+                          aria-pressed={selected}
+                          aria-label={`${spokenName}. ${action}`}
+                          title={action}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggle();
+                          }}
+                          className="min-h-11 text-left text-sm font-semibold text-navy hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-0 md:py-0.5"
+                        >
+                          {label}{email && " "}
+                          {email && <span className="block text-xs font-normal text-slate-600 truncate">{email}</span>}
+                        </button>
+                      </div>
                     </th>
                     <td className={`${TD} font-semibold text-slate-950`}>
                       {row.active}
@@ -293,6 +344,9 @@ export const TeamTable = React.memo(function TeamTable({
                           ) : (
                             <span className={`${SUB} text-slate-600`}>{row.fillRate}%</span>
                           )}
+                          <div aria-hidden="true" className="ml-auto mt-1 h-1.5 w-20 overflow-hidden rounded-full bg-slate-200/90">
+                            <div className="h-full rounded-full bg-navy" style={{ width: `${seatPct}%` }} />
+                          </div>
                         </>
                       )}
                       {row.requestedSeats === 0 && <span className="sr-only">{sampleNote(0)}</span>}

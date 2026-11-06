@@ -30,7 +30,7 @@ const SERIES_COLORS = [BAR_PRIMARY, TREND.backouts] as const;
 /** Fixed height and real pixel text: only the width follows the container, so the chart is the same height at every screen width. */
 const H = 240;
 const DEFAULT_W = 640;
-const M = { top: 16, right: 16, bottom: 28, left: 36 };
+const M = { top: 18, right: 18, bottom: 28, left: 36 };
 const PLOT_H = H - M.top - M.bottom;
 
 /** Round the top of the scale up to a value that gives whole-number gridlines. */
@@ -87,17 +87,32 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
   const summary = shown.map((s) => summarise(points, s)).join(" ");
   const showNet = shown.length === 2 && shown[0]?.key === "starts" && shown[1]?.key === "backouts";
   const netRetained = showNet ? totals[0] - totals[1] : null;
+  const retentionBase = showNet ? totals[0] + totals[1] : 0;
+  const retentionPct = showNet && retentionBase > 0 ? Math.round((totals[0] / retentionBase) * 100) : null;
 
   return (
-    <AnalyticsPanel tone="reports" id={id} title={title} subtitle={subtitle} className="h-full flex flex-col">
+    <AnalyticsPanel
+      tone="reports"
+      id={id}
+      title={title}
+      subtitle={subtitle}
+      aside={
+        !isEmpty && retentionPct !== null ? (
+          <span className="rounded-sm border border-[#CBE7D4] bg-[#EAF6EE] px-2 py-0.5 text-xs font-semibold tabular-nums text-[#1B6B3A]">
+            {retentionPct}% start retention
+          </span>
+        ) : undefined
+      }
+      className="h-full flex flex-col"
+    >
       {isEmpty ? (
-        <p className="px-3.5 py-3 text-xs text-slate-600 font-sans">{emptyText}</p>
+        <p className="px-4 py-4 text-xs text-slate-600 font-sans">{emptyText}</p>
       ) : (
-        <div className="flex flex-1 flex-col p-3.5">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-1 flex-col p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50/90 p-2">
             <ul className="flex flex-wrap gap-2 font-sans text-sm text-slate-900" aria-label="Legend">
               {shown.map((s, i) => (
-                <li key={s.key} className="flex items-center gap-2 rounded-md border border-slate-300 bg-slate-50/70 px-2.5 py-1 font-medium">
+                <li key={s.key} className="flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1 font-semibold shadow-2xs">
                   {/* Solid line for the first series, dashed for the second: the two differ by shape, not only by color. */}
                   <span
                     aria-hidden="true"
@@ -112,19 +127,38 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
                     }}
                   />
                   {s.label}
-                  <strong className="text-base font-semibold tabular-nums" style={{ color: SERIES_COLORS[i] }}>{totals[i]}</strong>
+                  <strong className="text-base font-bold tabular-nums" style={{ color: SERIES_COLORS[i] }}>{totals[i]}</strong>
                 </li>
               ))}
             </ul>
             {netRetained !== null && (
-              <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-sans text-slate-700 tabular-nums">
-                Net gain: <strong className={netRetained >= 0 ? "text-slate-950" : "text-[#B42318]"}>{netRetained > 0 ? `+${netRetained}` : netRetained}</strong>
+              <span
+                aria-hidden="true"
+                className={`rounded-md border px-2.5 py-1 text-xs font-semibold font-sans tabular-nums ${
+                  netRetained >= 0
+                    ? "border-navy-line bg-navy-soft text-navy"
+                    : "border-[#F5C2C7] bg-[#FDF1F2] text-[#B42318]"
+                }`}
+              >
+                Net gain: <strong>{netRetained > 0 ? `+${netRetained}` : netRetained}</strong>
               </span>
             )}
           </div>
-          <div ref={wrapRef} className="my-auto w-full">
+          <div ref={wrapRef} className="my-auto w-full rounded-md border border-slate-200/80 bg-[#FCFDFE] p-2">
             <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block h-60 w-full max-w-full" role="img" aria-label={title}>
               <title>{title}</title>
+              {xLabelIdx.map((i) => (
+                <line
+                  key={`vx-${i}`}
+                  x1={x(i)}
+                  x2={x(i)}
+                  y1={M.top}
+                  y2={M.top + PLOT_H}
+                  stroke="#F1F5F9"
+                  strokeWidth={1}
+                  strokeDasharray="3 3"
+                />
+              ))}
               {ticks.map((t) => (
                 <g key={t}>
                   <line x1={M.left} x2={W - M.right} y1={y(t)} y2={y(t)} stroke={t === 0 ? "#94A3B8" : "#E2E8F0"} strokeWidth={1} />
@@ -141,17 +175,24 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
               {shown.map((s, si) => ({ s, si })).reverse().map(({ s, si }) => {
                 const d = points.map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)} ${y(p.values[s.key] ?? 0).toFixed(1)}`).join(" ");
                 const areaPoints =
-                  si === 0 && points.length >= 2
+                  points.length >= 2
                     ? `${x(0).toFixed(1)},${y(0).toFixed(1)} ${points.map((p, i) => `${x(i).toFixed(1)},${y(p.values[s.key] ?? 0).toFixed(1)}`).join(" ")} ${x(points.length - 1).toFixed(1)},${y(0).toFixed(1)}`
                     : null;
                 const seriesMax = Math.max(0, ...points.map((p) => p.values[s.key] ?? 0));
                 return (
                   <g key={s.key}>
-                    {areaPoints && <polygon points={areaPoints} fill={SERIES_COLORS[si]} fillOpacity={0.07} aria-hidden="true" />}
-                    <path d={d} fill="none" stroke={SERIES_COLORS[si]} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" strokeDasharray={si === 1 ? "6 4" : undefined} />
+                    {areaPoints && (
+                      <polygon
+                        points={areaPoints}
+                        fill={SERIES_COLORS[si]}
+                        fillOpacity={si === 0 ? 0.09 : 0.04}
+                        aria-hidden="true"
+                      />
+                    )}
+                    <path d={d} fill="none" stroke={SERIES_COLORS[si]} strokeWidth={2.75} strokeLinejoin="round" strokeLinecap="round" strokeDasharray={si === 1 ? "6 4" : undefined} />
                     {(points.length >= 3 || points.length === 1) &&
                       points.map((p, i) => (
-                        <circle key={i} cx={x(i)} cy={y(p.values[s.key] ?? 0)} r={3} fill="#FFFFFF" stroke={SERIES_COLORS[si]} strokeWidth={1.5}>
+                        <circle key={i} cx={x(i)} cy={y(p.values[s.key] ?? 0)} r={3.5} fill="#FFFFFF" stroke={SERIES_COLORS[si]} strokeWidth={2}>
                           <title>{`${p.label}, ${s.label}: ${p.values[s.key] ?? 0}`}</title>
                         </circle>
                       ))}
@@ -168,7 +209,7 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
                           y={below ? y(v) + 16 : y(v) - 8}
                           textAnchor={i === 0 ? "start" : i === points.length - 1 ? "end" : "middle"}
                           fontSize={11}
-                          fontWeight={600}
+                          fontWeight={700}
                           fill="#0F172A"
                           style={{ fontVariantNumeric: "tabular-nums" }}
                           data-point-value=""
@@ -185,7 +226,7 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
           </div>
           <p className="sr-only">{summary}</p>
           <DataTableToggle
-            className="mt-auto pt-2" caption={title}
+            className="mt-auto pt-3" caption={title}
             columns={["Period", ...shown.map((s) => s.label)]}
             rows={points.map((p, i) => ({ key: `${i}-${p.label}`, cells: [p.label, ...shown.map((s) => p.values[s.key] ?? 0)] }))}
           />

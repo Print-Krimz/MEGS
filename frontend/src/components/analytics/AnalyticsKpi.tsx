@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowDown, ArrowUp, Minus } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpRight, Minus } from "lucide-react";
 import { AnimatedNumber } from "./motion";
 import { TEXT_GOOD, TEXT_LOSS } from "../../lib/chart-palette";
 import { scrollToId } from "../../lib/scroll-to";
@@ -33,7 +33,6 @@ interface AnalyticsKpiProps {
 }
 
 const FOCUS = "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus";
-const ACTIVE = `group block w-full p-3.5 text-left transition-colors motion-reduce:transition-none hover:bg-navy-soft/50 ${FOCUS}`;
 
 /** A change as shown ("+3", "-1.2 days", "+4.5 pts") and as read aloud ("3", "1.2 days", "4.5 percentage points"). */
 const deltaParts = (change: number, unit: KpiDelta["unit"]) => {
@@ -62,14 +61,23 @@ const deltaLine = ({ current, previous, unit, better, periodLabel }: KpiDelta) =
   const up = change > 0;
   const flat = change === 0;
   const Icon = flat ? Minus : up ? ArrowUp : ArrowDown;
-  const tone = flat ? "text-slate-600" : up === (better === "up") ? TEXT_GOOD : TEXT_LOSS;
+  const good = !flat && up === (better === "up");
+  const tone = flat ? "text-slate-600" : good ? TEXT_GOOD : TEXT_LOSS;
+  const badgeBg = flat
+    ? "bg-slate-100 border-slate-200"
+    : good
+      ? "bg-[#EAF6EE] border-[#CBE7D4]"
+      : "bg-[#FDF1F2] border-[#F5C2C7]";
   const { short, spoken } = deltaParts(change, unit);
   const word = flat ? "No change" : up ? "Up" : "Down";
   return (
-    <div className={`mt-1 flex items-center gap-1 text-xs font-sans font-semibold tabular-nums ${tone}`}>
-      <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-      <span aria-hidden="true">
-        {flat ? "No change" : short} <span className="font-normal text-slate-600">vs {periodLabel}</span>
+    <div className={`mt-1.5 inline-flex flex-wrap items-center gap-x-1.5 gap-y-0.5 rounded-sm border px-2 py-0.5 text-xs font-sans font-semibold tabular-nums ${badgeBg} ${tone}`}>
+      <span aria-hidden="true" className="inline-flex items-center gap-1 whitespace-nowrap">
+        <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+        {flat ? "No change" : short}
+      </span>{" "}
+      <span aria-hidden="true" className="font-normal text-slate-600">
+        vs {periodLabel}
       </span>
       <span className="sr-only">
         {flat ? `No change from ${valueText(previous, unit)}` : `${word} ${spoken} from ${valueText(previous, unit)}`} in the {periodLabel}
@@ -98,24 +106,63 @@ const renderValue = (value: number | string) => {
 export const AnalyticsKpi: React.FC<AnalyticsKpiProps> = ({ label, value, detail, tone = "default", href, onClick, delta }) => {
   // Words ("Too few to show (3 cases)", "No seats") read as an absence, so they sit below headline numbers in size.
   const text = typeof value === "string" && !/^-?\d[\d.,]*\s?(%|days?)?$/.test(value);
+  const isInteractive = Boolean(href || onClick);
+  const pctMatch = typeof value === "string" ? /^(\d+(?:\.\d+)?)%$/.exec(value) : null;
+  const pctNum = pctMatch ? Math.min(100, Math.max(0, Number(pctMatch[1]))) : null;
+
+  const topSurface =
+    tone === "alert"
+      ? "bg-gradient-to-b from-[#FDF1F2]/60 to-white"
+      : isInteractive
+        ? "bg-white hover:bg-[#F4F7FB]"
+        : "bg-white";
+  const accentColor =
+    tone === "alert"
+      ? "bg-[#B42318]"
+      : isInteractive
+        ? "bg-navy"
+        : "bg-[#1D4ED8]";
+
+  const frameClass = `group relative block w-full p-4 pt-4.5 text-left transition-colors motion-reduce:transition-none ${topSurface} ${isInteractive ? FOCUS : ""}`;
+
   const body = (
     <>
-      <div className="text-xs font-semibold text-slate-700">{label}</div>
+      <div className="pr-5 text-xs font-bold uppercase tracking-wider text-slate-600">{label}</div>
       <div
-        className={`mt-1 font-display font-semibold tabular-nums ${text ? "text-base leading-9" : "whitespace-nowrap text-3xl max-lg:text-2xl leading-9"} ${
+        className={`mt-1.5 font-display font-bold tabular-nums ${text ? "text-base leading-9" : "whitespace-nowrap text-3xl max-lg:text-2xl leading-9"} ${
           tone === "alert" ? TEXT_LOSS : text ? "text-slate-700" : "text-slate-950"
         }`}
       >
         {renderValue(value)}
       </div>
+      {pctNum !== null && (
+        <div aria-hidden="true" className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+          <div
+            className="h-full rounded-full transition-all duration-300"
+            style={{
+              width: `${pctNum}%`,
+              backgroundColor: label.toLowerCase().includes("backout") ? "#B42318" : "#0B315D",
+            }}
+          />
+        </div>
+      )}
       {delta && deltaLine(delta)}
-      {detail && <div className="mt-0.5 text-balance text-xs font-sans text-slate-600">{detail}</div>}
+      {detail && <div className="mt-1.5 text-balance text-xs font-medium font-sans text-slate-600">{detail}</div>}
+      <span aria-hidden="true" className={`absolute inset-x-0 top-0 h-1 ${accentColor}`} />
+      {isInteractive && (
+        <span
+          aria-hidden="true"
+          className=" absolute right-3 top-3.5 inline-flex h-5 w-5 items-center justify-center rounded-sm bg-slate-100 text-slate-500 transition-colors group-hover:bg-navy group-hover:text-white"
+        >
+          <ArrowUpRight className="h-3.5 w-3.5" />
+        </span>
+      )}
     </>
   );
 
   if (href && !href.startsWith("#")) {
     return (
-      <Link to={href as any} onClick={onClick} className={ACTIVE}>
+      <Link to={href as any} onClick={onClick} className={frameClass}>
         {body}
       </Link>
     );
@@ -131,7 +178,7 @@ export const AnalyticsKpi: React.FC<AnalyticsKpiProps> = ({ label, value, detail
           // Let a newly opened tab render before scrolling to it.
           setTimeout(() => scrollToId(id), 0);
         }}
-        className={ACTIVE}
+        className={frameClass}
       >
         {body}
       </a>
@@ -139,12 +186,12 @@ export const AnalyticsKpi: React.FC<AnalyticsKpiProps> = ({ label, value, detail
   }
   if (onClick) {
     return (
-      <button type="button" onClick={onClick} className={ACTIVE}>
+      <button type="button" onClick={onClick} className={frameClass}>
         {body}
       </button>
     );
   }
-  return <div className="p-3.5">{body}</div>;
+  return <div className={frameClass}>{body}</div>;
 };
 
 interface KpiGroupProps {
@@ -164,12 +211,27 @@ const SPAN: Record<number, string> = {
 export const KpiGroup: React.FC<KpiGroupProps> = ({ label, children }) => (
   // A group spans as many columns as it has tiles, so every tile in the row is the same width.
   <section aria-label={label} className={`flex min-w-0 flex-col ${SPAN[React.Children.count(children)] ?? ""}`}>
-    <h3 className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-slate-700">
-      <span aria-hidden="true" className={label === "Right now" ? "h-1.5 w-1.5 rounded-full bg-navy" : "h-1.5 w-1.5 rounded-full bg-slate-400"} />
-      {label}
-    </h3>
+    <div className="mb-2 flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2">
+        <span
+          aria-hidden="true"
+          className={`h-2 w-2 rounded-full ${label === "Right now" ? "bg-navy" : "bg-[#1D4ED8]"}`}
+        />
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">{label}</h3>
+      </div>
+      <span
+        aria-hidden="true"
+        className={`rounded-sm border px-2 py-0.5 text-[11px] font-semibold ${
+          label === "Right now"
+            ? "border-navy-line bg-navy-soft text-navy"
+            : "border-slate-200 bg-slate-100 text-slate-700"
+        }`}
+      >
+        {label === "Right now" ? "Live pipeline" : "Selected range"}
+      </span>
+    </div>
     {/* A lone tile fills its group; two columns would leave it half width. */}
-    <div className={`grid ${React.Children.count(children) === 1 ? "grid-cols-1" : "grid-cols-2"} flex-1 overflow-hidden rounded-md divide-x divide-y divide-slate-200 border border-slate-300 bg-white shadow-xs md:grid-flow-col md:auto-cols-fr md:divide-y-0 max-md:[&>*:last-child:nth-child(odd)]:col-span-2`}>
+    <div className={`grid ${React.Children.count(children) === 1 ? "grid-cols-1" : "grid-cols-2"} flex-1 overflow-hidden rounded-lg divide-x divide-y divide-slate-200 border border-slate-300 bg-white shadow-[0_1px_3px_0_rgb(15_23_42/0.06)] md:grid-flow-col md:auto-cols-fr md:divide-y-0 max-md:[&>*:last-child:nth-child(odd)]:col-span-2`}>
       {children}
     </div>
   </section>
@@ -191,19 +253,19 @@ export const KpiRow: React.FC<KpiRowProps> = ({ children, definitions }) => {
   const gridCols = totalTiles === 5 ? "md:grid-cols-5 lg:grid-cols-5" : "md:grid-cols-4 lg:grid-cols-4";
   return (
     <div>
-      <div className={`grid gap-3 ${gridCols} md:gap-4`}>{children}</div>
-      <details className="mt-2">
-        <summary className="group inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-xs font-semibold text-navy underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-8">
+      <div className={`grid gap-3.5 ${gridCols} md:gap-4`}>{children}</div>
+      <details className="mt-2.5">
+        <summary className="group inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-navy underline decoration-slate-300 underline-offset-2 shadow-[0_1px_1px_0_rgb(15_23_42/0.03)] hover:bg-navy-soft/40 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-8">
           <span aria-hidden="true" className="inline-block transition-transform group-open:rotate-90 motion-reduce:transition-none">
             &#9656;
           </span>
           How these are counted
         </summary>
-        <dl className="mt-1.5 grid gap-x-4 gap-y-1.5 rounded-md border border-slate-200 bg-slate-50/80 p-3 text-xs text-slate-700 sm:grid-cols-[max-content_1fr]">
+        <dl className="mt-2 grid gap-x-5 gap-y-2 rounded-lg border border-slate-200 bg-white p-3.5 text-xs text-slate-700 shadow-[0_1px_2px_0_rgb(15_23_42/0.04)] sm:grid-cols-[max-content_1fr]">
           {definitions.map((d) => (
             <React.Fragment key={d.label}>
-              <dt className="font-semibold text-slate-900">{d.label}</dt>
-              <dd>{d.definition}</dd>
+              <dt className="border-l border-slate-300 pl-2 font-bold text-slate-900">{d.label}</dt>
+              <dd className="text-slate-600">{d.definition}</dd>
             </React.Fragment>
           ))}
         </dl>
@@ -215,7 +277,7 @@ export const KpiRow: React.FC<KpiRowProps> = ({ children, definitions }) => {
 /** Plain grid of tiles for pages that show a few headline numbers with no time-base groups or definitions. */
 export const KpiStrip: React.FC<{ children: React.ReactNode; columns: string }> = ({ children, columns }) => (
   <div
-    className={`grid grid-cols-2 ${columns} overflow-hidden rounded-md border border-slate-300 bg-white shadow-xs divide-x divide-y md:divide-y-0 divide-slate-200 max-md:[&>*:last-child:nth-child(odd)]:col-span-2`}
+    className={`grid grid-cols-2 ${columns} overflow-hidden rounded-lg border border-slate-300 bg-white shadow-[0_1px_3px_0_rgb(15_23_42/0.06)] divide-x divide-y md:divide-y-0 divide-slate-200 max-md:[&>*:last-child:nth-child(odd)]:col-span-2`}
   >
     {children}
   </div>

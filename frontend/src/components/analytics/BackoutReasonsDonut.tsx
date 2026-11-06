@@ -19,6 +19,9 @@ export const BackoutReasonsDonut: React.FC<{ data: BackoutSummary; className?: s
       data.byParty &&
         (data.byParty.APPLICANT > 0 || data.byParty.CLIENT > 0 || data.byParty.AGENCY > 0)
     );
+  const partyTotal = hasPartyBreakdown
+    ? data.byParty.APPLICANT + data.byParty.CLIENT + data.byParty.AGENCY
+    : 0;
 
   return (
     <AnalyticsPanel
@@ -27,57 +30,71 @@ export const BackoutReasonsDonut: React.FC<{ data: BackoutSummary; className?: s
       title="Why candidates backed out"
       aside={
         total > 0 ? (
-          <span className="tabular-nums font-medium text-slate-700">
-            <strong className="text-slate-900">{data.backouts}</strong> after review · <strong className="text-slate-900">{data.withdrawals}</strong> early
-          </span>
+          <div className="flex items-center gap-1.5 text-xs tabular-nums">
+            <span className="rounded-sm border border-[#F5C2C7] bg-[#FDF1F2] px-2 py-0.5 font-semibold text-[#B42318]">
+              {data.backouts} after review
+            </span>
+            <span className="rounded-sm border border-slate-200 bg-slate-100 px-2 py-0.5 font-semibold text-slate-700">
+              {data.withdrawals} early
+            </span>
+          </div>
         ) : undefined
       }
       className={`flex flex-col ${className ?? ""}`}
     >
-      <div className="flex flex-1 flex-col p-3.5">
+      <div className="flex flex-1 flex-col p-4">
         <DonutChart
-          size={160}
+          size={156}
           label="Why candidates backed out"
           slices={slices}
           centerValue={String(total)}
           centerLabel={total === 1 ? "backout" : "backouts"}
         />
         {total > 0 && (
-          <div className="mt-3 grid grid-cols-1 gap-2 rounded-md border border-slate-200/90 bg-slate-50/80 px-3 py-2 text-xs font-sans text-slate-700 sm:grid-cols-2">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Stage timing</div>
-              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 tabular-nums">
+          <div className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            <div className="rounded-md border border-slate-200 bg-slate-50/90 p-2.5 text-xs font-sans text-slate-700">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Stage timing</div>
+              <div aria-hidden="true" className="mt-1.5 flex h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                <span style={{ width: `${(data.backouts / total) * 100}%`, backgroundColor: "#B42318" }} />
+                <span style={{ width: `${(data.withdrawals / total) * 100}%`, backgroundColor: "#0B315D" }} />
+              </div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 tabular-nums">
                 <span>
-                  After client review: <strong className="font-semibold text-navy">{data.backouts}</strong>
+                  After client review: <strong className="font-bold text-[#B42318]">{data.backouts}</strong>
                 </span>
                 <span aria-hidden="true" className="text-slate-300">·</span>
                 <span>
-                  Early withdrawal: <strong className="font-semibold text-navy">{data.withdrawals}</strong>
+                  Early withdrawal: <strong className="font-bold text-navy">{data.withdrawals}</strong>
                 </span>
                 {data.noShows > 0 && (
                   <>
                     <span aria-hidden="true" className="text-slate-300">·</span>
                     <span>
-                      No-shows: <strong className="font-semibold text-[#B42318]">{data.noShows}</strong>
+                      No-shows: <strong className="font-bold text-[#9A5B00]">{data.noShows}</strong>
                     </span>
                   </>
                 )}
               </div>
             </div>
             {hasPartyBreakdown && (
-              <div>
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Initiated by</div>
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 tabular-nums">
+              <div className="rounded-md border border-slate-200 bg-slate-50/90 p-2.5 text-xs font-sans text-slate-700">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Initiated by</div>
+                <div aria-hidden="true" className="mt-1.5 flex h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                  <span style={{ width: `${partyTotal > 0 ? (data.byParty.APPLICANT / partyTotal) * 100 : 0}%`, backgroundColor: "#1D4ED8" }} />
+                  <span style={{ width: `${partyTotal > 0 ? (data.byParty.CLIENT / partyTotal) * 100 : 0}%`, backgroundColor: "#B45309" }} />
+                  <span style={{ width: `${partyTotal > 0 ? (data.byParty.AGENCY / partyTotal) * 100 : 0}%`, backgroundColor: "#475569" }} />
+                </div>
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 tabular-nums">
                   <span>
-                    Applicant: <strong className="font-semibold text-navy">{data.byParty.APPLICANT}</strong>
+                    Applicant: <strong className="font-bold text-[#1D4ED8]">{data.byParty.APPLICANT}</strong>
                   </span>
                   <span aria-hidden="true" className="text-slate-300">·</span>
                   <span>
-                    Client: <strong className="font-semibold text-navy">{data.byParty.CLIENT}</strong>
+                    Client: <strong className="font-bold text-[#9A5B00]">{data.byParty.CLIENT}</strong>
                   </span>
                   <span aria-hidden="true" className="text-slate-300">·</span>
                   <span>
-                    Agency: <strong className="font-semibold text-navy">{data.byParty.AGENCY}</strong>
+                    Agency: <strong className="font-bold text-slate-800">{data.byParty.AGENCY}</strong>
                   </span>
                 </div>
               </div>

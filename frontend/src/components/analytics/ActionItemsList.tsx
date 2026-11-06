@@ -18,9 +18,9 @@ interface ActionItemsListProps {
 
 /** Priority is how important the task is. How late it is shows separately, under Due. */
 const PRIORITY = {
-  HIGH: { label: "High", badge: "bg-[#FDF1F2] text-[#B42318]" },
-  MEDIUM: { label: "Medium", badge: "bg-[#FFF4DC] text-[#7A4800]" },
-  NORMAL: { label: "Low", badge: "bg-slate-100 text-slate-700" },
+  HIGH: { label: "High", badge: "rounded-sm border border-[#F5C2C7] bg-[#FDF1F2] text-[#B42318]" },
+  MEDIUM: { label: "Medium", badge: "rounded-sm border border-[#F3D19E] bg-[#FFF4DC] text-[#7A4800]" },
+  NORMAL: { label: "Low", badge: "rounded-sm border border-slate-200 bg-slate-100 text-slate-700" },
 } as const;
 
 /** The stage or step each kind of task belongs to, in the same words the stage chart uses. */
@@ -81,7 +81,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ rows, total, b
       ) : (
         // Container queries: the side menu takes width, so the table starts when this panel is wide enough, not at a screen width.
         <div className="@container">
-          <div aria-hidden="true" className={`hidden border-b border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-600 @3xl:grid @3xl:gap-x-4 ${COLUMNS}`}>
+          <div aria-hidden="true" className={`hidden border-b border-slate-200 bg-slate-100/90 px-4 py-2 text-xs font-semibold text-slate-700 @3xl:grid @3xl:gap-x-4 ${COLUMNS}`}>
             <span>Task</span>
             <span>Candidate / Job</span>
             <span>Stage</span>
@@ -89,27 +89,27 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ rows, total, b
             <span>Due</span>
             <span className="text-right">Action</span>
           </div>
-          <ul className="divide-y divide-slate-200">
+          <ul className="divide-y divide-slate-200/90">
             {rows.map((r) => {
               const t = timing(r, today);
               const priority = PRIORITY[t.priority];
               return (
                 <li
                   key={r.id}
-                  className={`flex flex-col gap-2 px-3.5 py-3.5 transition-colors hover:bg-navy-soft focus-within:bg-navy-soft motion-reduce:transition-none @3xl:grid @3xl:items-center @3xl:gap-x-4 ${COLUMNS}`}
+                  className={`flex flex-col gap-2 px-4 py-3.5 transition-colors hover:bg-navy-soft focus-within:bg-navy-soft motion-reduce:transition-none @3xl:grid @3xl:items-center @3xl:gap-x-4 ${COLUMNS}`}
                 >
-                  <p className="min-w-0 line-clamp-2 text-sm font-semibold text-slate-900" title={r.title}>
+                  <p className="min-w-0 line-clamp-2 text-sm font-semibold text-slate-950" title={r.title}>
                     {r.title}
                   </p>
                   <div className="min-w-0 text-xs font-sans">
-                    <p className="truncate text-sm text-slate-900">{r.candidateName}</p>
+                    <p className="truncate text-sm font-medium text-slate-900">{r.candidateName}</p>
                     <p className="truncate text-slate-600">{r.jobTitle}</p>
                   </div>
-                  <p className="min-w-0 truncate text-xs font-sans text-slate-700">{CONTEXT[r.type]}</p>
+                  <p className="min-w-0 truncate text-xs font-sans font-medium text-slate-700">{CONTEXT[r.type]}</p>
                   {/* Priority and due share a line on a narrow panel; in the table they are two columns. */}
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 @3xl:contents">
                     <div>
-                      <span className={`inline-block px-1.5 py-0.5 text-xs font-semibold ${priority.badge}`}>{priority.label}</span>
+                      <span className={`inline-block px-2 py-0.5 text-xs font-semibold ${priority.badge}`}>{priority.label}</span>
                     </div>
                     <div className="text-xs font-sans tabular-nums">
                       <span className={`block font-semibold ${t.tone === "late" ? TEXT_LOSS : t.tone === "soon" ? TEXT_AMBER : "text-slate-800"}`}>{t.text}</span>
@@ -120,7 +120,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ rows, total, b
                     <Link
                       to={r.targetUrl as never}
                       aria-label={`Open: ${r.title}, ${r.candidateName}`}
-                      className="inline-flex min-h-11 items-center justify-center rounded-md border border-navy bg-white px-3 text-xs font-semibold text-navy transition-colors hover:bg-navy hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none md:min-h-8"
+                      className="inline-flex min-h-11 items-center justify-center rounded-md border border-navy bg-white px-3 text-xs font-semibold text-navy shadow-[0_1px_1px_0_rgb(15_23_42/0.04)] transition-colors hover:bg-navy hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus motion-reduce:transition-none md:min-h-8"
                     >
                       Open
                     </Link>
@@ -131,7 +131,7 @@ export const ActionItemsList: React.FC<ActionItemsListProps> = ({ rows, total, b
           </ul>
         </div>
       )}
-      <p className="border-t border-slate-200 px-3.5 py-2.5 text-xs font-sans text-slate-600">
+      <p className="border-t border-slate-200 bg-slate-50/70 px-4 py-2.5 text-xs font-sans text-slate-600">
         Showing {rows.length} of {total}.{" "}
         <Link to="/ta" className="font-semibold text-navy underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus">
           See all on Overview

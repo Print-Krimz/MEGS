@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { ArrowRightLeft, Download, X, type LucideIcon } from "lucide-react";
+import { ArrowRightLeft, Download, User, X, type LucideIcon } from "lucide-react";
 import type { StuckCandidate } from "../../lib/types/analytics.types";
 import { formatRecruiterName } from "../../lib/recruiter-label";
 import { AnalyticsPanel } from "./AnalyticsPanel";
@@ -56,14 +56,14 @@ interface StuckListProps {
 }
 
 const URGENCY = {
-  critical: { label: "Critical", badge: "bg-[#FDF1F2] text-[#B42318]" },
-  overdue: { label: "Overdue", badge: "bg-[#FFF4DC] text-[#7A4800]" },
+  critical: { label: "Critical", badge: "rounded-sm border border-[#F5C2C7] bg-[#FDF1F2] text-[#B42318]" },
+  overdue: { label: "Overdue", badge: "rounded-sm border border-[#F3D19E] bg-[#FFF4DC] text-[#7A4800]" },
 } as const;
 
 const CHECKBOX = "h-4 w-4 cursor-pointer accent-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1";
 
 const ROW_BUTTON =
-  "inline-flex min-h-11 items-center px-1 text-xs font-semibold text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50 md:min-h-9";
+  "inline-flex min-h-11 items-center rounded-md border border-slate-200 bg-slate-50/90 px-2.5 text-xs font-semibold text-navy transition-colors hover:border-navy-line hover:bg-navy-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50 md:min-h-8";
 
 const CSV_HEADERS = ["Candidate", "Job", "Client", "Recruiter", "Stage", "Days in stage", "Days allowed", "Days over", "Urgency", "Last activity", "Last note"];
 
@@ -82,10 +82,10 @@ const csvRow = (r: StuckCandidate) => [
 ];
 
 const BULK_BUTTON =
-  "inline-flex min-h-11 items-center gap-1.5 rounded-md border border-navy bg-white px-2.5 text-xs font-semibold text-navy hover:bg-navy-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50 md:min-h-8";
+  "inline-flex min-h-11 items-center gap-1.5 rounded-md border border-navy bg-white px-2.5 text-xs font-semibold text-navy shadow-[0_1px_1px_0_rgb(15_23_42/0.04)] hover:bg-navy-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus disabled:opacity-50 md:min-h-8";
 
 const SELECT =
-  "min-h-11 md:min-h-9 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+  "min-h-11 md:min-h-9 rounded-md border border-slate-300 bg-white px-2.5 text-sm text-slate-900 shadow-[0_1px_1px_0_rgb(15_23_42/0.03)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
 
 /** Days in the stage as a bar: a pale baseline up to the limit, then only the days past it in colour. */
 const WaitBar: React.FC<{ row: number; r: StuckCandidate; color: string; index: number; className?: string }> = ({ row: scale, r, color, index, className }) => (
@@ -93,7 +93,7 @@ const WaitBar: React.FC<{ row: number; r: StuckCandidate; color: string; index: 
     className={className}
     label={`${r.stageLabel}, days in stage, limit ${r.slaDays} ${r.slaDays === 1 ? "day" : "days"}`}
     max={scale}
-    heightClass="h-2"
+    heightClass="h-2.5"
     index={index}
     segments={[
       { key: "within", label: "Within days allowed", value: Math.min(r.daysInStage, r.slaDays), color: WAIT.withinLimit },
@@ -135,7 +135,6 @@ export const StuckList = React.memo(function StuckList({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const pageBoxRef = useRef<HTMLInputElement>(null);
-
 
   const focusNonce = focus?.nonce;
   const focusUrgency = focus?.urgency;
@@ -260,9 +259,16 @@ export const StuckList = React.memo(function StuckList({
   };
 
   return (
-    <AnalyticsPanel tone="reports" id={id} title={title} subtitle={closedOpenings > 0 ? `${subtitle} ${closedOpenings} more are on closed job openings.` : subtitle} bare={bare} aside={<span className="tabular-nums">{total} waiting</span>}>
+    <AnalyticsPanel
+      tone="reports"
+      id={id}
+      title={title}
+      subtitle={closedOpenings > 0 ? `${subtitle} ${closedOpenings} more are on closed job openings.` : subtitle}
+      bare={bare}
+      aside={<span className="tabular-nums">{total} waiting</span>}
+    >
       {rows.length > 0 && (
-        <div className="flex flex-wrap items-end gap-x-4 gap-y-2 border-b border-slate-200 px-3.5 py-2.5">
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-2 border-b border-slate-200 bg-slate-50/85 px-4 py-3">
           <div role="group" aria-label="Filter by urgency" className="flex gap-1.5">
             {(["ALL", "critical"] as const).map((key) => (
               <button
@@ -270,11 +276,24 @@ export const StuckList = React.memo(function StuckList({
                 type="button"
                 aria-pressed={urgency === key}
                 onClick={() => reset(() => setUrgency(key))}
-                className={`min-h-11 md:min-h-9 rounded-md px-2.5 text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
-                  urgency === key ? "bg-navy text-white border-navy" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100"
+                className={`min-h-11 md:min-h-9 rounded-md px-3 text-xs font-semibold border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+                  urgency === key
+                    ? "bg-navy text-white border-navy shadow-[0_1px_2px_0_rgb(15_23_42/0.12)]"
+                    : "bg-white text-slate-700 border-slate-300 hover:border-navy-line hover:bg-navy-soft"
                 }`}
               >
-                {key === "ALL" ? "All" : "Critical"} <span className="tabular-nums font-normal">{key === "ALL" ? rows.length : criticalCount}</span>
+                {key === "ALL" ? "All" : "Critical"}{" "}
+                <span
+                  className={`ml-0.5 inline-block rounded-full px-1.5 py-0.2 tabular-nums ${
+                    urgency === key
+                      ? "bg-white/20 text-white font-bold"
+                      : key === "critical" && criticalCount > 0
+                        ? "bg-[#FDF1F2] font-bold text-[#B42318]"
+                        : "bg-slate-100 text-slate-600 font-semibold"
+                  }`}
+                >
+                  {key === "ALL" ? rows.length : criticalCount}
+                </span>
               </button>
             ))}
           </div>
@@ -299,7 +318,7 @@ export const StuckList = React.memo(function StuckList({
                 setPage(1);
               }}
               placeholder={withRecruiter ? "Candidate, job, client or recruiter" : "Candidate, job or client"}
-              className="min-h-11 md:min-h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:w-64"
+              className="min-h-11 md:min-h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-sm shadow-[0_1px_1px_0_rgb(15_23_42/0.03)] placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:w-64"
             />
           </label>
         </div>
@@ -325,174 +344,202 @@ export const StuckList = React.memo(function StuckList({
         </p>
       ) : (
         <>
-        {selectable && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-200 bg-slate-50 pl-1 pr-3 text-xs font-semibold text-slate-700">
-            <label className="flex min-h-11 cursor-pointer items-center gap-1 md:min-h-9">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center md:h-9 md:w-9">
-                <input ref={pageBoxRef} type="checkbox" checked={allOnPage} onChange={togglePage} className={CHECKBOX} />
-              </span>
-              Select all on this page
-            </label>
-            {/* The actions appear on this row once something is ticked, so they sit next to what they act on. */}
-            {selected.size > 0 && (
-              <div role="group" aria-label="Actions for the ticked candidates" className="flex flex-wrap items-center gap-2 py-1.5">
-                <span role="status" className="tabular-nums text-slate-900">{selected.size} selected</span>
-                {!admin && (
-                  <button type="button" disabled={busy} onClick={() => moveSelected(selectedRows)} className={BULK_BUTTON}>
-                    <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden="true" />
-                    Move stage
-                  </button>
-                )}
-                {bulkActions.map((a) => (
-                  <button key={a.key} type="button" disabled={busy} onClick={() => void runBulk(a)} className={BULK_BUTTON}>
-                    {a.icon && <a.icon className="h-3.5 w-3.5" aria-hidden="true" />}
-                    {busy ? "Working" : a.label}
-                  </button>
-                ))}
-                <button type="button" disabled={busy} onClick={() => void runBulk({ key: "export", label: "Export selected", run: exportSelected })} className={BULK_BUTTON}>
-                  <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                  Export selected
-                </button>
-                <button type="button" onClick={clearSelection} className={`${BULK_BUTTON} border-transparent`}>
-                  <X className="h-3.5 w-3.5" aria-hidden="true" />
-                  Clear selection
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-        {/* Container queries: the side menu takes width, so the table starts when this panel is wide enough, not at a screen width. */}
-        <div className="@container">
-        <div aria-hidden="true" className={`hidden border-b border-slate-200 bg-slate-50 py-2 pr-3.5 text-xs font-semibold text-slate-600 @3xl:grid @3xl:gap-x-4 ${selectable ? "pl-1" : "pl-3.5"} ${columns}`}>
-          {selectable && <span />}
-          <span>Candidate</span>
-          <span>Stage and wait</span>
-          <span>Last activity</span>
-          <span>Overdue</span>
-          <span className="text-right">Actions</span>
-        </div>
-        <ul className="divide-y divide-slate-200">
-          {pageRows.map((r, i) => {
-            const style = URGENCY[r.urgency];
-            const recruiter = formatRecruiterName(r.recruiterName);
-            const link =
-              "truncate text-sm font-semibold text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
-            return (
-              <li
-                key={r.applicationId}
-                className={`flex flex-col gap-2 relative py-3.5 transition-colors hover:bg-navy-soft focus-within:bg-navy-soft motion-reduce:transition-none @3xl:grid @3xl:items-center @3xl:gap-x-4 ${selectable ? "pl-3.5 pr-12 @3xl:pl-1 @3xl:pr-3.5" : "pl-3.5 pr-3.5"} ${columns}`}
-              >
-                {selectable && (
-                  <label className="absolute right-1 top-1 flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center @3xl:static md:h-9 md:w-9">
-                    <input type="checkbox" aria-label={`Select ${r.candidateName}`} checked={selected.has(r.applicationId)} onChange={() => toggle(r.applicationId)} className={CHECKBOX} />
-                  </label>
-                )}
-
-                <div className="min-w-0">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className={`shrink-0 px-1.5 py-0.5 text-xs font-semibold @3xl:hidden ${style.badge}`}>{style.label}</span>
-                    {admin ? (
-                      <Link
-                        to="/admin/applications/$applicationId"
-                        params={{ applicationId: String(r.applicationId) }}
-                        {...(linkState ? { state: linkState as never } : {})}
-                        className={link}
-                      >
-                        {r.candidateName}
-                      </Link>
-                    ) : (
-                      <Link to="/ta/applications/$applicationId" params={{ applicationId: String(r.applicationId) }} {...(linkState ? { state: linkState as never } : {})} className={link}>
-                        {r.candidateName}
-                      </Link>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-xs text-slate-600 font-sans @3xl:truncate">
-                    {r.mrfId !== null ? (
-                      <Link
-                        to={admin ? "/admin/mrfs/$mrfId" : "/ta/mrfs/$mrfId"}
-                        params={{ mrfId: String(r.mrfId) }}
-                        {...(linkState ? { state: linkState as never } : {})}
-                        className="text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                      >
-                        {r.jobTitle}
-                      </Link>
-                    ) : (
-                      r.jobTitle
-                    )}
-                    {r.clientName ? ` · ${r.clientName}` : ""}
-                    {r.estimated && <span> · estimated from application date</span>}
-                    {withRecruiter && <span title={recruiter.full}> · {recruiter.label}</span>}
-                  </p>
-                </div>
-
-                {/* A short bar under the stage name: enough to compare waits, not a full-width line. */}
-                <div className="min-w-0 text-xs font-sans text-slate-700">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="truncate font-semibold text-slate-900">{r.stageLabel}</span>
-                    <span className="whitespace-nowrap tabular-nums">
-                      <strong>{r.daysInStage}</strong> of {r.slaDays} days
-                    </span>
-                  </div>
-                  <WaitBar className="mt-1 max-w-44" row={scale} index={i} r={r} color={r.urgency === "critical" ? WAIT.critical : WAIT.late} />
-                </div>
-
-                <div className="min-w-0 text-xs text-slate-600 font-sans" title={r.lastActivityAt ? formatDate(r.lastActivityAt) : undefined}>
-                  {r.lastActivityAt ? (
-                    <span className="line-clamp-2">
-                      Last activity: {daysAgoText(r.lastActivityAt)}
-                      {r.lastNote ? ` · ${r.lastNote}` : ""}
-                    </span>
-                  ) : (
-                    <>
-                      <span aria-hidden="true" className="text-slate-600">—</span>
-                      <span className="sr-only">No activity recorded</span>
-                    </>
-                  )}
-                </div>
-
-                <div className="flex flex-wrap items-center gap-1.5 @3xl:flex-col @3xl:items-start @3xl:gap-1">
-                  <span className={`hidden px-1.5 py-0.5 text-xs font-semibold @3xl:inline-block ${style.badge}`}>{style.label}</span>
-                  <span className={`px-1.5 py-0.5 text-xs font-semibold tabular-nums ${style.badge}`}>
-                    {r.daysOver} {r.daysOver === 1 ? "day" : "days"} over
+          {selectable && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-slate-200 bg-slate-100/70 pl-1 pr-3 text-xs font-semibold text-slate-700">
+              <label className="flex min-h-11 cursor-pointer items-center gap-1 md:min-h-9">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center md:h-9 md:w-9">
+                  <input ref={pageBoxRef} type="checkbox" checked={allOnPage} onChange={togglePage} className={CHECKBOX} />
+                </span>
+                Select all on this page
+              </label>
+              {/* The actions appear on this row once something is ticked, so they sit next to what they act on. */}
+              {selected.size > 0 && (
+                <div role="group" aria-label="Actions for the ticked candidates" className="flex flex-wrap items-center gap-2 py-1.5">
+                  <span role="status" className="rounded-sm bg-navy px-2 py-0.5 tabular-nums text-white">
+                    {selected.size} selected
                   </span>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-x-3 @3xl:flex-nowrap @3xl:justify-end @3xl:whitespace-nowrap">
                   {!admin && (
-                    <button
-                      type="button"
-                      aria-label={`Move stage: ${r.candidateName}`}
-                      onClick={() => {
-                        setPreviewMove(true);
-                        setPreviewId(r.applicationId);
-                      }}
-                      className={ROW_BUTTON}
-                    >
+                    <button type="button" disabled={busy} onClick={() => moveSelected(selectedRows)} className={BULK_BUTTON}>
+                      <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden="true" />
                       Move stage
                     </button>
                   )}
-                  {rowActions.map((a) => (
-                    <button key={a.key} type="button" disabled={busy} aria-label={`${a.label}: ${r.candidateName}`} onClick={() => void runRow(a, r)} className={ROW_BUTTON}>
-                      {a.label}
+                  {bulkActions.map((a) => (
+                    <button key={a.key} type="button" disabled={busy} onClick={() => void runBulk(a)} className={BULK_BUTTON}>
+                      {a.icon && <a.icon className="h-3.5 w-3.5" aria-hidden="true" />}
+                      {busy ? "Working" : a.label}
                     </button>
                   ))}
-                  <button
-                    type="button"
-                    aria-label={`Quick view: ${r.candidateName}`}
-                    onClick={() => {
-                      setPreviewMove(false);
-                      setPreviewId(r.applicationId);
-                    }}
-                    className={ROW_BUTTON}
-                  >
-                    Quick view
+                  <button type="button" disabled={busy} onClick={() => void runBulk({ key: "export", label: "Export selected", run: exportSelected })} className={BULK_BUTTON}>
+                    <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                    Export selected
+                  </button>
+                  <button type="button" onClick={clearSelection} className={`${BULK_BUTTON} border-transparent`}>
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    Clear selection
                   </button>
                 </div>
-              </li>
-            );
-          })}
-        </ul>
-        </div>
+              )}
+            </div>
+          )}
+          {/* Container queries: the side menu takes width, so the table starts when this panel is wide enough, not at a screen width. */}
+          <div className="@container">
+            <div
+              aria-hidden="true"
+              className={`hidden border-b border-slate-200 bg-slate-100/90 py-2 pr-4 text-xs font-semibold text-slate-700 @3xl:grid @3xl:gap-x-4 ${selectable ? "pl-1" : "pl-4"} ${columns}`}
+            >
+              {selectable && <span />}
+              <span>Candidate</span>
+              <span>Stage and wait</span>
+              <span>Last activity</span>
+              <span>Overdue</span>
+              <span className="text-right">Actions</span>
+            </div>
+            <ul className="divide-y divide-slate-200/90">
+              {pageRows.map((r, i) => {
+                const style = URGENCY[r.urgency];
+                const recruiter = formatRecruiterName(r.recruiterName);
+                const link =
+                  "truncate text-sm font-semibold text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus";
+                return (
+                  <li
+                    key={r.applicationId}
+                    className={`relative flex flex-col gap-2 py-3.5 transition-colors hover:bg-navy-soft focus-within:bg-navy-soft motion-reduce:transition-none @3xl:grid @3xl:items-center @3xl:gap-x-4 ${selectable ? "pl-4 pr-12 @3xl:pl-1 @3xl:pr-4" : "pl-4 pr-4"} ${columns}`}
+                  >
+                    {selectable && (
+                      <label className="absolute right-1 top-1 flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center @3xl:static md:h-9 md:w-9">
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${r.candidateName}`}
+                          checked={selected.has(r.applicationId)}
+                          onChange={() => toggle(r.applicationId)}
+                          className={CHECKBOX}
+                        />
+                      </label>
+                    )}
+
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span
+                        aria-hidden="true"
+                        className={`hidden h-8 w-8 shrink-0 items-center justify-center rounded-full border sm:inline-flex ${
+                          r.urgency === "critical"
+                            ? "border-[#F5C2C7] bg-[#FDF1F2] text-[#B42318]"
+                            : "border-navy-line bg-navy-soft text-navy"
+                        }`}
+                      >
+                        <User className="h-3.5 w-3.5" aria-hidden="true" />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className={`shrink-0 px-1.5 py-0.5 text-xs font-semibold @3xl:hidden ${style.badge}`}>{style.label}</span>
+                          {admin ? (
+                            <Link
+                              to="/admin/applications/$applicationId"
+                              params={{ applicationId: String(r.applicationId) }}
+                              {...(linkState ? { state: linkState as never } : {})}
+                              className={link}
+                            >
+                              {r.candidateName}
+                            </Link>
+                          ) : (
+                            <Link
+                              to="/ta/applications/$applicationId"
+                              params={{ applicationId: String(r.applicationId) }}
+                              {...(linkState ? { state: linkState as never } : {})}
+                              className={link}
+                            >
+                              {r.candidateName}
+                            </Link>
+                          )}
+                        </div>
+                        <p className="mt-0.5 text-xs text-slate-600 font-sans @3xl:truncate">
+                          {r.mrfId !== null ? (
+                            <Link
+                              to={admin ? "/admin/mrfs/$mrfId" : "/ta/mrfs/$mrfId"}
+                              params={{ mrfId: String(r.mrfId) }}
+                              {...(linkState ? { state: linkState as never } : {})}
+                              className="text-navy underline underline-offset-2 decoration-slate-400 hover:decoration-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                            >
+                              {r.jobTitle}
+                            </Link>
+                          ) : (
+                            r.jobTitle
+                          )}
+                          {r.clientName ? ` · ${r.clientName}` : ""}
+                          {r.estimated && <span> · estimated from application date</span>}
+                          {withRecruiter && <span title={recruiter.full}> · {recruiter.label}</span>}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* A short bar under the stage name: enough to compare waits, not a full-width line. */}
+                    <div className="min-w-0 text-xs font-sans text-slate-700">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="truncate font-semibold text-slate-900">{r.stageLabel}</span>
+                        <span className="whitespace-nowrap tabular-nums">
+                          <strong>{r.daysInStage}</strong> of {r.slaDays} days
+                        </span>
+                      </div>
+                      <WaitBar className="mt-1.5 max-w-44" row={scale} index={i} r={r} color={r.urgency === "critical" ? WAIT.critical : WAIT.late} />
+                    </div>
+
+                    <div className="min-w-0 text-xs text-slate-600 font-sans" title={r.lastActivityAt ? formatDate(r.lastActivityAt) : undefined}>
+                      {r.lastActivityAt ? (
+                        <span className="line-clamp-2">
+                          Last activity: {daysAgoText(r.lastActivityAt)}
+                          {r.lastNote ? ` · ${r.lastNote}` : ""}
+                        </span>
+                      ) : (
+                        <>
+                          <span aria-hidden="true" className="text-slate-600">—</span>
+                          <span className="sr-only">No activity recorded</span>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 @3xl:flex-col @3xl:items-start @3xl:gap-1">
+                      <span className={`hidden px-1.5 py-0.5 text-xs font-semibold @3xl:inline-block ${style.badge}`}>{style.label}</span>
+                      <span className={`px-1.5 py-0.5 text-xs font-semibold tabular-nums ${style.badge}`}>
+                        {r.daysOver} {r.daysOver === 1 ? "day" : "days"} over
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5 @3xl:flex-nowrap @3xl:justify-end @3xl:whitespace-nowrap">
+                      {!admin && (
+                        <button
+                          type="button"
+                          aria-label={`Move stage: ${r.candidateName}`}
+                          onClick={() => {
+                            setPreviewMove(true);
+                            setPreviewId(r.applicationId);
+                          }}
+                          className={ROW_BUTTON}
+                        >
+                          Move stage
+                        </button>
+                      )}
+                      {rowActions.map((a) => (
+                        <button key={a.key} type="button" disabled={busy} aria-label={`${a.label}: ${r.candidateName}`} onClick={() => void runRow(a, r)} className={ROW_BUTTON}>
+                          {a.label}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        aria-label={`Quick view: ${r.candidateName}`}
+                        onClick={() => {
+                          setPreviewMove(false);
+                          setPreviewId(r.applicationId);
+                        }}
+                        className={ROW_BUTTON}
+                      >
+                        Quick view
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         </>
       )}
 
@@ -511,7 +558,7 @@ export const StuckList = React.memo(function StuckList({
       />
       <PaginationBar page={currentPage} pageSize={pageSize} total={visible.length} onPageChange={setPage} noun="candidates" />
       {total > rows.length && (
-        <p className="border-t border-slate-200 px-3.5 py-2.5 text-xs text-slate-600 font-sans">{`Top ${rows.length} of ${total}.`}</p>
+        <p className="border-t border-slate-200 px-4 py-2.5 text-xs text-slate-600 font-sans">{`Top ${rows.length} of ${total}.`}</p>
       )}
     </AnalyticsPanel>
   );

@@ -113,7 +113,8 @@ export const RequestProgressList = React.memo(function RequestProgressList({
   const pageRows = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   return (
-    <AnalyticsPanel tone="reports"
+    <AnalyticsPanel
+      tone="reports"
       id="client-requests"
       title="Client requests"
       subtitle="Open requests, plus any filled in these dates, most urgent first."
@@ -121,7 +122,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
       aside={<span className="tabular-nums">{rows.length} requests</span>}
     >
       {rows.length > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-slate-200 px-3.5 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-slate-200 bg-slate-50/85 px-4 py-3">
           <div role="group" aria-label="Filter by status" className="flex flex-wrap gap-1.5">
             {filters.map((f) => (
               <button
@@ -132,12 +133,22 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                   setHealth(f.key);
                   setPage(1);
                 }}
-                className={`min-h-11 md:min-h-9 rounded-md px-2.5 text-xs font-semibold border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
-                  health === f.key ? "bg-navy text-white border-navy" : "bg-white text-slate-700 border-navy-line hover:bg-navy-soft"
+                className={`min-h-11 md:min-h-9 rounded-md px-3 text-xs font-semibold border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${
+                  health === f.key
+                    ? "bg-navy text-white border-navy shadow-[0_1px_2px_0_rgb(15_23_42/0.12)]"
+                    : "bg-white text-slate-700 border-slate-300 hover:border-navy-line hover:bg-navy-soft"
                 }`}
               >
                 {f.label}{" "}
-                <span className={`tabular-nums ${f.key === "OVERDUE" && counts.OVERDUE > 0 && health !== "OVERDUE" ? `font-semibold ${TEXT_LOSS}` : "font-normal"}`}>
+                <span
+                  className={`ml-0.5 inline-block rounded-full px-1.5 py-0.2 tabular-nums ${
+                    health === f.key
+                      ? "bg-white/20 text-white font-bold"
+                      : f.key === "OVERDUE" && counts.OVERDUE > 0
+                        ? `bg-[#FDF1F2] font-bold ${TEXT_LOSS}`
+                        : "bg-slate-100 text-slate-600 font-semibold"
+                  }`}
+                >
                   {counts[f.key]}
                 </span>
               </button>
@@ -153,7 +164,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                 setPage(1);
               }}
               placeholder={showOwner ? "Request, client or recruiter" : "Request or client"}
-              className="min-h-11 md:min-h-9 w-56 rounded-md border border-slate-300 bg-white px-2.5 text-sm placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              className="min-h-11 md:min-h-9 w-56 rounded-md border border-slate-300 bg-white px-2.5 text-sm shadow-[0_1px_1px_0_rgb(15_23_42/0.03)] placeholder:text-slate-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
             />
           </label>
         </div>
@@ -166,14 +177,14 @@ export const RequestProgressList = React.memo(function RequestProgressList({
       ) : (
         // Container queries, not viewport ones: the side menu takes width, so the table starts when this panel is wide enough.
         <div className="@container">
-          <div aria-hidden="true" className={`hidden border-b border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-600 @2xl:grid @2xl:gap-x-4 ${columns}`}>
+          <div aria-hidden="true" className={`hidden border-b border-slate-200 bg-slate-100/90 px-4 py-2 text-xs font-semibold text-slate-700 @2xl:grid @2xl:gap-x-4 ${columns}`}>
             <span>Request / Client</span>
             <span>Seats &amp; target date</span>
             {showOwner && <span>Recruiter</span>}
             <span>Pipeline</span>
             <span>Urgency</span>
           </div>
-          <ul className="divide-y divide-slate-200">
+          <ul className="divide-y divide-slate-200/90">
             {pageRows.map((row) => {
               const owner: RecruiterLabel = row.ownerId === null ? { label: "No recruiter assigned" } : recruiterDisplayName(row.ownerName);
               const overdue = row.health === "OVERDUE";
@@ -182,10 +193,11 @@ export const RequestProgressList = React.memo(function RequestProgressList({
               const style = HEALTH[row.health];
               const scale = Math.max(row.openSeats, row.pipeline, 1);
               const onTrack = Math.max(0, row.pipeline - row.overdueCandidates);
+              const seatPct = row.headcount > 0 ? Math.min(100, Math.round((row.filled / row.headcount) * 100)) : 0;
               return (
                 <li
                   key={row.mrfId}
-                  className={`flex flex-col gap-2 px-3.5 py-3.5 transition-colors hover:bg-navy-soft focus-within:bg-navy-soft motion-reduce:transition-none @2xl:grid @2xl:items-center @2xl:gap-x-4 ${columns}`}
+                  className={`flex flex-col gap-2 px-4 py-3.5 transition-colors hover:bg-navy-soft focus-within:bg-navy-soft motion-reduce:transition-none @2xl:grid @2xl:items-center @2xl:gap-x-4 ${columns}`}
                 >
                   <div className="min-w-0">
                     <Link
@@ -203,6 +215,9 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                     <span className="block text-sm text-slate-900">
                       <strong>{row.filled}</strong>/{row.headcount} seats
                     </span>
+                    <div aria-hidden="true" className="my-1 h-1.5 w-24 overflow-hidden rounded-full bg-slate-200/90">
+                      <div className="h-full rounded-full bg-navy" style={{ width: `${seatPct}%` }} />
+                    </div>
                     {row.targetFillDate && <span className="block text-slate-600">Target {formatDate(row.targetFillDate)}</span>}
                   </div>
 
@@ -216,11 +231,11 @@ export const RequestProgressList = React.memo(function RequestProgressList({
 
                   <div className="min-w-0 text-xs font-sans text-slate-700">
                     {row.attention ? (
-                      <span title={ATTENTION[row.attention].title} className={`inline-block px-1.5 py-0.5 font-semibold ${ATTENTION[row.attention].chip}`}>
+                      <span title={ATTENTION[row.attention].title} className={`inline-block rounded-sm px-2 py-0.5 font-semibold ${ATTENTION[row.attention].chip}`}>
                         {ATTENTION[row.attention].label}
                       </span>
                     ) : (
-                      <span aria-hidden="true" className="flex h-1.5 w-full max-w-36 overflow-hidden bg-[#E1E6ED]">
+                      <span aria-hidden="true" className="flex h-2 w-full max-w-36 overflow-hidden rounded-full bg-[#E1E6ED]">
                         <span style={{ width: `${(onTrack / scale) * 100}%`, backgroundColor: BAR_ON_TRACK }} />
                         <span style={{ width: `${(row.overdueCandidates / scale) * 100}%`, backgroundColor: WORKLOAD.overdue }} />
                       </span>
@@ -237,7 +252,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
                   {/* On a narrow panel the chip leads the row; in the table it is the last column. */}
                   <div className="order-first flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs font-sans @2xl:order-none @2xl:flex-col @2xl:items-start @2xl:gap-y-1">
                     <span
-                      className={`inline-block whitespace-nowrap px-2 py-0.5 font-semibold tabular-nums ${
+                      className={`inline-block whitespace-nowrap rounded-sm px-2 py-0.5 font-semibold tabular-nums ${
                         severe ? "bg-[#B42318] text-white" : style.badge.replace(/border-\S+/g, "")
                       }`}
                     >
@@ -259,7 +274,7 @@ export const RequestProgressList = React.memo(function RequestProgressList({
         </div>
       )}
       <PaginationBar page={currentPage} pageSize={pageSize} total={visible.length} onPageChange={setPage} noun="requests" />
-      {note && <p id="requests-note" className="scroll-mt-4 border-t border-slate-200 px-3.5 py-2.5 text-xs text-slate-600 font-sans">{note}</p>}
+      {note && <p id="requests-note" className="scroll-mt-4 border-t border-slate-200 px-4 py-2.5 text-xs text-slate-600 font-sans">{note}</p>}
     </AnalyticsPanel>
   );
 });
