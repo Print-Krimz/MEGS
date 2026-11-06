@@ -85,10 +85,6 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
   const xLabelSet = new Set(xLabelIdx);
 
   const summary = shown.map((s) => summarise(points, s)).join(" ");
-  const showNet = shown.length === 2 && shown[0]?.key === "starts" && shown[1]?.key === "backouts";
-  const netRetained = showNet ? totals[0] - totals[1] : null;
-  const retentionBase = showNet ? totals[0] + totals[1] : 0;
-  const retentionPct = showNet && retentionBase > 0 ? Math.round((totals[0] / retentionBase) * 100) : null;
 
   return (
     <AnalyticsPanel
@@ -96,23 +92,16 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
       id={id}
       title={title}
       subtitle={subtitle}
-      aside={
-        !isEmpty && retentionPct !== null ? (
-          <span className="rounded-sm border border-[#CBE7D4] bg-[#EAF6EE] px-2 py-0.5 text-xs font-semibold tabular-nums text-[#1B6B3A]">
-            {retentionPct}% start retention
-          </span>
-        ) : undefined
-      }
       className="h-full flex flex-col"
     >
       {isEmpty ? (
         <p className="px-4 py-4 text-xs text-slate-600 font-sans">{emptyText}</p>
       ) : (
         <div className="flex flex-1 flex-col p-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50/90 p-2">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <ul className="flex flex-wrap gap-2 font-sans text-sm text-slate-900" aria-label="Legend">
               {shown.map((s, i) => (
-                <li key={s.key} className="flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1 font-semibold shadow-2xs">
+                <li key={s.key} className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50/90 px-3 py-1 font-semibold">
                   {/* Solid line for the first series, dashed for the second: the two differ by shape, not only by color. */}
                   <span
                     aria-hidden="true"
@@ -131,21 +120,9 @@ export const LineChart: React.FC<LineChartProps> = ({ title, points, series, sub
                 </li>
               ))}
             </ul>
-            {netRetained !== null && (
-              <span
-                aria-hidden="true"
-                className={`rounded-md border px-2.5 py-1 text-xs font-semibold font-sans tabular-nums ${
-                  netRetained >= 0
-                    ? "border-navy-line bg-navy-soft text-navy"
-                    : "border-[#F5C2C7] bg-[#FDF1F2] text-[#B42318]"
-                }`}
-              >
-                Net gain: <strong>{netRetained > 0 ? `+${netRetained}` : netRetained}</strong>
-              </span>
-            )}
           </div>
           <div ref={wrapRef} className="flex flex-1 flex-col justify-center w-full rounded-md border border-slate-200/80 bg-[#FCFDFE] p-2">
-            <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block h-[310px] w-full max-w-full" role="img" aria-label={title}>
+            <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} className="block h-60 w-full max-w-full" role="img" aria-label={title}>
               <title>{title}</title>
               {xLabelIdx.map((i) => (
                 <line

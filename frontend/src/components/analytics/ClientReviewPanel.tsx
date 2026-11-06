@@ -48,32 +48,7 @@ export const ClientReviewPanel: React.FC<ClientReviewPanelProps> = ({ data, clas
           No candidates in client review.
         </div>
       ) : (
-        <div className="@container flex flex-1 flex-col px-4 pb-3.5">
-          {/* Client Review Summary Strip */}
-          <div
-            aria-hidden="true"
-            className="mt-3 mb-3 grid grid-cols-3 gap-2 rounded-md border border-slate-200/90 bg-slate-50/80 px-3 py-2 text-xs font-sans"
-          >
-            <div>
-              <span className="block text-[11px] font-medium text-slate-500">Total waiting</span>
-              <span className="text-sm font-bold tabular-nums text-slate-950">
-                {data.sample} {data.sample === 1 ? "candidate" : "candidates"}
-              </span>
-            </div>
-            <div className="border-l border-slate-200/80 pl-2.5">
-              <span className="block text-[11px] font-medium text-slate-500">Average wait</span>
-              <span className="text-sm font-bold tabular-nums text-navy">
-                {data.avgDays !== null ? `${data.avgDays} days` : "—"}
-              </span>
-            </div>
-            <div className="border-l border-slate-200/80 pl-2.5">
-              <span className="block text-[11px] font-medium text-slate-500">Clients past limit</span>
-              <span className={`text-sm font-bold tabular-nums ${overLimitCount > 0 ? TEXT_LOSS : "text-[#1B6B3A]"}`}>
-                {overLimitCount} of {clients.length}
-              </span>
-            </div>
-          </div>
-
+        <div className="@container flex flex-1 flex-col p-4">
           <ol className="divide-y divide-slate-200 rounded-md border border-slate-200 bg-white">
             {clients.map((c, i) => {
               const over = c.avgDays !== null && c.avgDays > c.limitDays;

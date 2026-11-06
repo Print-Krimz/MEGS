@@ -23,8 +23,6 @@ export const DueSoonList: React.FC<DueSoonListProps> = ({ rows, total, viewer, s
   const [openId, setOpenId] = useState<number | null>(null);
   const [expanded, setExpanded] = useState(false);
   const shown = expanded ? rows : rows.slice(0, SHOWN);
-  const dueTodayCount = rows.filter((r) => r.daysLeft === 0).length;
-  const dueSoonCount = rows.filter((r) => r.daysLeft > 0).length;
 
   return (
     <AnalyticsPanel
@@ -45,25 +43,6 @@ export const DueSoonList: React.FC<DueSoonListProps> = ({ rows, total, viewer, s
         <p className="p-6 text-center text-xs text-slate-600 font-sans">Nothing due in the next 2 days.</p>
       ) : (
         <>
-          <div
-            aria-hidden="true"
-            className="mx-4 mt-3 mb-1 grid grid-cols-3 gap-2 rounded-md border border-slate-200/90 bg-slate-50/80 px-3 py-2 text-xs font-sans"
-          >
-            <div>
-              <span className="block text-[11px] font-medium text-slate-500">Approaching limit</span>
-              <span className="text-sm font-bold tabular-nums text-slate-950">{total}</span>
-            </div>
-            <div className="border-l border-slate-200/80 pl-2.5">
-              <span className="block text-[11px] font-medium text-slate-500">Expiring today</span>
-              <span className={`text-sm font-bold tabular-nums ${dueTodayCount > 0 ? TEXT_AMBER : "text-slate-700"}`}>
-                {dueTodayCount}
-              </span>
-            </div>
-            <div className="border-l border-slate-200/80 pl-2.5">
-              <span className="block text-[11px] font-medium text-slate-500">Next 48 hours</span>
-              <span className="text-sm font-bold tabular-nums text-navy">{dueSoonCount}</span>
-            </div>
-          </div>
           <ul className="flex-1 divide-y divide-slate-200/90 px-4">
             {shown.map((r) => {
               const pct = r.slaDays > 0 ? Math.min(100, Math.round((r.daysInStage / r.slaDays) * 100)) : 100;

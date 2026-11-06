@@ -158,15 +158,6 @@ export const TeamTable = React.memo(function TeamTable({
 
   const bench = useMemo(() => benchmarks(rows), [rows]);
 
-  const totals = useMemo(() => {
-    const active = rows.reduce((t, r) => t + r.active, 0);
-    const overdue = rows.reduce((t, r) => t + r.overdue + r.overdueEstimated, 0);
-    const filled = rows.reduce((t, r) => t + r.filledSeats, 0);
-    const seats = rows.reduce((t, r) => t + r.requestedSeats, 0);
-    const starts = rows.reduce((t, r) => t + r.placed, 0);
-    return { active, overdue, filled, seats, starts };
-  }, [rows]);
-
   const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const pageRows = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -180,31 +171,6 @@ export const TeamTable = React.memo(function TeamTable({
 
   return (
     <AnalyticsPanel tone="reports" id="recruiter-table" title="Recruiters" subtitle={subtitle} bare={bare}>
-      {rows.length > 0 && (
-        <div
-          aria-hidden="true"
-          className="grid grid-cols-2 gap-2 border-b border-slate-200 bg-slate-50/85 px-4 py-2.5 text-xs font-sans sm:grid-cols-4"
-        >
-          <div className="rounded-md border border-slate-200/80 bg-white px-3 py-1.5 shadow-[0_1px_1px_0_rgb(15_23_42/0.03)]">
-            <span className="block text-[11px] font-medium text-slate-500">Team active pipeline</span>
-            <span className="text-sm font-bold tabular-nums text-slate-950">{totals.active}</span>
-          </div>
-          <div className="rounded-md border border-slate-200/80 bg-white px-3 py-1.5 shadow-[0_1px_1px_0_rgb(15_23_42/0.03)]">
-            <span className="block text-[11px] font-medium text-slate-500">Team overdue</span>
-            <span className={`text-sm font-bold tabular-nums ${totals.overdue > 0 ? TEXT_LOSS : "text-slate-700"}`}>{totals.overdue}</span>
-          </div>
-          <div className="rounded-md border border-slate-200/80 bg-white px-3 py-1.5 shadow-[0_1px_1px_0_rgb(15_23_42/0.03)]">
-            <span className="block text-[11px] font-medium text-slate-500">Assigned seats filled</span>
-            <span className="text-sm font-bold tabular-nums text-navy">
-              {totals.filled} / {totals.seats}
-            </span>
-          </div>
-          <div className="rounded-md border border-slate-200/80 bg-white px-3 py-1.5 shadow-[0_1px_1px_0_rgb(15_23_42/0.03)]">
-            <span className="block text-[11px] font-medium text-slate-500">Team starts</span>
-            <span className="text-sm font-bold tabular-nums text-[#1B6B3A]">{totals.starts}</span>
-          </div>
-        </div>
-      )}
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-slate-200 bg-white px-4 py-2.5">
         <label className="flex items-center gap-2 text-xs text-slate-700">
           <span className="text-xs font-semibold text-slate-600">Search</span>

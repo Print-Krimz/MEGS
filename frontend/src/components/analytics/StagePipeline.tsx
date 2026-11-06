@@ -58,9 +58,6 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
   const maxInStage = Math.max(1, ...rows.map((r) => r.inStageNow));
   const activeInPipeline = rows.filter((r) => r.stage !== "DEPLOYED").reduce((sum, r) => sum + r.inStageNow, 0);
   const totalOverdue = rows.reduce((sum, r) => sum + overdueIn(r), 0);
-  const onTrackTotal = Math.max(0, activeInPipeline - totalOverdue);
-  const onTrackPct = activeInPipeline > 0 ? Math.round((onTrackTotal / activeInPipeline) * 100) : 100;
-  const totalEntered = rows.reduce((sum, r) => sum + r.entered, 0);
   const baseId = useId();
 
   return (
@@ -88,26 +85,6 @@ export const StagePipeline: React.FC<StagePipelineProps> = ({ rows, onSelectStag
         <p className="p-4 text-center text-xs text-slate-600 font-sans">No candidates in the pipeline and none moved in these dates.</p>
       ) : (
         <div className="@container flex flex-1 flex-col p-4">
-          {/* Funnel Summary Strip */}
-          <div aria-hidden="true" className="mb-3 grid grid-cols-2 gap-2 rounded-md border border-slate-200 bg-slate-50/90 p-2.5 sm:grid-cols-4">
-            <div className="border-l border-slate-300 pl-2.5">
-              <div className="text-[11px] font-medium text-slate-500">Active funnel</div>
-              <div className="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{activeInPipeline} candidates</div>
-            </div>
-            <div className="border-l border-slate-300 pl-2.5">
-              <div className="text-[11px] font-medium text-slate-500">Within stage limit</div>
-              <div className="mt-0.5 text-sm font-bold tabular-nums text-navy">{onTrackTotal} ({onTrackPct}%)</div>
-            </div>
-            <div className="border-l border-slate-300 pl-2.5">
-              <div className="text-[11px] font-medium text-slate-500">Past stage limit</div>
-              <div className={`mt-0.5 text-sm font-bold tabular-nums ${totalOverdue > 0 ? "text-[#B42318]" : "text-slate-700"}`}>{totalOverdue} overdue</div>
-            </div>
-            <div className="border-l border-slate-300 pl-2.5">
-              <div className="text-[11px] font-medium text-slate-500">Entered in period</div>
-              <div className="mt-0.5 text-sm font-bold tabular-nums text-slate-900">{totalEntered} moved</div>
-            </div>
-          </div>
-
           <div className="mb-2.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs font-sans text-slate-600">
             <p>How many candidates are in each stage right now. Red is the part past the stage&apos;s days allowed.</p>
             <div className="flex items-center gap-3" data-testid="stage-legend">
