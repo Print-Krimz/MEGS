@@ -3,6 +3,9 @@
  * Demographics, and Educational Attainment Levels
  */
 
+/** Added to every requirements checklist by the backend, so it is not offered in the picker. */
+export const MANDATORY_REQUIREMENT_LABEL = "Fit-to-Work Medical Certificate";
+
 export interface CompliancePreset {
   label: string;
   category: "STATUTORY" | "MEDICAL" | "LEGAL" | "ACADEMIC" | "EMPLOYMENT";
@@ -51,12 +54,6 @@ export const COMPLIANCE_201_PRESETS: CompliancePreset[] = [
     label: "5-Panel Drug Test Certificate",
     category: "MEDICAL",
     description: "DOH-Accredited 5-Panel Diagnostic Drug Screen",
-    defaultRequired: true,
-  },
-  {
-    label: "Fit-to-Work Medical Certificate",
-    category: "MEDICAL",
-    description: "Pre-employment Medical Examination & Physician Clearance",
     defaultRequired: true,
   },
   {

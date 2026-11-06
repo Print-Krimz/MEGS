@@ -25,6 +25,7 @@ import { AssignmentPanel } from "../../components/ta/AssignmentPanel";
 import { formatAdminPipelineStage } from "../../lib/admin-copy";
 import {
   COMPLIANCE_201_PRESETS,
+  MANDATORY_REQUIREMENT_LABEL,
   REQUIREMENT_GROUPS,
   MRF_EDUCATION_OPTIONS,
   MRF_EXPERIENCE_OPTIONS,
@@ -789,7 +790,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
               setCustomReqText("");
             }}
             title="Add requirements"
-            description="Select documents candidates must submit for this request."
+            description={`Select documents candidates must submit for this request. ${MANDATORY_REQUIREMENT_LABEL} is always required and added automatically.`}
             className="max-w-2xl"
             size="lg"
           >

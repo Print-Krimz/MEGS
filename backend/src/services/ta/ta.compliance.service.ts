@@ -584,6 +584,9 @@ export interface ResolvedComplianceTemplate {
   isRequired: boolean;
 }
 
+export const FIT_TO_WORK_LABEL = "Fit-to-Work Medical Certificate";
+const FIT_TO_WORK_PATTERN = /fit[\s-]*to[\s-]*work/i;
+
 export interface ResolvedComplianceResult {
   app: any;
   templatesToApply: ResolvedComplianceTemplate[];
@@ -683,7 +686,6 @@ export const resolveComplianceTemplatesForApplication = async (
     const defaultTemplates: ResolvedComplianceTemplate[] = [
       { documentLabel: "Government Issued ID", isRequired: true },
       { documentLabel: "NBI / Police Clearance", isRequired: true },
-      { documentLabel: "Fit to Work Medical Exam", isRequired: true },
       { documentLabel: "SSS Document", isRequired: true },
       { documentLabel: "PhilHealth Member Data Record", isRequired: true },
       { documentLabel: "Pag-IBIG Member ID", isRequired: true },
@@ -697,6 +699,12 @@ export const resolveComplianceTemplatesForApplication = async (
         existingLabels.add(dt.documentLabel.toLowerCase().trim());
       }
     }
+  }
+
+  // Fit-to-Work is mandatory on every checklist; skip it if any fit-to-work item already exists.
+  const hasFitToWork = [...existingLabels].some((label) => FIT_TO_WORK_PATTERN.test(label));
+  if (!hasFitToWork) {
+    templatesToApply.push({ documentLabel: FIT_TO_WORK_LABEL, isRequired: true });
   }
 
   const thresholdDays = app.jobPosting.mrf?.client?.reviewThresholdDays ?? 5;
