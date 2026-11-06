@@ -137,7 +137,7 @@ export const AnalyticsPage: React.FC = () => {
   const header = (
     <PageHeader
       title={TA_COPY.pageTitles.reports}
-      description={asOf}
+      description={asOf ?? " "}
       flush
       breadcrumbs={[{ label: TA_COPY.navigation.overview, href: "/ta" }, { label: TA_COPY.navigation.reports }]}
       actions={
@@ -158,7 +158,7 @@ export const AnalyticsPage: React.FC = () => {
         {header}
         <AnalyticsFilterBar filters={filters} onChange={setFilters} showClientFilter />
         <div className="h-11 motion-safe:animate-pulse rounded-md border border-slate-300 bg-white" aria-hidden="true" />
-        <LoadingState variant="cards" rows={4} className="lg:grid-cols-4" />
+        <LoadingState variant="cards" rows={4} className="xl:grid-cols-4" />
         <LoadingState variant="table" rows={4} />
       </div>
     );

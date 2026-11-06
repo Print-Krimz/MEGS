@@ -193,7 +193,7 @@ export const AdminAnalyticsPage: React.FC = () => {
   const header = (
     <PageHeader
       title="Reports"
-      description={asOf}
+      description={asOf ?? " "}
       flush
       breadcrumbs={[{ label: "Administration", href: "/admin" }, { label: "Reports" }]}
       actions={
@@ -213,7 +213,7 @@ export const AdminAnalyticsPage: React.FC = () => {
         {header}
         <AnalyticsFilterBar filters={filters} onChange={setFilters} showClientFilter showRecruiterFilter />
         <div className="h-11 motion-safe:animate-pulse rounded-md border border-slate-300 bg-white" aria-hidden="true" />
-        <LoadingState variant="cards" rows={4} className="lg:grid-cols-4" />
+        <LoadingState variant="cards" rows={5} className="xl:grid-cols-5" />
         <div className="h-60 motion-safe:animate-pulse rounded-md border border-slate-300 bg-white" aria-hidden="true" />
         <LoadingState variant="table" rows={4} />
       </div>
