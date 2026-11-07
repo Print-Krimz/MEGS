@@ -10,6 +10,7 @@ export interface MergeMember {
   syntheticEmail: boolean;
   verified: boolean;
   applications: number;
+  hasEmployee: boolean;
   createdAt: Date;
   firstName: string;
   lastName: string;
@@ -50,6 +51,13 @@ export const pickSurvivor = (members: MergeMember[]): { survivor: MergeMember; l
   return { survivor: sorted[0], losers: sorted.slice(1) };
 };
 
+/** Why a loser cannot be merged automatically, or null when it can. Mirrors the checks in mergeApplicantAccounts. */
+export const skipReason = (survivor: MergeMember, loser: MergeMember): string | null => {
+  if (!loser.syntheticEmail) return "has its own real-email login; merging would lock that person out";
+  if (survivor.hasEmployee && loser.hasEmployee) return "both accounts have an employee record";
+  return null;
+};
+
 export const findDuplicateApplicantGroups = async (): Promise<DuplicateReport> => {
   const users = await prisma.user.findMany({
     where: { role: "APPLICANT", applicantProfile: { isNot: null } },
@@ -62,6 +70,7 @@ export const findDuplicateApplicantGroups = async (): Promise<DuplicateReport> =
       applicantProfile: {
         select: { id: true, firstName: true, lastName: true, mobileNumber: true, verificationStatus: true },
       },
+      employee: { select: { id: true } },
       _count: { select: { applications: true } },
     },
   });
@@ -78,6 +87,7 @@ export const findDuplicateApplicantGroups = async (): Promise<DuplicateReport> =
       syntheticEmail: u.email.endsWith("@applicant.megs.local") || u.email.endsWith("@megs.internal"),
       verified: p.verificationStatus === "VERIFIED",
       applications: u._count.applications,
+      hasEmployee: !!u.employee,
       createdAt: u.createdAt,
       firstName: p.firstName,
       lastName: p.lastName,
@@ -144,6 +154,9 @@ export const mergeApplicantAccounts = async (survivorId: string, loserId: string
     const lp = lUser.applicantProfile;
     if (!sp || !lp) throw new MergeSkipped("an account has no profile");
     if (sUser.role !== "APPLICANT" || lUser.role !== "APPLICANT") throw new MergeSkipped("not an applicant account");
+    if (!lUser.email.endsWith("@applicant.megs.local") && !lUser.email.endsWith("@megs.internal")) {
+      throw new MergeSkipped("the account to remove has its own real-email login");
+    }
     if (sUser.employee && lUser.employee) throw new MergeSkipped("both accounts have an employee record");
     if (sp.talentPoolMembership && lp.talentPoolMembership) throw new MergeSkipped("both accounts are in the talent pool");
 
@@ -175,10 +188,13 @@ export const mergeApplicantAccounts = async (survivorId: string, loserId: string
     }
 
     // Straight re-points by user.
-    counts.documents = (await tx.storedDocument.updateMany({ where: { ownerId: loserId }, data: { ownerId: survivorId, profileId: sp.id } })).count;
+    counts.documents = (await tx.storedDocument.updateMany({ where: { ownerId: loserId }, data: { ownerId: survivorId } })).count;
     counts.notifications = (await tx.notification.updateMany({ where: { userId: loserId }, data: { userId: survivorId } })).count;
     await tx.notificationOutbox.updateMany({ where: { recipientId: loserId }, data: { recipientId: survivorId } });
     await tx.auditLog.updateMany({ where: { userId: loserId }, data: { userId: survivorId } });
+    // Intake and self-service steps record the applicant as the actor.
+    await tx.recruiterDecision.updateMany({ where: { actorId: loserId }, data: { actorId: survivorId } });
+    await tx.resumeParseResult.updateMany({ where: { reviewedById: loserId }, data: { reviewedById: survivorId } });
     if (lUser.employee) await tx.employee.update({ where: { id: lUser.employee.id }, data: { userId: survivorId } });
 
     // Profile rows. A row the survivor already has (same key) is dropped with the loser profile.
@@ -231,6 +247,9 @@ export const mergeApplicantAccounts = async (survivorId: string, loserId: string
     await tx.applicantProfile.delete({ where: { id: lp.id } });
     await tx.user.delete({ where: { id: loserId } });
     if (!sUser.phoneNumber && lUser.phoneNumber) await tx.user.update({ where: { id: survivorId }, data: { phoneNumber: lUser.phoneNumber } });
+
+    // A no-show on either account must stay visible to recruiters.
+    if (lp.hasNoShowHistory && !sp.hasNoShowHistory) await tx.applicantProfile.update({ where: { id: sp.id }, data: { hasNoShowHistory: true } });
 
     // Empty fields only, and never on a TA-verified profile.
     if (sp.verificationStatus !== "VERIFIED") {

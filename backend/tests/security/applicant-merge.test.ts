@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => {
   for (const k of [
     "user", "application", "savedJob", "storedDocument", "notification", "notificationOutbox", "auditLog", "employee",
     "workExperience", "education", "trainingCertification", "characterReference", "applicantSkill", "resumeParseResult",
-    "talentPoolInvitation", "asset", "talentPoolMembership", "scoringRevalidationTask", "candidateFeatureProfile", "applicantProfile",
+    "talentPoolInvitation", "asset", "recruiterDecision", "talentPoolMembership", "scoringRevalidationTask", "candidateFeatureProfile", "applicantProfile",
   ]) tx[k] = model();
   return { tx };
 });
@@ -19,14 +19,15 @@ import { mergeApplicantAccounts, pickSurvivor, MergeSkipped, type MergeMember } 
 
 const member = (o: Partial<MergeMember>): MergeMember => ({
   userId: "u", profileId: 1, accountStatus: "ACTIVE", syntheticEmail: false, verified: false, applications: 0,
-  createdAt: new Date("2026-10-01"), firstName: "A", lastName: "B", mobile10: "9171234567", ...o,
+  hasEmployee: false, createdAt: new Date("2026-10-01"), firstName: "A", lastName: "B", mobile10: "9171234567", ...o,
 });
 
 const userRow = (id: string, extra: any = {}) => ({
   id, role: "APPLICANT", phoneNumber: null, employee: null,
+  email: id === "s" ? "real@example.com" : "639171234567@applicant.megs.local",
   applicantProfile: {
     id: id === "s" ? 1 : 2, verificationStatus: "UNVERIFIED", workExperiences: [], educations: [], skills: [],
-    trainings: [], characterReferences: [], talentPoolMembership: null, middleName: null, city: id === "s" ? null : "Makati", ...extra,
+    trainings: [], characterReferences: [], talentPoolMembership: null, hasNoShowHistory: false, middleName: null, city: id === "s" ? null : "Makati", ...extra,
   },
 });
 
@@ -53,6 +54,14 @@ describe("mergeApplicantAccounts", () => {
     expect(mocks.tx.user.delete).not.toHaveBeenCalled();
   });
 
+  it("never removes an account that has its own real-email login", async () => {
+    mocks.tx.user.findUniqueOrThrow
+      .mockResolvedValueOnce(userRow("s"))
+      .mockResolvedValueOnce({ ...userRow("l"), email: "other@example.com" });
+    await expect(mergeApplicantAccounts("s", "l")).rejects.toThrow(/real-email login/);
+    expect(mocks.tx.user.delete).not.toHaveBeenCalled();
+  });
+
   it("renumbers a clashing attempt, fills empty fields, and deletes the loser", async () => {
     mocks.tx.user.findUniqueOrThrow.mockResolvedValueOnce(userRow("s")).mockResolvedValueOnce(userRow("l"));
     mocks.tx.application.findMany
@@ -63,6 +72,8 @@ describe("mergeApplicantAccounts", () => {
     expect(mocks.tx.applicantProfile.update).toHaveBeenCalledWith({ where: { id: 1 }, data: { city: "Makati" } });
     expect(mocks.tx.applicantProfile.delete).toHaveBeenCalledWith({ where: { id: 2 } });
     expect(mocks.tx.user.delete).toHaveBeenCalledWith({ where: { id: "l" } });
+    expect(mocks.tx.recruiterDecision.updateMany).toHaveBeenCalledWith({ where: { actorId: "l" }, data: { actorId: "s" } });
+    expect(mocks.tx.storedDocument.updateMany).toHaveBeenCalledWith({ where: { ownerId: "l" }, data: { ownerId: "s" } });
     expect(counts.applications).toBe(1);
   });
 });
