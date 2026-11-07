@@ -505,6 +505,13 @@ describe("createWalkIn: new person", () => {
     expect(m.supabase.auth.admin.createUser).not.toHaveBeenCalled();
   });
 
+  it("also looks for the number on the profile, where email-registered applicants keep it", async () => {
+    m.prisma.user.findFirst.mockResolvedValueOnce({ id: "online-user" });
+    await expect(createWalkIn(TA, baseInput(), FILE)).rejects.toBeInstanceOf(WalkInConflictError);
+    const { where } = m.prisma.user.findFirst.mock.calls.at(-1)![0];
+    expect(where.OR).toContainEqual({ applicantProfile: { is: { mobileNumber: { in: expect.arrayContaining(["09171234567"]) } } } });
+  });
+
   it("refuses a phone that already belongs to an applicant, as a conflict", async () => {
     m.prisma.user.findFirst.mockResolvedValueOnce({ id: "other-user" });
     const error = await createWalkIn(TA, baseInput(), FILE).catch((e) => e);

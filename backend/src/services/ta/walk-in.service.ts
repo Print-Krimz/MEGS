@@ -281,7 +281,14 @@ export const createWalkIn = async (
     if (phoneE164) {
       const variants = phoneVariants(phoneE164);
       const taken = await prisma.user.findFirst({
-        where: { OR: [{ phoneNumber: { in: variants } }, { email: toSyntheticEmail(phoneE164) }] },
+        // Email-registered applicants keep their number only on the profile, so check that too.
+        where: {
+          OR: [
+            { phoneNumber: { in: variants } },
+            { email: toSyntheticEmail(phoneE164) },
+            { applicantProfile: { is: { mobileNumber: { in: variants } } } },
+          ],
+        },
         select: { id: true },
       });
       if (taken) throw new WalkInConflictError("This mobile number already belongs to an applicant. Use the duplicate check and pick that person.");
