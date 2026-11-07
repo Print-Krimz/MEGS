@@ -27,7 +27,7 @@ import {
   isSyntheticEmail,
   isPhoneSyntheticEmail,
   fromSyntheticEmail,
-  sendSmsViaTextBee,
+  sendSms,
   maskPhoneNumber,
   phoneVariants,
 } from '../../utils/sms.js';
@@ -227,7 +227,7 @@ export const registerUser = async (emailOrPhone: string, password: string) => {
       console.log(`📱 [DEV OTP] REGISTRATION SMS code generated for ${maskPhoneNumber(resolved.phoneE164)}: ${plainOtp}`);
     }
     const smsMessage = `Your MEGS verification code is ${plainOtp}. Valid for 10 minutes.`;
-    await sendSmsViaTextBee(resolved.phoneE164, smsMessage);
+    await sendSms(resolved.phoneE164, smsMessage);
   } else {
     if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
       console.log(`🔑 [DEV OTP] REGISTRATION code generated for ${maskEmail(resolved.email)}.`);
@@ -491,7 +491,7 @@ export const resendOtp = async (
       console.log(`📱 [DEV OTP] RESEND (${purpose}) SMS code generated for ${maskPhoneNumber(phoneToSend)}: ${plainOtp}`);
     }
     const prefix = purpose === "REGISTRATION" ? "verification" : "password reset";
-    await sendSmsViaTextBee(phoneToSend, `Your MEGS ${prefix} code is ${plainOtp}. Valid for 10 minutes.`);
+    await sendSms(phoneToSend, `Your MEGS ${prefix} code is ${plainOtp}. Valid for 10 minutes.`);
   } else {
     if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
       console.log(`🔑 [DEV OTP] RESEND (${purpose}) code generated for ${maskEmail(canonicalEmail)}.`);
@@ -783,7 +783,7 @@ export const requestPasswordReset = async (emailOrPhone: string) => {
       if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
         console.log(`📱 [DEV OTP] PASSWORD_RESET SMS code generated for ${maskPhoneNumber(phoneToSend)}: ${plainOtp}`);
       }
-      await sendSmsViaTextBee(phoneToSend, `Your MEGS password reset code is ${plainOtp}. Valid for 10 minutes.`);
+      await sendSms(phoneToSend, `Your MEGS password reset code is ${plainOtp}. Valid for 10 minutes.`);
       logAudit(dbUser.id, "PASSWORD_RESET_REQUESTED", "User", dbUser.id, { phone: phoneToSend });
     } else {
       if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
@@ -937,8 +937,8 @@ export const requestPasswordChangeCode = async (userId: string, currentPassword:
   const channel = phone ? "sms" : "email";
   try {
     if (phone) {
-      // TextBee reports failure in its result instead of throwing.
-      const sms = await sendSmsViaTextBee(phone, `Your MEGS ${label} code is ${plainOtp}. Valid for 10 minutes.`);
+      // Semaphore reports failure in its result instead of throwing.
+      const sms = await sendSms(phone, `Your MEGS ${label} code is ${plainOtp}. Valid for 10 minutes.`);
       if (!sms.success) throw new Error(sms.error || "SMS delivery failed");
       sentTo = maskPhoneNumber(phone);
     } else {
@@ -1306,7 +1306,7 @@ export const startAccountClaim = async (phone: string) => {
   if (await isOtpTestBypassEnabled() || process.env.NODE_ENV === "development") {
     console.log(`[DEV OTP] ACCOUNT_CLAIM SMS code generated for ${maskPhoneNumber(phoneE164)}: ${code}`);
   }
-  const sent = await sendSmsViaTextBee(phoneE164, `Your MEGS verification code is ${code}. Valid for 10 minutes.`);
+  const sent = await sendSms(phoneE164, `Your MEGS verification code is ${code}. Valid for 10 minutes.`);
   if (!sent.success) {
     // Nothing reached the phone, so drop the code: otherwise the one-minute cooldown blocks the retry.
     await prisma.authOtp.deleteMany({ where: { email: user.email, purpose: "ACCOUNT_CLAIM", isUsed: false } });

@@ -54,7 +54,7 @@ vi.mock("../../src/utils/mailer.js", () => ({
 }));
 vi.mock("../../src/utils/sms.js", async (orig) => ({
   ...(await orig<any>()),
-  sendSmsViaTextBee: mocks.sendSms,
+  sendSms: mocks.sendSms,
 }));
 vi.mock("../../src/utils/supabase.js", () => ({
   default: {
@@ -207,7 +207,7 @@ describe("security alerts and change-password code", () => {
     mocks.authOtpUpdateMany.mockResolvedValue({ count: 1 });
     mocks.mfaRecoveryDeleteMany.mockResolvedValue({ count: 0 });
     mocks.sendMail.mockResolvedValue({ success: true });
-    mocks.sendSms.mockResolvedValue({ success: true, smsBatchId: "batch-1" });
+    mocks.sendSms.mockResolvedValue({ success: true, messageId: "batch-1" });
     mocks.signInWithPassword.mockResolvedValue({ data: { session: {} }, error: null });
     mocks.updateUserById.mockResolvedValue({ error: null });
     mocks.listFactors.mockResolvedValue({ data: { factors: [] }, error: null });
@@ -469,7 +469,7 @@ describe("security alerts and change-password code", () => {
 
     it("reports a failed text instead of claiming the code was sent", async () => {
       useUsers(USER_PHONE);
-      mocks.sendSms.mockResolvedValue({ success: false, error: "TEXTBEE_API_KEY not configured" });
+      mocks.sendSms.mockResolvedValue({ success: false, error: "SEMAPHORE_API_KEY not configured" });
 
       await expect(requestPasswordChangeCode("user-phone", "CurrentPass123!")).rejects.toThrow(
         "Failed to deliver the verification code. Please try again later."

@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "crypto";
 import prisma from "../../utils/prisma.js";
 import { displayEmail } from "../../utils/display-email.js";
-import { maskPhoneNumber, sendSmsViaTextBee } from "../../utils/sms.js";
+import { maskPhoneNumber, sendSms } from "../../utils/sms.js";
 import { assertOwns, JOB_OWNER_SELECT, type JobOwnerFields } from "./ownership.js";
 import { buildTrackingCode, generateTrackingToken } from "./walk-in-tokens.js";
 import { sendNotification } from "../../utils/notification.js";
@@ -765,7 +765,7 @@ export const sendOfferSmsLink = async (input: { invitationId: number; taId: stri
   const token = randomBytes(16).toString("base64url");
 
   const url = `${offerLinkBaseUrl()}/offer/${invitationId}?token=${token}`;
-  const sent = await sendSmsViaTextBee(
+  const sent = await sendSms(
     mobile,
     `MEGS: You have a job offer for ${invitation.jobPosting.title}. Open ${url} to accept or decline.`
   );

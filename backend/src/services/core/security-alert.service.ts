@@ -1,6 +1,6 @@
 import prisma from "../../utils/prisma.js";
 import { sendMail, renderBrandedEmail, escapeHtml, getAppBaseUrl } from "../../utils/mailer.js";
-import { isSyntheticEmail, sendSmsViaTextBee, isPhilippinePhone, normalizeToE164 } from "../../utils/sms.js";
+import { isSyntheticEmail, sendSms, isPhilippinePhone, normalizeToE164 } from "../../utils/sms.js";
 import { findSmsPhone, formatSms } from "../../utils/notification.js";
 import { logAudit } from "../../utils/audit.js";
 import { resolveAuthIdentifier, findUserByIdentifier, findClaimableUser } from "./auth.service.js";
@@ -130,7 +130,7 @@ export const notifySecurityEvent = async (
       const phone = await findSmsPhone(user.id);
       if (!phone) return;
       // Sent directly, not through the outbox: security texts skip quiet hours.
-      const result = await sendSmsViaTextBee(phone, formatSms(`${copy.sms} ${closing}`));
+      const result = await sendSms(phone, formatSms(`${copy.sms} ${closing}`));
       if (result.success === false) return;
       channel = "sms";
     } else {

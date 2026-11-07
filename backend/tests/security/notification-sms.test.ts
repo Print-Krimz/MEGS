@@ -19,7 +19,7 @@ vi.mock("../../src/utils/prisma.js", () => ({
     },
   },
 }));
-vi.mock("../../src/utils/sms.js", async (orig) => ({ ...(await orig<any>()), sendSmsViaTextBee: mocks.sms }));
+vi.mock("../../src/utils/sms.js", async (orig) => ({ ...(await orig<any>()), sendSms: mocks.sms }));
 vi.mock("../../src/utils/mailer.js", () => ({ sendMail: vi.fn(), buildNotificationEmailHtml: vi.fn(() => "") }));
 
 import { dispatchNotificationSms, formatSms, isSmsQuietHours } from "../../src/utils/notification.js";
@@ -53,7 +53,7 @@ beforeEach(() => {
   mocks.notificationFindFirst.mockResolvedValue(null);
   mocks.notificationFindMany.mockResolvedValue([]);
   mocks.notificationUpdate.mockResolvedValue({});
-  mocks.sms.mockResolvedValue({ success: true, smsBatchId: "batch-1" });
+  mocks.sms.mockResolvedValue({ success: true, messageId: "batch-1" });
   consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
@@ -148,7 +148,7 @@ describe("dispatchNotificationSms", () => {
 
   it("sends, then records SENT with the provider batch id and the MEGS-prefixed text", async () => {
     setUser("u4", SYNTHETIC_PH);
-    mocks.sms.mockResolvedValue({ success: true, smsBatchId: "batch-123" });
+    mocks.sms.mockResolvedValue({ success: true, messageId: "batch-123" });
 
     await dispatchNotificationSms(4, "u4", { text: "Your application is under review" });
 
@@ -302,10 +302,10 @@ describe("sendSmsOutbox", () => {
       { id: 5, userId: "u5", smsText: "MEGS: five" },
     ]);
     mocks.sms
-      .mockResolvedValueOnce({ success: true, smsBatchId: "b1" }) // row 1
+      .mockResolvedValueOnce({ success: true, messageId: "b1" }) // row 1
       .mockResolvedValueOnce({ success: false, error: "gateway down" }) // row 2
-      .mockResolvedValueOnce({ success: true, smsBatchId: "b4" }) // row 4, its SENT update throws
-      .mockResolvedValueOnce({ success: true, smsBatchId: "b5" }); // row 5
+      .mockResolvedValueOnce({ success: true, messageId: "b4" }) // row 4, its SENT update throws
+      .mockResolvedValueOnce({ success: true, messageId: "b5" }); // row 5
     mocks.notificationUpdate.mockImplementation(async ({ where, data }: any) => {
       if (where.id === 4 && data.smsStatus === "SENT") throw new Error("db write failed");
       return {};

@@ -1,6 +1,6 @@
 /**
  * SMS Utility Module for MEGS
- * Interfaces with TextBee Android SMS Gateway to dispatch SMS OTPs.
+ * Sends SMS (OTPs and notifications) through Semaphore with sender name MEGSINC.
  */
 
 const PH_MOBILE_REGEX = /^(?:\+63|0)?9\d{9}$/;
@@ -80,59 +80,51 @@ export const maskPhoneNumber = (phone: string): string => {
   return phone;
 };
 
-export interface TextBeeSendResult {
+export interface SmsSendResult {
   success: boolean;
-  smsBatchId?: string;
+  messageId?: string;
   error?: string;
 }
 
-export const sendSmsViaTextBee = async (
-  phone: string,
-  message: string
-): Promise<TextBeeSendResult> => {
-  const apiKey = process.env.TEXTBEE_API_KEY;
-  const deviceId = process.env.TEXTBEE_DEVICE_ID;
-
-  const recipientE164 = normalizeToE164(phone);
+/** Sends one text through Semaphore. Never throws: failure comes back in the result. */
+export const sendSms = async (phone: string, message: string): Promise<SmsSendResult> => {
+  const apiKey = process.env.SEMAPHORE_API_KEY;
+  const recipient = normalizeToLocal(phone);
 
   if (!apiKey) {
-    console.warn("⚠️ [SMS] TEXTBEE_API_KEY not configured. Message not sent via network.");
-    return { success: false, error: "TEXTBEE_API_KEY not configured" };
-  }
-
-  const payload: Record<string, any> = {
-    recipients: [recipientE164],
-    message,
-  };
-
-  if (deviceId) {
-    payload.deviceId = deviceId;
+    console.warn("⚠️ [SMS] SEMAPHORE_API_KEY not configured. Message not sent via network.");
+    return { success: false, error: "SEMAPHORE_API_KEY not configured" };
   }
 
   try {
-    const response = await fetch("https://api.textbee.dev/api/v1/gateway/send-sms", {
+    const response = await fetch("https://api.semaphore.co/api/v4/messages", {
       method: "POST",
-      headers: {
-        "x-api-key": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        apikey: apiKey,
+        number: recipient,
+        message,
+        sendername: process.env.SEMAPHORE_SENDER_NAME || "MEGSINC",
+      }),
       // A stalled gateway must not hold the request open.
       signal: AbortSignal.timeout(10_000),
     });
 
-    const data = await response.json().catch(() => ({}));
+    const data: any = await response.json().catch(() => null);
 
-    if (!response.ok) {
-      const errorMsg = data?.message || data?.error || `TextBee error: HTTP ${response.status}`;
-      console.error(`❌ [TextBee] Failed to send SMS to ${recipientE164}:`, errorMsg);
+    // Success is an array with one object per message; errors come back as an object.
+    const first = Array.isArray(data) ? data[0] : null;
+    if (!response.ok || !first || first.status === "Failed") {
+      const raw = Array.isArray(data) ? first?.status : data && typeof data === "object" ? Object.values(data)[0] : null;
+      const errorMsg = (Array.isArray(raw) ? String(raw[0]) : raw ? String(raw) : "") || `Semaphore error: HTTP ${response.status}`;
+      console.error(`❌ [Semaphore] Failed to send SMS to ${recipient}:`, errorMsg);
       return { success: false, error: errorMsg };
     }
 
-    console.log(`📱 [TextBee] SMS dispatched to ${recipientE164}. Batch ID: ${data?.smsBatchId || "N/A"}`);
-    return { success: true, smsBatchId: data?.smsBatchId };
+    console.log(`📱 [Semaphore] SMS dispatched to ${recipient}. Message ID: ${first.message_id ?? "N/A"}`);
+    return { success: true, messageId: first.message_id != null ? String(first.message_id) : undefined };
   } catch (err: any) {
-    console.error(`❌ [TextBee] Network exception sending SMS to ${recipientE164}:`, err.message);
+    console.error(`❌ [Semaphore] Network exception sending SMS to ${recipient}:`, err.message);
     return { success: false, error: err.message };
   }
 };

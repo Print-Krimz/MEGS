@@ -17,7 +17,7 @@ const m = vi.hoisted(() => {
   };
   return {
     prisma,
-    sendSmsViaTextBee: fn(),
+    sendSms: fn(),
     sendNotification: fn(),
     logAudit: fn(),
     calculateAndPersistCandidateScore: fn(),
@@ -27,7 +27,7 @@ const m = vi.hoisted(() => {
 vi.mock("../utils/prisma.js", () => ({ default: m.prisma }));
 vi.mock("../utils/sms.js", async (importOriginal) => ({
   ...(await importOriginal<any>()),
-  sendSmsViaTextBee: m.sendSmsViaTextBee,
+  sendSms: m.sendSms,
 }));
 vi.mock("../utils/notification.js", () => ({ notifyJobOwner: vi.fn(async () => 0), notifyOwner: vi.fn(async () => 0), sendNotification: m.sendNotification }));
 vi.mock("../utils/audit.js", () => ({ logAudit: m.logAudit }));
@@ -135,7 +135,7 @@ beforeEach(() => {
   m.prisma.talentPoolMembership.update.mockResolvedValue({});
   m.prisma.deployment.findFirst.mockResolvedValue(null);
   m.prisma.deployment.findMany.mockResolvedValue([]);
-  m.sendSmsViaTextBee.mockResolvedValue({ success: true, smsBatchId: "b-1" });
+  m.sendSms.mockResolvedValue({ success: true, messageId: "b-1" });
   m.sendNotification.mockResolvedValue(undefined);
   m.logAudit.mockResolvedValue(undefined);
   m.calculateAndPersistCandidateScore.mockResolvedValue(undefined);
@@ -305,7 +305,7 @@ describe("recordAssistedResponse: a TA records a phone or in-person answer", () 
 });
 
 describe("sendOfferSmsLink: a texted one-time link", () => {
-  const lastSmsText = (): string => m.sendSmsViaTextBee.mock.calls.at(-1)![1] as string;
+  const lastSmsText = (): string => m.sendSms.mock.calls.at(-1)![1] as string;
   const lastToken = (): string => /token=([A-Za-z0-9_-]+)/.exec(lastSmsText())![1];
 
   it("texts the link to the applicant's number and stores only a hash of the token", async () => {
@@ -314,7 +314,7 @@ describe("sendOfferSmsLink: a texted one-time link", () => {
     expect(result.sentTo).toMatch(/^0917\*+/);
     expect(result.expiresAt).toBe(inv.expiresAt.toISOString());
 
-    const [to, text] = m.sendSmsViaTextBee.mock.calls[0];
+    const [to, text] = m.sendSms.mock.calls[0];
     expect(to).toBe("+639171234567");
     expect(text).toContain("You have a job offer for Forklift Operator.");
     const token = lastToken();
@@ -326,25 +326,25 @@ describe("sendOfferSmsLink: a texted one-time link", () => {
   it("falls back to the mobile number on the profile when the account has no phone", async () => {
     inv.applicantProfile.user.phoneNumber = null;
     await sendOfferSmsLink({ invitationId: 9, taId: "ta-1" });
-    expect(m.sendSmsViaTextBee.mock.calls[0][0]).toBe("09171234567");
+    expect(m.sendSms.mock.calls[0][0]).toBe("09171234567");
   });
 
   it("refuses an applicant with no mobile number on file and sends nothing", async () => {
     inv.applicantProfile.mobileNumber = null;
     inv.applicantProfile.user.phoneNumber = null;
     await expect(sendOfferSmsLink({ invitationId: 9, taId: "ta-1" })).rejects.toMatchObject({ status: 409 });
-    expect(m.sendSmsViaTextBee).not.toHaveBeenCalled();
+    expect(m.sendSms).not.toHaveBeenCalled();
     expect(inv.responseTokenHash).toBeNull();
   });
 
   it("refuses an invitation that is no longer pending", async () => {
     inv.status = "ACCEPTED";
     await expect(sendOfferSmsLink({ invitationId: 9, taId: "ta-1" })).rejects.toMatchObject({ status: 409 });
-    expect(m.sendSmsViaTextBee).not.toHaveBeenCalled();
+    expect(m.sendSms).not.toHaveBeenCalled();
   });
 
   it("keeps no usable link when the text cannot be sent, and reports 502", async () => {
-    m.sendSmsViaTextBee.mockResolvedValueOnce({ success: false, error: "gateway down" });
+    m.sendSms.mockResolvedValueOnce({ success: false, error: "gateway down" });
     await expect(sendOfferSmsLink({ invitationId: 9, taId: "ta-1" })).rejects.toMatchObject({ status: 502 });
     expect(inv.responseTokenHash).toBeNull();
   });
@@ -353,7 +353,7 @@ describe("sendOfferSmsLink: a texted one-time link", () => {
     await sendOfferSmsLink({ invitationId: 9, taId: "ta-1" });
     const previous = lastToken();
 
-    m.sendSmsViaTextBee.mockResolvedValueOnce({ success: false, error: "gateway down" });
+    m.sendSms.mockResolvedValueOnce({ success: false, error: "gateway down" });
     await expect(sendOfferSmsLink({ invitationId: 9, taId: "ta-1" })).rejects.toMatchObject({ status: 502 });
 
     expect(inv.responseTokenHash).toBe(sha256(previous));
@@ -374,7 +374,7 @@ describe("sendOfferSmsLink: a texted one-time link", () => {
   it("refuses a TA who does not own the job, and sends nothing", async () => {
     m.prisma.jobPosting.count.mockResolvedValue(0);
     await expect(sendOfferSmsLink({ invitationId: 9, taId: "ta-2" })).rejects.toMatchObject({ status: 404 });
-    expect(m.sendSmsViaTextBee).not.toHaveBeenCalled();
+    expect(m.sendSms).not.toHaveBeenCalled();
   });
 });
 

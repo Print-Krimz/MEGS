@@ -1,7 +1,7 @@
 import prisma from "./prisma.js";
 import { EventEmitter } from "events";
 import * as mailer from "./mailer.js";
-import { isPhilippinePhone, isSyntheticEmail, maskPhoneNumber, sendSmsViaTextBee } from "./sms.js";
+import { isPhilippinePhone, isSyntheticEmail, maskPhoneNumber, sendSms } from "./sms.js";
 import { jobOwnerTaId, type JobOwnerFields } from "../services/ta/ownership.js";
 
 const ROLE_BROADCAST_CONCURRENCY = 8;
@@ -80,11 +80,11 @@ export const deliverNotificationSms = async (
     where: { id: notificationId },
     data: { smsStatus: "SENDING", smsText: text, smsAt: new Date(), smsAttempts: { increment: 1 } },
   });
-  const result = await sendSmsViaTextBee(phone, text);
+  const result = await sendSms(phone, text);
   await prisma.notification.update({
     where: { id: notificationId },
     data: result.success
-      ? { smsStatus: "SENT", smsProviderId: result.smsBatchId ?? null, smsAt: new Date() }
+      ? { smsStatus: "SENT", smsProviderId: result.messageId ?? null, smsAt: new Date() }
       : { smsStatus: "FAILED", smsError: (result.error || "SMS failed").slice(0, 200), smsAt: new Date() },
   });
   return { success: result.success };

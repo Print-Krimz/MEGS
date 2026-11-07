@@ -39,7 +39,7 @@ vi.mock("../../src/services/ta/candidate-profile-review.service.js", () => ({
 }));
 vi.mock("../../src/services/ta/duplicate-identifiers.js", () => ({ findDuplicateIdentifierWarnings: async () => [] }));
 vi.mock("../../src/services/scoring/scoring-configuration.service.js", () => ({ revalidateApplicantProfile: vi.fn() }));
-vi.mock("../../src/utils/sms.js", async (orig) => ({ ...(await orig<any>()), sendSmsViaTextBee: mocks.sms }));
+vi.mock("../../src/utils/sms.js", async (orig) => ({ ...(await orig<any>()), sendSms: mocks.sms }));
 
 import { ClaimError, startAccountClaim } from "../../src/services/core/auth.service.js";
 import { updateCandidateProfileHandler } from "../../src/controllers/ta/ta.applications.controller.js";
