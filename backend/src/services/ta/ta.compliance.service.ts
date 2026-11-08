@@ -870,6 +870,7 @@ export const getScopedComplianceApplications = async (scope: ComplianceScope = "
         where: { status: "ACTIVE" },
         take: 1,
         orderBy: { contractStart: "desc" },
+        include: { client: { select: { id: true, name: true } } },
       },
       complianceRequirements: {
         ...(scope === "POST_DEPLOYMENT" ? { where: POST_DEPLOYMENT_FOLLOW_UP_WHERE } : {}),

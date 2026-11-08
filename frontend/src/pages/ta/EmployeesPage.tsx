@@ -19,6 +19,7 @@ import { NoAccountChip } from "../../components/ta/walk-in/NoAccountChip";
 import { formatDate } from "../../lib/utils";
 import { EmploymentStatus } from "../../lib/types/enums";
 import { TA_COPY } from "../../lib/ta-copy";
+import { taClientsQuery } from "../../lib/api/ta.queries";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { normalizeServerSearch, SERVER_SEARCH_DEBOUNCE_MS } from "../../lib/query-policies";
 import type { Employee } from "../../lib/types/employee.types";
@@ -72,15 +73,18 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
       search: debouncedSearch,
       status: filterValues.status || "",
       department: filterValues.department || "",
+      clientId: filterValues.clientId || "",
     }],
     queryFn: ({ signal }) => employeesApi.listEmployees({
         search: debouncedSearch || undefined,
         status: (filterValues.status as EmploymentStatus) || undefined,
         department: filterValues.department || undefined,
+        clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
       }, { signal }),
     placeholderData: keepPreviousData,
   });
 
+  const clients = useQuery(taClientsQuery()).data ?? [];
   const allEmployees = employeesQuery.data || [];
   const totalPages = Math.max(1, Math.ceil(allEmployees.length / pageSize));
   const paginatedEmployees = allEmployees.slice(
@@ -160,6 +164,13 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
         onFilterChange={handleFilterChange}
         onReset={handleReset}
         filters={[
+          {
+            key: "clientId",
+            label: "Client",
+            placeholder: "All clients",
+            searchable: true,
+            options: clients.map((c) => ({ value: String(c.id), label: c.name })),
+          },
           {
             key: "status",
             label: "Status",

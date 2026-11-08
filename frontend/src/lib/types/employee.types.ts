@@ -157,6 +157,7 @@ export interface Digital201Aggregate {
 export interface EmployeeListQuery {
   status?: EmploymentStatus;
   department?: string;
+  clientId?: number;
   search?: string;
   limit?: number;
   offset?: number;

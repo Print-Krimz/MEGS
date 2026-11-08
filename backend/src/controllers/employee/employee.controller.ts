@@ -45,10 +45,12 @@ export const updateRedeploymentFollowUpHandler =async (req: Request, res: Respon
  */
 export const listEmployeesHandler = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { status, department, search, limit, offset } = req.query;
+    const { status, department, clientId, search, limit, offset } = req.query;
+    const clientIdNum = Number(clientId);
     const employees = await listEmployees({
       status: status as any,
       department: department as string,
+      clientId: Number.isInteger(clientIdNum) && clientIdNum > 0 ? clientIdNum : undefined,
       search: search as string,
       limit: limit ? parseInt(limit as string) : undefined,
       offset: offset ? parseInt(offset as string) : undefined,

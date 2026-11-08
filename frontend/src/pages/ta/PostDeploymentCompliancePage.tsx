@@ -50,6 +50,11 @@ const workerNameOf = (app: Application): string => {
 const clientNameOf = (app: Application): string =>
   app.jobPosting?.mrf?.client?.name || app.deployments?.[0]?.client?.name || "Client not recorded";
 
+const clientIdOf = (app: Application): string => {
+  const id = app.jobPosting?.mrf?.client?.id ?? app.deployments?.[0]?.client?.id ?? app.deployments?.[0]?.clientId;
+  return id == null ? "" : String(id);
+};
+
 const URGENCY_TONE = { overdue: "danger", upcoming: "warning", later: "neutral", none: "neutral" } as const;
 
 /** One chip for the worst open follow-up, with the next due date underneath. */
@@ -88,6 +93,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
 
   const [search, setSearch] = useState("");
   const [urgencyFilter, setUrgencyFilter] = useState<UrgencyFilter>("ALL");
+  const [clientFilter, setClientFilter] = useState("");
   const [page, setPage] = useState(1);
 
   const review = useComplianceReviewSession("post");
@@ -149,6 +155,16 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
     },
   });
 
+  const clientOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const app of applications) {
+      const id = clientIdOf(app);
+      const name = app.jobPosting?.mrf?.client?.name || app.deployments?.[0]?.client?.name;
+      if (id && name) byId.set(id, name);
+    }
+    return Array.from(byId, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+  }, [applications]);
+
   const filteredApplications = useMemo(() => {
     const q = search.trim().toLowerCase();
     return applications.filter((app) => {
@@ -170,15 +186,18 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
         (app.jobPosting?.title || "").toLowerCase().includes(q) ||
         (app.jobPosting?.mrf?.client?.name || app.deployments?.[0]?.client?.name || "").toLowerCase().includes(q);
 
-      return matchesUrgency && matchesSearch;
+      const matchesClient = !clientFilter || clientIdOf(app) === clientFilter;
+
+      return matchesUrgency && matchesSearch && matchesClient;
     });
-  }, [applications, search, urgencyFilter]);
+  }, [applications, search, urgencyFilter, clientFilter]);
 
   const pagedApplications = filteredApplications.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const handleReset = () => {
     setSearch("");
     setUrgencyFilter("ALL");
+    setClientFilter("");
     setPage(1);
   };
 
@@ -207,6 +226,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
   ];
 
   const filters: FilterConfig[] = [
+    { key: "clientId", label: "Client", placeholder: "All clients", options: clientOptions },
     {
       key: "urgency",
       label: "Urgency",
@@ -303,12 +323,11 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
             setPage(1);
           }}
           filters={filters}
-          filterValues={{ urgency: urgencyFilter === "ALL" ? "" : urgencyFilter }}
+          filterValues={{ clientId: clientFilter, urgency: urgencyFilter === "ALL" ? "" : urgencyFilter }}
           onFilterChange={(key, value) => {
-            if (key === "urgency") {
-              setUrgencyFilter((value as UrgencyFilter) || "ALL");
-              setPage(1);
-            }
+            if (key === "clientId") setClientFilter(value);
+            else if (key === "urgency") setUrgencyFilter((value as UrgencyFilter) || "ALL");
+            setPage(1);
           }}
           onReset={handleReset}
           columns={columns}

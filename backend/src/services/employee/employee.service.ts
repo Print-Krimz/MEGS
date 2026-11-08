@@ -315,6 +315,7 @@ export const getDigital201ByUserId = async (userId: string): Promise<Digital201A
 export const listEmployees = async (filters: {
   status?: EmploymentStatus;
   department?: string;
+  clientId?: number;
   search?: string;
   limit?: number;
   offset?: number;
@@ -327,6 +328,11 @@ export const listEmployees = async (filters: {
 
   if (filters.department) {
     where.department = { contains: filters.department, mode: "insensitive" };
+  }
+
+  // Client of the current (not ended or cancelled) deployment.
+  if (filters.clientId) {
+    where.deployments = { some: { clientId: filters.clientId, status: { notIn: ["ENDED", "CANCELLED"] } } };
   }
 
   if (filters.search && filters.search.trim()) {

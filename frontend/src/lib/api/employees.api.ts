@@ -32,6 +32,7 @@ export const employeesApi = {
     const params = new URLSearchParams();
     if (query?.status) params.append("status", query.status);
     if (query?.department) params.append("department", query.department);
+    if (query?.clientId) params.append("clientId", String(query.clientId));
     const search = query?.search?.trim();
     if (search) params.append("search", search);
     if (query?.limit) params.append("limit", String(query.limit));

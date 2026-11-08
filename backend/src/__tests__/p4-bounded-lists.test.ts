@@ -276,11 +276,24 @@ describe("TA deployment pagination", () => {
     expect(m.deploymentFindMany.mock.calls[1][0].where).toMatchObject({ status: "ENDED", employee: { is: { status: "SEPARATED" } } });
   });
 
-  it("keeps the legacy array response and never counts when no page is requested", async () => {
+  it("keeps the legacy array response, open rows first, and never counts when no page is requested", async () => {
+    m.deploymentFindMany.mockResolvedValueOnce([{ id: 11 }]).mockResolvedValueOnce([{ id: 12 }]);
     const legacy = await listDeployments(undefined, undefined, undefined);
-    expect(legacy).toEqual([{ id: 11 }, { id: 10 }]);
+    expect(legacy).toEqual([{ id: 11 }, { id: 12 }]);
     expect(m.deploymentCount).not.toHaveBeenCalled();
     expect(m.deploymentFindMany.mock.calls[0][0].skip).toBeUndefined();
+    expect(m.deploymentFindMany.mock.calls[0][0].where.status).toEqual({ notIn: ["ENDED", "CANCELLED"] });
+    expect(m.deploymentFindMany.mock.calls[1][0].where.status).toEqual({ in: ["ENDED", "CANCELLED"] });
+  });
+
+  it("pages across the open/ended boundary without gaps or repeats", async () => {
+    m.deploymentCount.mockResolvedValueOnce(12).mockResolvedValueOnce(11);
+    m.deploymentFindMany.mockResolvedValueOnce([{ id: 2 }, { id: 1 }]).mockResolvedValueOnce([{ id: 99 }]);
+    const result = (await listDeployments(undefined, undefined, undefined, { page: 2, pageSize: 10 })) as any;
+    const [openCall, closedCall] = m.deploymentFindMany.mock.calls.map((c: any[]) => c[0]);
+    expect(openCall).toMatchObject({ skip: 10, take: 2, where: { status: { notIn: ["ENDED", "CANCELLED"] } } });
+    expect(closedCall).toMatchObject({ skip: 0, take: 8, where: { status: { in: ["ENDED", "CANCELLED"] } } });
+    expect(result).toMatchObject({ items: [{ id: 2 }, { id: 1 }, { id: 99 }], total: 23, page: 2, pageSize: 10 });
   });
 });
 

@@ -95,6 +95,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
 
   const [search, setSearch] = useState("");
   const [jobTitleFilter, setJobTitleFilter] = useState("");
+  const [clientFilter, setClientFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
   // Oldest waiting first: the review queue starts with whoever has waited longest.
   const [sort, setSort] = useState<DataTableSort>({ key: "submitted", direction: "asc" });
@@ -147,6 +148,15 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
     [complianceApps]
   );
 
+  const clientOptions = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const app of complianceApps) {
+      const client = app.jobPosting?.mrf?.client;
+      if (client?.id != null && client.name) byId.set(String(client.id), client.name);
+    }
+    return Array.from(byId, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+  }, [complianceApps]);
+
   const filteredApps = useMemo(() => {
     const q = search.trim().toLowerCase();
     return complianceApps.filter((app) => {
@@ -166,9 +176,11 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
         jobTitle.toLowerCase().includes(q);
       const matchesJobTitle = !jobTitleFilter || jobTitle === jobTitleFilter;
 
-      return matchesStatus && matchesSearch && matchesJobTitle;
+      const matchesClient = !clientFilter || String(app.jobPosting?.mrf?.client?.id ?? "") === clientFilter;
+
+      return matchesStatus && matchesSearch && matchesJobTitle && matchesClient;
     });
-  }, [complianceApps, statusFilter, search, jobTitleFilter]);
+  }, [complianceApps, statusFilter, search, jobTitleFilter, clientFilter]);
 
   const sortedApps = useMemo(() => {
     const direction = sort.direction === "asc" ? 1 : -1;
@@ -186,6 +198,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
   const handleReset = () => {
     setSearch("");
     setJobTitleFilter("");
+    setClientFilter("");
     setStatusFilter("ALL");
     setQueuePage(1);
   };
@@ -238,6 +251,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
   ];
 
   const filters: FilterConfig[] = [
+    { key: "clientId", label: "Client", placeholder: "All clients", options: clientOptions },
     { key: "jobTitle", label: "Job opening", placeholder: "All job openings", options: jobTitleOptions },
     {
       key: "requirementStatus",
@@ -341,9 +355,10 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
             setQueuePage(1);
           }}
           filters={filters}
-          filterValues={{ jobTitle: jobTitleFilter, requirementStatus: statusFilter !== "ALL" ? statusFilter : "" }}
+          filterValues={{ clientId: clientFilter, jobTitle: jobTitleFilter, requirementStatus: statusFilter !== "ALL" ? statusFilter : "" }}
           onFilterChange={(key, value) => {
-            if (key === "jobTitle") setJobTitleFilter(value);
+            if (key === "clientId") setClientFilter(value);
+            else if (key === "jobTitle") setJobTitleFilter(value);
             else if (key === "requirementStatus") setStatusFilter((value as StatusFilter) || "ALL");
             setQueuePage(1);
           }}

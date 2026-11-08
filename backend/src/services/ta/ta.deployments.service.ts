@@ -631,6 +631,33 @@ export const listDeployments = async (clientId?: number, status?: string, actor?
 
   const orderBy: Prisma.DeploymentOrderByWithRelationInput[] = [{ createdAt: "desc" }, { id: "desc" }];
 
+  // Unfiltered list: in-progress rows first, ended/cancelled rows after, newest first inside each group.
+  // A status filter already picks one group, so it keeps the plain ordering.
+  if (!status) {
+    const closed: DeploymentStatus[] = ["ENDED", "CANCELLED"];
+    const openWhere: Prisma.DeploymentWhereInput = { ...where, status: { notIn: closed } };
+    const closedWhere: Prisma.DeploymentWhereInput = { ...where, status: { in: closed } };
+    const find = (w: Prisma.DeploymentWhereInput, skip?: number, take?: number) =>
+      prisma.deployment.findMany({ where: w, select: DEPLOYMENT_LIST_SELECT, orderBy, skip, take });
+
+    if (!isPageRequested(options)) {
+      const [open, ended] = await Promise.all([find(openWhere), find(closedWhere)]);
+      return [...open, ...ended];
+    }
+    const { page, pageSize, skip, take } = resolvePage(options);
+    const [openCount, closedCount] = await Promise.all([
+      prisma.deployment.count({ where: openWhere }),
+      prisma.deployment.count({ where: closedWhere }),
+    ]);
+    const openTake = Math.max(0, Math.min(take, openCount - skip));
+    const closedTake = take - openTake;
+    const [open, ended] = await Promise.all([
+      openTake > 0 ? find(openWhere, skip, openTake) : Promise.resolve([]),
+      closedTake > 0 ? find(closedWhere, Math.max(0, skip - openCount), closedTake) : Promise.resolve([]),
+    ]);
+    return pageEnvelope([...open, ...ended], openCount + closedCount, page, pageSize);
+  }
+
   if (isPageRequested(options)) {
     const { page, pageSize, skip, take } = resolvePage(options);
     const [items, total] = await Promise.all([
