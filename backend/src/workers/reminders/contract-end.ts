@@ -31,19 +31,43 @@ export const sendContractEndReminders = async (now: Date = new Date()): Promise<
     try {
       const milestone = contractMilestone(daysUntilDue(row.contractEnd, now));
       if (!milestone) continue;
+      const ownerId = deploymentOwnerTaId(row);
       addTally(
         result,
         await notifyOwner(
-          deploymentOwnerTaId(row),
+          ownerId,
           "Contract ending",
           milestone === "today"
             ? `The contract for deployment #${row.id} ends today.`
             : `The contract for deployment #${row.id} ends on ${formatDue(row.contractEnd)}.`,
           "WARNING",
           `/ta/deployments/${row.id}`,
-          { dedupeKey: reminderKey("contract-end", row.id, row.contractEnd, milestone), sendEmail: false }
+          {
+            dedupeKey: reminderKey("contract-end", row.id, row.contractEnd, milestone),
+            sendEmail: milestone !== "expiring-30",
+            ctaText: "Open deployment",
+          }
         )
       );
+      // End day and still live: the TA did not renew or end it, so the Admins (team leaders) are told too.
+      // An unassigned requisition already went to the Admins above, so skip it here.
+      if (milestone === "today" && ownerId) {
+        addTally(
+          result,
+          await notifyOwner(
+            null,
+            "Contract ends today",
+            `The contract for deployment #${row.id} ends today and the deployment is still live. The assigned TA has been notified.`,
+            "WARNING",
+            row.mrfId ? `/admin/mrfs/${row.mrfId}` : null,
+            {
+              dedupeKey: reminderKey("contract-end-admin", row.id, row.contractEnd, "today"),
+              sendEmail: true,
+              ctaText: "Open hiring request",
+            }
+          )
+        );
+      }
     } catch (error) {
       result.failedCount++;
       safeLogError(`contract-end reminder for deployment ${row.id}`, error);
