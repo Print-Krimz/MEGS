@@ -16,7 +16,7 @@ import { formatErrorMessage } from "../../lib/feedback";
 import { isPhilippinePhone, maskPhone } from "../../lib/utils";
 import { useCountdown, useLockout, useOtpTimers } from "../../hooks/useCountdown";
 import { useSecurityControls } from "../../hooks/useSecurityControls";
-import { isWithinPasswordByteLimit, PASSWORD_MAX_BYTES, PASSWORD_MAX_BYTES_MESSAGE } from "../../lib/password-strength";
+import { addNewPasswordIssue, isWithinPasswordByteLimit, PASSWORD_MAX_BYTES, PASSWORD_MAX_BYTES_MESSAGE } from "../../lib/password-strength";
 
 type Step = "PHONE" | "CODE" | "PASSWORD" | "DONE";
 const STEPS = ["Mobile number", "SMS code", "Password", "Done"];
@@ -35,7 +35,7 @@ const passwordSchema = z
     password: z
       .string()
       .min(8, "Password must be at least 8 characters long")
-      .refine(isWithinPasswordByteLimit, PASSWORD_MAX_BYTES_MESSAGE),
+      .refine(isWithinPasswordByteLimit, PASSWORD_MAX_BYTES_MESSAGE).superRefine(addNewPasswordIssue),
     confirmPassword: z.string().min(1, "Confirm your password"),
   })
   .refine((d) => d.password === d.confirmPassword, {

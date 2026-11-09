@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { FIELD_LIMITS } from "./field-limits.js";
+import { newPasswordProblem } from "../security/password-policy.js";
 import { isPhilippinePhone, normalizeToE164 } from "../utils/sms.js";
 
 // Supabase Auth (bcrypt) only reads the first 72 bytes, so NEW passwords are capped in UTF-8 bytes, not characters.
@@ -28,8 +29,12 @@ const email = z
   .refine(isValidAuthIdentifier, "Please enter a valid email address or Philippine mobile number (e.g. 09171234567)")
   .transform(normalizeAuthIdentifier);
 
+// The message argument covers the length rule; letter, number and too-common come from the shared policy.
 const password = (message: string) =>
-  z.string().min(8, message).refine(withinNewPasswordBytes, NEW_PASSWORD_BYTES_MESSAGE);
+  z.string().min(8, message).refine(withinNewPasswordBytes, NEW_PASSWORD_BYTES_MESSAGE).superRefine((value, ctx) => {
+    const problem = newPasswordProblem(value);
+    if (problem && value.length >= 8) ctx.addIssue({ code: "custom", message: problem });
+  });
 const token = z.string().min(1).max(FIELD_LIMITS.authToken);
 
 /**

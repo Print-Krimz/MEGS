@@ -8,14 +8,14 @@ import { useAuth } from "./useAuth";
 import { useOtpTimers } from "./useCountdown";
 import { Role } from "../lib/types/enums";
 import { notify, formatErrorMessage } from "../lib/feedback";
-import { isWithinPasswordByteLimit, PASSWORD_MAX_BYTES_MESSAGE } from "../lib/password-strength";
+import { addNewPasswordIssue, isWithinPasswordByteLimit, PASSWORD_MAX_BYTES_MESSAGE } from "../lib/password-strength";
 
 const passwordFields = z.object({
   currentPassword: z.string().min(1, "Current password is required"),
   newPassword: z
     .string()
     .min(8, "New password must be at least 8 characters long")
-    .refine(isWithinPasswordByteLimit, PASSWORD_MAX_BYTES_MESSAGE),
+    .refine(isWithinPasswordByteLimit, PASSWORD_MAX_BYTES_MESSAGE).superRefine(addNewPasswordIssue),
   confirmPassword: z.string().min(1, "Please confirm your new password"),
 });
 

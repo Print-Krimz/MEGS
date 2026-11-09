@@ -35,6 +35,7 @@ import { ensureApplicantProfile } from '../applicant/applicant.service.js';
 import { isActiveAccount, isMfaEnforced } from '../../security/auth-policy.js';
 import { getSecurityControls } from '../../security/security-controls.js';
 import { safeLogError } from '../../security/errors.js';
+import { newPasswordProblem } from '../../security/password-policy.js';
 import { notifySecurityEvent } from './security-alert.service.js';
 
 interface ResolvedAuthIdentifier {
@@ -121,9 +122,8 @@ const otpDeadlines = (createdAt: Date) => ({
 });
 
 export const registerUser = async (emailOrPhone: string, password: string) => {
-  if (password.length < 8) {
-    throw new Error("Password must be at least 8 characters");
-  }
+  const registerPasswordProblem = newPasswordProblem(password);
+  if (registerPasswordProblem) throw new Error(registerPasswordProblem);
 
   const resolved = resolveAuthIdentifier(emailOrPhone);
 
@@ -811,9 +811,8 @@ export const requestPasswordReset = async (emailOrPhone: string) => {
 };
 
 export const resetUserPassword = async (token: string, newPassword: string) => {
-  if (newPassword.length < 8) {
-    throw new Error("Password must be at least 8 characters long");
-  }
+  const newPasswordIssue = newPasswordProblem(newPassword);
+  if (newPasswordIssue) throw new Error(newPasswordIssue);
 
   const tokenHash = hashToken(token);
 
@@ -1014,9 +1013,8 @@ export const changeUserPassword = async (
   newPassword: string,
   otp: string
 ) => {
-  if (newPassword.length < 8) {
-    throw new Error("New password must be at least 8 characters long");
-  }
+  const changePasswordIssue = newPasswordProblem(newPassword);
+  if (changePasswordIssue) throw new Error(changePasswordIssue);
 
   const dbUser = await prisma.user.findUnique({ where: { id: userId } });
   if (!dbUser) {
@@ -1110,9 +1108,8 @@ export const setupAccount = async (token: string, newPassword: string) => {
     throw new Error("Invalid or expired setup token");
   }
 
-  if (newPassword.length < 8) {
-    throw new Error("Password must be at least 8 characters long");
-  }
+  const newPasswordIssue = newPasswordProblem(newPassword);
+  if (newPasswordIssue) throw new Error(newPasswordIssue);
 
   const tokenHash = hashToken(token.trim());
 
@@ -1367,7 +1364,8 @@ export const completeAccountClaim = async (input: {
   email?: string;
   emailOtp?: string;
 }) => {
-  if (input.password.length < 8) throw new ClaimError("Password must be at least 8 characters", 400);
+  const claimPasswordIssue = newPasswordProblem(input.password);
+  if (claimPasswordIssue) throw new ClaimError(claimPasswordIssue, 400);
   const { row, user } = await findClaimSession(input.claimToken);
 
   const email = input.email?.trim().toLowerCase();

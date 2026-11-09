@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { FIELD_LIMITS } from "./field-limits.js";
+import { newPasswordProblem } from "../security/password-policy.js";
 import { isPhilippinePhone, normalizeToE164 } from "../utils/sms.js";
 
 const phone = z
@@ -17,7 +18,11 @@ const email = z.string().trim().max(FIELD_LIMITS.email).email("Enter a valid ema
 const password = z
   .string()
   .min(8, "Password must be at least 8 characters long")
-  .refine((value) => new TextEncoder().encode(value).length <= FIELD_LIMITS.newPasswordMaxBytes, `Password must be ${FIELD_LIMITS.newPasswordMaxBytes} bytes or fewer.`);
+  .refine((value) => new TextEncoder().encode(value).length <= FIELD_LIMITS.newPasswordMaxBytes, `Password must be ${FIELD_LIMITS.newPasswordMaxBytes} bytes or fewer.`)
+  .superRefine((value, ctx) => {
+    const problem = newPasswordProblem(value);
+    if (problem && value.length >= 8) ctx.addIssue({ code: "custom", message: problem });
+  });
 
 // verifyTurnstile strips turnstileToken from the body before validation, so it is not listed here.
 export const claimSchema = {

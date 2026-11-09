@@ -85,7 +85,7 @@ export const ChangePasswordPage: React.FC = () => {
                 maxLength={PASSWORD_MAX_BYTES}
                 onChange={(e) => setField("newPassword", e.target.value)}
                 error={errors.newPassword}
-                hint="Use at least 8 characters, different from your current password."
+                hint="Use at least 8 characters with a letter and a number, different from your current password."
                 showStrength
                 required
               />

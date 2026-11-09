@@ -16,7 +16,7 @@ import { CheckCircle2, ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 import { maskIdentifier, isPhilippinePhone } from "../../lib/utils";
 import { useSecurityControls } from "../../hooks/useSecurityControls";
-import { isWithinPasswordByteLimit, PASSWORD_MAX_BYTES, PASSWORD_MAX_BYTES_MESSAGE } from "../../lib/password-strength";
+import { addNewPasswordIssue, isWithinPasswordByteLimit, PASSWORD_MAX_BYTES, PASSWORD_MAX_BYTES_MESSAGE } from "../../lib/password-strength";
 
 const isEmailOrPhone = (val: string) => {
   const clean = val.trim();
@@ -41,7 +41,7 @@ const otpSchema = z.object({
 
 const passwordSchema = z
   .object({
-    password: z.string().min(8, "Password must be at least 8 characters long").refine(isWithinPasswordByteLimit, PASSWORD_MAX_BYTES_MESSAGE),
+    password: z.string().min(8, "Password must be at least 8 characters long").refine(isWithinPasswordByteLimit, PASSWORD_MAX_BYTES_MESSAGE).superRefine(addNewPasswordIssue),
     confirmPassword: z.string().min(1, "Please confirm your password"),
   })
   .refine((data) => data.password === data.confirmPassword, {

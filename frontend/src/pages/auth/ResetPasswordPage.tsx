@@ -14,12 +14,12 @@ import { useCountdown, useLockout } from "../../hooks/useCountdown";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { CheckCircle2, ArrowRight } from "lucide-react";
 import { notify, formatErrorMessage } from "../../lib/feedback";
-import { isWithinPasswordByteLimit, PASSWORD_MAX_BYTES, PASSWORD_MAX_BYTES_MESSAGE } from "../../lib/password-strength";
+import { addNewPasswordIssue, isWithinPasswordByteLimit, PASSWORD_MAX_BYTES, PASSWORD_MAX_BYTES_MESSAGE } from "../../lib/password-strength";
 
 const resetPasswordSchema = z
   .object({
     token: z.string().min(1, "Reset token is missing or invalid"),
-    password: z.string().min(8, "Password must be at least 8 characters long").refine(isWithinPasswordByteLimit, PASSWORD_MAX_BYTES_MESSAGE),
+    password: z.string().min(8, "Password must be at least 8 characters long").refine(isWithinPasswordByteLimit, PASSWORD_MAX_BYTES_MESSAGE).superRefine(addNewPasswordIssue),
     confirmPassword: z.string().min(1, "Please confirm your password"),
   })
   .refine((data) => data.password === data.confirmPassword, {

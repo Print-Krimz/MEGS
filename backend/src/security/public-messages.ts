@@ -1,4 +1,5 @@
 import { OFFICE_HOURS_MESSAGE } from "../config/business-hours.js";
+import { PASSWORD_POLICY_MESSAGES } from "./password-policy.js";
 
 export const CHECK_IN_BIODATA_MESSAGE = "Use a JPEG, PNG or WEBP photo, or a PDF, under 5 MB.";
 export const CHECK_IN_BIODATA_UNAVAILABLE_MESSAGE = "The applicant's biodata could not be loaded. Attach it again.";
@@ -7,6 +8,7 @@ export const CHECK_IN_BIODATA_UNAVAILABLE_MESSAGE = "The applicant's biodata cou
 export const publicMessages = new Set<string>([
   CHECK_IN_BIODATA_MESSAGE,
   CHECK_IN_BIODATA_UNAVAILABLE_MESSAGE,
+  ...PASSWORD_POLICY_MESSAGES,
   "Biodata not found",
   OFFICE_HOURS_MESSAGE,
   "Your request is already with your recruiter.",

@@ -22,12 +22,7 @@ import {
   validateStandardText,
   validateProseText,
 } from "../../lib/statutory-validation";
-import {
-  getMRFPresetById,
-  getPresetsByIndustry,
-  parseSkillsArray,
-  formatSkillsList,
-} from "../../lib/mrf-presets";
+import { parseSkillsArray, formatSkillsList } from "../../lib/mrf-presets";
 import { useDirtyGuard } from "../../hooks/useDirtyGuard";
 import { CloneMRFModal } from "../../components/ta/CloneMRFModal";
 import { FieldWarning } from "../../components/ta/FieldWarning";
@@ -138,9 +133,7 @@ const isEmptyField = (key: MRFFileField, values: Record<MRFFileField, string>): 
   return value === "" || value === FIELD_DEFAULTS[key];
 };
 
-type PendingFill =
-  | { kind: "preset"; presetId: string }
-  | { kind: "clone"; mrf: ManpowerRequest; preserveClient: boolean };
+type PendingFill = { kind: "clone"; mrf: ManpowerRequest; preserveClient: boolean };
 
 export const MRFCreatePage: React.FC = () => {
   const navigate = useNavigate();
@@ -182,7 +175,6 @@ export const MRFCreatePage: React.FC = () => {
   const [clientRequirementsOpen, setClientRequirementsOpen] = useState(false);
   const [moreDetailsOpen, setMoreDetailsOpen] = useState(false);
   const [cloneModalOpen, setCloneModalOpen] = useState(false);
-  const [selectedPresetId, setSelectedPresetId] = useState("");
   const [pendingFill, setPendingFill] = useState<PendingFill | null>(null);
   const [fileReview, setFileReview] = useState<{ reading: MRFFileReading; rows: MRFFileReviewRow[]; clientId?: number } | null>(null);
   const [createdId, setCreatedId] = useState<number | null>(null);
@@ -190,7 +182,6 @@ export const MRFCreatePage: React.FC = () => {
   const [fileNotes, setFileNotes] = useState<FileNotes>({});
   const fileReadVersion = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const presetsByIndustry = useMemo(() => getPresetsByIndustry(), []);
 
   const clientsQuery = useQuery({
     queryKey: ["ta", "clients"],
@@ -374,35 +365,6 @@ export const MRFCreatePage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clients, presetClientId]);
 
-  const applyPreset = (presetId: string) => {
-    const preset = getMRFPresetById(presetId);
-    if (!preset) return;
-
-    setServerFieldErrors({});
-    setTitle(preset.title);
-    setRequiredSkills(formatSkillsList(preset.requiredSkills));
-    setRequiredExperience(preset.requiredExperience);
-    setRequiredEducation(preset.requiredEducation);
-    setRequiredCertifications(formatSkillsList(preset.requiredCertifications));
-    setDescription(preset.description);
-    setSalaryMin(String(preset.salaryMin));
-    setSalaryMax(String(preset.salaryMax));
-    setEmploymentType(preset.employmentType);
-    setWorkArrangement(preset.workArrangement);
-
-    notify.success("Template applied", `Loaded "${preset.label}" specifications.`);
-  };
-
-  const handleApplyPreset = (presetId: string) => {
-    setSelectedPresetId(presetId);
-    if (!presetId) return;
-    if (hasSpecifications) {
-      setPendingFill({ kind: "preset", presetId });
-      return;
-    }
-    applyPreset(presetId);
-  };
-
   const applyClonedMRF = (mrf: ManpowerRequest, preserveClient: boolean) => {
     setServerFieldErrors({});
     setTitle(mrf.title || "");
@@ -446,7 +408,6 @@ export const MRFCreatePage: React.FC = () => {
       }
     }
 
-    setSelectedPresetId("");
     notify.success("Request cloned", `Populated specifications from MRF #${mrf.id} (${mrf.title}).`);
   };
 
@@ -568,16 +529,11 @@ export const MRFCreatePage: React.FC = () => {
 
   const confirmPendingFill = () => {
     if (!pendingFill) return;
-    if (pendingFill.kind === "preset") applyPreset(pendingFill.presetId);
-    else applyClonedMRF(pendingFill.mrf, pendingFill.preserveClient);
+    applyClonedMRF(pendingFill.mrf, pendingFill.preserveClient);
     setPendingFill(null);
   };
 
-  const cancelPendingFill = () => {
-    // Put the template picker back where it was; nothing was replaced.
-    if (pendingFill?.kind === "preset") setSelectedPresetId("");
-    setPendingFill(null);
-  };
+  const cancelPendingFill = () => setPendingFill(null);
 
   const activeSkillsList = useMemo(
     () => parseSkillsArray(requiredSkills),
@@ -800,27 +756,6 @@ export const MRFCreatePage: React.FC = () => {
                 >
                   Clone from past MRF
                 </Button>
-
-                <div className="sm:w-64">
-                  <Select
-                    aria-label="Apply role template"
-                    value={selectedPresetId}
-                    onChange={(e) => handleApplyPreset(e.target.value)}
-                  >
-                    <option value="">Apply role template…</option>
-                    {Object.entries(presetsByIndustry).map(([industry, presets]) => (
-                      presets.length > 0 && (
-                        <optgroup key={industry} label={industry}>
-                          {presets.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.label}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )
-                    ))}
-                  </Select>
-                </div>
               </div>
             </div>
 
@@ -1418,7 +1353,7 @@ export const MRFCreatePage: React.FC = () => {
         onClose={cancelPendingFill}
         onConfirm={confirmPendingFill}
         title="Replace what you have filled in?"
-        description="This overwrites the title, skills, salary and notes you have entered with the selected specifications."
+        description="This overwrites the title, skills, salary and notes you have entered with the specifications from the past request."
         confirmLabel="Replace fields"
         cancelLabel="Keep my entries"
         variant="warning"
