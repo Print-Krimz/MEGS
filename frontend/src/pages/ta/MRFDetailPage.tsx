@@ -20,6 +20,20 @@ import { MRFOverviewTab } from "../../components/ta/recruitment/mrf/MRFOverviewT
 import { MRFLinkedJobsTab } from "../../components/ta/recruitment/mrf/MRFLinkedJobsTab";
 import { MRFHistoryTab } from "../../components/ta/recruitment/mrf/MRFHistoryTab";
 import { Button, Dialog, Select, ComboBox, Input, Textarea } from "../../components/ui";
+import {
+  DEPARTMENT_SUGGESTIONS,
+  REQUEST_REASONS,
+  REQUEST_REASON_LABELS,
+  WORK_DAYS,
+  WORK_DAYS_LABELS,
+  WORK_HOURS,
+  WORK_SHIFTS,
+  WORK_SHIFT_LABELS,
+  workHoursLabel,
+} from "../../lib/mrf-schedule";
+
+/** An empty first option so a schedule or reason can be cleared. */
+const NOT_SET_OPTION = { value: "", label: "Not set" };
 import { formatDate } from "../../lib/utils";
 import { AssignmentPanel } from "../../components/ta/AssignmentPanel";
 import { formatAdminPipelineStage } from "../../lib/admin-copy";
@@ -122,6 +136,13 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   const [editExperience, setEditExperience] = useState("");
   const [editEducation, setEditEducation] = useState("");
   const [editCertifications, setEditCertifications] = useState("");
+  const [editDepartment, setEditDepartment] = useState("");
+  const [editWorkShift, setEditWorkShift] = useState("");
+  const [editWorkDays, setEditWorkDays] = useState("");
+  const [editWorkHours, setEditWorkHours] = useState("");
+  const [editWorkTime, setEditWorkTime] = useState("");
+  const [editRequestReason, setEditRequestReason] = useState("");
+  const [editRequestReasonNote, setEditRequestReasonNote] = useState("");
   const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
   const clearServerFieldError = (field: string) =>
     setServerFieldErrors((prev) => {
@@ -290,6 +311,13 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     setEditExperience(m.requiredExperience || "");
     setEditEducation(m.requiredEducation || "");
     setEditCertifications(m.requiredCertifications || "");
+    setEditDepartment(m.department || "");
+    setEditWorkShift(m.workShift || "");
+    setEditWorkDays(m.workDays || "");
+    setEditWorkHours(m.workHoursPerDay != null ? String(m.workHoursPerDay) : "");
+    setEditWorkTime(m.workTime || "");
+    setEditRequestReason(m.requestReason || "");
+    setEditRequestReasonNote(m.requestReasonNote || "");
     setServerFieldErrors({});
     setEditDetailsModalOpen(true);
   };
@@ -318,6 +346,19 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
       const skillsErr = validateProseText(editSkills, "Required skills", { maxLength: 2000 });
       if (skillsErr) {
         notify.error("Check the highlighted fields", skillsErr);
+        return;
+      }
+    }
+
+    for (const [key, value, label] of [
+      ["department", editDepartment, "Department"],
+      ["workTime", editWorkTime, "Work time"],
+      ["requestReasonNote", editRequestReasonNote, "Reason"],
+    ] as const) {
+      const problem = value.trim() ? validateStandardText(value, label, { maxLength: 200 }) : null;
+      if (problem) {
+        setServerFieldErrors({ [key]: problem });
+        notify.error("Check the highlighted fields", problem);
         return;
       }
     }
@@ -416,6 +457,13 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
       requiredExperience: editExperience.trim() || null,
       requiredEducation: editEducation.trim() || null,
       requiredCertifications: editCertifications.trim() || null,
+      department: editDepartment.trim() || null,
+      workShift: editWorkShift || null,
+      workDays: editWorkDays || null,
+      workHoursPerDay: editWorkHours ? Number(editWorkHours) : null,
+      workTime: editWorkTime.trim() || null,
+      requestReason: editRequestReason || null,
+      requestReasonNote: editRequestReasonNote.trim() || null,
     });
   };
 
@@ -1099,6 +1147,69 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                     allowCustom
                   />
                 </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <ComboBox
+                    label="Department"
+                    placeholder="Select or type a department"
+                    value={editDepartment}
+                    error={serverFieldErrors.department}
+                    onChange={(val) => {
+                      setEditDepartment(val || "");
+                      clearServerFieldError("department");
+                    }}
+                    options={DEPARTMENT_SUGGESTIONS.map((d) => ({ value: d, label: d }))}
+                    allowCustom
+                  />
+                  <Select
+                    label="Reason for request"
+                    value={editRequestReason}
+                    onChange={(e) => setEditRequestReason(e.target.value)}
+                    options={[NOT_SET_OPTION, ...REQUEST_REASONS.map((r) => ({ value: r, label: REQUEST_REASON_LABELS[r] }))]}
+                  />
+                </div>
+                {(editRequestReason || editRequestReasonNote) && (
+                  <Input
+                    label="Reason (internal only)"
+                    value={editRequestReasonNote}
+                    error={serverFieldErrors.requestReasonNote}
+                    onChange={(e) => {
+                      setEditRequestReasonNote(e.target.value);
+                      clearServerFieldError("requestReasonNote");
+                    }}
+                  />
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <Select
+                    label="Shift"
+                    value={editWorkShift}
+                    onChange={(e) => setEditWorkShift(e.target.value)}
+                    options={[NOT_SET_OPTION, ...WORK_SHIFTS.map((s) => ({ value: s, label: WORK_SHIFT_LABELS[s] }))]}
+                  />
+                  <Select
+                    label="Work days"
+                    value={editWorkDays}
+                    onChange={(e) => setEditWorkDays(e.target.value)}
+                    options={[NOT_SET_OPTION, ...WORK_DAYS.map((d) => ({ value: d, label: WORK_DAYS_LABELS[d] }))]}
+                  />
+                  <Select
+                    label="Hours per day"
+                    value={editWorkHours}
+                    onChange={(e) => setEditWorkHours(e.target.value)}
+                    options={[NOT_SET_OPTION, ...WORK_HOURS.map((h) => ({ value: String(h), label: workHoursLabel(h) }))]}
+                  />
+                </div>
+                <Input
+                  label="Time (optional)"
+                  placeholder="e.g. 7:00 AM - 4:00 PM"
+                  value={editWorkTime}
+                  error={serverFieldErrors.workTime}
+                  onChange={(e) => {
+                    setEditWorkTime(e.target.value);
+                    clearServerFieldError("workTime");
+                  }}
+                />
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <Input

@@ -2,6 +2,7 @@ import React from "react";
 import { ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "../../../ui";
 import { humanizeEnum } from "../../../../lib/labels";
+import { formatRequestReason, formatWorkSchedule } from "../../../../lib/mrf-schedule";
 
 const formatAgeRange = (min?: number | null, max?: number | null): string => {
   if (min != null && max != null) return `${min} - ${max} years old`;
@@ -75,6 +76,11 @@ export const MRFOverviewTab: React.FC<MRFOverviewTabProps> = ({ mrf, templates, 
           <Spec label="Employment and arrangement">
             {formatSpecValue(mrf.employmentType || "Contractual")} · {formatSpecValue(mrf.workArrangement || "On-site")}
           </Spec>
+          {mrf.department && <Spec label="Department">{mrf.department}</Spec>}
+          {formatWorkSchedule(mrf) && <Spec label="Work schedule">{formatWorkSchedule(mrf)}</Spec>}
+          {formatRequestReason(mrf.requestReason, mrf.requestReasonNote) && (
+            <Spec label="Reason for request" wide>{formatRequestReason(mrf.requestReason, mrf.requestReasonNote)}</Spec>
+          )}
           {(mrf.salaryRangeMin != null || mrf.salaryRangeMax != null) && (
             <Spec label="Monthly salary range" wide>
               {mrf.salaryRangeMin != null ? `PHP ${mrf.salaryRangeMin.toLocaleString()}` : "PHP 0"} –{" "}

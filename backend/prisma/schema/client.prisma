@@ -56,6 +56,14 @@ model ManpowerRequest {
   ageMax                 Int?
   genderPreference       String?  // "ANY", "MALE", "FEMALE"
   tattooPolicy           String?  // "NONE", "NO_VISIBLE", "ALLOWED"
+  // Paper-form fields. All optional; old requests have none of them.
+  department             String?
+  workShift              String?   // DAY, NIGHT, MID, ROTATING, FLEXIBLE
+  workDays               String?   // MON_FRI, MON_SAT, SIX_DAYS_ROTATING, COMPRESSED_4
+  workHoursPerDay        Int?      // 8, 10, 12
+  workTime               String?   // free text, e.g. "7:00 AM - 4:00 PM"
+  requestReason          String?   // ADDITIONAL, NEW_POSITION, REPLACEMENT (internal, never shown to applicants)
+  requestReasonNote      String?
   status                 String    @default("OPEN") // OPEN, FILLED, CANCELLED
   // false = the client does not review candidates (e.g. MEGS itself); screening goes straight to the final interview.
   requiresClientReview   Boolean   @default(true)

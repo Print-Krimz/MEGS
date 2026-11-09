@@ -14,6 +14,9 @@ export interface MRFCreateSummaryValues {
   salaryMin: string;
   salaryMax: string;
   skillCount: number;
+  /** Optional rows: shown only when filled in, so they don't add "Not set" noise. */
+  department?: string;
+  workSchedule?: string;
 }
 
 const PRIORITY_LABELS: Record<string, string> = { LOW: "Low", NORMAL: "Normal", HIGH: "High", URGENT: "Urgent" };
@@ -40,6 +43,8 @@ export const MRFCreateSummary: React.FC<{ values: MRFCreateSummaryValues; classN
     ["Monthly pay", salaryText(values.salaryMin, values.salaryMax)],
     ["Skills listed", values.skillCount > 0 ? String(values.skillCount) : ""],
   ];
+  if (values.department?.trim()) rows.splice(2, 0, ["Department", values.department.trim()]);
+  if (values.workSchedule) rows.push(["Work schedule", values.workSchedule]);
   return (
     <dl className={cn("space-y-3 text-sm", className)}>
       {rows.map(([label, value]) => (

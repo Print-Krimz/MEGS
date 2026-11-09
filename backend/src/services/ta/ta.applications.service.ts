@@ -1102,14 +1102,14 @@ export const updateTAApplicationStatus = async (
     if (!emp) {
       const appDetails = await prisma.application.findUnique({
         where: { id },
-        include: { jobPosting: { select: { title: true, location: true } } },
+        include: { jobPosting: { select: { title: true, location: true, mrf: { select: { department: true } } } } },
       });
       const generatedEmployeeNumber = `EMP-${new Date().getFullYear()}-${String(id).padStart(4, "0")}`;
       emp = await prisma.employee.create({
         data: {
           userId: application.userId,
           employeeNumber: generatedEmployeeNumber,
-          department: "Operations",
+          department: appDetails?.jobPosting?.mrf?.department || "Operations",
           position: appDetails?.jobPosting?.title || "Specialist",
           hireDate: new Date(),
           originatingApplicationId: id,

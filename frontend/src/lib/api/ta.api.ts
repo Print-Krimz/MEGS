@@ -138,7 +138,8 @@ const toTalentPoolSearchResult = (
 export type MRFFileField =
   | "title" | "description" | "headcount" | "location" | "targetFillDate" | "priority" | "employmentType" | "workArrangement"
   | "requiredSkills" | "requiredExperience" | "requiredEducation" | "requiredCertifications"
-  | "salaryRangeMin" | "salaryRangeMax" | "ageMin" | "ageMax" | "genderPreference" | "tattooPolicy";
+  | "salaryRangeMin" | "salaryRangeMax" | "ageMin" | "ageMax" | "genderPreference" | "tattooPolicy"
+  | "department" | "workShift" | "workDays" | "workHoursPerDay" | "workTime" | "requestReason" | "requestReasonNote";
 
 /** What reading a manpower request form found. Nothing is saved. */
 export interface MRFFileReading {
@@ -149,7 +150,11 @@ export interface MRFFileReading {
     requiredEducation: string; requiredCertifications: string; salaryRangeMin: number; salaryRangeMax: number;
     ageMin: number; ageMax: number; genderPreference: "ANY" | "MALE" | "FEMALE";
     tattooPolicy: "ALLOWED" | "NO_VISIBLE" | "NONE";
+    department: string; workShift: string; workDays: string; workHoursPerDay: number; workTime: string;
+    requestReason: string; requestReasonNote: string;
   }>;
+  /** The company named on the form, to match against the client list. */
+  companyName?: string;
   issues: Partial<Record<MRFFileField, "missing" | "invalid" | "uncertain">>;
 }
 

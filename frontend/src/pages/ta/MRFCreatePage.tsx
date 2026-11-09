@@ -42,13 +42,28 @@ import {
   useKnownPlaceName,
 } from "../../lib/requirement-hints";
 import type { ManpowerRequest } from "../../lib/types/ta.types";
+import {
+  DEPARTMENT_SUGGESTIONS,
+  REQUEST_REASONS,
+  REQUEST_REASON_LABELS,
+  WORK_DAYS,
+  WORK_DAYS_LABELS,
+  WORK_HOURS,
+  WORK_SHIFTS,
+  WORK_SHIFT_LABELS,
+  formatWorkSchedule,
+  matchClientByCompany,
+  workHoursLabel,
+} from "../../lib/mrf-schedule";
 
 /** Form fields in the order they appear on the page, with the element id used to focus them. */
 const FIELD_ORDER: Array<[string, string]> = [
   ["clientId", "mrf-client"],
   ["title", "mrf-title"],
+  ["department", "mrf-department"],
   ["headcount", "mrf-headcount"],
   ["location", "mrf-location"],
+  ["requestReasonNote", "mrf-reason-note"],
   ["requiredSkills", "mrf-skills"],
   ["requiredCertifications", "mrf-certifications"],
   ["description", "mrf-description"],
@@ -56,6 +71,7 @@ const FIELD_ORDER: Array<[string, string]> = [
   ["ageMax", "mrf-age-max"],
   ["salaryRangeMin", "mrf-salary-min"],
   ["salaryRangeMax", "mrf-salary-max"],
+  ["workTime", "mrf-work-time"],
 ];
 
 /** Optional fields kept inside the "More details" disclosure. */
@@ -96,11 +112,26 @@ const FIELD_LABELS: Record<MRFFileField, string> = {
   requiredExperience: "Experience", requiredEducation: "Education", requiredCertifications: "Certifications and licenses",
   salaryRangeMin: "Minimum monthly pay", salaryRangeMax: "Maximum monthly pay", ageMin: "Minimum age", ageMax: "Maximum age",
   genderPreference: "Gender preference", tattooPolicy: "Tattoo policy",
+  department: "Department", workShift: "Shift", workDays: "Work days", workHoursPerDay: "Hours per day",
+  workTime: "Work time", requestReason: "Reason for request", requestReasonNote: "Reason",
 };
 
 /** "NO_VISIBLE" reads as "No visible". Free text is left alone. */
 const readable = (value: string): string =>
   /^[A-Z_]+$/.test(value) ? value.charAt(0) + value.slice(1).toLowerCase().replace(/_/g, " ") : value;
+
+/** How a value reads in the review dialog: schedule and reason codes use the same labels as the form. */
+const fileDisplay = (key: MRFFileField, value: string): string => {
+  const trimmed = value.trim();
+  if (key === "workShift") return WORK_SHIFT_LABELS[trimmed as keyof typeof WORK_SHIFT_LABELS] ?? readable(trimmed);
+  if (key === "workDays") return WORK_DAYS_LABELS[trimmed as keyof typeof WORK_DAYS_LABELS] ?? readable(trimmed);
+  if (key === "requestReason") return REQUEST_REASON_LABELS[trimmed as keyof typeof REQUEST_REASON_LABELS] ?? readable(trimmed);
+  if (key === "workHoursPerDay" && trimmed) return workHoursLabel(Number(trimmed));
+  return readable(value);
+};
+
+/** An empty first option so a schedule or reason can be left unset. */
+const NOT_SET_OPTION = { value: "", label: "Not set" };
 
 const isEmptyField = (key: MRFFileField, values: Record<MRFFileField, string>): boolean => {
   const value = values[key].trim();
@@ -138,13 +169,22 @@ export const MRFCreatePage: React.FC = () => {
   const [ageMax, setAgeMax] = useState<string>("");
   const [genderPreference, setGenderPreference] = useState<string>("ANY");
   const [tattooPolicy, setTattooPolicy] = useState<string>("ALLOWED");
+  const [department, setDepartment] = useState("");
+  const [workShift, setWorkShift] = useState("");
+  const [workDays, setWorkDays] = useState("");
+  const [workHours, setWorkHours] = useState("");
+  const [workTime, setWorkTime] = useState("");
+  const [requestReason, setRequestReason] = useState("");
+  const [requestReasonNote, setRequestReasonNote] = useState("");
+  /** Company named on the file when it matched none of the TA's clients. */
+  const [unmatchedCompany, setUnmatchedCompany] = useState<string | null>(null);
   const [requiresClientReview, setRequiresClientReview] = useState(true);
   const [clientRequirementsOpen, setClientRequirementsOpen] = useState(false);
   const [moreDetailsOpen, setMoreDetailsOpen] = useState(false);
   const [cloneModalOpen, setCloneModalOpen] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [pendingFill, setPendingFill] = useState<PendingFill | null>(null);
-  const [fileReview, setFileReview] = useState<{ reading: MRFFileReading; rows: MRFFileReviewRow[] } | null>(null);
+  const [fileReview, setFileReview] = useState<{ reading: MRFFileReading; rows: MRFFileReviewRow[]; clientId?: number } | null>(null);
   const [createdId, setCreatedId] = useState<number | null>(null);
   const [fileState, setFileState] = useState<"idle" | "reading" | "filled" | "nothing" | "unreadable" | "too-big">("idle");
   const [fileNotes, setFileNotes] = useState<FileNotes>({});
@@ -200,6 +240,7 @@ export const MRFCreatePage: React.FC = () => {
       ageMax !== "" ||
       genderPreference !== "ANY" ||
       tattooPolicy !== "ALLOWED" ||
+      [department, workShift, workDays, workHours, workTime, requestReason, requestReasonNote].some((value) => value.trim() !== "") ||
       !requiresClientReview);
   const { discardDialog } = useDirtyGuard({
     isDirty,
@@ -300,9 +341,16 @@ export const MRFCreatePage: React.FC = () => {
 
   const clients = clientsQuery.data || [];
 
+  // Latest client choice and list, so a file that finishes reading later never works from stale state.
+  const clientIdRef = useRef(clientId);
+  clientIdRef.current = clientId;
+  const clientsRef = useRef(clients);
+  clientsRef.current = clients;
+
   const handleClientChange = (val: string) => {
     const numericId = Number(val);
     setClientId(numericId);
+    setUnmatchedCompany(null);
     clearServerFieldError("clientId");
     if (numericId) {
       const chosenClient = clients.find((c) => c.id === numericId);
@@ -378,6 +426,12 @@ export const MRFCreatePage: React.FC = () => {
     setAgeMax(mrf.ageMax != null ? String(mrf.ageMax) : "");
     setGenderPreference(mrf.genderPreference || "ANY");
     setTattooPolicy(mrf.tattooPolicy || "ALLOWED");
+    // The schedule and department usually repeat. The reason is per request, so it is left as it is.
+    setDepartment(mrf.department || "");
+    setWorkShift(mrf.workShift || "");
+    setWorkDays(mrf.workDays || "");
+    setWorkHours(mrf.workHoursPerDay != null ? String(mrf.workHoursPerDay) : "");
+    setWorkTime(mrf.workTime || "");
 
     if (!preserveClient) {
       if (mrf.clientId) {
@@ -410,6 +464,7 @@ export const MRFCreatePage: React.FC = () => {
     title, description, headcount: String(headcount), location, targetFillDate, priority, employmentType, workArrangement,
     requiredSkills, requiredExperience, requiredEducation, requiredCertifications,
     salaryRangeMin: salaryMin, salaryRangeMax: salaryMax, ageMin, ageMax, genderPreference, tattooPolicy,
+    department, workShift, workDays, workHoursPerDay: workHours, workTime, requestReason, requestReasonNote,
   };
   const valuesRef = useRef(currentValues);
   valuesRef.current = currentValues;
@@ -420,6 +475,8 @@ export const MRFCreatePage: React.FC = () => {
     requiredSkills: setRequiredSkills, requiredExperience: setRequiredExperience, requiredEducation: setRequiredEducation,
     requiredCertifications: setRequiredCertifications, salaryRangeMin: setSalaryMin, salaryRangeMax: setSalaryMax,
     ageMin: setAgeMin, ageMax: setAgeMax, genderPreference: setGenderPreference, tattooPolicy: setTattooPolicy,
+    department: setDepartment, workShift: setWorkShift, workDays: setWorkDays, workHoursPerDay: setWorkHours,
+    workTime: setWorkTime, requestReason: setRequestReason, requestReasonNote: setRequestReasonNote,
   };
 
   const fillTargets = (reading: MRFFileReading) => Object.keys(reading.fields) as MRFFileField[];
@@ -432,9 +489,15 @@ export const MRFCreatePage: React.FC = () => {
       const fileValue = String(reading.fields[key]);
       const empty = isEmptyField(key, values);
       if (!empty && values[key].trim() === fileValue.trim()) continue;
-      rows.push({ key, label: FIELD_LABELS[key], fileValue: readable(fileValue), currentValue: empty ? null : readable(values[key]) });
+      rows.push({ key, label: FIELD_LABELS[key], fileValue: fileDisplay(key, fileValue), currentValue: empty ? null : fileDisplay(key, values[key]) });
     }
     return rows;
+  };
+
+  /** The client named on the file, when it is one of the TA's clients and not already chosen. */
+  const clientMatchFor = (reading: MRFFileReading) => {
+    const match = matchClientByCompany(clientsRef.current, reading.companyName);
+    return match && match.id !== clientIdRef.current ? match : null;
   };
 
   /** Writes only the chosen fields from a reading into the form. Nothing is saved. */
@@ -454,7 +517,7 @@ export const MRFCreatePage: React.FC = () => {
     setServerFieldErrors({});
     if (MORE_DETAILS_FIELDS.some((key) => notes[key as MRFFileField])) setMoreDetailsOpen(true);
     if (["ageMin", "ageMax", "genderPreference", "tattooPolicy"].some((key) => notes[key as MRFFileField])) setClientRequirementsOpen(true);
-    setFileState(applied.size > 0 ? "filled" : "nothing");
+    setFileState(applied.size > 0 || (chosen as Set<string>).has("clientId") ? "filled" : "nothing");
   };
 
   const readMRFFile = async (file: File) => {
@@ -470,12 +533,20 @@ export const MRFCreatePage: React.FC = () => {
       }
       // Nothing reaches the form until the TA has reviewed it.
       const rows = fileReviewRows(reading);
+      const clientMatch = clientMatchFor(reading);
+      if (clientMatch) {
+        const current = clientsRef.current.find((c) => c.id === clientIdRef.current);
+        rows.unshift({ key: "clientId", label: "Client", fileValue: clientMatch.name, currentValue: current ? current.name : null });
+      }
+      setUnmatchedCompany(
+        reading.companyName && !matchClientByCompany(clientsRef.current, reading.companyName) && !clientIdRef.current ? reading.companyName : null,
+      );
       if (rows.length === 0) {
         applyFileReading(reading, new Set());
         return;
       }
       setFileState("idle");
-      setFileReview({ reading, rows });
+      setFileReview({ reading, rows, clientId: clientMatch?.id });
     } catch {
       // Includes "too many reads right now". The TA can type the details; creating the request still works.
       if (version === fileReadVersion.current) setFileState("unreadable");
@@ -537,6 +608,17 @@ export const MRFCreatePage: React.FC = () => {
     if (requiredSkills.trim()) {
       const skillsErr = validateProseText(requiredSkills, "Required skills", { maxLength: 2000 });
       if (skillsErr) errors.requiredSkills = skillsErr;
+    }
+
+    for (const [key, value, label] of [
+      ["department", department, "Department"],
+      ["workTime", workTime, "Work time"],
+      ["requestReasonNote", requestReasonNote, "Reason"],
+    ] as const) {
+      if (value.trim()) {
+        const problem = validateStandardText(value, label, { maxLength: 200 });
+        if (problem) errors[key] = problem;
+      }
     }
 
     if (!description.trim()) errors.description = "Describe the role and its responsibilities.";
@@ -618,6 +700,14 @@ export const MRFCreatePage: React.FC = () => {
       ageMax: ageMax ? parseInt(ageMax, 10) : null,
       genderPreference: genderPreference || "ANY",
       tattooPolicy: tattooPolicy || "ALLOWED",
+      // Empty paper-form fields are left out, so the request body only carries what was filled in.
+      department: department.trim() || undefined,
+      workShift: workShift || undefined,
+      workDays: workDays || undefined,
+      workHoursPerDay: workHours ? Number(workHours) : undefined,
+      workTime: workTime.trim() || undefined,
+      requestReason: requestReason || undefined,
+      requestReasonNote: requestReasonNote.trim() || undefined,
       requiresClientReview,
     });
   };
@@ -650,6 +740,8 @@ export const MRFCreatePage: React.FC = () => {
     salaryMin,
     salaryMax,
     skillCount: activeSkillsList.length,
+    department,
+    workSchedule: formatWorkSchedule({ workShift, workDays, workHoursPerDay: workHours ? Number(workHours) : null, workTime }) ?? undefined,
   };
 
   const fileNote = (field: MRFFileField) => {
@@ -762,17 +854,22 @@ export const MRFCreatePage: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <ComboBox
-                id="mrf-client"
-                label="Client"
-                placeholder="Search or select client account..."
-                value={clientId ? String(clientId) : ""}
-                error={serverFieldErrors.clientId}
-                onChange={handleClientChange}
-                options={clientOptions}
-                emptyText="No client accounts match your search"
-                required
-              />
+              <div className="space-y-1.5">
+                <ComboBox
+                  id="mrf-client"
+                  label="Client"
+                  placeholder="Search or select client account..."
+                  value={clientId ? String(clientId) : ""}
+                  error={serverFieldErrors.clientId}
+                  onChange={handleClientChange}
+                  options={clientOptions}
+                  emptyText="No client accounts match your search"
+                  required
+                />
+                {unmatchedCompany && !clientId && (
+                  <p className="text-xs text-slate-600">The form names {unmatchedCompany}, which isn't one of your clients.</p>
+                )}
+              </div>
               <div className="space-y-1.5">
               <Input
                 id="mrf-title"
@@ -789,6 +886,55 @@ export const MRFCreatePage: React.FC = () => {
                 {fileNote("title")}
               </div>
             </div>
+
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <ComboBox
+                  id="mrf-department"
+                  label="Department"
+                  placeholder="Select or type a department"
+                  value={department}
+                  error={serverFieldErrors.department}
+                  onChange={(val) => {
+                    setDepartment(val || "");
+                    clearServerFieldError("department");
+                  }}
+                  options={DEPARTMENT_SUGGESTIONS.map((d) => ({ value: d, label: d }))}
+                  allowCustom
+                />
+                {fileNote("department")}
+              </div>
+              <div className="space-y-1.5">
+                <Select
+                  label="Reason for request"
+                  value={requestReason}
+                  error={serverFieldErrors.requestReason}
+                  onChange={(e) => {
+                    setRequestReason(e.target.value);
+                    clearServerFieldError("requestReason");
+                  }}
+                  options={[NOT_SET_OPTION, ...REQUEST_REASONS.map((r) => ({ value: r, label: REQUEST_REASON_LABELS[r] }))]}
+                />
+                {fileNote("requestReason")}
+              </div>
+            </div>
+
+            {(requestReason || requestReasonNote) && (
+              <div className="space-y-1.5">
+                <Input
+                  id="mrf-reason-note"
+                  label="Reason (internal only)"
+                  placeholder={requestReason === "REPLACEMENT" ? "e.g. 2 operators resigned" : "e.g. New production line"}
+                  value={requestReasonNote}
+                  error={serverFieldErrors.requestReasonNote}
+                  onChange={(e) => {
+                    setRequestReasonNote(e.target.value);
+                    clearServerFieldError("requestReasonNote");
+                  }}
+                />
+                {fileNote("requestReasonNote")}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div className="space-y-1.5">
@@ -1153,6 +1299,62 @@ export const MRFCreatePage: React.FC = () => {
                 {fileNote("salaryRangeMax")}
               </div>
             </div>
+
+            <div className="space-y-3 border-t border-slate-200 pt-4">
+              <h3 className="text-sm font-semibold text-slate-900">Work schedule</h3>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="space-y-1.5">
+                  <Select
+                    label="Shift"
+                    value={workShift}
+                    onChange={(e) => {
+                      setWorkShift(e.target.value);
+                      clearServerFieldError("workShift");
+                    }}
+                    options={[NOT_SET_OPTION, ...WORK_SHIFTS.map((s) => ({ value: s, label: WORK_SHIFT_LABELS[s] }))]}
+                  />
+                  {fileNote("workShift")}
+                </div>
+                <div className="space-y-1.5">
+                  <Select
+                    label="Work days"
+                    value={workDays}
+                    onChange={(e) => {
+                      setWorkDays(e.target.value);
+                      clearServerFieldError("workDays");
+                    }}
+                    options={[NOT_SET_OPTION, ...WORK_DAYS.map((d) => ({ value: d, label: WORK_DAYS_LABELS[d] }))]}
+                  />
+                  {fileNote("workDays")}
+                </div>
+                <div className="space-y-1.5">
+                  <Select
+                    label="Hours per day"
+                    value={workHours}
+                    onChange={(e) => {
+                      setWorkHours(e.target.value);
+                      clearServerFieldError("workHoursPerDay");
+                    }}
+                    options={[NOT_SET_OPTION, ...WORK_HOURS.map((h) => ({ value: String(h), label: workHoursLabel(h) }))]}
+                  />
+                  {fileNote("workHoursPerDay")}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Input
+                  id="mrf-work-time"
+                  label="Time (optional)"
+                  placeholder="e.g. 7:00 AM - 4:00 PM"
+                  value={workTime}
+                  error={serverFieldErrors.workTime}
+                  onChange={(e) => {
+                    setWorkTime(e.target.value);
+                    clearServerFieldError("workTime");
+                  }}
+                />
+                {fileNote("workTime")}
+              </div>
+            </div>
           </section>
 
           {/* Step 4: review. At 1280px and wider the same summary sits beside the form. */}
@@ -1204,6 +1406,7 @@ export const MRFCreatePage: React.FC = () => {
             if (fileInputRef.current) fileInputRef.current.value = "";
           }}
           onFill={(keys) => {
+            if (keys.has("clientId") && fileReview.clientId) handleClientChange(String(fileReview.clientId));
             applyFileReading(fileReview.reading, keys as Set<MRFFileField>);
             setFileReview(null);
           }}

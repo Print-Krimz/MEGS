@@ -113,6 +113,7 @@ export const createDeployment = async (
               userId: application.userId,
               employeeNumber: `EMP-${new Date().getFullYear()}-${String(application.id).padStart(4, "0")}`,
               originatingApplicationId: application.id,
+              ...(application.jobPosting?.mrf?.department ? { department: application.jobPosting.mrf.department } : {}),
               status: "AWAITING_START",
             },
           });

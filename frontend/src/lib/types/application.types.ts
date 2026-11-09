@@ -31,6 +31,11 @@ export interface JobPosting {
     salaryRangeMax?: number | null;
     employmentType?: string | null;
     workArrangement?: string | null;
+    department?: string | null;
+    workShift?: string | null;
+    workDays?: string | null;
+    workHoursPerDay?: number | null;
+    workTime?: string | null;
     client?: {
       id: number;
       name: string;

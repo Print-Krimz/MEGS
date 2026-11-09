@@ -356,6 +356,10 @@ export const listMRFs = async (
   return mrfs.map(mapMRF).sort(compareMRFs(sortBy));
 };
 
+/** Empty text from a form means "not set", so it is stored as null. */
+const blankToNull = <T>(value: T | null | undefined): T | null =>
+  value === undefined || value === null || (typeof value === "string" && value.trim() === "") ? null : value;
+
 export const createMRF = async (
   createdById: string,
   data: {
@@ -379,6 +383,13 @@ export const createMRF = async (
     ageMax?: number | null;
     genderPreference?: string | null;
     tattooPolicy?: string | null;
+    department?: string | null;
+    workShift?: string | null;
+    workDays?: string | null;
+    workHoursPerDay?: number | null;
+    workTime?: string | null;
+    requestReason?: string | null;
+    requestReasonNote?: string | null;
     requiresClientReview?: boolean;
   },
   actor?: Actor
@@ -418,6 +429,13 @@ export const createMRF = async (
       ageMax: (data.ageMax as any) === "" || data.ageMax === null || data.ageMax === undefined ? null : Number(data.ageMax),
       genderPreference: (data.genderPreference as any) === "" || data.genderPreference === null ? null : data.genderPreference,
       tattooPolicy: (data.tattooPolicy as any) === "" || data.tattooPolicy === null ? null : data.tattooPolicy,
+      department: blankToNull(data.department),
+      workShift: blankToNull(data.workShift),
+      workDays: blankToNull(data.workDays),
+      workHoursPerDay: blankToNull(data.workHoursPerDay) === null ? null : Number(data.workHoursPerDay),
+      workTime: blankToNull(data.workTime),
+      requestReason: blankToNull(data.requestReason),
+      requestReasonNote: blankToNull(data.requestReasonNote),
       requiresClientReview: data.requiresClientReview ?? true,
     },
     include: {
@@ -548,6 +566,13 @@ export const updateMRF = async (
     ageMax?: number | null;
     genderPreference?: string | null;
     tattooPolicy?: string | null;
+    department?: string | null;
+    workShift?: string | null;
+    workDays?: string | null;
+    workHoursPerDay?: number | null;
+    workTime?: string | null;
+    requestReason?: string | null;
+    requestReasonNote?: string | null;
     requiresClientReview?: boolean;
     status?: string;
   },
@@ -622,11 +647,17 @@ export const updateMRF = async (
   if (data.tattooPolicy !== undefined) {
     updateData.tattooPolicy = (data.tattooPolicy as any) === "" || data.tattooPolicy === null ? null : data.tattooPolicy;
   }
+  for (const key of ["department", "workShift", "workDays", "workTime", "requestReason", "requestReasonNote"] as const) {
+    if (data[key] !== undefined) updateData[key] = blankToNull(data[key]);
+  }
+  if (data.workHoursPerDay !== undefined) {
+    updateData.workHoursPerDay = blankToNull(data.workHoursPerDay) === null ? null : Number(data.workHoursPerDay);
+  }
   if (data.headcount !== undefined) {
     updateData.headcount = Number(data.headcount);
   }
 
-  const updated = await prisma.manpowerRequest.update({
+  const updated =await prisma.manpowerRequest.update({
     where: { id },
     data: updateData,
     include: {

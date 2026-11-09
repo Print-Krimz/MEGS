@@ -28,6 +28,7 @@ import {
   Bookmark,
 } from "lucide-react";
 import { MAX_SAVED_JOBS } from "../../lib/saved-jobs";
+import { formatWorkSchedule } from "../../lib/mrf-schedule";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 
 const ALLOWED_RESUME_EXTENSIONS = ["pdf", "docx", "doc", "png", "jpg", "jpeg", "webp"];
@@ -247,6 +248,8 @@ export const JobDetailPage: React.FC = () => {
   const salaryDisplay = formatSalaryRange(job.mrf?.salaryRangeMin, job.mrf?.salaryRangeMax);
   const employmentTypeDisplay = formatEmploymentType(job.mrf?.employmentType);
   const workArrangementDisplay = formatWorkArrangement(job.mrf?.workArrangement);
+  const department = job.mrf?.department || job.department;
+  const workSchedule = job.mrf ? formatWorkSchedule(job.mrf) : null;
 
   return (
     <div className="space-y-6">
@@ -255,7 +258,7 @@ export const JobDetailPage: React.FC = () => {
         description={
           <>
             <span className="max-lg:hidden">
-              {job.department ? `${job.department} · ${job.location || "Philippines"}` : (job.location || "Philippines")}
+              {department ? `${department} · ${job.location || "Philippines"}` : (job.location || "Philippines")}
             </span>
             {/* Below lg the Role Summary card sits after the description, so the key facts go up here. */}
             <span className="lg:hidden">
@@ -367,8 +370,8 @@ export const JobDetailPage: React.FC = () => {
                 <h3 className="text-sm font-semibold text-[#102A43]">
                   Role Summary
                 </h3>
-                {job.department && (
-                  <div className="text-xs text-[#486581]">{job.department}</div>
+                {department && (
+                  <div className="text-xs text-[#486581]">{department}</div>
                 )}
               </div>
             </div>
@@ -397,6 +400,13 @@ export const JobDetailPage: React.FC = () => {
                 <div className="text-[#486581] text-xs font-medium">Work Arrangement</div>
                 <div className="text-[#102A43] font-medium text-sm mt-0.5">{workArrangementDisplay}</div>
               </div>
+
+              {workSchedule && (
+                <div>
+                  <div className="text-[#486581] text-xs font-medium">Work Schedule</div>
+                  <div className="text-[#102A43] font-medium text-sm mt-0.5">{workSchedule}</div>
+                </div>
+              )}
 
               <div className="max-lg:hidden">
                 <div className="text-[#486581] text-xs font-medium">Job Location</div>

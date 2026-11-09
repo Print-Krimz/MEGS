@@ -101,7 +101,8 @@ export const getDigital201ByEmployeeId = async (employeeId: number): Promise<Dig
           applications: {
             orderBy: { createdAt: "desc" },
             include: {
-              jobPosting: { include: { mrf: { include: { client: { select: { id: true, name: true } } } } } },
+              // Workers read this record too, so the request's internal reason is left out.
+              jobPosting: { include: { mrf: { omit: { requestReason: true, requestReasonNote: true }, include: { client: { select: { id: true, name: true } } } } } },
               complianceRequirements: {
                 orderBy: { createdAt: "desc" },
                 include: { documentVersions: { orderBy: { uploadedAt: "desc" } } },

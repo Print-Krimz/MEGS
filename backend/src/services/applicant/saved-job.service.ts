@@ -114,6 +114,8 @@ export const listSavedJobsService = async (
     jobPosting: {
       include: {
         mrf: {
+          // The reason for a request is for the team only, never for applicants.
+          omit: { requestReason: true, requestReasonNote: true },
           include: {
             client: true,
           },

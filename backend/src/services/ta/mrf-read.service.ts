@@ -18,6 +18,7 @@ import {
   optionalSafeText,
   safeTextSchema,
 } from "../../schemas/field-limits.js";
+import { MRF_REQUEST_REASONS, MRF_WORK_DAYS, MRF_WORK_HOURS, MRF_WORK_SHIFTS } from "../../schemas/mrf-paper-fields.js";
 
 export type MRFFieldIssue = "missing" | "invalid" | "uncertain";
 
@@ -40,11 +41,20 @@ export interface MRFReadFields {
   ageMax?: number;
   genderPreference?: "ANY" | "MALE" | "FEMALE";
   tattooPolicy?: "ALLOWED" | "NO_VISIBLE" | "NONE";
+  department?: string;
+  workShift?: (typeof MRF_WORK_SHIFTS)[number];
+  workDays?: (typeof MRF_WORK_DAYS)[number];
+  workHoursPerDay?: (typeof MRF_WORK_HOURS)[number];
+  workTime?: string;
+  requestReason?: (typeof MRF_REQUEST_REASONS)[number];
+  requestReasonNote?: string;
 }
 
 export interface MRFReadResult {
   status: "SUCCESS" | "UNREADABLE";
   fields: MRFReadFields;
+  /** The company named on the form, for the screen to match against the client list. Not a form field. */
+  companyName?: string;
   issues: Partial<Record<MRFFieldKey, MRFFieldIssue>>;
 }
 
@@ -79,6 +89,9 @@ const textRules = {
   description: optionalSafeProse("Description", FIELD_LIMITS.longText),
   requiredSkills: optionalSafeProse("Required skills", FIELD_LIMITS.notes),
   requiredCertifications: optionalSafeProse("Required certifications", FIELD_LIMITS.notes),
+  department: optionalSafeText("Department", FIELD_LIMITS.shortText),
+  workTime: optionalSafeText("Work time", FIELD_LIMITS.shortText),
+  requestReasonNote: optionalSafeText("Reason", FIELD_LIMITS.shortText),
 } as const;
 
 const listed = (options: readonly string[], value: unknown): string | undefined => {
@@ -101,7 +114,8 @@ const salary = (value: unknown): number | undefined => {
 const checkValue = (key: MRFFieldKey, value: unknown, today: string): unknown => {
   switch (key) {
     case "title": case "location": case "requiredExperience": case "requiredEducation":
-    case "description": case "requiredSkills": case "requiredCertifications": {
+    case "description": case "requiredSkills": case "requiredCertifications":
+    case "department": case "workTime": case "requestReasonNote": {
       const text = asText(value)?.trim();
       if (!text) return undefined;
       const parsed = (textRules[key] as z.ZodTypeAny).safeParse(text);
@@ -119,6 +133,13 @@ const checkValue = (key: MRFFieldKey, value: unknown, today: string): unknown =>
     case "ageMin": case "ageMax": return whole(value, 18, 65);
     case "genderPreference": return listed(GENDERS, value)?.toUpperCase();
     case "tattooPolicy": return listed(TATTOOS, value)?.toUpperCase();
+    case "workShift": return listed(MRF_WORK_SHIFTS, value)?.toUpperCase();
+    case "workDays": return listed(MRF_WORK_DAYS, value)?.toUpperCase();
+    case "requestReason": return listed(MRF_REQUEST_REASONS, value)?.toUpperCase();
+    case "workHoursPerDay": {
+      const hours = whole(value, 1, 24);
+      return hours !== undefined && (MRF_WORK_HOURS as readonly number[]).includes(hours) ? hours : undefined;
+    }
   }
 };
 
@@ -157,9 +178,11 @@ export const mapMRFReading = (raw: Record<string, unknown>, now = new Date()): M
     if (!issues.salaryRangeMax) issues.salaryRangeMax = "missing";
   }
 
+  const company = isBlank(raw.companyName) ? undefined : textRules.title.safeParse(asText(raw.companyName)?.trim());
   return {
     status: Object.keys(fields).length > 0 ? "SUCCESS" : "UNREADABLE",
     fields: fields as MRFReadFields,
+    ...(company?.success ? { companyName: company.data } : {}),
     issues,
   };
 };

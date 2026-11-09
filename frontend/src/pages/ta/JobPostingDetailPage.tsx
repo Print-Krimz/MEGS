@@ -34,6 +34,7 @@ import {
 import { ApplicationStatus, JobStatus } from "../../lib/types/enums";
 import { plural } from "../../lib/plural";
 import { humanizeEnum } from "../../lib/labels";
+import { formatWorkSchedule } from "../../lib/mrf-schedule";
 
 /** Legacy codes such as REGULAR read as "Regular"; already readable values are kept. */
 const humanizeCode = (value: string) => (/^[A-Z0-9_ ]+$/.test(value) ? humanizeEnum(value) : value);
@@ -443,6 +444,10 @@ export const JobPostingDetailPage: React.FC = () => {
               </span>
             ),
           },
+          ...(job.mrf?.department ? [{ label: "Department", value: <span className="font-medium">{job.mrf.department}</span> }] : []),
+          ...(job.mrf && formatWorkSchedule(job.mrf)
+            ? [{ label: "Work schedule", value: <span className="font-medium">{formatWorkSchedule(job.mrf)}</span> }]
+            : []),
           mrfId
             ? { label: "Manpower request", value: `Request #${mrfId}`, href: `/ta/mrfs/${mrfId}` }
             : { label: "Manpower request", value: <span className="text-slate-700">None (direct posting)</span> },

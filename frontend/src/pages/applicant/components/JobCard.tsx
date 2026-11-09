@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowRight, Bookmark, Building2, MapPin } from "lucide-react";
 import type { JobPosting } from "../../../lib/api/applicant-jobs.api";
 import { JobImage } from "../../../components/common";
+import { WORK_SHIFT_LABELS, type WorkShift } from "../../../lib/mrf-schedule";
 import {
   cn,
   formatDate,
@@ -57,6 +58,8 @@ export const JobCard: React.FC<JobCardProps> = ({ job, saved, saveDisabled = fal
   const terms = [
     job.mrf?.employmentType ? formatEmploymentType(job.mrf.employmentType) : null,
     job.mrf?.workArrangement ? formatWorkArrangement(job.mrf.workArrangement) : null,
+    job.mrf?.workShift ? WORK_SHIFT_LABELS[job.mrf.workShift as WorkShift] ?? null : null,
+    job.mrf?.department || null,
   ].filter(Boolean);
 
   return (

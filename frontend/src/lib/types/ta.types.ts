@@ -107,6 +107,14 @@ export interface ManpowerRequest {
   ageMax?: number | null;
   genderPreference?: string | null;
   tattooPolicy?: string | null;
+  department?: string | null;
+  workShift?: string | null;
+  workDays?: string | null;
+  workHoursPerDay?: number | null;
+  workTime?: string | null;
+  /** Internal: never shown to applicants. */
+  requestReason?: string | null;
+  requestReasonNote?: string | null;
   /** false = no client review step for this request. Existing requests are true. */
   requiresClientReview?: boolean;
   status: "OPEN" | "IN_PROGRESS" | "FILLED" | "CANCELLED" | "ON_HOLD";
@@ -153,6 +161,13 @@ export interface CreateMRFDto {
   ageMax?: number | null;
   genderPreference?: string | null;
   tattooPolicy?: string | null;
+  department?: string | null;
+  workShift?: string | null;
+  workDays?: string | null;
+  workHoursPerDay?: number | null;
+  workTime?: string | null;
+  requestReason?: string | null;
+  requestReasonNote?: string | null;
   requiresClientReview?: boolean;
 }
 

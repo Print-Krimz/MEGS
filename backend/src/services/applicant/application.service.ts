@@ -65,6 +65,11 @@ export const fetchOpenJobs = async (filters?: ApplicantJobFilters & { page?: num
           workArrangement: true,
           salaryRangeMin: true,
           salaryRangeMax: true,
+          department: true,
+          workShift: true,
+          workDays: true,
+          workHoursPerDay: true,
+          workTime: true,
         },
       },
     },
@@ -128,6 +133,8 @@ export const fetchJobDetails = async (jobId: number, userId: string) => {
     where: { id: jobId },
     include: {
       mrf: {
+        // The reason for a request is for the team only, never for applicants.
+        omit: { requestReason: true, requestReasonNote: true },
         include: {
           client: {
             select: {

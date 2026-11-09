@@ -3,6 +3,7 @@ import { ApplicationStatus } from "@prisma/client";
 import { BACKOUT_REASONS_BY_PARTY, REJECTION_REASON_CODES } from "../services/ta/backout-rules.js";
 import { BULK_MAX_IDS } from "../services/ta/bulk-rules.js";
 import { resumeMergeAccept } from "./applicant.schema.js";
+import { mrfPaperFieldsShape } from "./mrf-paper-fields.js";
 import { OFFICE_HOURS_MESSAGE } from "../config/business-hours.js";
 import { manilaDateString, boundedIdText, boundedText, dateOnly, finiteNumber, FIELD_LIMITS, formattedMobile, formattedPhone, requiredText, safeTextSchema, safeProseSchema, optionalPersonNameSchema, optionalSafeAddress, optionalSafeText, optionalSafeProse, optionalSafeUrl, adultDateOfBirth, sssNumber, philhealthNumber, pagibigNumber, tinNumber, pageQueryFields, isWorkingHours } from "./field-limits.js";
 
@@ -517,6 +518,7 @@ export const taSchema = {
       ageMax: age,
       genderPreference: z.enum(["ANY", "MALE", "FEMALE"]).optional(),
       tattooPolicy: z.enum(["ALLOWED", "NO_VISIBLE", "NONE"]).optional(),
+      ...mrfPaperFieldsShape,
       requiresClientReview: z.boolean().optional(),
     }).strict().superRefine((value, ctx) => {
       if (value.salaryRangeMin != null && value.salaryRangeMax != null && value.salaryRangeMin > value.salaryRangeMax) {
@@ -548,6 +550,7 @@ export const taSchema = {
       ageMax: age,
       genderPreference: z.enum(["ANY", "MALE", "FEMALE"]).optional(),
       tattooPolicy: z.enum(["ALLOWED", "NO_VISIBLE", "NONE"]).optional(),
+      ...mrfPaperFieldsShape,
       requiresClientReview: z.boolean().optional(),
       status: z.enum(["OPEN", "IN_PROGRESS", "ON_HOLD", "FILLED", "CANCELLED"]).optional(),
     }).strict().superRefine((value, ctx) => {
