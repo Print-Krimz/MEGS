@@ -58,11 +58,25 @@ const alertAuthLimit = (req: Request) => {
   else alertIdentifier("SIGN_IN_LIMITED")(req);
 };
 
+// Invite and MFA-setup requests carry a token instead of an email. Keying them by IP alone put every
+// setup step on one shared budget, so a normal setup could lock itself out. The IP budgets
+// (authIpLimiter) still cap guessing across tokens.
+const requestToken = (req: Request): string => {
+  const fromBody = typeof req.body?.token === "string" ? req.body.token.trim() : "";
+  if (fromBody) return fromBody;
+  const fromQuery = typeof req.query?.token === "string" ? req.query.token.trim() : "";
+  if (fromQuery) return fromQuery;
+  const header = req.headers?.authorization;
+  return typeof header === "string" && header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+};
+
 export const authKeyGenerator = (req: Request): string => {
   const email = resolveAuthIdentifier(req.body).value ?? "";
   const rawIp = req.ip || req.socket?.remoteAddress || "127.0.0.1";
   const ip = ipKeyGenerator(rawIp);
-  return email ? `${ip}_${email}` : ip;
+  if (email) return `${ip}_${email}`;
+  const token = requestToken(req);
+  return token ? `${ip}_token_${hashIdentity(token)}` : ip;
 };
 
 /**
@@ -92,6 +106,11 @@ export const authLimiter = rateLimit({
   keyGenerator: req => quotaKey(hashIdentity(authKeyGenerator(req))),
   handler: rateLimitHandler("Too many authentication attempts. Please try again after 15 minutes.", 900, alertAuthLimit),
 });
+
+// Reading MFA status and loading the QR code during setup: 20 per 15 minutes per token, separate from
+// code-guess attempts so reloads and retries cannot use up the guess budget.
+export const mfaSetupLimiter = limiter("mfa-setup", 20, 15 * 60 * 1000,
+  req => hashIdentity(authKeyGenerator(req)));
 
 /**
  * High-sensitivity limiter for Password Reset requests to prevent SMTP abuse and email flooding.

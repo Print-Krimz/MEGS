@@ -32,6 +32,7 @@ import { authSchema } from '../../schemas/auth.schema.js';
 import { claimSchema } from '../../schemas/claim.schema.js';
 import {
   authLimiter,
+  mfaSetupLimiter,
   forgotPasswordLimiter,
   authIpLimiter,
   authAccountLimiter,
@@ -74,7 +75,7 @@ router.post("/claim/email-code", authLimiter, validate(claimSchema.emailCode), c
 router.post("/claim/complete", authLimiter, validate(claimSchema.complete), claimComplete);
 
 // MFA Endpoints (TOTP & Recovery)
-router.post("/mfa/enroll", authLimiter, validate(authSchema.enrollMfa), enrollMfaHandler);
+router.post("/mfa/enroll", mfaSetupLimiter, validate(authSchema.enrollMfa), enrollMfaHandler);
 router.post(
   "/mfa/verify-enrollment",
   authLimiter,
@@ -88,7 +89,7 @@ router.post(
   validate(authSchema.verifyMfaRecovery),
   verifyMfaRecoveryHandler
 );
-router.get("/mfa/status", authLimiter, getMfaStatusHandler);
+router.get("/mfa/status", mfaSetupLimiter, getMfaStatusHandler);
 
 // Authenticated Endpoints
 const staff = requireRole("ADMINISTRATOR", "TALENT_ACQUISITION");
