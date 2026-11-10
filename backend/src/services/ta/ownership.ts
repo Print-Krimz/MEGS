@@ -65,9 +65,21 @@ const deployment = (a: Actor): Where =>
 const employee = (a: Actor): Where =>
   restricted(a) ? { OR: [{ deployments: { some: deployment(a) } }, { redeploymentOwnerId: a.id }] } : {};
 
-// The redeployment pool is shared: every TA may see available workers and place them in their own openings.
+// A pooled worker is visible only to the TA who owns the follow-up. Legacy rows with no owner
+// fall back to the TA who owns one of the worker's deployments. Admin matches everything.
+const redeployment = (a: Actor): Where =>
+  restricted(a) ? { OR: [{ redeploymentOwnerId: a.id }, { redeploymentOwnerId: null, deployments: { some: deployment(a) } }] } : {};
+
+// Workers in the redeployment pool follow redeployment(); everyone else follows employee().
 const employeePool = (a: Actor): Where =>
-  restricted(a) ? { OR: [employee(a), { status: "AVAILABLE_FOR_REDEPLOYMENT" }] } : {};
+  restricted(a)
+    ? {
+        OR: [
+          { AND: [{ status: { not: "AVAILABLE_FOR_REDEPLOYMENT" } }, employee(a)] },
+          { AND: [{ status: "AVAILABLE_FOR_REDEPLOYMENT" }, redeployment(a)] },
+        ],
+      }
+    : {};
 
 const requirement = (a: Actor): Where => (restricted(a) ? { application: { is: application(a) } } : {});
 const interview = requirement;
@@ -79,7 +91,7 @@ const template = (a: Actor): Where =>
 // A Talent Pool or Redeployment offer follows the job it offers.
 const invitation = (a: Actor): Where => (restricted(a) ? { jobPosting: { is: job(a) } } : {});
 
-export const ownedWhere = { mrf, client, job, application, deployment, employee, employeePool, requirement, interview, endorsement, template, invitation };
+export const ownedWhere = { mrf, client, job, application, deployment, employee, redeployment, employeePool, requirement, interview, endorsement, template, invitation };
 
 type Kind = keyof typeof ownedWhere | "candidate";
 
@@ -91,6 +103,7 @@ const LABEL: Record<Kind, string> = {
   deployment: "Deployment",
   employee: "Employee",
   employeePool: "Employee",
+  redeployment: "Employee",
   requirement: "Requirement",
   interview: "Interview",
   endorsement: "Endorsement",
@@ -107,7 +120,8 @@ const count = (kind: Exclude<Kind, "candidate">, where: Where): Promise<number> 
     case "application": return prisma.application.count({ where: where as any });
     case "deployment": return prisma.deployment.count({ where: where as any });
     case "employee":
-    case "employeePool": return prisma.employee.count({ where: where as any });
+    case "employeePool":
+    case "redeployment": return prisma.employee.count({ where: where as any });
     case "requirement": return prisma.complianceRequirement.count({ where: where as any });
     case "interview": return prisma.interview.count({ where: where as any });
     case "endorsement": return prisma.clientEndorsement.count({ where: where as any });

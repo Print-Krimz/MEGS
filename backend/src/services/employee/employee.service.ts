@@ -506,6 +506,9 @@ const redeploymentApplicationWhere = (actor?: Actor) => ({ isArchived: false, st
 const redeploymentStageOf = (hasApplications: boolean, hasInvitation: boolean): RedeploymentStageName =>
   hasApplications ? "IN_PROGRESS" : hasInvitation ? "WAITING_FOR_REPLY" : "NEEDS_PLACEMENT";
 const DAY_MS = 86_400_000;
+// Pool rows the actor owns (a TA sees only their own; Admin sees all).
+const poolWhere = (actor?: Actor): Prisma.EmployeeWhereInput =>
+  actor ? { AND: [REDEPLOYMENT_POOL_WHERE, ownedWhere.redeployment(actor) as Prisma.EmployeeWhereInput] } : REDEPLOYMENT_POOL_WHERE;
 
 export interface RedeploymentQueueOptions extends PageRequest {
   search?: string;
@@ -544,7 +547,7 @@ const loadStartedPlacements = async (employeeIds: number[]) => {
 
 const findRedeploymentEmployees = (actor?: Actor, ids?: number[]) =>
   prisma.employee.findMany({
-    where: { ...REDEPLOYMENT_POOL_WHERE, ...(ids ? { id: { in: ids } } : {}) },
+    where: { ...poolWhere(actor), ...(ids ? { id: { in: ids } } : {}) },
     orderBy: REDEPLOYMENT_POOL_ORDER,
     include: {
       redeploymentOwner: { select: { id: true, email: true } },
@@ -589,10 +592,10 @@ const mapRedeploymentRow = (employee: RedeploymentEmployee, pastClients: Array<{
   };
 };
 
-/** Lean projection of the whole shared pool: only what stage, search, and ordering need. */
+/** Lean projection of the actor's pool: only what stage, search, and ordering need. */
 const loadRedeploymentIndex = async (actor?: Actor) => {
   const employees = await prisma.employee.findMany({
-    where: REDEPLOYMENT_POOL_WHERE,
+    where: poolWhere(actor),
     orderBy: REDEPLOYMENT_POOL_ORDER,
     select: {
       id: true,
@@ -628,15 +631,15 @@ const countRedeploymentStages = (index: Array<{ stage: RedeploymentStageName }>)
   return { total: index.length, stages };
 };
 
-/** Authoritative stage counts for the whole shared queue (workforce badge, stage filter tiles). */
+/** Authoritative stage counts for the actor's queue (workforce badge, stage filter tiles). */
 export const getRedeploymentQueueSummary = async (actor?: Actor) => {
   const inProgress: Prisma.EmployeeWhereInput = { user: { is: { applications: { some: redeploymentApplicationWhere(actor) } } } };
   const [total, inProgressCount, waiting] = await Promise.all([
-    prisma.employee.count({ where: REDEPLOYMENT_POOL_WHERE }),
-    prisma.employee.count({ where: { AND: [REDEPLOYMENT_POOL_WHERE, inProgress] } }),
+    prisma.employee.count({ where: poolWhere(actor) }),
+    prisma.employee.count({ where: { AND: [poolWhere(actor), inProgress] } }),
     // Same precedence as redeploymentStageOf: an open application outranks a pending invitation.
     prisma.employee.count({
-      where: { AND: [REDEPLOYMENT_POOL_WHERE, { NOT: inProgress }, { user: { is: { applicantProfile: { is: { invitations: { some: { status: "PENDING" } } } } } } }] },
+      where: { AND: [poolWhere(actor), { NOT: inProgress }, { user: { is: { applicantProfile: { is: { invitations: { some: { status: "PENDING" } } } } } } }] },
     }),
   ]);
   return { total, stages: { NEEDS_PLACEMENT: total - inProgressCount - waiting, WAITING_FOR_REPLY: waiting, IN_PROGRESS: inProgressCount } };

@@ -31,7 +31,7 @@ export const getRedeploymentQueueSummaryHandler = async (req: Request, res: Resp
 };
 
 export const listRedeploymentSuggestionsHandler = async (req: Request, res: Response): Promise<void> => {
-  try { sendSuccess(res, "Redeployment suggestions retrieved", await listRedeploymentSuggestions(req.query.employeeIds as unknown as number[] | undefined)); }
+  try { sendSuccess(res, "Redeployment suggestions retrieved", await listRedeploymentSuggestions(req.query.employeeIds as unknown as number[] | undefined, req.user)); }
   catch (error: any) { sendError(res, error.message, 500); }
 };
 

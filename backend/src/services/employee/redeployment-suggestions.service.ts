@@ -1,5 +1,6 @@
 import prisma from "../../utils/prisma.js";
 import { isGeneralClearance } from "../../utils/compliance-reuse.js";
+import { ownedWhere, type Actor } from "../ta/ownership.js";
 import { generateJobEmbeddings } from "../scoring/embedding.service.js";
 import { getActiveScoringConfiguration } from "../scoring/scoring-configuration.service.js";
 
@@ -77,13 +78,14 @@ const cosine = (a: number[], b: number[]) => {
  * `employeeIds` limits scoring to those workers (the visible queue page); each still has to
  * pass the same eligibility rule, so ineligible IDs are simply absent from the result.
  */
-export const listRedeploymentSuggestions = async (employeeIds?: number[]) => {
+export const listRedeploymentSuggestions = async (employeeIds?: number[], actor?: Actor) => {
   const [employees, jobs, configuration] = await Promise.all([
     prisma.employee.findMany({
       where: {
         status: "AVAILABLE_FOR_REDEPLOYMENT",
         deployments: { none: { status: { notIn: ["ENDED", "CANCELLED"] } } },
         ...(employeeIds ? { id: { in: employeeIds } } : {}),
+        ...(actor ? (ownedWhere.redeployment(actor) as any) : {}),
       },
       select: {
         id: true,
