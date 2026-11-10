@@ -996,45 +996,6 @@ export const ApplicationsPage: React.FC = () => {
             });
           }}
           layout="stacked"
-          trailing={
-            <>
-              <div className="w-full sm:w-52">
-                <label htmlFor="applications-show" className="sr-only">Show</label>
-                <ComboBox
-                  id="applications-show"
-                  size="sm"
-                  placeholder="Show"
-                  value={showArchived ? "archived" : showEnded ? "ended" : "active"}
-                  options={[
-                    { value: "active", label: "Show: Active" },
-                    { value: "ended", label: `Show: Ended assignments${stageCountsQuery.data?.endedCount ? ` (${stageCountsQuery.data.endedCount})` : ""}` },
-                    { value: "archived", label: "Show: Archived" },
-                  ]}
-                  clearable={false}
-                  onChange={(v) => {
-                    if (v === "archived") updateListUrl({ archived: true, ended: undefined, page: undefined });
-                    else if (v === "ended") updateListUrl({ ended: true, archived: undefined, stage: undefined, page: undefined });
-                    else updateListUrl({ archived: undefined, ended: undefined, page: undefined });
-                  }}
-                />
-              </div>
-              <div className="w-full sm:w-48">
-                <label htmlFor="applications-sort" className="sr-only">Sort by</label>
-                <ComboBox
-                  id="applications-sort"
-                  size="sm"
-                  placeholder="Sort by"
-                  value={sort ?? "match"}
-                  options={SORT_OPTIONS}
-                  clearable={false}
-                  onChange={(v) => {
-                    const next = v === "newest" || v === "oldest" || v === "waiting" ? v : undefined;
-                    updateListUrl({ sort: next, page: undefined });
-                  }}
-                />
-              </div>
-            </>
-          }
           actions={
             <div className="flex w-full flex-wrap items-center gap-2">
               <Button
@@ -1059,12 +1020,49 @@ export const ApplicationsPage: React.FC = () => {
               >
                 Returning workers
               </Button>
-              {hasActiveFilters && (
-                <Button variant="ghost" size="sm" onClick={resetFilters} className="ml-auto text-rose-700 hover:text-rose-900">
-                  <X className="h-3.5 w-3.5" aria-hidden="true" />
-                  Clear filters ({activeFilterCount})
-                </Button>
-              )}
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                {hasActiveFilters && (
+                  <Button variant="ghost" size="sm" onClick={resetFilters} className="text-rose-700 hover:text-rose-900">
+                    <X className="h-3.5 w-3.5" aria-hidden="true" />
+                    Clear filters ({activeFilterCount})
+                  </Button>
+                )}
+                <div className="w-full sm:w-52">
+                  <label htmlFor="applications-show" className="sr-only">Show</label>
+                  <ComboBox
+                    id="applications-show"
+                    size="sm"
+                    placeholder="Show"
+                    value={showArchived ? "archived" : showEnded ? "ended" : "active"}
+                    options={[
+                      { value: "active", label: "Show: Active" },
+                      { value: "ended", label: `Show: Ended assignments${stageCountsQuery.data?.endedCount ? ` (${stageCountsQuery.data.endedCount})` : ""}` },
+                      { value: "archived", label: "Show: Archived" },
+                    ]}
+                    clearable={false}
+                    onChange={(v) => {
+                      if (v === "archived") updateListUrl({ archived: true, ended: undefined, page: undefined });
+                      else if (v === "ended") updateListUrl({ ended: true, archived: undefined, stage: undefined, page: undefined });
+                      else updateListUrl({ archived: undefined, ended: undefined, page: undefined });
+                    }}
+                  />
+                </div>
+                <div className="w-full sm:w-48">
+                  <label htmlFor="applications-sort" className="sr-only">Sort by</label>
+                  <ComboBox
+                    id="applications-sort"
+                    size="sm"
+                    placeholder="Sort by"
+                    value={sort ?? "match"}
+                    options={SORT_OPTIONS}
+                    clearable={false}
+                    onChange={(v) => {
+                      const next = v === "newest" || v === "oldest" || v === "waiting" ? v : undefined;
+                      updateListUrl({ sort: next, page: undefined });
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           }
           filters={[
