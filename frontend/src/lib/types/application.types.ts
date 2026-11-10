@@ -358,7 +358,7 @@ export interface TAApplicationSummary {
   status: ApplicationStatus;
   isArchived: boolean;
   returning?: ReturningWorkerInfo | null;
-  /** Latest deployment only; lets the list mark a deployed row whose assignment has ended. */
+  /** Deployment statuses; lets the list mark a deployed row whose assignments have all ended. */
   deployments?: Array<{ status: string }>;
   createdAt: string;
   aiScore?: number | null;

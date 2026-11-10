@@ -212,7 +212,8 @@ const buildApplicationWhere = async (options: ListTAApplicationsOptions): Promis
     andConditions.push({ jobPosting: { postedById: postedById || currentUserId } });
   }
 
-  if (status) {
+  // The ended view is its own list: a stage filter does not apply to it.
+  if (status && !endedOnly) {
     andConditions.push({ status: status as ApplicationStatus });
   }
 
@@ -404,7 +405,7 @@ export const listTAApplications = async (
         },
       },
       _count: { select: { interviews: true, recruiterDecisions: true, complianceRequirements: true } },
-      deployments: { select: { status: true }, orderBy: { createdAt: "desc" }, take: 1 },
+      deployments: { select: { status: true } },
     } as const;
     const skip = (resolvedPage - 1) * resolvedLimit;
     // id breaks createdAt ties so rows never repeat or vanish between pages.

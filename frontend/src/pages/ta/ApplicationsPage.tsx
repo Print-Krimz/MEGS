@@ -87,7 +87,10 @@ const ScreeningSkippedNote: React.FC<{ info?: ReturningWorkerInfo | null }> = ({
   ) : null;
 
 const AssignmentEndedNote: React.FC<{ app: TAApplicationSummary }> = ({ app }) =>
-  app.status === ApplicationStatus.DEPLOYED && app.deployments?.[0]?.status === "ENDED" ? (
+  // Same rule as the backend: at least one assignment ended and none still running.
+  app.status === ApplicationStatus.DEPLOYED &&
+  app.deployments?.some((d) => d.status === "ENDED") &&
+  app.deployments.every((d) => d.status === "ENDED" || d.status === "CANCELLED") ? (
     <div className="mt-1 text-xs text-slate-600" title="This placement finished. It is kept as work history.">
       Assignment ended
     </div>
@@ -304,7 +307,8 @@ export const ApplicationsPage: React.FC = () => {
   }, [layout]);
 
   // The queue lists work still in progress; deployed and closed records stay in the table.
-  const stageFilter = filterValues.status as ApplicationStatus | undefined;
+  // The ended view lists finished placements only, so a stage left in the URL is ignored there.
+  const stageFilter = showEnded ? undefined : (filterValues.status as ApplicationStatus | undefined);
   // An archived row has isArchived set, so the Archived stage has to ask for archived rows.
   const archivedRows = showArchived || stageFilter === ApplicationStatus.ARCHIVED;
   // Picking a closed stage overrides the queue's open-work-only rule, which would otherwise hide every row.
@@ -321,7 +325,7 @@ export const ApplicationsPage: React.FC = () => {
       page,
       pageSize,
       search: debouncedSearch,
-      status: filterValues.status || "",
+      status: stageFilter || "",
       clientId: filterValues.clientId || "",
       jobId: filterValues.jobId || "",
       source: filterValues.source || "",
@@ -337,7 +341,7 @@ export const ApplicationsPage: React.FC = () => {
         page,
         limit: pageSize,
         search: debouncedSearch || undefined,
-        status: (filterValues.status as ApplicationStatus) || undefined,
+        status: stageFilter || undefined,
         jobId: filterValues.jobId ? Number(filterValues.jobId) : undefined,
         clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
         source: (filterValues.source as ApplicationSourceFilter) || undefined,
