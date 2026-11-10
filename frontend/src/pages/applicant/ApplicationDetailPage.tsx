@@ -210,7 +210,7 @@ export const ApplicationDetailPage: React.FC = () => {
   const renderViewButton = (req: RequirementRef) =>
     req.documentId ? (
       <Button
-        variant="ghost"
+        variant="outline"
         size="sm"
         aria-label={`View ${req.documentLabel}`}
         leftIcon={<ExternalLink className="w-3.5 h-3.5" />}
@@ -343,7 +343,7 @@ export const ApplicationDetailPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 empty:hidden sm:flex sm:flex-wrap sm:items-center">
+        <div className="grid grid-cols-2 gap-2 [&>*:last-child:nth-child(odd)]:col-span-2 empty:hidden sm:flex sm:flex-wrap sm:items-center">
           {renderViewButton(req)}
 
           {(!isApproved || canReplaceApproved) && (
@@ -358,7 +358,7 @@ export const ApplicationDetailPage: React.FC = () => {
                 fileInputRef.current?.click();
               }}
             >
-              {isApproved ? "Upload updated copy" : req.documentId ? "Replace File" : "Upload File"}
+              {isApproved ? "Upload new copy" : req.documentId ? "Replace File" : "Upload File"}
             </Button>
           )}
 
