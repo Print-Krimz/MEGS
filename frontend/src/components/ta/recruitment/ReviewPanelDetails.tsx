@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Check, Copy, Phone } from "lucide-react";
 import { taApi } from "../../../lib/api/ta.api";
 import { StatusBadge } from "../../common";
+import { EndedBadge, getEndedAssignment } from "./EndedAssignment";
 import { cn, formatDate } from "../../../lib/utils";
 import { notify } from "../../../lib/feedback";
 import { plural } from "../../../lib/plural";
@@ -228,7 +229,11 @@ export const OtherApplications: React.FC<{ app: Application; email?: string | nu
             </Link>
             <span className="flex items-center gap-2">
               <span className="text-xs text-slate-600">{formatDate(row.createdAt)}</span>
-              <StatusBadge status={row.isArchived ? "ARCHIVED" : row.status} size="sm" />
+              {!row.isArchived && getEndedAssignment(row) ? (
+                <EndedBadge size="sm" />
+              ) : (
+                <StatusBadge status={row.isArchived ? "ARCHIVED" : row.status} size="sm" />
+              )}
             </span>
           </li>
         ))}

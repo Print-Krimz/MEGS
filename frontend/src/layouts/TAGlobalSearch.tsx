@@ -7,6 +7,7 @@ import { employeesApi } from "../lib/api/employees.api";
 import { useDebouncedValue } from "../hooks/useDebouncedValue";
 import { getApplicationStatusMeta } from "../lib/utils";
 import { REFERENCE_QUERY_STALE_TIME_MS } from "../lib/query-policies";
+import { getEndedAssignment } from "../components/ta/recruitment/EndedAssignment";
 
 const MIN_CHARS = 2;
 const DEBOUNCE_MS = 250;
@@ -97,7 +98,7 @@ export const TAGlobalSearch: React.FC = () => {
         kind: "application",
         id: a.id,
         title: fullName(a.user?.applicantProfile, a.user?.email ?? "Applicant"),
-        detail: joinDetail(a.jobPosting?.title, getApplicationStatusMeta(a.status).label),
+        detail: joinDetail(a.jobPosting?.title, getEndedAssignment(a) ? "Ended" : getApplicationStatusMeta(a.status).label),
       });
     }
     for (const e of (employees.data ?? []).slice(0, PAGE_SIZE)) {

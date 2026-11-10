@@ -39,6 +39,7 @@ import { SourceChip, APPLICATION_SOURCE_LABELS } from "../../components/ta/walk-
 import { CheckInsPanel, useCheckIns } from "../../components/ta/walk-in/CheckInsPanel";
 import { ReviewQueue } from "../../components/ta/recruitment/ReviewQueue";
 import { TA_COPY } from "../../lib/ta-copy";
+import { EndedBadge, EndedNote, getEndedAssignment } from "../../components/ta/recruitment/EndedAssignment";
 import {
   getApplicationListPollInterval,
   normalizeServerSearch,
@@ -86,15 +87,18 @@ const ScreeningSkippedNote: React.FC<{ info?: ReturningWorkerInfo | null }> = ({
     </div>
   ) : null;
 
-const AssignmentEndedNote: React.FC<{ app: TAApplicationSummary }> = ({ app }) =>
-  // Same rule as the backend: at least one assignment ended and none still running.
-  app.status === ApplicationStatus.DEPLOYED &&
-  app.deployments?.some((d) => d.status === "ENDED") &&
-  app.deployments.every((d) => d.status === "ENDED" || d.status === "CANCELLED") ? (
-    <div className="mt-1 text-xs text-slate-600" title="This placement finished. It is kept as work history.">
-      Assignment ended
-    </div>
-  ) : null;
+/** Stage chip; a finished placement shows a grey "Ended" chip and its end date instead of "Deployed". */
+const StageBadge: React.FC<{ app: TAApplicationSummary }> = ({ app }) => {
+  const ended = getEndedAssignment(app);
+  return ended ? (
+    <>
+      <EndedBadge />
+      <EndedNote endedAt={ended.endedAt} />
+    </>
+  ) : (
+    <StatusBadge status={app.status} />
+  );
+};
 
 /** Records that are already closed (or archived) can be archived or restored from the list. Open records are closed from the detail page. */
 const CLOSED_STATUSES: ApplicationStatus[] = [
@@ -107,6 +111,7 @@ const CLOSED_STATUSES: ApplicationStatus[] = [
 /** The next TA action, derived from the stage and the counts the list already returns. */
 const nextStepFor = (app: TAApplicationSummary): string => {
   if (app.isArchived) return "None";
+  if (getEndedAssignment(app)) return "—";
   switch (app.status) {
     case ApplicationStatus.SUBMITTED:
     case ApplicationStatus.PARSING:
@@ -695,8 +700,7 @@ export const ApplicationsPage: React.FC = () => {
       header: "Stage",
       cell: (app) => (
         <div>
-          <StatusBadge status={app.status} />
-          <AssignmentEndedNote app={app} />
+          <StageBadge app={app} />
           <ScreeningSkippedNote info={app.returning} />
         </div>
       ),
@@ -761,7 +765,7 @@ export const ApplicationsPage: React.FC = () => {
           </div>
         </div>
         <div className="text-right">
-          <StatusBadge status={app.status} />
+          <StageBadge app={app} />
           <ScreeningSkippedNote info={app.returning} />
         </div>
       </div>
