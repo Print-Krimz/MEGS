@@ -20,7 +20,7 @@ import {
 } from "../../components/common";
 import { Button, ComboBox, Dialog, Textarea } from "../../components/ui";
 import { formatDate, getApplicationStatusMeta, displayEmail } from "../../lib/utils";
-import { StageStrip, STAGE_STRIP_STAGES, type StageStripItem } from "../../components/ta/recruitment/StageStrip";
+import { StageStrip, stripStages, type StageStripItem } from "../../components/ta/recruitment/StageStrip";
 import {
   ApplicationStatus,
   PIPELINE_FILTER_STAGES,
@@ -377,12 +377,6 @@ export const ApplicationsPage: React.FC = () => {
   });
 
   // Counts for the stage strip honour every filter except the stage itself.
-  const stageStripValues = React.useMemo(() => {
-    const current = filterValues.status;
-    const known = (STAGE_STRIP_STAGES as readonly string[]).includes(current ?? "");
-    const stages = openOnly ? STAGE_STRIP_STAGES.filter((stage) => stage !== ApplicationStatus.DEPLOYED) : STAGE_STRIP_STAGES;
-    return ["", ...stages, ...(current && !known ? [current] : [])];
-  }, [filterValues.status, openOnly]);
   // One aggregate request for the whole strip. Its key carries every filter, archived view included,
   // and sits under ["ta", "applications"] so it refreshes wherever the list does.
   const stageCountsQuery = useQuery({
@@ -415,6 +409,10 @@ export const ApplicationsPage: React.FC = () => {
     // Counts carry no processing info, so follow the list data from the same page.
     refetchInterval: getApplicationListPollInterval(applicationsQuery.data, streamConnected),
   });
+  const stageStripValues = React.useMemo(
+    () => ["", ...stripStages(stageCountsQuery.data?.byStatus ?? {}, filterValues.status, openOnly)],
+    [stageCountsQuery.data?.byStatus, filterValues.status, openOnly],
+  );
   const stageStripItems: StageStripItem[] = stageStripValues.map((stage) => ({
     value: stage,
     label: stage ? getApplicationStatusMeta(stage).label : "All",
@@ -863,9 +861,6 @@ export const ApplicationsPage: React.FC = () => {
         ]}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setPosterOpen(true)}>
-              Print check-in poster
-            </Button>
             <Button onClick={() => setEncodeOpen(true)}>Encode walk-in</Button>
           </div>
         }
@@ -964,7 +959,12 @@ export const ApplicationsPage: React.FC = () => {
       )}
 
       {view === "check-ins" ? (
-        <div id="applications-view">
+        <div id="applications-view" className="space-y-4">
+          <div className="flex justify-end">
+            <Button variant="outline" size="sm" onClick={() => setPosterOpen(true)}>
+              Print check-in poster
+            </Button>
+          </div>
           <CheckInsPanel onConfirmed={setWalkInSlip} />
         </div>
       ) : (
@@ -997,6 +997,27 @@ export const ApplicationsPage: React.FC = () => {
           }}
           layout="stacked"
           trailing={
+            <>
+              <div className="w-full sm:w-52">
+                <label htmlFor="applications-show" className="sr-only">Show</label>
+                <ComboBox
+                  id="applications-show"
+                  size="sm"
+                  placeholder="Show"
+                  value={showArchived ? "archived" : showEnded ? "ended" : "active"}
+                  options={[
+                    { value: "active", label: "Show: Active" },
+                    { value: "ended", label: `Show: Ended assignments${stageCountsQuery.data?.endedCount ? ` (${stageCountsQuery.data.endedCount})` : ""}` },
+                    { value: "archived", label: "Show: Archived" },
+                  ]}
+                  clearable={false}
+                  onChange={(v) => {
+                    if (v === "archived") updateListUrl({ archived: true, ended: undefined, page: undefined });
+                    else if (v === "ended") updateListUrl({ ended: true, archived: undefined, stage: undefined, page: undefined });
+                    else updateListUrl({ archived: undefined, ended: undefined, page: undefined });
+                  }}
+                />
+              </div>
               <div className="w-full sm:w-48">
                 <label htmlFor="applications-sort" className="sr-only">Sort by</label>
                 <ComboBox
@@ -1012,6 +1033,7 @@ export const ApplicationsPage: React.FC = () => {
                   }}
                 />
               </div>
+            </>
           }
           actions={
             <div className="flex w-full flex-wrap items-center gap-2">
@@ -1035,28 +1057,7 @@ export const ApplicationsPage: React.FC = () => {
                   updateListUrl({ returning: next || undefined, page: undefined });
                 }}
               >
-                Returning workers only
-              </Button>
-              <Button
-                variant={showArchived ? "primary" : "outline"}
-                size="sm"
-                aria-pressed={showArchived}
-                onClick={() => {
-                  const nextArchived = !showArchived;
-                  updateListUrl({ archived: nextArchived || undefined, ended: undefined, page: undefined });
-                }}
-              >
-                {showArchived ? "View active" : "View archived"}
-              </Button>
-              <Button
-                variant={showEnded ? "primary" : "outline"}
-                size="sm"
-                aria-pressed={showEnded}
-                onClick={() => {
-                  updateListUrl({ ended: !showEnded || undefined, archived: undefined, stage: undefined, page: undefined });
-                }}
-              >
-                {showEnded ? "View active" : `View ended assignments${stageCountsQuery.data?.endedCount ? ` (${stageCountsQuery.data.endedCount})` : ""}`}
+                Returning workers
               </Button>
               {hasActiveFilters && (
                 <Button variant="ghost" size="sm" onClick={resetFilters} className="ml-auto text-rose-700 hover:text-rose-900">
