@@ -202,7 +202,7 @@ export const ClaimAccountPage: React.FC = () => {
           />
         </div>
         <Button asChild size="lg" className="w-full">
-          <Link to="/login">
+          <Link to="/login" search={{ email: phone.trim() }}>
             Go to log in
             <ArrowRight data-icon="inline-end" aria-hidden="true" />
           </Link>

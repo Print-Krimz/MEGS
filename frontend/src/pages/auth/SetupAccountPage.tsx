@@ -253,7 +253,7 @@ export const SetupAccountPage: React.FC = () => {
           />
         </div>
         <Button asChild size="lg" className="w-full">
-          <Link to="/login">
+          <Link to="/login" search={invitationDetails?.email ? { email: invitationDetails.email } : undefined}>
             Sign in to workspace
             <ArrowRight data-icon="inline-end" aria-hidden="true" />
           </Link>
