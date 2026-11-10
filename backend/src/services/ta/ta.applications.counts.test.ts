@@ -28,18 +28,19 @@ describe("TA application stage counts", () => {
       { status: "COMPLIANCE", _count: { _all: 2 } },
     ]);
     mocks.prisma.$queryRaw.mockResolvedValue([]);
+    mocks.prisma.application.count.mockResolvedValue(0);
   });
 
   it("returns the total and a count per status from one grouped query", async () => {
     const counts = await countTAApplications({ actor: ta });
-    expect(counts).toEqual({ total: 6, byStatus: { SUBMITTED: 4, COMPLIANCE: 2 } });
+    expect(counts).toEqual({ total: 6, byStatus: { SUBMITTED: 4, COMPLIANCE: 2 }, endedCount: 0 });
     expect(mocks.prisma.application.groupBy).toHaveBeenCalledTimes(1);
     expect(mocks.prisma.application.groupBy.mock.calls[0][0]).toMatchObject({ by: ["status"] });
   });
 
   it("returns zeros for an empty result", async () => {
     mocks.prisma.application.groupBy.mockResolvedValue([]);
-    expect(await countTAApplications({ actor: ta })).toEqual({ total: 0, byStatus: {} });
+    expect(await countTAApplications({ actor: ta })).toEqual({ total: 0, byStatus: {}, endedCount: 0 });
   });
 
   it("uses exactly the list's where clause, minus the stage", async () => {
@@ -51,6 +52,17 @@ describe("TA application stage counts", () => {
     const listWhere = mocks.prisma.application.count.mock.calls[0][0].where;
     expect(mocks.prisma.application.groupBy.mock.calls[0][0].where).toEqual(listWhere);
     expect(JSON.stringify(listWhere)).toContain("ta-1");
+  });
+
+  it("hides ended assignments by default and shows only them with endedOnly", async () => {
+    mocks.prisma.application.findMany.mockResolvedValue([]);
+    await listTAApplications({ actor: ta, summary: true, page: 1, limit: 10 });
+    const normal = JSON.stringify(mocks.prisma.application.count.mock.calls[0][0].where);
+    expect(normal).toContain('"NOT":{"status":"DEPLOYED"');
+    await listTAApplications({ actor: ta, summary: true, page: 1, limit: 10, endedOnly: true });
+    const ended = JSON.stringify(mocks.prisma.application.count.mock.calls[1][0].where);
+    expect(ended).toContain('"deployments":{"some":{"status":"ENDED"}');
+    expect(ended).not.toContain('"NOT"');
   });
 
   it("keeps ownership and ignores a requested stage", async () => {

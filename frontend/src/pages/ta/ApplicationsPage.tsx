@@ -86,6 +86,13 @@ const ScreeningSkippedNote: React.FC<{ info?: ReturningWorkerInfo | null }> = ({
     </div>
   ) : null;
 
+const AssignmentEndedNote: React.FC<{ app: TAApplicationSummary }> = ({ app }) =>
+  app.status === ApplicationStatus.DEPLOYED && app.deployments?.[0]?.status === "ENDED" ? (
+    <div className="mt-1 text-xs text-slate-600" title="This placement finished. It is kept as work history.">
+      Assignment ended
+    </div>
+  ) : null;
+
 /** Records that are already closed (or archived) can be archived or restored from the list. Open records are closed from the detail page. */
 const CLOSED_STATUSES: ApplicationStatus[] = [
   ApplicationStatus.REJECTED,
@@ -189,6 +196,7 @@ export const readApplicationSearch = (): TAApplicationSearch => {
     clientId: number(params.get("clientId")),
     jobId: number(params.get("jobId")),
     archived: params.get("archived") === "true" || params.get("archived") === "1" ? true : undefined,
+    ended: params.get("ended") === "true" || params.get("ended") === "1" ? true : undefined,
     returning: params.get("returning") === "true" || params.get("returning") === "1" ? true : undefined,
     sort: sortParam === "newest" || sortParam === "oldest" || sortParam === "waiting" ? sortParam : undefined,
     needsAction: params.get("needsAction") === "true" || params.get("needsAction") === "1" ? true : undefined,
@@ -220,6 +228,8 @@ export const ApplicationsPage: React.FC = () => {
     [routeSearch.stage, routeSearch.clientId, routeSearch.jobId, routeSearch.source],
   );
   const showArchived = Boolean(routeSearch.archived);
+  // Finished placements are hidden from the default list; this view lists only them.
+  const showEnded = Boolean(routeSearch.ended) && !showArchived;
   const returningOnly = Boolean(routeSearch.returning);
   const sort: ListSort | undefined = routeSearch.sort;
   const needsAction = Boolean(routeSearch.needsAction);
@@ -298,7 +308,7 @@ export const ApplicationsPage: React.FC = () => {
   // An archived row has isArchived set, so the Archived stage has to ask for archived rows.
   const archivedRows = showArchived || stageFilter === ApplicationStatus.ARCHIVED;
   // Picking a closed stage overrides the queue's open-work-only rule, which would otherwise hide every row.
-  const openOnly = layout === "queue" && !archivedRows && !(stageFilter && CLOSED_STATUSES.includes(stageFilter));
+  const openOnly = layout === "queue" && !archivedRows && !showEnded && !(stageFilter && CLOSED_STATUSES.includes(stageFilter));
 
   // Modal states for archive
   const [archiveModalApp, setArchiveModalApp] = useState<{ id: number; name: string; isArchived: boolean } | null>(null);
@@ -316,6 +326,7 @@ export const ApplicationsPage: React.FC = () => {
       jobId: filterValues.jobId || "",
       source: filterValues.source || "",
       showArchived: archivedRows,
+      showEnded,
       returningOnly,
       sort: sort ?? "match",
       needsAction,
@@ -331,6 +342,7 @@ export const ApplicationsPage: React.FC = () => {
         clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
         source: (filterValues.source as ApplicationSourceFilter) || undefined,
         isArchived: archivedRows,
+        endedOnly: showEnded || undefined,
         returning: returningOnly || undefined,
         sort,
         needsAction: needsAction || undefined,
@@ -370,6 +382,7 @@ export const ApplicationsPage: React.FC = () => {
       jobId: filterValues.jobId || "",
       source: filterValues.source || "",
       showArchived: archivedRows,
+      showEnded,
       returningOnly,
       needsAction,
       openOnly,
@@ -381,6 +394,7 @@ export const ApplicationsPage: React.FC = () => {
         clientId: filterValues.clientId ? Number(filterValues.clientId) : undefined,
         source: (filterValues.source as ApplicationSourceFilter) || undefined,
         isArchived: archivedRows,
+        endedOnly: showEnded || undefined,
         returning: returningOnly || undefined,
         needsAction: needsAction || undefined,
         openOnly: openOnly || undefined,
@@ -478,7 +492,7 @@ export const ApplicationsPage: React.FC = () => {
 
   // Bulk actions. Selection is dropped whenever the visible list changes (filters, page, sort).
   const selection = useRowSelection(
-    JSON.stringify([page, pageSize, debouncedSearch, filterValues, showArchived, returningOnly, sort, needsAction])
+    JSON.stringify([page, pageSize, debouncedSearch, filterValues, showArchived, showEnded, returningOnly, sort, needsAction])
   );
   const selectedRows = applications.filter((app) => selection.selectedIds.has(String(app.id)));
   const [bulkAction, setBulkAction] = useState<BulkApplicationAction | null>(null);
@@ -676,6 +690,7 @@ export const ApplicationsPage: React.FC = () => {
       cell: (app) => (
         <div>
           <StatusBadge status={app.status} />
+          <AssignmentEndedNote app={app} />
           <ScreeningSkippedNote info={app.returning} />
         </div>
       ),
@@ -780,6 +795,8 @@ export const ApplicationsPage: React.FC = () => {
       title={
         showArchived
           ? "No archived applications"
+          : showEnded
+          ? "No ended assignments"
           : onlyNeedsActionActive
           ? "No applications need action"
           : hasActiveFilters
@@ -1016,10 +1033,20 @@ export const ApplicationsPage: React.FC = () => {
                 aria-pressed={showArchived}
                 onClick={() => {
                   const nextArchived = !showArchived;
-                  updateListUrl({ archived: nextArchived || undefined, page: undefined });
+                  updateListUrl({ archived: nextArchived || undefined, ended: undefined, page: undefined });
                 }}
               >
                 {showArchived ? "View active" : "View archived"}
+              </Button>
+              <Button
+                variant={showEnded ? "primary" : "outline"}
+                size="sm"
+                aria-pressed={showEnded}
+                onClick={() => {
+                  updateListUrl({ ended: !showEnded || undefined, archived: undefined, stage: undefined, page: undefined });
+                }}
+              >
+                {showEnded ? "View active" : `View ended assignments${stageCountsQuery.data?.endedCount ? ` (${stageCountsQuery.data.endedCount})` : ""}`}
               </Button>
               {hasActiveFilters && (
                 <Button variant="ghost" size="sm" onClick={resetFilters} className="ml-auto text-rose-700 hover:text-rose-900">
@@ -1065,7 +1092,7 @@ export const ApplicationsPage: React.FC = () => {
         />
       </div>
 
-      {!showArchived && (
+      {!showArchived && !showEnded && (
         <StageStrip
           ariaLabel="Application stage"
           items={stageStripItems}
@@ -1077,6 +1104,12 @@ export const ApplicationsPage: React.FC = () => {
       {showArchived && (
         <p role="status" className="border border-navy-line bg-navy-soft px-3 py-2 text-sm font-medium text-navy">
           Viewing archived applications. Restore a record to return it to the pipeline.
+        </p>
+      )}
+
+      {showEnded && (
+        <p role="status" className="border border-navy-line bg-navy-soft px-3 py-2 text-sm font-medium text-navy">
+          Viewing ended assignments. These placements are finished and kept as work history.
         </p>
       )}
 

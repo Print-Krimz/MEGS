@@ -98,6 +98,8 @@ export interface ApplicationQueryFilters {
   sort?: "match" | "newest" | "oldest" | "waiting";
   needsAction?: boolean;
   openOnly?: boolean;
+  /** Only finished placements (deployed, every assignment ended); the default list hides them. */
+  endedOnly?: boolean;
   source?: ApplicationSource;
   page?: number;
   limit?: number;
@@ -107,6 +109,8 @@ export interface ApplicationQueryFilters {
 export interface ApplicationCounts {
   total: number;
   byStatus: Partial<Record<string, number>>;
+  /** Finished placements the default list hides. */
+  endedCount?: number;
 }
 
 export interface TAJobDetail extends JobPosting {
@@ -176,6 +180,7 @@ export const taApi = {
     if (filters?.page) params.append("page", String(filters.page));
     if (filters?.limit) params.append("limit", String(filters.limit));
     if (filters?.summary) params.append("summary", "true");
+    if (filters?.endedOnly) params.append("ended", "true");
 
     const qs = params.toString();
     return api.get<PaginatedResult<Application> | Application[]>(
@@ -195,6 +200,7 @@ export const taApi = {
     if (filters.returning) params.append("returning", "true");
     if (filters.needsAction) params.append("needsAction", "true");
     if (filters.openOnly) params.append("openOnly", "true");
+    if (filters.endedOnly) params.append("ended", "true");
     if (filters.source) params.append("source", filters.source);
     const qs = params.toString();
     return api.get<ApplicationCounts>(`/api/ta/applications/counts${qs ? `?${qs}` : ""}`, options);
@@ -212,6 +218,7 @@ export const taApi = {
     if (filters.sort && filters.sort !== "match") params.append("sort", filters.sort);
     if (filters.needsAction) params.append("needsAction", "true");
     if (filters.openOnly) params.append("openOnly", "true");
+    if (filters.endedOnly) params.append("ended", "true");
     if (filters.source) params.append("source", filters.source);
     params.append("page", String(filters.page));
     params.append("limit", String(filters.limit));

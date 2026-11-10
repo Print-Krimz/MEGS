@@ -41,7 +41,15 @@ export interface ListTAApplicationsOptions {
   /** Hide closed, archived and deployed records: the review queue only lists work still in progress. */
   openOnly?: boolean;
   source?: "ONLINE" | "WALK_IN";
+  /** Only finished placements: deployed applications whose every assignment has ended. Hidden from the default list. */
+  endedOnly?: boolean;
 }
+
+/** A deployed application whose assignments have all ended: work history, not work in progress. */
+const ENDED_ASSIGNMENT_WHERE = {
+  status: "DEPLOYED",
+  deployments: { some: { status: "ENDED" }, every: { status: { in: ["ENDED", "CANCELLED"] } } },
+} as const;
 
 export type ApplicationListSort = "match" | "newest" | "oldest" | "waiting";
 
@@ -194,7 +202,7 @@ const findReturningApplicationIds = async (actor?: Actor, jobPostingId?: number)
 
 /** One construction path for the list and the stage counts, so the two always describe the same records. */
 const buildApplicationWhere = async (options: ListTAApplicationsOptions): Promise<any> => {
-  const { status, jobPostingId, clientId, search, isArchived, mineOnly, returningOnly, currentUserId, postedById, actor, needsAction, openOnly, source } = options;
+  const { status, jobPostingId, clientId, search, isArchived, mineOnly, returningOnly, currentUserId, postedById, actor, needsAction, openOnly, source, endedOnly } = options;
   const andConditions: any[] = [];
   if (actor) andConditions.push(ownedWhere.application(actor));
 
@@ -242,6 +250,12 @@ const buildApplicationWhere = async (options: ListTAApplicationsOptions): Promis
     andConditions.push({ source });
   }
 
+  if (endedOnly) {
+    andConditions.push(ENDED_ASSIGNMENT_WHERE);
+  } else if (isArchived !== true) {
+    andConditions.push({ NOT: ENDED_ASSIGNMENT_WHERE });
+  }
+
   if (isArchived !== undefined) {
     andConditions.push({ isArchived: Boolean(isArchived) });
   } else if (!status) {
@@ -286,19 +300,25 @@ const buildApplicationWhere = async (options: ListTAApplicationsOptions): Promis
 export interface ApplicationCounts {
   total: number;
   byStatus: Record<string, number>;
+  /** Finished placements the default list hides; the "View ended assignments" toggle shows this number. */
+  endedCount: number;
 }
 
 /** Stage counts for the Applications strip: every list filter except the stage itself. */
 export const countTAApplications = async (options: ListTAApplicationsOptions): Promise<ApplicationCounts> => {
   const where = await buildApplicationWhere({ ...options, status: undefined });
-  const grouped = await prisma.application.groupBy({ by: ["status"], where, _count: { _all: true } });
+  const endedWhere = await buildApplicationWhere({ ...options, status: undefined, endedOnly: true, isArchived: false });
+  const [grouped, endedCount] = await Promise.all([
+    prisma.application.groupBy({ by: ["status"], where, _count: { _all: true } }),
+    prisma.application.count({ where: endedWhere }),
+  ]);
   const byStatus: Record<string, number> = {};
   let total = 0;
   for (const row of grouped) {
     byStatus[String(row.status)] = row._count._all;
     total += row._count._all;
   }
-  return { total, byStatus };
+  return { total, byStatus, endedCount };
 };
 
 /**
@@ -382,6 +402,7 @@ export const listTAApplications = async (
         },
       },
       _count: { select: { interviews: true, recruiterDecisions: true, complianceRequirements: true } },
+      deployments: { select: { status: true }, orderBy: { createdAt: "desc" }, take: 1 },
     } as const;
     const skip = (resolvedPage - 1) * resolvedLimit;
     // id breaks createdAt ties so rows never repeat or vanish between pages.

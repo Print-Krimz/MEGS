@@ -385,6 +385,8 @@ export interface TAApplicationSearch {
   clientId?: number;
   jobId?: number;
   archived?: boolean;
+  /** Finished placements only (deployed, every assignment ended). */
+  ended?: boolean;
   returning?: boolean;
   /** How the application reached MEGS; omitted means all sources. */
   source?: ApplicationSourceFilter;
@@ -419,6 +421,7 @@ const parseTAApplicationSearch = (
     clientId: parsePositiveNumber(search.clientId),
     jobId: parsePositiveNumber(search.jobId),
     archived: parseBoolean(search.archived),
+    ended: parseBoolean(search.ended),
     returning: parseBoolean(search.returning),
     source: APPLICATION_SOURCE_FILTERS.includes(search.source as ApplicationSourceFilter)
       ? (search.source as ApplicationSourceFilter)

@@ -32,7 +32,7 @@ import {
 // GET /api/ta/applications - List and filter applications across postings
 export const listApplications = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { status, jobPostingId, jobId, clientId, search, isArchived, page, limit, mineOnly, returning, summary, sort, needsAction, openOnly, source } = req.query;
+    const { status, jobPostingId, jobId, clientId, search, isArchived, page, limit, mineOnly, returning, summary, sort, needsAction, openOnly, source, ended } = req.query;
     const sortMode = typeof sort === "string" && ["match", "newest", "oldest", "waiting"].includes(sort)
       ? (sort as "match" | "newest" | "oldest" | "waiting")
       : undefined;
@@ -52,6 +52,7 @@ export const listApplications = async (req: Request, res: Response): Promise<voi
       needsAction: needsAction === "true" || needsAction === "1",
       openOnly: openOnly === "true" || openOnly === "1",
       source: typeof source === "string" && ["ONLINE", "WALK_IN"].includes(source) ? (source as "ONLINE" | "WALK_IN") : undefined,
+      endedOnly: ended === "true" || ended === "1",
       currentUserId,
       actor: req.user,
     });
@@ -64,7 +65,7 @@ export const listApplications = async (req: Request, res: Response): Promise<voi
 // GET /api/ta/applications/counts - Stage counts for the list's non-stage filters, scoped to the caller
 export const countApplications = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { jobPostingId, jobId, clientId, search, isArchived, mineOnly, returning, needsAction, openOnly, source } = req.query;
+    const { jobPostingId, jobId, clientId, search, isArchived, mineOnly, returning, needsAction, openOnly, source, ended } = req.query;
     const counts = await countTAApplications({
       jobPostingId: (jobPostingId || jobId) as string,
       clientId: clientId ? parseInt(clientId as string, 10) : undefined,
@@ -75,6 +76,7 @@ export const countApplications = async (req: Request, res: Response): Promise<vo
       needsAction: needsAction === "true" || needsAction === "1",
       openOnly: openOnly === "true" || openOnly === "1",
       source: typeof source === "string" && ["ONLINE", "WALK_IN"].includes(source) ? (source as "ONLINE" | "WALK_IN") : undefined,
+      endedOnly: ended === "true" || ended === "1",
       currentUserId: req.user?.id,
       actor: req.user,
     });
