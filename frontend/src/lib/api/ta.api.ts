@@ -100,6 +100,8 @@ export interface ApplicationQueryFilters {
   openOnly?: boolean;
   /** Only finished placements (deployed, every assignment ended); the default list hides them. */
   endedOnly?: boolean;
+  /** Leave finished placements out (the Applications page only). */
+  hideEnded?: boolean;
   source?: ApplicationSource;
   page?: number;
   limit?: number;
@@ -181,6 +183,7 @@ export const taApi = {
     if (filters?.limit) params.append("limit", String(filters.limit));
     if (filters?.summary) params.append("summary", "true");
     if (filters?.endedOnly) params.append("ended", "true");
+    if (filters?.hideEnded) params.append("hideEnded", "true");
 
     const qs = params.toString();
     return api.get<PaginatedResult<Application> | Application[]>(
@@ -201,6 +204,7 @@ export const taApi = {
     if (filters.needsAction) params.append("needsAction", "true");
     if (filters.openOnly) params.append("openOnly", "true");
     if (filters.endedOnly) params.append("ended", "true");
+    if (filters.hideEnded) params.append("hideEnded", "true");
     if (filters.source) params.append("source", filters.source);
     const qs = params.toString();
     return api.get<ApplicationCounts>(`/api/ta/applications/counts${qs ? `?${qs}` : ""}`, options);
@@ -219,6 +223,7 @@ export const taApi = {
     if (filters.needsAction) params.append("needsAction", "true");
     if (filters.openOnly) params.append("openOnly", "true");
     if (filters.endedOnly) params.append("ended", "true");
+    if (filters.hideEnded) params.append("hideEnded", "true");
     if (filters.source) params.append("source", filters.source);
     params.append("page", String(filters.page));
     params.append("limit", String(filters.limit));

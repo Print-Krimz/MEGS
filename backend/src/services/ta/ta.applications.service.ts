@@ -43,6 +43,8 @@ export interface ListTAApplicationsOptions {
   source?: "ONLINE" | "WALK_IN";
   /** Only finished placements: deployed applications whose every assignment has ended. Hidden from the default list. */
   endedOnly?: boolean;
+  /** Leave finished placements out. Only the Applications page asks; search and other lookups still find them. */
+  hideEnded?: boolean;
 }
 
 /** A deployed application whose assignments have all ended: work history, not work in progress. */
@@ -202,7 +204,7 @@ const findReturningApplicationIds = async (actor?: Actor, jobPostingId?: number)
 
 /** One construction path for the list and the stage counts, so the two always describe the same records. */
 const buildApplicationWhere = async (options: ListTAApplicationsOptions): Promise<any> => {
-  const { status, jobPostingId, clientId, search, isArchived, mineOnly, returningOnly, currentUserId, postedById, actor, needsAction, openOnly, source, endedOnly } = options;
+  const { status, jobPostingId, clientId, search, isArchived, mineOnly, returningOnly, currentUserId, postedById, actor, needsAction, openOnly, source, endedOnly, hideEnded } = options;
   const andConditions: any[] = [];
   if (actor) andConditions.push(ownedWhere.application(actor));
 
@@ -252,7 +254,7 @@ const buildApplicationWhere = async (options: ListTAApplicationsOptions): Promis
 
   if (endedOnly) {
     andConditions.push(ENDED_ASSIGNMENT_WHERE);
-  } else if (isArchived !== true) {
+  } else if (hideEnded && isArchived !== true) {
     andConditions.push({ NOT: ENDED_ASSIGNMENT_WHERE });
   }
 
@@ -307,7 +309,7 @@ export interface ApplicationCounts {
 /** Stage counts for the Applications strip: every list filter except the stage itself. */
 export const countTAApplications = async (options: ListTAApplicationsOptions): Promise<ApplicationCounts> => {
   const where = await buildApplicationWhere({ ...options, status: undefined });
-  const endedWhere = await buildApplicationWhere({ ...options, status: undefined, endedOnly: true, isArchived: false });
+  const endedWhere = await buildApplicationWhere({ ...options, status: undefined, endedOnly: true, isArchived: false, openOnly: false, needsAction: false });
   const [grouped, endedCount] = await Promise.all([
     prisma.application.groupBy({ by: ["status"], where, _count: { _all: true } }),
     prisma.application.count({ where: endedWhere }),

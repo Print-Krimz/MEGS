@@ -56,7 +56,7 @@ describe("TA application stage counts", () => {
 
   it("hides ended assignments by default and shows only them with endedOnly", async () => {
     mocks.prisma.application.findMany.mockResolvedValue([]);
-    await listTAApplications({ actor: ta, summary: true, page: 1, limit: 10 });
+    await listTAApplications({ actor: ta, summary: true, page: 1, limit: 10, hideEnded: true });
     const normal = JSON.stringify(mocks.prisma.application.count.mock.calls[0][0].where);
     expect(normal).toContain('"NOT":{"status":"DEPLOYED"');
     await listTAApplications({ actor: ta, summary: true, page: 1, limit: 10, endedOnly: true });
