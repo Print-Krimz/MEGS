@@ -30,6 +30,7 @@ import { ResumeRail, ResumeDockTab, ResumeDrawerButton } from "../../components/
 import { PipelineIndicator } from "../../components/common/PipelineIndicator";
 import { APPLICATION_TAB_LABELS, defaultApplicationTab, normalizeApplicationTab, type ApplicationTab } from "../../components/ta/application/tabs";
 import { daysInStage, overdueInterviewCount, summarizeInterview } from "../../components/ta/application/summary";
+import { getEndedAssignment } from "../../components/ta/recruitment/EndedAssignment";
 import { useIsDesktop } from "../../components/ta/application/useIsDesktop";
 import { ScheduleInterviewDialog, type ScheduleActivity } from "../../components/ta/application/ScheduleInterviewDialog";
 import { RescheduleRequestNotice, DeclineRescheduleDialog } from "../../components/ta/application/RescheduleRequestNotice";
@@ -524,6 +525,7 @@ export const ApplicationDetailPage: React.FC = () => {
         score={fitScore}
         status={app.status}
         contractSignedOnly={contractSignedOnly}
+        ended={Boolean(getEndedAssignment(app))}
         listHref={applicationListHref}
         menuItems={menuItems}
         sourceChip={<SourceChip source={app.source} />}

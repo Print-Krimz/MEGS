@@ -139,6 +139,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
           primaryDeployment.status === "READY_FOR_DEPLOYMENT" && primaryDeployment.contractStart
             ? deploymentStartsOn(formatAppDate(primaryDeployment.contractStart))
             : null,
+          primaryDeployment.status === "ENDED" && primaryDeployment.actualEnd ? formatAppDate(primaryDeployment.actualEnd) : null,
         ]
           .filter(Boolean)
           .join(" · ")

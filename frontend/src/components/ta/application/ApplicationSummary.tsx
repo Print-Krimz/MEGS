@@ -6,6 +6,7 @@ import type { ActionMenuItem } from "../../common";
 import { formatDate, cn } from "../../../lib/utils";
 import { plural } from "../../../lib/plural";
 import { TA_COPY, TA_STATUS_TONE_CLASSES } from "../../../lib/ta-copy";
+import { EndedBadge } from "../recruitment/EndedAssignment";
 
 export interface ApplicationSummaryProps {
   candidateName: string;
@@ -24,6 +25,8 @@ export interface ApplicationSummaryProps {
   status: string;
   /** Set when the application is deployed but the worker has not started yet. The chip then says "Contract signed". */
   contractSignedOnly?: boolean;
+  /** Set when every assignment has ended: the chip says "Ended" and days in stage is dropped. */
+  ended?: boolean;
   /** The list URL with the filters the recruiter came from. */
   listHref: string;
   menuItems: ActionMenuItem[];
@@ -67,6 +70,7 @@ export const ApplicationSummary: React.FC<ApplicationSummaryProps> = ({
   score,
   status,
   contractSignedOnly,
+  ended,
   listHref,
   menuItems,
   resumeAction,
@@ -99,7 +103,9 @@ export const ApplicationSummary: React.FC<ApplicationSummaryProps> = ({
           <>
             {hasScore && <ScoreBadge score={score} size="lg" />}
             {sourceChip}
-            {contractSignedOnly ? (
+            {ended ? (
+              <EndedBadge />
+            ) : contractSignedOnly ? (
               <span className={cn("inline-flex items-center rounded border px-2 py-0.5 text-xs font-semibold", TA_STATUS_TONE_CLASSES.info)}>Contract signed</span>
             ) : (
               <StatusBadge status={status} size="md" />
@@ -125,7 +131,7 @@ export const ApplicationSummary: React.FC<ApplicationSummaryProps> = ({
             value: (
               <>
                 {formatDate(submittedAt)}
-                <span className="text-slate-600"> · {plural(daysInStage, "day")} in stage</span>
+                {!ended && <span className="text-slate-600"> · {plural(daysInStage, "day")} in stage</span>}
               </>
             ),
           },
