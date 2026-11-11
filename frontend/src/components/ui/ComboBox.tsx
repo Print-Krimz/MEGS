@@ -70,7 +70,7 @@ export interface ComboBoxProps {
 }
 
 /** Fixed row height (px) and overscan used by windowed mode; at most ~25 options are ever mounted. */
-const WINDOW_ROW_HEIGHT = 52;
+const WINDOW_ROW_HEIGHT = 56;
 const WINDOW_OVERSCAN = 8;
 const WINDOW_VIEWPORT_FALLBACK = 240;
 
@@ -664,7 +664,7 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
         <div
           ref={scrollRef}
           onScroll={useWindow ? (e) => setWindowScrollTop(e.currentTarget.scrollTop) : undefined}
-          className="absolute z-[70] w-full mt-1 bg-white border border-slate-300 shadow-xl max-h-60 overflow-y-auto font-sans animate-fade-in text-xs applicant-touch:text-sm"
+          className="absolute z-[70] w-full mt-1 bg-white border border-slate-300 shadow-xl max-h-72 overflow-y-auto font-sans animate-fade-in text-sm"
         >
           <ul
             id={listId}
@@ -702,24 +702,25 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
                   className={cn(
                     "px-3 cursor-pointer flex items-center justify-between gap-2 transition-colors select-none",
                     useWindow ? "box-border overflow-hidden" : "py-2.5 applicant-touch:py-3",
-                    isHighlighted ? "bg-navy-soft text-navy-hover" : "text-slate-800 hover:bg-slate-50",
+                    isHighlighted ? "bg-navy-soft text-navy-hover" : "text-slate-900 hover:bg-slate-50",
+                    isSelected && "border-l-4 border-navy bg-navy-soft",
                     opt.disabled && "opacity-50 cursor-not-allowed pointer-events-none"
                   )}
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className={cn("truncate font-medium", isSelected && "font-bold text-navy")}>
+                      <span className={cn("truncate text-sm font-semibold", isSelected && "font-bold text-navy")}>
                         <HighlightMatch text={opt.label} query={highlightQuery} />
                       </span>
                       {opt.badge && (
                         <span
                           className={cn(
-                            "shrink-0 text-[10px] px-1.5 py-0.2 border",
+                            "shrink-0 text-[11px] px-1.5 py-0.5 border",
                             opt.badgeTone === "teal"
                               ? "rounded font-sans font-semibold bg-teal-50 text-teal-800 border-teal-300"
                               : opt.badgeTone === "amber"
                                 ? "rounded font-sans font-semibold bg-amber-50 text-amber-800 border-amber-300"
-                                : "font-mono bg-slate-100 text-slate-600 border-slate-200"
+                                : "rounded font-sans font-semibold bg-slate-100 text-slate-700 border-slate-300"
                           )}
                         >
                           {opt.badge}
@@ -727,14 +728,14 @@ export const ComboBox: React.FC<ComboBoxProps> = ({
                       )}
                     </div>
                     {opt.subtitle && (
-                      <p className="text-[11px] text-slate-500 truncate mt-0.5 font-mono">
+                      <p className="text-xs text-slate-600 truncate mt-0.5">
                         <HighlightMatch text={opt.subtitle} query={highlightQuery} />
                       </p>
                     )}
                   </div>
 
                   {isSelected && (
-                    <Check className="w-3.5 h-3.5 text-navy shrink-0" />
+                    <Check className="w-4 h-4 text-navy shrink-0" />
                   )}
                 </li>
                 </React.Fragment>
