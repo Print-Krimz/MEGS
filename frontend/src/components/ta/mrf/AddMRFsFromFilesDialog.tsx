@@ -271,11 +271,15 @@ const RowView: React.FC<RowViewProps> = ({ row, number, client, locked, onChange
   const note = (key: DraftKey) => <FieldWarning show={Boolean(notes[key])}>{notes[key] ?? null}</FieldWarning>;
 
   return (
-    <li aria-labelledby={`${idPrefix}-title`} className="space-y-3 py-4">
+    <li aria-labelledby={`${idPrefix}-title`} className="space-y-3 rounded-md border border-slate-300 p-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <p id={`${idPrefix}-title`} className="truncate text-sm font-medium text-slate-900">
-            {number}. {row.file.name}
+          <p id={`${idPrefix}-title`} className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+            <span aria-hidden="true" className="inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-navy px-1.5 text-xs font-semibold text-white">
+              {number}
+            </span>
+            <span className="sr-only">Request {number}: </span>
+            <span className="truncate">{row.file.name}</span>
           </p>
           {waiting && (
             <p role="status" className="text-xs text-slate-600">
@@ -818,7 +822,7 @@ export const AddMRFsFromFilesDialog: React.FC<AddMRFsFromFilesDialogProps> = ({ 
           )}
 
           {rows.length > 0 && (
-            <ul className="divide-y divide-slate-200 border-y border-slate-200">
+            <ul className="space-y-3">
               {rows.map((row, index) => (
                 <RowView
                   key={row.id}
