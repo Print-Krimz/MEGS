@@ -35,7 +35,7 @@ const ACCEPTED_TYPES = [
   "image/webp",
 ];
 /** Error keys that have an input (or the address block) on the form. Other server errors show in the row message. */
-const INLINE_KEYS = ["name", "tradeName", "industry", "contactName", "contactEmail", "contactPhone", "street", "address", "postalCode", "province", "city", "barangay"];
+const INLINE_KEYS = ["name", "tradeName", "industry", "contactName", "contactEmail", "contactPhone", "street", "address", "postalCode"];
 const ACCEPTED_EXTENSIONS = /\.(pdf|docx?|jpe?g|png|webp)$/i;
 
 const FILE_TYPE_MESSAGE = "Use a PDF, Word file, or JPG, PNG or WEBP photo.";
@@ -433,6 +433,7 @@ export const AddClientsFromFilesDialog: React.FC<AddClientsFromFilesDialogProps>
     const ids = rowsRef.current
       .filter(isReady)
       .map((r) => r.id);
+    try {
     for (const id of ids) {
       const row = rowsRef.current.find((r) => r.id === id);
       if (!row) continue;
@@ -456,9 +457,11 @@ export const AddClientsFromFilesDialog: React.FC<AddClientsFromFilesDialogProps>
         }
       }
     }
+    } finally {
+      addingRef.current = false;
+      if (alive.current) setSaving(false);
+    }
     queryClient.invalidateQueries({ queryKey: ["ta", "clients"] });
-    addingRef.current = false;
-    if (alive.current) setSaving(false);
     if (saved > 0 && failed === 0) notify.success(`${plural(saved, "client")} added`);
     else if (saved > 0) notify.warning(`${saved} added, ${failed} need fixes`, "Fix the marked rows, then add again.");
     else if (failed > 0) notify.error(`${plural(failed, "client")} not added`, "Fix the marked rows, then add again.");
