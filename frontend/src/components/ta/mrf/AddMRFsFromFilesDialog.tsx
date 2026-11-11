@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { Loader2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError } from "../../../lib/api/client";
 import { taApi, type MRFFileField, type MRFFileReading } from "../../../lib/api/ta.api";
@@ -282,14 +283,16 @@ const RowView: React.FC<RowViewProps> = ({ row, number, client, locked, onChange
             <span className="truncate">{row.file.name}</span>
           </p>
           {waiting && (
-            <p role="status" className="text-xs text-slate-600">
+            <p role="status" className="flex items-center gap-1.5 text-xs text-slate-600">
+              {row.read === "reading" && <Loader2 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" />}
               {row.read === "queued" ? "Waiting to be read…" : "Reading…"}
             </p>
           )}
           {row.read === "unreadable" && !done && <p className="text-xs text-slate-600">{UNREADABLE_MESSAGE}</p>}
           {row.read === "limit" && !done && <p className="text-xs text-slate-600">{LIMIT_MESSAGE}</p>}
           {row.status === "saving" && (
-            <p role="status" className="text-xs text-slate-600">
+            <p role="status" className="flex items-center gap-1.5 text-xs text-slate-600">
+              <Loader2 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" />
               Saving…
             </p>
           )}
@@ -819,6 +822,13 @@ export const AddMRFsFromFilesDialog: React.FC<AddMRFsFromFilesDialogProps> = ({ 
                 <li key={message}>{message}</li>
               ))}
             </ul>
+          )}
+
+          {readingCount > 0 && (
+            <p role="status" className="flex items-center gap-2 text-sm text-slate-700">
+              <Loader2 aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" />
+              Reading files: {rows.length - readingCount} of {rows.length} done.
+            </p>
           )}
 
           {rows.length > 0 && (
