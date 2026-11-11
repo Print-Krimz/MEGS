@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../../lib/api/ta.api";
 import { Button, ComboBox, Dialog, Input, PhoneInput, Select } from "../../ui";
@@ -84,6 +85,7 @@ const applyRead = (row: BatchRow, read: WalkInBiodataRead | null): BatchRow => {
 const isPdf = (file: File) => file.type === "application/pdf";
 
 interface RowViewProps {
+  number: number;
   row: BatchRow;
   jobOptions: { value: string; label: string; subtitle?: string }[];
   jobsLoading: boolean;
@@ -95,7 +97,7 @@ interface RowViewProps {
   onRemove: () => void;
 }
 
-const RowView: React.FC<RowViewProps> = ({ row, jobOptions, jobsLoading, locked, onChange, onJobChange, onCheck, onRemove }) => {
+const RowView: React.FC<RowViewProps> = ({ row, number, jobOptions, jobsLoading, locked, onChange, onJobChange, onCheck, onRemove }) => {
   const done = row.result.status === "done";
   const disabled = locked || done;
   const waiting = row.read === "queued" || row.read === "reading";
@@ -104,7 +106,7 @@ const RowView: React.FC<RowViewProps> = ({ row, jobOptions, jobsLoading, locked,
   const idFor = (name: string) => `batch-${row.id}-${name}`;
 
   return (
-    <li role="group" aria-label={`Walk-in from ${row.file.name}`} className="grid gap-3 py-4 md:grid-cols-[4.5rem_minmax(0,1fr)]">
+    <li role="group" aria-label={`Walk-in from ${row.file.name}`} className="grid gap-3 rounded-md border border-slate-300 p-4 md:grid-cols-[4.5rem_minmax(0,1fr)]">
       <button
         type="button"
         aria-label={`View ${row.file.name} larger`}
@@ -117,9 +119,15 @@ const RowView: React.FC<RowViewProps> = ({ row, jobOptions, jobsLoading, locked,
       <div className="min-w-0 space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-slate-900">{row.file.name}</p>
+            <p className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+              <span aria-hidden="true" className="inline-flex h-6 min-w-6 shrink-0 items-center justify-center rounded-full bg-navy px-1.5 text-xs font-semibold text-white">
+                {number}
+              </span>
+              <span className="truncate">{row.file.name}</span>
+            </p>
             {waiting && (
-              <p role="status" className="text-xs text-slate-600">
+              <p role="status" className="flex items-center gap-1.5 text-xs text-slate-600">
+                {row.read === "reading" && <Loader2 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" />}
                 Reading…
               </p>
             )}
@@ -133,7 +141,8 @@ const RowView: React.FC<RowViewProps> = ({ row, jobOptions, jobsLoading, locked,
               </p>
             )}
             {row.result.status === "saving" && (
-              <p role="status" className="text-xs text-slate-600">
+              <p role="status" className="flex items-center gap-1.5 text-xs text-slate-600">
+                <Loader2 aria-hidden="true" className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" />
                 Saving…
               </p>
             )}
@@ -557,12 +566,20 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
             </ul>
           )}
 
+          {readingCount > 0 && (
+            <p role="status" className="flex items-center gap-2 text-sm text-slate-700">
+              <Loader2 aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" />
+              Reading files: {rows.length - readingCount} of {rows.length} done.
+            </p>
+          )}
+
           {rows.length > 0 && (
-            <ul className="divide-y divide-slate-200 border-y border-slate-200">
-              {rows.map((row) => (
+            <ul className="space-y-3">
+              {rows.map((row, index) => (
                 <RowView
                   key={row.id}
                   row={row}
+                  number={index + 1}
                   jobOptions={jobOptions}
                   jobsLoading={jobsQuery.isLoading}
                   locked={encoding}
