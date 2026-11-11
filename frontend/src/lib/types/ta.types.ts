@@ -143,7 +143,7 @@ export interface ManpowerRequest {
 export interface CreateMRFDto {
   clientId: number;
   title: string;
-  description?: string;
+  description: string;
   headcount?: number;
   location?: string;
   targetFillDate?: string;

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { lazy, Suspense, useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
@@ -20,6 +20,9 @@ import { TA_COPY } from "../../lib/ta-copy";
 import { REFERENCE_QUERY_STALE_TIME_MS, SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { plural } from "../../lib/plural";
+
+const AddMRFsFromFilesDialog = lazy(() =>
+  import("../../components/ta/mrf/AddMRFsFromFilesDialog").then((m) => ({ default: m.AddMRFsFromFilesDialog })));
 
 type MrfRow = any;
 
@@ -62,6 +65,7 @@ const FilledCell: React.FC<{ mrf: MrfRow }> = ({ mrf }) => {
 };
 
 export const MRFListPage: React.FC = () => {
+  const [filesOpen, setFilesOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [sortBy, setSortBy] = useState<string>("created_desc");
@@ -170,12 +174,17 @@ export const MRFListPage: React.FC = () => {
           { label: TA_COPY.navigation.manpowerRequests },
         ]}
         actions={
-          <Button asChild variant="primary" size="sm">
-            <Link to="/ta/mrfs/create">
-              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-              New manpower request
-            </Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setFilesOpen(true)}>
+              Add from files
+            </Button>
+            <Button asChild variant="primary" size="sm">
+              <Link to="/ta/mrfs/create">
+                <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                New manpower request
+              </Link>
+            </Button>
+          </div>
         }
       />
 
@@ -310,6 +319,7 @@ export const MRFListPage: React.FC = () => {
           }
         />
       )}
+      <Suspense fallback={null}>{filesOpen && <AddMRFsFromFilesDialog open onClose={() => setFilesOpen(false)} />}</Suspense>
     </div>
   );
 };

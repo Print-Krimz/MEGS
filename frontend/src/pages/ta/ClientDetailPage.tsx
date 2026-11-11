@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { lazy, Suspense, useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
@@ -27,6 +27,9 @@ import {
 } from "../../lib/statutory-validation";
 import { z } from "zod";
 import { FIELD_LIMITS } from "../../lib/field-limits";
+
+const AddMRFsFromFilesDialog = lazy(() =>
+  import("../../components/ta/mrf/AddMRFsFromFilesDialog").then((m) => ({ default: m.AddMRFsFromFilesDialog })));
 
 // First and last name are joined with a space; capping each part keeps the joined name within the backend limit.
 const CONTACT_NAME_PART_MAX = Math.floor((FIELD_LIMITS.name - 1) / 2);
@@ -57,6 +60,7 @@ export const ClientDetailPage: React.FC = () => {
   const { clientId } = useParams({ strict: false }) as { clientId: string };
 
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false);
   const [editName, setEditName] = useState("");
   const editNameInputRef = React.useRef<HTMLInputElement>(null);
   const [editTradeName, setEditTradeName] = useState("");
@@ -302,6 +306,9 @@ export const ClientDetailPage: React.FC = () => {
             </Button>
             <Button variant="outline" size="sm" onClick={() => setEditModalOpen(true)}>
               Edit client
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setFilesOpen(true)}>
+              Add MRFs from files
             </Button>
             <Button asChild variant="primary" size="sm">
               <Link to="/ta/mrfs/create" search={{ clientId: client.id }}>
@@ -709,6 +716,9 @@ export const ClientDetailPage: React.FC = () => {
           </div>
         </form>
       </Dialog>
+      <Suspense fallback={null}>
+        {filesOpen && <AddMRFsFromFilesDialog open clientId={client.id} onClose={() => setFilesOpen(false)} />}
+      </Suspense>
     </div>
   );
 };
