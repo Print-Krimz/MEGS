@@ -20,6 +20,8 @@ export interface DateTimePickerProps {
   workingHoursOnly?: boolean;
   /** Same format as value. Marks the schedule being replaced and opens the calendar on its month. */
   highlightDate?: string;
+  /** Same format as value. Only the day counts: those days cannot be picked. */
+  blockedDates?: string[];
 }
 
 function formatMinutes(total: number): string {
@@ -192,6 +194,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
   id: customId,
   workingHoursOnly = false,
   highlightDate,
+  blockedDates,
 }) => {
   const generatedId = useId();
   const inputId = customId || generatedId;
@@ -322,6 +325,9 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
   /** Sundays have no office hours, so they cannot be picked. */
   const isClosedDay = (date: Date) => workingHoursOnly && !hoursForWeekday(date.getDay());
 
+  const blockedKey = (blockedDates ?? []).map((d) => d.slice(0, 10)).join(",");
+  const isBlockedDay = (date: Date) => blockedKey !== "" && blockedKey.split(",").includes(formatToValueString(date).slice(0, 10));
+
   // Calendar days calculation
   const calendarDays = useMemo(() => {
     const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
@@ -343,6 +349,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
         date.getTime() < minDateMidnight.getTime() ||
         date.getTime() > maxDateEnd.getTime() ||
         isClosedDay(date) ||
+        isBlockedDay(date) ||
         (isToday && isTodayPastWorkingHours);
       const isSelected = parsedValue ? isSameDay(date, parsedValue) : false;
       const isCurrent = parsedHighlight ? isSameDay(date, parsedHighlight) : false;
@@ -362,7 +369,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
       days,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewYear, viewMonth, minDateMidnight, maxDateEnd, now, parsedValue, parsedHighlight, isTodayPastWorkingHours, workingHoursOnly]);
+  }, [viewYear, viewMonth, minDateMidnight, maxDateEnd, now, parsedValue, parsedHighlight, isTodayPastWorkingHours, workingHoursOnly, blockedKey]);
 
   // Helper to apply or update date while preserving or defaulting time
   const handleSelectDate = (date: Date) => {
@@ -424,26 +431,27 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
           today.getTime() < minDateMidnight.getTime() ||
           today.getTime() > maxDateEnd.getTime() ||
           isClosedDay(today) ||
+          isBlockedDay(today) ||
           isTodayPastWorkingHours,
       },
       {
         label: "Tomorrow",
         date: tomorrow,
-        disabled: tomorrow.getTime() < minDateMidnight.getTime() || tomorrow.getTime() > maxDateEnd.getTime() || isClosedDay(tomorrow),
+        disabled: tomorrow.getTime() < minDateMidnight.getTime() || tomorrow.getTime() > maxDateEnd.getTime() || isClosedDay(tomorrow) || isBlockedDay(tomorrow),
       },
       {
         label: "In 2 Days",
         date: inTwoDays,
-        disabled: inTwoDays.getTime() < minDateMidnight.getTime() || inTwoDays.getTime() > maxDateEnd.getTime() || isClosedDay(inTwoDays),
+        disabled: inTwoDays.getTime() < minDateMidnight.getTime() || inTwoDays.getTime() > maxDateEnd.getTime() || isClosedDay(inTwoDays) || isBlockedDay(inTwoDays),
       },
       {
         label: "Next Monday",
         date: nextMonday,
-        disabled: nextMonday.getTime() < minDateMidnight.getTime() || nextMonday.getTime() > maxDateEnd.getTime(),
+        disabled: nextMonday.getTime() < minDateMidnight.getTime() || nextMonday.getTime() > maxDateEnd.getTime() || isBlockedDay(nextMonday),
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [now, minDateMidnight, maxDateEnd, isTodayPastWorkingHours, workingHoursOnly]);
+  }, [now, minDateMidnight, maxDateEnd, isTodayPastWorkingHours, workingHoursOnly, blockedKey]);
 
   const handleShortcutClick = (date: Date) => {
     setViewYear(date.getFullYear());

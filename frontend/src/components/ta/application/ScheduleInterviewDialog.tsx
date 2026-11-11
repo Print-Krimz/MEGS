@@ -22,6 +22,8 @@ export interface ScheduleInterviewDialogProps {
   initialDate?: string;
   /** The schedule being replaced, shown on the calendar. Same format as initialDate. */
   currentDate?: string;
+  /** Days the applicant said they can't make. Same format as initialDate; only the day counts. */
+  blockedDates?: string[];
   /** Meeting place or link to start from. Contract signing falls back to the company address. */
   initialLocation?: string;
   onSubmit: (values: { type: ScheduleActivity; scheduledAt: string; location?: string }) => void;
@@ -40,6 +42,7 @@ export const ScheduleInterviewDialog: React.FC<ScheduleInterviewDialogProps> = (
   isReschedule,
   initialDate = "",
   currentDate,
+  blockedDates,
   initialLocation = "",
   onSubmit,
   isSubmitting = false,
@@ -66,6 +69,8 @@ export const ScheduleInterviewDialog: React.FC<ScheduleInterviewDialogProps> = (
     ? "Choose a date and time."
     : Date.parse(scheduledAt) <= Date.now()
     ? "Choose a time that has not passed."
+    : blockedDates?.some((d) => d.slice(0, 10) === date.slice(0, 10))
+    ? "The applicant can't make that day. Choose a different day."
     : !isWorkingHoursIso(date)
     ? OFFICE_HOURS_MESSAGE
     : isContract && !location.trim()
@@ -124,6 +129,7 @@ export const ScheduleInterviewDialog: React.FC<ScheduleInterviewDialogProps> = (
           onChange={(val) => setDate(val)}
           minDate={new Date()}
           highlightDate={isReschedule ? currentDate : undefined}
+          blockedDates={blockedDates}
           required
           workingHoursOnly
           helperText={OFFICE_HOURS_SHORT}

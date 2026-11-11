@@ -64,6 +64,8 @@ type DialogState =
       initialDate: string;
       /** The schedule being replaced, marked on the calendar. */
       currentDate?: string;
+      /** Days the applicant said they can't make, so the new time must be on another day. */
+      blockedDates?: string[];
       initialLocation: string;
       /** Set when the recruiter is answering an applicant's reschedule request. */
       requestId?: number;
@@ -320,6 +322,9 @@ export const ApplicationDetailPage: React.FC = () => {
       isReschedule: true,
       initialDate: "",
       currentDate: manilaIsoToDateTimeLocal(rescheduleCurrentTime(request)),
+      blockedDates: (app.rescheduleRequests || [])
+        .filter((r) => r.activity === request.activity && r.previousScheduledAt)
+        .map((r) => manilaIsoToDateTimeLocal(r.previousScheduledAt)),
       initialLocation:
         (request.activity === "CONTRACT_SIGNING"
           ? app.contractSigningLocation
@@ -784,6 +789,7 @@ export const ApplicationDetailPage: React.FC = () => {
         isReschedule={dlg?.kind === "schedule" ? dlg.isReschedule : false}
         initialDate={dlg?.kind === "schedule" ? dlg.initialDate : ""}
         currentDate={dlg?.kind === "schedule" ? dlg.currentDate : undefined}
+        blockedDates={dlg?.kind === "schedule" ? dlg.blockedDates : undefined}
         initialLocation={dlg?.kind === "schedule" ? dlg.initialLocation : ""}
         isSubmitting={m.scheduleInterview.isPending || m.scheduleContractSigning.isPending || m.approveReschedule.isPending}
         onSubmit={(values) => {

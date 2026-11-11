@@ -1,7 +1,7 @@
 import prisma from "../../utils/prisma.js";
 import { notifyJobOwner, sendNotification } from "../../utils/notification.js";
 import { logAudit } from "../../utils/audit.js";
-import { formatManilaDateTime } from "../../schemas/field-limits.js";
+import { formatManilaDateTime, manilaDateString } from "../../schemas/field-limits.js";
 import { JOB_OWNER_SELECT } from "../ta/ownership.js";
 
 // Reschedule requests for the three scheduled activities: Initial Screening, Final Interview and Contract Signing.
@@ -232,6 +232,16 @@ export const approveRescheduleRequest = async (
         })
       : null;
     if (!open) throw new SchedulingError("This interview is no longer scheduled, so it can't be moved.", 409);
+  }
+
+  // The applicant said they can't make these days, so the new time must fall on another day.
+  const declined = await prisma.rescheduleRequest.findMany({
+    where: { applicationId, activity },
+    select: { previousScheduledAt: true },
+  });
+  const newDay = manilaDateString(new Date(body.scheduledAt));
+  if (declined.some((r) => manilaDateString(r.previousScheduledAt) === newDay)) {
+    throw new SchedulingError("The applicant can't make that day. Choose a different day.", 400);
   }
 
   // Claim the request first so two approvals cannot both schedule. The scheduler then finds nothing pending to close.
