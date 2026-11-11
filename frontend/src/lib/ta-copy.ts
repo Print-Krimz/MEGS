@@ -176,6 +176,7 @@ export const TA_COPY = {
     dispositions: {
       wantsAnother: "Wants another assignment",
       notConfirmed: "Not confirmed yet",
+      backedOut: "Backed out",
       leaving: "Leaving the agency",
     },
     actions: {

@@ -112,7 +112,7 @@ export const employeeSchema = {
     body: z.object({
       actualEnd: dateOnly,
       reason: z.string().trim().min(1, "Reason is required").max(FIELD_LIMITS.notes),
-      disposition: z.enum(["AVAILABLE_FOR_REDEPLOYMENT", "NOT_CONFIRMED", "SEPARATED"]),
+      disposition: z.enum(["AVAILABLE_FOR_REDEPLOYMENT", "NOT_CONFIRMED", "BACKED_OUT", "SEPARATED"]),
     }).strict(),
   }),
 };

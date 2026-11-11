@@ -165,6 +165,6 @@ export const bulkConfirmDeploymentStart = (
  */
 export const bulkEndDeployments = (
   ids: number[],
-  input: { actualEnd: string; reason: string; disposition: "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "SEPARATED" },
+  input: { actualEnd: string; reason: string; disposition: "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "BACKED_OUT" | "SEPARATED" },
   actor: Actor
 ) => runBulk(ids, actor, (id) => endEmployeeDeployment(id, actor.id, input), "deployment");

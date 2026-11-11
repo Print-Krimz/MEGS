@@ -69,7 +69,7 @@ export const employeesApi = {
 
   endEmployeeDeployment: (
     deploymentId: number | string,
-    data: { actualEnd: string; disposition: "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "SEPARATED"; reason: string }
+    data: { actualEnd: string; disposition: "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "BACKED_OUT" | "SEPARATED"; reason: string }
   ) => api.post<Deployment>(`/api/employees/deployments/${deploymentId}/end`, data),
 
   updateEmployeeDetails: (

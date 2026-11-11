@@ -5,9 +5,9 @@ import { useSecurityControls } from "../../hooks/useSecurityControls";
 import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 import { TA_COPY } from "../../lib/ta-copy";
 import { formatDate } from "../../lib/utils";
-import { END_REASON_DETAILS_MAX, buildEndReason, endReasonMissing, endReasonNeedsDetails, endReasonOptions } from "../../lib/end-assignment-reasons";
+import { END_REASON_DETAILS_MAX, buildEndReason, endDispositionFor, endReasonMissing, endReasonNeedsDetails, endReasonOptions } from "../../lib/end-assignment-reasons";
 
-export type EndDisposition = "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "SEPARATED";
+export type EndDisposition = "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "BACKED_OUT" | "SEPARATED";
 
 export interface BulkEndSubmission {
   actualEnd: string;
@@ -33,6 +33,7 @@ interface BulkEndAssignmentDialogProps {
 const DISPOSITION_HELP: Record<EndDisposition, string> = {
   AVAILABLE_FOR_REDEPLOYMENT: "Everyone appears in the Redeployment queue.",
   NOT_CONFIRMED: "Everyone stays out of the Redeployment queue until you update their employee record.",
+  BACKED_OUT: "Everyone is recorded as backed out and stays out of the Redeployment queue until you update their employee record.",
   SEPARATED: "Everyone is marked as separated from the agency. This cannot be undone from here.",
 };
 
@@ -42,7 +43,9 @@ export const BulkEndAssignmentDialog: React.FC<BulkEndAssignmentDialogProps> = (
   const [actualEnd, setActualEnd] = useState(today);
   const [preset, setPreset] = useState("");
   const [details, setDetails] = useState("");
-  const [disposition, setDisposition] = useState<EndDisposition | "">("");
+  const [otherStep, setOtherStep] = useState<EndDisposition | "">("");
+  // Each reason implies the next step; only "Other" asks for one.
+  const disposition: EndDisposition | "" = endDispositionFor(preset) || otherStep;
   const [understood, setUnderstood] = useState(false);
 
   useEffect(() => {
@@ -50,7 +53,7 @@ export const BulkEndAssignmentDialog: React.FC<BulkEndAssignmentDialogProps> = (
     setActualEnd(getManilaToday());
     setPreset("");
     setDetails("");
-    setDisposition("");
+    setOtherStep("");
     setUnderstood(false);
   }, [open]);
 
@@ -67,10 +70,10 @@ export const BulkEndAssignmentDialog: React.FC<BulkEndAssignmentDialogProps> = (
     ? "Someone has not started yet."
     : !actualEnd
       ? "Enter the last working date."
-      : !disposition
-        ? "Choose what happens next."
-        : endReasonMissing(preset, details)
-          ? endReasonMissing(preset, details)
+      : endReasonMissing(preset, details)
+        ? endReasonMissing(preset, details)
+        : !disposition
+          ? "Choose what happens next."
           : separated && !understood
             ? "Confirm that leaving the agency cannot be undone."
             : "";
@@ -110,21 +113,45 @@ export const BulkEndAssignmentDialog: React.FC<BulkEndAssignmentDialogProps> = (
         )}
         <div className="space-y-1">
           <Select
-            label="Workers' next step"
-            value={disposition}
+            label="Reason for ending these assignments"
+            value={preset}
             onChange={(event) => {
-              setDisposition(event.target.value as EndDisposition | "");
+              setPreset(event.target.value);
               setUnderstood(false);
             }}
-            options={[
-              { value: "", label: "Choose what happens next" },
-              { value: "AVAILABLE_FOR_REDEPLOYMENT", label: TA_COPY.workforce.dispositions.wantsAnother },
-              { value: "NOT_CONFIRMED", label: TA_COPY.workforce.dispositions.notConfirmed },
-              { value: "SEPARATED", label: TA_COPY.workforce.dispositions.leaving },
-            ]}
+            options={endReasonOptions}
+            required
           />
           {disposition && <p className="text-xs text-slate-600">{DISPOSITION_HELP[disposition]}</p>}
         </div>
+        {endReasonNeedsDetails(preset) && (
+          <>
+            <Select
+              label="Workers' next step"
+              value={otherStep}
+              onChange={(event) => {
+                setOtherStep(event.target.value as EndDisposition | "");
+                setUnderstood(false);
+              }}
+              options={[
+                { value: "", label: "Choose what happens next" },
+                { value: "AVAILABLE_FOR_REDEPLOYMENT", label: TA_COPY.workforce.dispositions.wantsAnother },
+                { value: "NOT_CONFIRMED", label: TA_COPY.workforce.dispositions.notConfirmed },
+                { value: "BACKED_OUT", label: TA_COPY.workforce.dispositions.backedOut },
+                { value: "SEPARATED", label: TA_COPY.workforce.dispositions.leaving },
+              ]}
+            />
+            <Textarea
+              label="Details"
+              value={details}
+              onChange={(event) => setDetails(event.target.value)}
+              maxLength={END_REASON_DETAILS_MAX}
+              rows={3}
+              required
+              placeholder="Describe why these assignments are ending"
+            />
+          </>
+        )}
         {separated && (
           <label className="flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-900">
             <input
@@ -135,18 +162,6 @@ export const BulkEndAssignmentDialog: React.FC<BulkEndAssignmentDialogProps> = (
             />
             <span>I understand that marking {count === 1 ? "this worker" : `these ${count} workers`} as separated cannot be undone from here.</span>
           </label>
-        )}
-        <Select label="Reason for ending these assignments" value={preset} onChange={(event) => setPreset(event.target.value)} options={endReasonOptions} required />
-        {endReasonNeedsDetails(preset) && (
-          <Textarea
-            label="Details"
-            value={details}
-            onChange={(event) => setDetails(event.target.value)}
-            maxLength={END_REASON_DETAILS_MAX}
-            rows={3}
-            required
-            placeholder="Describe why these assignments are ending"
-          />
         )}
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 pt-3">
           {missing && <span className="text-xs text-slate-600">{missing}</span>}

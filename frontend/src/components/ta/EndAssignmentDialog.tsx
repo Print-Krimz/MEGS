@@ -9,19 +9,21 @@ import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
 import { formatDate } from "../../lib/utils";
-import { END_REASON_DETAILS_MAX, buildEndReason, endReasonMissing, endReasonNeedsDetails, endReasonOptions } from "../../lib/end-assignment-reasons";
+import { END_REASON_DETAILS_MAX, buildEndReason, endDispositionFor, endReasonMissing, endReasonNeedsDetails, endReasonOptions } from "../../lib/end-assignment-reasons";
 
-type Disposition = "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "SEPARATED";
+type Disposition = "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "BACKED_OUT" | "SEPARATED";
 
 const DISPOSITION_HELP: Record<Disposition, string> = {
   AVAILABLE_FOR_REDEPLOYMENT: "Appears in the Redeployment queue.",
   NOT_CONFIRMED: "Stays out of the Redeployment queue until you update the employee record.",
+  BACKED_OUT: "Recorded as backed out. Stays out of the Redeployment queue until you update the employee record.",
   SEPARATED: "Marked as separated from the agency.",
 };
 
 const DISPOSITION_RESULT: Record<Disposition, string> = {
   AVAILABLE_FOR_REDEPLOYMENT: "Moved to the Redeployment queue.",
   NOT_CONFIRMED: "Kept out of the Redeployment queue.",
+  BACKED_OUT: "Recorded as backed out and kept out of the Redeployment queue.",
   SEPARATED: "Marked as separated.",
 };
 
@@ -42,14 +44,16 @@ export const EndAssignmentDialog: React.FC<{
   const [actualEnd, setActualEnd] = useState(getManilaToday());
   const [preset, setPreset] = useState("");
   const [details, setDetails] = useState("");
-  const [disposition, setDisposition] = useState<Disposition | "">("");
+  const [otherStep, setOtherStep] = useState<Disposition | "">("");
+  // Each reason implies the next step; only "Other" asks for one.
+  const disposition: Disposition | "" = endDispositionFor(preset) || otherStep;
 
   useEffect(() => {
     if (!open) return;
     setActualEnd(getManilaToday());
     setPreset("");
     setDetails("");
-    setDisposition("");
+    setOtherStep("");
   }, [open]);
 
   const mutation = useMutation({
@@ -84,14 +88,18 @@ export const EndAssignmentDialog: React.FC<{
         <DateField label="Actual last working date" value={actualEnd} min={earliestEnd || undefined} max={getManilaToday()} onChange={(event) => setActualEnd(event.target.value)} required />
       )}
       <div className="space-y-1">
-        <Select label="Worker’s next step" value={disposition} onChange={(event) => setDisposition(event.target.value as Disposition | "")} options={[
-          { value: "", label: "Choose what happens next" },
-          { value: "AVAILABLE_FOR_REDEPLOYMENT", label: TA_COPY.workforce.dispositions.wantsAnother }, { value: "NOT_CONFIRMED", label: TA_COPY.workforce.dispositions.notConfirmed }, { value: "SEPARATED", label: TA_COPY.workforce.dispositions.leaving },
-        ]} />
+        <Select label="Reason for ending this assignment" value={preset} onChange={(event) => setPreset(event.target.value)} options={endReasonOptions} required />
         {disposition && <p className="text-xs text-slate-600">{DISPOSITION_HELP[disposition]}</p>}
       </div>
-      <Select label="Reason for ending this assignment" value={preset} onChange={(event) => setPreset(event.target.value)} options={endReasonOptions} required />
-      {endReasonNeedsDetails(preset) && <Textarea label="Details" value={details} onChange={(event) => setDetails(event.target.value)} maxLength={END_REASON_DETAILS_MAX} rows={3} required placeholder="Describe why this assignment is ending" />}
+      {endReasonNeedsDetails(preset) && (
+        <>
+          <Select label="Worker’s next step" value={otherStep} onChange={(event) => setOtherStep(event.target.value as Disposition | "")} options={[
+            { value: "", label: "Choose what happens next" },
+            { value: "AVAILABLE_FOR_REDEPLOYMENT", label: TA_COPY.workforce.dispositions.wantsAnother }, { value: "NOT_CONFIRMED", label: TA_COPY.workforce.dispositions.notConfirmed }, { value: "BACKED_OUT", label: TA_COPY.workforce.dispositions.backedOut }, { value: "SEPARATED", label: TA_COPY.workforce.dispositions.leaving },
+          ]} />
+          <Textarea label="Details" value={details} onChange={(event) => setDetails(event.target.value)} maxLength={END_REASON_DETAILS_MAX} rows={3} required placeholder="Describe why this assignment is ending" />
+        </>
+      )}
       <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 pt-3">
         {missing && <span className="text-xs text-slate-600">{missing}</span>}
         <Button variant="outline" onClick={onClose}>Cancel</Button>

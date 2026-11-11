@@ -359,7 +359,7 @@ export const taApi = {
     ids: number[];
     actualEnd: string;
     reason: string;
-    disposition: "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "SEPARATED";
+    disposition: "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "BACKED_OUT" | "SEPARATED";
   }) => api.post<BulkSummary>("/api/ta/bulk/deployments/end", data),
 
   getRecruiterDecisions: (id: number | string) =>

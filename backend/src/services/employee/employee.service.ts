@@ -1117,7 +1117,7 @@ export const endEmployeeDeployment = async (
   options?: {
     actualEnd?: string | Date;
     reason?: string;
-    disposition?: "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "SEPARATED";
+    disposition?: "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "BACKED_OUT" | "SEPARATED";
   }
 ) => {
   const deployment = await prisma.deployment.findUnique({
@@ -1186,7 +1186,7 @@ export const endEmployeeDeployment = async (
         ? "AVAILABLE_FOR_REDEPLOYMENT"
         : options.disposition === "SEPARATED"
           ? "SEPARATED"
-          : "INACTIVE";
+          : "INACTIVE"; // NOT_CONFIRMED and BACKED_OUT both stay out of the Redeployment queue
       await tx.employee.update({
         where: { id: deployment.employeeId },
         data: { status: employeeStatus, ...(employeeStatus === "AVAILABLE_FOR_REDEPLOYMENT" ? { redeploymentAvailableAt: actualEnd, redeploymentOwnerId: actorId } : {}) },
@@ -1200,7 +1200,9 @@ export const endEmployeeDeployment = async (
             ? "Employee marked as available for redeployment"
             : employeeStatus === "SEPARATED"
               ? "Employee separated from the agency"
-              : "Redeployment availability has not been confirmed",
+              : options.disposition === "BACKED_OUT"
+                ? "Employee backed out of the deployment"
+                : "Redeployment availability has not been confirmed",
           effectiveDate: actualEnd,
           actorId,
           metadata: { deploymentId, disposition: options.disposition },
