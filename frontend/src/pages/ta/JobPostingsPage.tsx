@@ -10,13 +10,12 @@ import {
   EmptyState,
   Pagination,
   DataTable,
-  ConfirmDialog,
   StatusBadge,
 } from "../../components/common";
 import type { DataTableColumn } from "../../components/common";
-import { Button, Dialog, Input, Textarea, ComboBox } from "../../components/ui";
+import { Button, Dialog, Input, ComboBox } from "../../components/ui";
 import { FieldWarning } from "../../components/ta/FieldWarning";
-import { LOCATION_HINT, LOCATION_UNCLEAR_WARNING, locationLooksUnclear, useKnownPlaceName } from "../../lib/requirement-hints";
+import { LOCATION_UNCLEAR_WARNING, locationLooksUnclear, useKnownPlaceName } from "../../lib/requirement-hints";
 import { formatDate, cn } from "../../lib/utils";
 import { JobStatus } from "../../lib/types/enums";
 import { Plus } from "lucide-react";
@@ -35,15 +34,6 @@ import {
   REFERENCE_QUERY_STALE_TIME_MS,
   SERVER_SEARCH_DEBOUNCE_MS,
 } from "../../lib/query-policies";
-
-const JOB_TEMPLATE_REQUIREMENTS = `### Qualifications
-- Relevant vocational diploma, technical certification, or bachelor's degree
-- 2+ years of relevant practical experience in a similar operational capacity
-- Strong track record of reliability, attention to detail, and safety adherence
-- Effective communication and problem-solving skills
-
-### Preferred Skills
-- Safety compliance, operational reporting, equipment handling, quality inspection`;
 
 const EMPTY_LIST: any[] = [];
 
@@ -65,7 +55,6 @@ export const JobPostingsPage: React.FC = () => {
   const [pageSize, setPageSize] = useState(10);
   const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [templateConfirmOpen, setTemplateConfirmOpen] = useState(false);
 
   const [selectedMrfId, setSelectedMrfId] = useState<number | null>(null);
   const [formTitle, setFormTitle] = useState("");
@@ -293,20 +282,6 @@ export const JobPostingsPage: React.FC = () => {
       isEvergreen: formIsEvergreen,
       status,
     });
-  };
-
-  const applyTemplate = () => {
-    setFormRequirements(JOB_TEMPLATE_REQUIREMENTS);
-    clearServerFieldError("requirements");
-    notify.info("Template loaded", "Qualifications outline inserted into the requirements.");
-  };
-
-  const handleLoadTemplate = () => {
-    if (formRequirements.trim()) {
-      setTemplateConfirmOpen(true);
-      return;
-    }
-    applyTemplate();
   };
 
   const totalItems = jobData?.total ?? 0;
@@ -547,12 +522,6 @@ export const JobPostingsPage: React.FC = () => {
           }}
           className="space-y-4"
         >
-          <div className="flex flex-wrap items-center justify-end gap-2 border-b border-slate-200 pb-3 mb-4">
-            <Button type="button" variant="outline" size="sm" onClick={handleLoadTemplate}>
-              Load template
-            </Button>
-          </div>
-
           <div className="space-y-4">
               <ComboBox
                 label="Manpower request"
@@ -568,78 +537,50 @@ export const JobPostingsPage: React.FC = () => {
                   label: `${m.title} (Request #${m.id})`,
                   subtitle: `Client: ${m.client?.name || "Client"} • ${m.location || "Nationwide"} • ${plural(m.headcount, "position")}`,
                   badge: formatStatusWord(m.status),
+                  badgeTone: "teal" as const,
                 }))}
                 helperText="The opening is posted under this request. Choosing one fills the title, work site, skills, and the job description."
                 required
                 emptyText="No open manpower requests found"
               />
 
-              <Input
+              <RequestPreview
                 label="Job opening title"
-                placeholder="e.g. Senior Electrician / Line Specialist"
                 value={formTitle}
                 error={serverFieldErrors.title}
-                onChange={(e) => {
-                  setFormTitle(e.target.value);
-                  clearServerFieldError("title");
-                }}
-                required
+                emptyText="Choose a manpower request to show its title."
               />
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Input
-                    label="Work site"
-                    placeholder="e.g. Batangas City, Batangas"
-                    helperText={LOCATION_HINT}
-                    value={formLocation}
-                    error={serverFieldErrors.location}
-                    onChange={(e) => {
-                      setFormLocation(e.target.value);
-                      clearServerFieldError("location");
-                    }}
-                  />
-                  <FieldWarning show={locationLooksUnclear(formLocation, isKnownPlaceName)}>{LOCATION_UNCLEAR_WARNING}</FieldWarning>
-                </div>
-                <Input
-                  label="Image web address (optional)"
-                  placeholder="https://example.com/company-banner.jpg"
-                  value={formImageUrl}
-                  error={serverFieldErrors.imageUrl}
-                  onChange={(e) => {
-                    setFormImageUrl(e.target.value);
-                    clearServerFieldError("imageUrl");
-                  }}
+              <div className="space-y-1">
+                <RequestPreview
+                  label="Work site"
+                  value={formLocation}
+                  error={serverFieldErrors.location}
+                  emptyText="Choose a manpower request to show its work site."
                 />
+                <FieldWarning show={locationLooksUnclear(formLocation, isKnownPlaceName)}>{LOCATION_UNCLEAR_WARNING}</FieldWarning>
               </div>
-
-              <div className="space-y-1.5">
-                <div className="text-sm font-medium text-slate-800">Description and responsibilities</div>
-                <div
-                  className={`max-h-48 overflow-y-auto whitespace-pre-line rounded-md border bg-slate-50 px-3 py-2 text-sm leading-relaxed ${
-                    serverFieldErrors.description ? "border-rose-400 text-rose-800" : "border-slate-200 text-slate-800"
-                  }`}
-                >
-                  {formDescription.trim() ||
-                    (selectedMrfId
-                      ? "This request has no job description yet."
-                      : "Choose a manpower request to show its job description.")}
-                </div>
-                <p className={`text-xs ${serverFieldErrors.description ? "text-rose-700" : "text-slate-600"}`}>
-                  {serverFieldErrors.description || "Copied from the manpower request. Edit it on the request."}
-                </p>
-              </div>
-              <Textarea
+              <RequestPreview
+                label="Description and responsibilities"
+                value={formDescription}
+                error={serverFieldErrors.description}
+                emptyText={selectedMrfId ? "This request has no job description yet." : "Choose a manpower request to show its job description."}
+              />
+              <RequestPreview
                 label="Required skills and qualifications"
-                placeholder="e.g. TESDA NC II, 2+ years experience..."
                 value={formRequirements}
                 error={serverFieldErrors.requirements}
+                emptyText={selectedMrfId ? "This request has no requirements yet." : "Choose a manpower request to show its requirements."}
+              />
+              <p className="text-xs text-slate-600">Copied from the manpower request. Edit these on the request.</p>
+              <Input
+                label="Image web address (optional)"
+                placeholder="https://example.com/company-banner.jpg"
+                value={formImageUrl}
+                error={serverFieldErrors.imageUrl}
                 onChange={(e) => {
-                  setFormRequirements(e.target.value);
-                  clearServerFieldError("requirements");
+                  setFormImageUrl(e.target.value);
+                  clearServerFieldError("imageUrl");
                 }}
-                rows={4}
-                maxLength={10000}
-                required
               />
 
               <div className="pt-2 border-t border-slate-100">
@@ -680,23 +621,25 @@ export const JobPostingsPage: React.FC = () => {
         </form>
       </Dialog>
 
-      <ConfirmDialog
-        open={templateConfirmOpen}
-        onClose={() => setTemplateConfirmOpen(false)}
-        onConfirm={() => {
-          setTemplateConfirmOpen(false);
-          applyTemplate();
-        }}
-        title="Replace your text with the template?"
-        description="The description and requirements you typed will be replaced by the standard job posting outline."
-        confirmLabel="Replace with template"
-        variant="warning"
-      />
-
       {discardDialog}
     </div>
   );
 };
+
+/** Read-only copy of a field that comes from the manpower request. */
+const RequestPreview: React.FC<{ label: string; value: string; emptyText: string; error?: string }> = ({ label, value, emptyText, error }) => (
+  <div className="space-y-1.5">
+    <div className="text-sm font-medium text-slate-800">{label}</div>
+    <div
+      className={`max-h-48 overflow-y-auto whitespace-pre-line rounded-md border bg-slate-50 px-3 py-2 text-sm leading-relaxed ${
+        error ? "border-rose-400 text-rose-800" : "border-slate-200 text-slate-800"
+      }`}
+    >
+      {value.trim() || <span className="text-slate-600">{emptyText}</span>}
+    </div>
+    {error && <p className="text-xs text-rose-700">{error}</p>}
+  </div>
+);
 
 function formatStatusWord(status?: string | null): string | undefined {
   if (!status) return undefined;
