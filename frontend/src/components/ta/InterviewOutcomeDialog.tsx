@@ -142,7 +142,7 @@ export const InterviewOutcomeDialog: React.FC<InterviewOutcomeDialogProps> = ({
           <Button variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button variant="primary" size="sm" loading={isSubmitting} disabled={!result} onClick={handleSave}>
+          <Button variant="primary" size="sm" loading={isSubmitting} disabled={!result || !notes.trim()} onClick={handleSave}>
             {TA_COPY.interviews.saveOutcome}
           </Button>
         </div>

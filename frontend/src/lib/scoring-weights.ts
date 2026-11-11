@@ -34,7 +34,7 @@ export function normalizeScoringWeights(input: Partial<ScoringWeights>): Scoring
 // Change one metric only; the others stay as they are.
 export function setScoringWeight(weights: ScoringWeights, dimension: ScoringDimension, value: number): ScoringWeights {
   if (!Number.isFinite(value)) return weights;
-  return { ...weights, [dimension]: Math.round(Math.max(0, Math.min(100, value))) };
+  return { ...weights, [dimension]: Math.round(Math.max(0, Math.min(maxFor(weights, dimension), value))) };
 }
 
 const totalWeight = (weights: ScoringWeights) => dimensions.reduce((sum, key) => sum + weights[key], 0);

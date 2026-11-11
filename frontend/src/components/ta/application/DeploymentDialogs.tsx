@@ -146,7 +146,7 @@ export const ActivateDeploymentDialog: React.FC<ActivateDeploymentDialogProps> =
           <Button
             variant="primary"
             size="sm"
-            disabled={!targetClientId || !start || datesInvalid || isSubmitting}
+            disabled={!targetClientId || !start || datesInvalid || !notes.trim() || isSubmitting}
             loading={isSubmitting}
             onClick={() => {
               if (!targetClientId) {

@@ -98,7 +98,7 @@ export const DeclineRescheduleDialog: React.FC<DeclineRescheduleDialogProps> = (
           <Button variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>
             Cancel
           </Button>
-          <Button variant="danger" size="sm" loading={isSubmitting} onClick={() => {
+          <Button variant="danger" size="sm" loading={isSubmitting} disabled={!note.trim()} onClick={() => {
               if (!note.trim()) {
                 setShowError(true);
                 return;

@@ -9,6 +9,7 @@ import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
 import { formatDate } from "../../lib/utils";
+import { END_REASON_DETAILS_MAX, buildEndReason, endReasonMissing, endReasonNeedsDetails, endReasonOptions } from "../../lib/end-assignment-reasons";
 
 type Disposition = "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "SEPARATED";
 
@@ -39,20 +40,22 @@ export const EndAssignmentDialog: React.FC<{
   const startsLater = Boolean(earliestEnd) && earliestEnd > getManilaToday();
   const cache = useQueryClient();
   const [actualEnd, setActualEnd] = useState(getManilaToday());
-  const [reason, setReason] = useState("");
+  const [preset, setPreset] = useState("");
+  const [details, setDetails] = useState("");
   const [disposition, setDisposition] = useState<Disposition | "">("");
 
   useEffect(() => {
     if (!open) return;
     setActualEnd(getManilaToday());
-    setReason("");
+    setPreset("");
+    setDetails("");
     setDisposition("");
   }, [open]);
 
   const mutation = useMutation({
     mutationFn: () => {
       if (!disposition) throw new Error("Choose what happens next.");
-      return employeesApi.endEmployeeDeployment(deploymentId, { actualEnd, reason: reason.trim(), disposition });
+      return employeesApi.endEmployeeDeployment(deploymentId, { actualEnd, reason: buildEndReason(preset, details), disposition });
     },
     onSuccess: () => {
       void cache.invalidateQueries({ queryKey: ["ta"] });
@@ -69,7 +72,7 @@ export const EndAssignmentDialog: React.FC<{
     onError: (error) => notify.error("Unable to end assignment", error),
   });
 
-  const missing = startsLater ? "This assignment has not started yet." : !actualEnd ? "Enter the last working date." : !reason.trim() ? "Add a reason." : !disposition ? "Choose what happens next." : "";
+  const missing = startsLater ? "This assignment has not started yet." : !actualEnd ? "Enter the last working date." : endReasonMissing(preset, details) || (!disposition ? "Choose what happens next." : "");
 
   return <Dialog open={open} onClose={onClose} title="End assignment" description={`Record the last working date and next step for ${employeeName}.`}>
     <div className="space-y-4">
@@ -87,7 +90,8 @@ export const EndAssignmentDialog: React.FC<{
         ]} />
         {disposition && <p className="text-xs text-slate-600">{DISPOSITION_HELP[disposition]}</p>}
       </div>
-      <Textarea label="Reason for ending this assignment" value={reason} onChange={(event) => setReason(event.target.value)} rows={3} required placeholder="For example: client assignment ended or worker requested a transfer" />
+      <Select label="Reason for ending this assignment" value={preset} onChange={(event) => setPreset(event.target.value)} options={endReasonOptions} required />
+      <Textarea label={endReasonNeedsDetails(preset) ? "Details" : "Details (optional)"} value={details} onChange={(event) => setDetails(event.target.value)} maxLength={END_REASON_DETAILS_MAX} rows={3} required={endReasonNeedsDetails(preset)} placeholder="Add anything the next person should know" />
       <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 pt-3">
         {missing && <span className="text-xs text-slate-600">{missing}</span>}
         <Button variant="outline" onClick={onClose}>Cancel</Button>

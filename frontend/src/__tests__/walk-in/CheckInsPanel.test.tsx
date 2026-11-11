@@ -106,18 +106,20 @@ describe("CheckInsPanel: dismiss", () => {
     expect(await screen.findByText("Dismiss check-in A-001")).toBeInTheDocument();
   };
 
-  it("asks for a reason and does not dismiss without one", async () => {
+  it("keeps Dismiss disabled and does not dismiss without a reason", async () => {
     await openDismiss();
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss check-in" }));
-    expect(await screen.findByText("Enter a reason.")).toBeInTheDocument();
+    const dismiss = screen.getByRole("button", { name: "Dismiss check-in" });
+    expect(dismiss).toBeDisabled();
+    fireEvent.click(dismiss);
     expect(dismissCheckIn).not.toHaveBeenCalled();
   });
 
-  it("refuses a reason that is only spaces", async () => {
+  it("keeps Dismiss disabled for a reason that is only spaces", async () => {
     await openDismiss();
     fireEvent.change(screen.getByLabelText(/Reason/), { target: { value: "    " } });
-    fireEvent.click(screen.getByRole("button", { name: "Dismiss check-in" }));
-    expect(await screen.findByText("Enter a reason.")).toBeInTheDocument();
+    const dismiss = screen.getByRole("button", { name: "Dismiss check-in" });
+    expect(dismiss).toBeDisabled();
+    fireEvent.click(dismiss);
     expect(dismissCheckIn).not.toHaveBeenCalled();
   });
 

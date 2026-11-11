@@ -127,7 +127,7 @@ export const SendToClientDialog: React.FC<SendToClientDialogProps> = ({
           <Button
             variant="primary"
             size="sm"
-            disabled={!targetClientId || !outcome}
+            disabled={!targetClientId || !outcome || !notes.trim()}
             loading={isSubmitting}
             onClick={() => {
               if (!targetClientId || !outcome) return;
@@ -234,7 +234,7 @@ export const ClientDecisionDialog: React.FC<ClientDecisionDialogProps> = ({
             variant={outcome === "DECLINED" ? "danger" : "primary"}
             size="sm"
             loading={isSubmitting}
-            disabled={!outcome}
+            disabled={!outcome || !notes.trim()}
             onClick={() => {
               if (!outcome) return;
               if (!notes.trim()) {

@@ -2,9 +2,10 @@ import React, { useEffect, useState } from "react";
 import { Button, Dialog, Select, Textarea } from "../ui";
 import { DateField } from "../common/DateField";
 import { useSecurityControls } from "../../hooks/useSecurityControls";
-import { FIELD_LIMITS, getManilaToday, toManilaDateInput } from "../../lib/field-limits";
+import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 import { TA_COPY } from "../../lib/ta-copy";
 import { formatDate } from "../../lib/utils";
+import { END_REASON_DETAILS_MAX, buildEndReason, endReasonMissing, endReasonNeedsDetails, endReasonOptions } from "../../lib/end-assignment-reasons";
 
 export type EndDisposition = "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "SEPARATED";
 
@@ -39,14 +40,16 @@ const DISPOSITION_HELP: Record<EndDisposition, string> = {
 export const BulkEndAssignmentDialog: React.FC<BulkEndAssignmentDialogProps> = ({ open, workers, loading, onClose, onSubmit }) => {
   const today = getManilaToday();
   const [actualEnd, setActualEnd] = useState(today);
-  const [reason, setReason] = useState("");
+  const [preset, setPreset] = useState("");
+  const [details, setDetails] = useState("");
   const [disposition, setDisposition] = useState<EndDisposition | "">("");
   const [understood, setUnderstood] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setActualEnd(getManilaToday());
-    setReason("");
+    setPreset("");
+    setDetails("");
     setDisposition("");
     setUnderstood(false);
   }, [open]);
@@ -66,8 +69,8 @@ export const BulkEndAssignmentDialog: React.FC<BulkEndAssignmentDialogProps> = (
       ? "Enter the last working date."
       : !disposition
         ? "Choose what happens next."
-        : !reason.trim()
-          ? "Add a reason."
+        : endReasonMissing(preset, details)
+          ? endReasonMissing(preset, details)
           : separated && !understood
             ? "Confirm that leaving the agency cannot be undone."
             : "";
@@ -133,14 +136,15 @@ export const BulkEndAssignmentDialog: React.FC<BulkEndAssignmentDialogProps> = (
             <span>I understand that marking {count === 1 ? "this worker" : `these ${count} workers`} as separated cannot be undone from here.</span>
           </label>
         )}
+        <Select label="Reason for ending these assignments" value={preset} onChange={(event) => setPreset(event.target.value)} options={endReasonOptions} required />
         <Textarea
-          label="Reason for ending these assignments"
-          value={reason}
-          onChange={(event) => setReason(event.target.value)}
-          maxLength={FIELD_LIMITS.notes}
+          label={endReasonNeedsDetails(preset) ? "Details" : "Details (optional)"}
+          value={details}
+          onChange={(event) => setDetails(event.target.value)}
+          maxLength={END_REASON_DETAILS_MAX}
           rows={3}
-          required
-          placeholder="For example: client project finished"
+          required={endReasonNeedsDetails(preset)}
+          placeholder="Add anything the next person should know"
         />
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 pt-3">
           {missing && <span className="text-xs text-slate-600">{missing}</span>}
@@ -152,7 +156,7 @@ export const BulkEndAssignmentDialog: React.FC<BulkEndAssignmentDialogProps> = (
             size="sm"
             loading={loading}
             disabled={Boolean(missing)}
-            onClick={() => disposition && onSubmit({ actualEnd, reason: reason.trim(), disposition })}
+            onClick={() => disposition && onSubmit({ actualEnd, reason: buildEndReason(preset, details), disposition })}
           >
             {`End ${count} ${count === 1 ? "assignment" : "assignments"}`}
           </Button>

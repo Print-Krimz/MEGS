@@ -71,6 +71,7 @@ export const BulkInterviewDialog: React.FC<BulkInterviewDialogProps> = ({
             variant={noShow ? "danger" : "primary"}
             size="sm"
             loading={loading}
+            disabled={!notes.trim()}
             onClick={() => {
               if (!notes.trim()) {
                 setShowError(true);

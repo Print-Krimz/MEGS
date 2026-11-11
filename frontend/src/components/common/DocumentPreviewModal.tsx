@@ -323,6 +323,7 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
                     variant="danger"
                     size="sm"
                     loading={isActionLoading}
+                    disabled={!rejectNotes.trim()}
                     onClick={handleRejectSubmit}
                   >
                     Confirm Document Rejection

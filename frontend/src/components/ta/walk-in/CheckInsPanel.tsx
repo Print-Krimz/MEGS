@@ -242,7 +242,7 @@ export const CheckInsPanel: React.FC<CheckInsPanelProps> = ({ onConfirmed }) => 
             <Button type="button" variant="outline" onClick={closeDismiss} disabled={dismissMutation.isPending}>
               Cancel
             </Button>
-            <Button type="submit" variant="danger" loading={dismissMutation.isPending}>
+            <Button type="submit" variant="danger" loading={dismissMutation.isPending} disabled={!reason.trim()}>
               Dismiss check-in
             </Button>
           </div>
