@@ -47,6 +47,7 @@ type InterviewRow = {
   applicationId: number;
   candidateName: string;
   jobTitle: string;
+  clientName?: string | null;
   currentStage: string;
   scheduledAt: string;
   deadline: string;
@@ -82,6 +83,7 @@ export const InterviewsPage: React.FC = () => {
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState("");
   const [positionFilter, setPositionFilter] = useState("");
+  const [clientFilter, setClientFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   // The server orders by deadline. That puts Overdue first, then Due soon, then On track.
   const [sortField, setSortField] = useState<SortField>("deadline");
@@ -94,7 +96,7 @@ export const InterviewsPage: React.FC = () => {
 
   const agenda = view === "agenda";
   const slaQuery = useQuery({
-    queryKey: ["ta", "compliance", "interviews", "page", { page, pageSize, search: debouncedSearch, status: statusFilter, stage: stageFilter, position: positionFilter, sortField, sortDirection }],
+    queryKey: ["ta", "compliance", "interviews", "page", { page, pageSize, search: debouncedSearch, status: statusFilter, stage: stageFilter, position: positionFilter, client: clientFilter, sortField, sortDirection }],
     queryFn: ({ signal }) =>
       taApi.listInterviewCompliancePage({
         page,
@@ -103,6 +105,7 @@ export const InterviewsPage: React.FC = () => {
         status: statusFilter === "ALL" ? undefined : statusFilter,
         stage: stageFilter || undefined,
         position: positionFilter || undefined,
+        client: clientFilter || undefined,
         sortField: agenda ? "deadline" : sortField,
         sortDirection: agenda ? "asc" : sortDirection,
       }, { signal }),
@@ -152,7 +155,7 @@ export const InterviewsPage: React.FC = () => {
 
   // Bulk outcomes. Selection is dropped whenever the visible list changes (filters, page, sort, view).
   const selection = useRowSelection(
-    JSON.stringify([view, page, pageSize, debouncedSearch, statusFilter, stageFilter, positionFilter, sortField, sortDirection])
+    JSON.stringify([view, page, pageSize, debouncedSearch, statusFilter, stageFilter, positionFilter, clientFilter, sortField, sortDirection])
   );
   // Rows are keyed by application id. Only rows with an open interview can be selected.
   const recordable = paginatedItems.filter((row) => row.interviewId != null);
@@ -189,6 +192,7 @@ export const InterviewsPage: React.FC = () => {
     onError: (err: any) => notify.error("Unable to record the outcomes", err),
   });
 
+  const clientOptions = (slaData?.clients ?? []).map((name) => ({ value: name, label: name }));
   const positionOptions = (slaData?.positions ?? []).map((title) => ({ value: title, label: title }));
 
   // A refresh can leave the current page past the end (for example after outcomes are recorded).
@@ -206,6 +210,8 @@ export const InterviewsPage: React.FC = () => {
       setStageFilter(value);
     } else if (key === "position") {
       setPositionFilter(value);
+    } else if (key === "client") {
+      setClientFilter(value);
     }
     setPage(1);
   };
@@ -214,6 +220,7 @@ export const InterviewsPage: React.FC = () => {
     setSearch("");
     setStageFilter("");
     setPositionFilter("");
+    setClientFilter("");
     setStatusFilter("ALL");
     setPage(1);
   };
@@ -262,7 +269,7 @@ export const InterviewsPage: React.FC = () => {
                   <EmptyState
                     bare
                     title="No matching interviews"
-                    description="Change the search, interview type, or job opening filter."
+                    description="Change the search, client, interview type, or job opening filter."
                     action={
                       <Button variant="outline" size="sm" onClick={handleReset}>
                         Reset filters
@@ -360,6 +367,7 @@ export const InterviewsPage: React.FC = () => {
         searchValue={search}
         onSearchChange={handleSearchChange}
         filterValues={{
+          client: clientFilter,
           stage: stageFilter,
           position: positionFilter,
           ...(statusFilter !== "ALL" ? { status: statusFilter } : {}),
@@ -367,6 +375,13 @@ export const InterviewsPage: React.FC = () => {
         onFilterChange={handleFilterChange}
         onReset={handleReset}
         filters={[
+          {
+            key: "client",
+            label: "Client",
+            placeholder: "All clients",
+            searchable: true,
+            options: clientOptions,
+          },
           {
             key: "stage",
             label: "Interview type",
@@ -489,7 +504,7 @@ export const InterviewsPage: React.FC = () => {
                 <EmptyState
                   bare
                   title="No matching interviews"
-                  description="Change the search, interview type, or job opening filter."
+                  description="Change the search, client, interview type, or job opening filter."
                   action={
                     <Button variant="outline" size="sm" onClick={handleReset}>
                       Reset filters

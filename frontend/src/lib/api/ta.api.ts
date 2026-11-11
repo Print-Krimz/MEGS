@@ -668,6 +668,7 @@ export const taApi = {
     status?: string;
     stage?: string;
     position?: string;
+    client?: string;
     sortField?: string;
     sortDirection?: string;
     /** Only interviews with a scheduled time; `from`/`to` are inclusive Manila dates (YYYY-MM-DD). */
@@ -684,6 +685,7 @@ export const taApi = {
     if (filters.from) params.append("from", filters.from);
     if (filters.to) params.append("to", filters.to);
     if (filters.position) params.append("position", filters.position);
+    if (filters.client) params.append("client", filters.client);
     if (filters.sortField) params.append("sortField", filters.sortField);
     if (filters.sortDirection) params.append("sortDirection", filters.sortDirection);
     params.append("page", String(filters.page));

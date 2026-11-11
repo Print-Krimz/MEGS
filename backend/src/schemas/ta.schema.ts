@@ -208,6 +208,7 @@ export const taSchema = {
       status: z.enum(["HEALTHY", "WARNING", "BREACHED"]).optional(),
       stage: z.enum(["INITIAL_SCREENING", "FINAL_INTERVIEW"]).optional(),
       position: boundedText(FIELD_LIMITS.search).optional(),
+      client: boundedText(FIELD_LIMITS.search).optional(),
       sortField: z.enum(["candidate", "position", "scheduledAt", "deadline"]).optional(),
       sortDirection: z.enum(["asc", "desc"]).optional(),
       scheduledOnly: z.enum(["true", "false"]).optional(),

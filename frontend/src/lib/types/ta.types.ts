@@ -442,6 +442,7 @@ export interface InterviewSLAItem {
   applicationId: number;
   candidateName: string;
   jobTitle: string;
+  clientName?: string | null;
   scheduledAt: string;
   deadline: string;
   status: "HEALTHY" | "WARNING" | "BREACHED";
@@ -462,4 +463,5 @@ export interface InterviewSLASummary {
 export interface InterviewSLAPage extends PaginatedListResponse<InterviewSLAItem> {
   summary: InterviewSLASummary["summary"];
   positions: string[];
+  clients?: string[];
 }

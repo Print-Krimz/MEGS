@@ -630,6 +630,7 @@ export interface InterviewComplianceOptions extends PageRequest {
   status?: "HEALTHY" | "WARNING" | "BREACHED";
   stage?: "INITIAL_SCREENING" | "FINAL_INTERVIEW";
   position?: string;
+  client?: string;
   sortField?: "candidate" | "position" | "scheduledAt" | "deadline";
   sortDirection?: "asc" | "desc";
   /** Only applications whose open interview for the current stage has a scheduled time. */
@@ -664,7 +665,7 @@ export const getInterviewComplianceReport = async (actor?: Actor, options: Inter
       id: true,
       status: true,
       updatedAt: true,
-      jobPosting: { select: { title: true } },
+      jobPosting: { select: { title: true, mrf: { select: { client: { select: { name: true } } } } } },
       user: { select: { applicantProfile: { select: { firstName: true, lastName: true } } } },
       // The open interview for the current stage. A row only records an outcome against a real interview.
       interviews: {
@@ -705,6 +706,7 @@ export const getInterviewComplianceReport = async (actor?: Actor, options: Inter
       candidateName,
       job: app.jobPosting.title,
       jobTitle: app.jobPosting.title,
+      clientName: app.jobPosting.mrf?.client?.name ?? null,
       currentStage: app.status,
       enteredStageAt: app.updatedAt,
       scheduledAt: (openInterview?.scheduledAt ?? app.updatedAt).toISOString(),
@@ -735,6 +737,7 @@ export const getInterviewComplianceReport = async (actor?: Actor, options: Inter
       (!options.status || row.slaStatus === options.status) &&
       (!options.stage || row.currentStage === options.stage) &&
       (!options.position || row.jobTitle === options.position) &&
+      (!options.client || row.clientName === options.client) &&
       (!query || row.candidateName.toLowerCase().includes(query) || row.jobTitle.toLowerCase().includes(query))
     )
     .sort((a, b) => {
@@ -746,7 +749,8 @@ export const getInterviewComplianceReport = async (actor?: Actor, options: Inter
       return comparison * direction || a.applicationId - b.applicationId;
     });
   const positions = [...new Set(complianceReport.map((row) => row.jobTitle).filter((title) => title.trim()))].sort((a, b) => a.localeCompare(b));
-  return { ...paginateArray(matches, options), summary, positions };
+  const clients = [...new Set(complianceReport.map((row) => row.clientName).filter((name): name is string => Boolean(name?.trim())))].sort((a, b) => a.localeCompare(b));
+  return { ...paginateArray(matches, options), summary, positions, clients };
 };
 
 // Aliases for consistency with plan & controller terminology

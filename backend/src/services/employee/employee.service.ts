@@ -7,6 +7,7 @@ import { validateStructuredAddress } from "../../utils/address-validation.js";
 import { EmploymentStatus, EmploymentEventType, DeploymentStatus, type Prisma } from "@prisma/client";
 import { resolveDocumentSignedUrl, resolveDocumentSignedUrls } from "../document/document.service.js";
 import { logAudit } from "../../utils/audit.js";
+import { sendNotification } from "../../utils/notification.js";
 import { getSecurityControls } from "../../security/security-controls.js";
 import { isPageRequested, pageEnvelope, resolvePage, type PageRequest } from "../../utils/pagination.js";
 import {
@@ -1197,6 +1198,18 @@ export const endEmployeeDeployment = async (
 
   if (deployment.mrfId) {
     await syncMRFFulfillmentStatus(deployment.mrfId, actorId);
+  }
+
+  // The applicant's progress page refreshes live from this notification.
+  const applicationId = deployment.applicationId ?? deployment.employee.originatingApplicationId;
+  if (deployment.employee.userId) {
+    void sendNotification(
+      deployment.employee.userId,
+      "Deployment Update",
+      `Your assignment with ${deployment.client.name} has ended.`,
+      "INFO",
+      applicationId ? `/app/applications/${applicationId}` : "/app/profile"
+    );
   }
 
   return updatedDeployment;
