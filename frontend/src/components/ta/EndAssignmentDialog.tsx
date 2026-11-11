@@ -91,7 +91,7 @@ export const EndAssignmentDialog: React.FC<{
         {disposition && <p className="text-xs text-slate-600">{DISPOSITION_HELP[disposition]}</p>}
       </div>
       <Select label="Reason for ending this assignment" value={preset} onChange={(event) => setPreset(event.target.value)} options={endReasonOptions} required />
-      <Textarea label={endReasonNeedsDetails(preset) ? "Details" : "Details (optional)"} value={details} onChange={(event) => setDetails(event.target.value)} maxLength={END_REASON_DETAILS_MAX} rows={3} required={endReasonNeedsDetails(preset)} placeholder="Add anything the next person should know" />
+      {endReasonNeedsDetails(preset) && <Textarea label="Details" value={details} onChange={(event) => setDetails(event.target.value)} maxLength={END_REASON_DETAILS_MAX} rows={3} required placeholder="Describe why this assignment is ending" />}
       <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 pt-3">
         {missing && <span className="text-xs text-slate-600">{missing}</span>}
         <Button variant="outline" onClick={onClose}>Cancel</Button>

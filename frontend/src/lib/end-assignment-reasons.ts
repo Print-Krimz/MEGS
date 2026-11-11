@@ -21,11 +21,9 @@ export const endReasonOptions = [
 /** Details are required only for "Other". */
 export const endReasonNeedsDetails = (preset: string) => preset === OTHER_END_REASON;
 
-/** The single reason string the backend stores: the preset, plus details when given. */
+/** The single reason string the backend stores: the preset, or the typed details for "Other". */
 export function buildEndReason(preset: string, details: string): string {
-  const text = details.trim();
-  if (preset === OTHER_END_REASON) return text;
-  return text ? `${preset}: ${text}` : preset;
+  return preset === OTHER_END_REASON ? details.trim() : preset;
 }
 
 /** Message for the disabled submit button, or "" when the reason is complete. */
