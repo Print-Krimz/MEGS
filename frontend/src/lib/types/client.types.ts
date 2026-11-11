@@ -54,3 +54,28 @@ export interface CreateClientDto {
 export interface UpdateClientDto extends Partial<CreateClientDto> {
   isActive?: boolean;
 }
+
+export type ClientReadFieldKey =
+  | "name"
+  | "tradeName"
+  | "industry"
+  | "contactFirstName"
+  | "contactLastName"
+  | "contactEmail"
+  | "contactPhone"
+  | "street"
+  | "barangay"
+  | "city"
+  | "province"
+  | "postalCode";
+
+/** What the AI read from one client document. Nothing is saved by the read. */
+export interface ClientFileReading {
+  status: "SUCCESS" | "UNREADABLE";
+  fields: Partial<Record<ClientReadFieldKey, string>>;
+  issues: Partial<Record<ClientReadFieldKey, "missing" | "invalid" | "uncertain">>;
+}
+
+export interface ClientDuplicateMatch {
+  match: { id: number; name: string; yours: boolean } | null;
+}

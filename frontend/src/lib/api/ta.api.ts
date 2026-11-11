@@ -49,7 +49,13 @@ import type {
   UpdateCandidateProfileDto,
 } from "../types/ta.types";
 import type { ApplicantProfile } from "../types/applicant.types";
-import type { Client, CreateClientDto, UpdateClientDto } from "../types/client.types";
+import type {
+  Client,
+  ClientDuplicateMatch,
+  ClientFileReading,
+  CreateClientDto,
+  UpdateClientDto,
+} from "../types/client.types";
 import type { Deployment } from "../types/employee.types";
 import type { ApplicationStatus } from "../types/enums";
 import type { PaginatedListResponse } from "../types/api.types";
@@ -522,6 +528,20 @@ export const taApi = {
 
   createClient: (data: CreateClientDto) =>
     api.post<Client>("/api/ta/clients", data),
+
+  /** Reads a client document (PDF, Word or photo) and returns what it says. Saves nothing. */
+  readClientFile: (file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    return api.upload<ClientFileReading>("/api/ta/clients/read", body);
+  },
+
+  checkClientDuplicate: (params: { name?: string; tradeName?: string }, options?: RequestInit) => {
+    const qs = new URLSearchParams();
+    if (params.name) qs.append("name", params.name);
+    if (params.tradeName) qs.append("tradeName", params.tradeName);
+    return api.get<ClientDuplicateMatch>(`/api/ta/clients/check-duplicate?${qs.toString()}`, options);
+  },
 
   getClientDetails: (id: number | string) =>
     api.get<Client>(`/api/ta/clients/${id}`),

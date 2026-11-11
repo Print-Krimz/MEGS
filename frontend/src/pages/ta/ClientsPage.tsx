@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { lazy, Suspense, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
@@ -13,35 +13,27 @@ import {
   DataTable,
 } from "../../components/common";
 import type { DataTableColumn } from "../../components/common";
-import { Button, Dialog, Input, PhoneInput } from "../../components/ui";
-import { ComboBox } from "../../components/ui/ComboBox";
+import { Button, Dialog } from "../../components/ui";
 import { plural } from "../../lib/plural";
-import { PhilippineAddressFields } from "../../components/common/PhilippineAddressFields";
-import { PHILIPPINE_INDUSTRY_SECTORS } from "../../lib/industry-data";
-import { Plus } from "lucide-react";
+import {
+  ClientFields,
+  CLIENT_INLINE_FIELDS,
+  emptyClientDraft,
+  errorKeysFor,
+  toCreateClientDto,
+  validateClientDraft,
+  withoutErrors,
+  type ClientDraft,
+} from "../../components/ta/client/ClientFields";
+import { FileUp, Plus } from "lucide-react";
 import { notify, fieldErrorsFrom } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
 import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
-import {
-  validatePersonName,
-  validateStandardText,
-  validatePhilippineContactPhone,
-} from "../../lib/statutory-validation";
-import { z } from "zod";
-import { FIELD_LIMITS } from "../../lib/field-limits";
 
 const EMPTY_LIST: any[] = [];
 type ClientRow = any;
-// First and last name are joined with a space; capping each part keeps the joined name within the backend limit.
-const CONTACT_NAME_PART_MAX = Math.floor((FIELD_LIMITS.name - 1) / 2);
-const CONTACT_EMAIL_MESSAGE = "Enter a valid email address.";
-const contactEmailSchema = z.string().trim().email(CONTACT_EMAIL_MESSAGE).max(FIELD_LIMITS.email, CONTACT_EMAIL_MESSAGE);
-const contactNameLengthError = (first: string, last: string) =>
-  [first.trim(), last.trim()].filter(Boolean).join(" ").length > FIELD_LIMITS.name
-    ? `Contact name cannot exceed ${FIELD_LIMITS.name} characters.`
-    : undefined;
-// Backend fields that have an inline input on this form. Any other field's message goes in the toast.
-const CLIENT_INLINE_FIELDS = ["name", "tradeName", "industry", "contactName", "contactEmail", "contactPhone", "street"];
+const AddClientsFromFilesDialog = lazy(() =>
+  import("../../components/ta/client/AddClientsFromFilesDialog").then((m) => ({ default: m.AddClientsFromFilesDialog })));
 
 export const ClientsPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -52,28 +44,10 @@ export const ClientsPage: React.FC = () => {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const [name, setName] = useState("");
-  const [tradeName, setTradeName] = useState("");
-  const [industry, setIndustry] = useState("");
-  const [contactFirstName, setContactFirstName] = useState("");
-  const [contactLastName, setContactLastName] = useState("");
-  const [contactEmail, setContactEmail] = useState("");
-  const [emailError, setEmailError] = useState<string | null>(null);
-  const [contactPhone, setContactPhone] = useState("");
-  const [street, setStreet] = useState("");
-  const [province, setProvince] = useState("");
-  const [city, setCity] = useState("");
-  const [barangay, setBarangay] = useState("");
-  const [postalCode, setPostalCode] = useState("");
+  const [filesOpen, setFilesOpen] = useState(false);
+  const [draft, setDraft] = useState<ClientDraft>(emptyClientDraft);
   const nameInputRef = React.useRef<HTMLInputElement>(null);
-  const [serverFieldErrors, setServerFieldErrors] = useState<Record<string, string>>({});
-  const clearServerFieldError = (field: string) =>
-    setServerFieldErrors((prev) => {
-      if (!(field in prev)) return prev;
-      const next = { ...prev };
-      delete next[field];
-      return next;
-    });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const clientsQuery = useQuery({
     queryKey: ["ta", "clients"],
@@ -86,27 +60,15 @@ export const ClientsPage: React.FC = () => {
     onSuccess: (newClient) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "clients"] });
       setCreateModalOpen(false);
-      setName("");
-      setTradeName("");
-      setIndustry("");
-      setContactFirstName("");
-      setContactLastName("");
-      setContactEmail("");
-      setEmailError(null);
-      setServerFieldErrors({});
-      setContactPhone("");
-      setStreet("");
-      setProvince("");
-      setCity("");
-      setBarangay("");
-      setPostalCode("");
-      notify.success("Client added", `Client '${newClient?.name || name}' was registered.`);
+      setDraft(emptyClientDraft);
+      setErrors({});
+      notify.success("Client added", `Client '${newClient?.name || draft.name}' was registered.`);
     },
     onError: (err: any) => {
       const fieldErrors = fieldErrorsFrom(err);
       const entries = Object.entries(fieldErrors);
       if (entries.length > 0) {
-        setServerFieldErrors(fieldErrors);
+        setErrors(fieldErrors);
         const toastEntry = entries.find(([field]) => !CLIENT_INLINE_FIELDS.includes(field)) ?? entries[0];
         notify.error("Check the highlighted fields", toastEntry[1]);
         return;
@@ -237,14 +199,19 @@ export const ClientsPage: React.FC = () => {
           { label: TA_COPY.navigation.clients },
         ]}
         actions={
-          <Button
-            variant="primary"
-            size="sm"
-            leftIcon={<Plus className="w-3.5 h-3.5" />}
-            onClick={() => setCreateModalOpen(true)}
-          >
-            Add client
-          </Button>
+          <>
+            <Button variant="outline" size="sm" leftIcon={<FileUp className="w-3.5 h-3.5" />} onClick={() => setFilesOpen(true)}>
+              Add from files
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              leftIcon={<Plus className="w-3.5 h-3.5" />}
+              onClick={() => setCreateModalOpen(true)}
+            >
+              Add client
+            </Button>
+          </>
         }
       />
 
@@ -348,8 +315,7 @@ export const ClientsPage: React.FC = () => {
         open={createModalOpen}
         onClose={() => {
           setCreateModalOpen(false);
-          setEmailError(null);
-          setServerFieldErrors({});
+          setErrors({});
         }}
         title="Add client"
         description="Register the company and its main contact details."
@@ -359,211 +325,28 @@ export const ClientsPage: React.FC = () => {
           noValidate
           onSubmit={(e) => {
             e.preventDefault();
-            if (!name.trim()) {
-              setServerFieldErrors((prev) => ({ ...prev, name: "Enter the company name." }));
-              notify.error("Check the highlighted fields", "Enter the company name.");
-              nameInputRef.current?.focus();
+            const found = validateClientDraft(draft);
+            const first = Object.entries(found)[0];
+            if (first) {
+              setErrors(found);
+              if (found.name) nameInputRef.current?.focus();
+              if (first[0] !== "contactEmail") notify.error("Check the highlighted fields", first[1]);
               return;
             }
-
-            const nameErr = validateStandardText(name, "Legal company name", { maxLength: 200 });
-            if (nameErr) {
-              notify.error("Check the highlighted fields", nameErr);
-              return;
-            }
-
-            if (tradeName.trim()) {
-              const tradeErr = validateStandardText(tradeName, "Brand name", { maxLength: 200 });
-              if (tradeErr) {
-                notify.error("Check the highlighted fields", tradeErr);
-                return;
-              }
-            }
-
-            if (contactFirstName.trim()) {
-              const fnErr = validatePersonName(contactFirstName, "Contact first name");
-              if (fnErr) {
-                notify.error("Check the highlighted fields", fnErr);
-                return;
-              }
-            }
-
-            if (contactLastName.trim()) {
-              const lnErr = validatePersonName(contactLastName, "Contact last name");
-              if (lnErr) {
-                notify.error("Check the highlighted fields", lnErr);
-                return;
-              }
-            }
-
-            const contactNameErr = contactNameLengthError(contactFirstName, contactLastName);
-            if (contactNameErr) {
-              notify.error("Check the highlighted fields", contactNameErr);
-              return;
-            }
-
-            if (contactPhone.trim()) {
-              const phoneErr = validatePhilippineContactPhone(contactPhone, { label: "Contact phone" });
-              if (phoneErr) {
-                notify.error("Check the highlighted fields", phoneErr);
-                return;
-              }
-            }
-
-            if (contactEmail.trim() && !contactEmailSchema.safeParse(contactEmail).success) {
-              setEmailError(CONTACT_EMAIL_MESSAGE);
-              return;
-            }
-            const hasAddress = [street, province, city, barangay, postalCode].some((value) => value.trim());
-            if (hasAddress && (!province.trim() || !city.trim() || !barangay.trim() || !postalCode.trim())) {
-              notify.error("Check the highlighted fields", "Enter the province, city, barangay, and postal code.");
-              return;
-            }
-            if (postalCode.trim() && !/^\d{4}$/.test(postalCode.trim())) {
-              notify.error("Check the highlighted fields", "Postal code must be exactly 4 digits.");
-              return;
-            }
-            const combinedName = [contactFirstName.trim(), contactLastName.trim()].filter(Boolean).join(" ");
-            createClientMutation.mutate({
-              name: name.trim(),
-              tradeName: tradeName.trim() || undefined,
-              industry: industry.trim() || undefined,
-              contactName: combinedName || undefined,
-              contactEmail: contactEmail.trim() || undefined,
-              contactPhone: contactPhone.trim() || undefined,
-              street: street.trim() || undefined,
-              barangay: barangay.trim() || undefined,
-              province: province.trim() || undefined,
-              city: city.trim() || undefined,
-              postalCode: postalCode.trim() || undefined,
-            });
+            createClientMutation.mutate(toCreateClientDto(draft));
           }}
           className="space-y-5"
         >
-          <div className="grid grid-cols-1 gap-x-8 gap-y-5 lg:grid-cols-2">
-          <section aria-labelledby="add-client-company" className="space-y-4">
-          <h3 id="add-client-company" className="text-sm font-semibold text-slate-900">Company</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
-              ref={nameInputRef}
-              label="Legal company name"
-              placeholder="e.g. Acme Industrial Services Corp."
-              value={name}
-              error={serverFieldErrors.name}
-              onChange={(e) => {
-                setName(e.target.value);
-                clearServerFieldError("name");
-              }}
-              required
-            />
-            <Input
-              label="Brand name (optional)"
-              placeholder="e.g. Acme Logistics"
-              value={tradeName}
-              error={serverFieldErrors.tradeName}
-              onChange={(e) => {
-                setTradeName(e.target.value);
-                clearServerFieldError("tradeName");
-              }}
-            />
-          </div>
-
-          <ComboBox
-            label="Industry"
-            placeholder="Select or enter industry sector..."
-            value={industry}
-            error={serverFieldErrors.industry}
-            onChange={(val) => {
-              setIndustry(val);
-              clearServerFieldError("industry");
+          <ClientFields
+            idPrefix="add-client"
+            value={draft}
+            errors={errors}
+            nameRef={nameInputRef}
+            onChange={(patch) => {
+              setDraft((prev) => ({ ...prev, ...patch }));
+              setErrors((prev) => withoutErrors(prev, errorKeysFor(patch)));
             }}
-            options={PHILIPPINE_INDUSTRY_SECTORS.map((s) => ({ value: s, label: s }))}
-            allowCustom
           />
-
-          <h3 className="pt-1 text-sm font-semibold text-slate-900">Main contact</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
-              label="Contact first name"
-              maxLength={CONTACT_NAME_PART_MAX}
-              nameInput
-              placeholder="e.g. Roberto"
-              value={contactFirstName}
-              error={serverFieldErrors.contactName}
-              onChange={(e) => {
-                setContactFirstName(e.target.value);
-                clearServerFieldError("contactName");
-              }}
-            />
-            <Input
-              label="Contact last name"
-              maxLength={CONTACT_NAME_PART_MAX}
-              nameInput
-              placeholder="e.g. Tan"
-              error={contactNameLengthError(contactFirstName, contactLastName)}
-              value={contactLastName}
-              onChange={(e) => {
-                setContactLastName(e.target.value);
-                clearServerFieldError("contactName");
-              }}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <PhoneInput
-              label="Contact phone"
-              placeholder="0917 123 4567"
-              value={contactPhone}
-              error={serverFieldErrors.contactPhone}
-              onChange={(val) => {
-                setContactPhone(val);
-                clearServerFieldError("contactPhone");
-              }}
-            />
-            <Input
-              label="Contact email"
-              type="email"
-              placeholder="e.g. hr@acmecorp.com"
-              value={contactEmail}
-              error={serverFieldErrors.contactEmail || emailError || undefined}
-              onChange={(e) => {
-                setContactEmail(e.target.value);
-                clearServerFieldError("contactEmail");
-                if (emailError) setEmailError(null);
-              }}
-            />
-          </div>
-
-          </section>
-
-          <section aria-labelledby="add-client-address" className="space-y-4 border-t border-slate-100 pt-5 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
-            <h3 id="add-client-address" className="text-sm font-semibold text-slate-900">
-              Facility address
-            </h3>
-            <Input
-              label="Street or building address"
-              placeholder="e.g. Bldg 4, Light Industry & Science Park II"
-              value={street}
-              error={serverFieldErrors.street}
-              onChange={(e) => {
-                setStreet(e.target.value);
-                clearServerFieldError("street");
-              }}
-            />
-            <PhilippineAddressFields
-              province={province}
-              city={city}
-              barangay={barangay}
-              postalCode={postalCode}
-              onChange={(patch) => {
-                if (patch.province !== undefined) setProvince(patch.province);
-                if (patch.city !== undefined) setCity(patch.city);
-                if (patch.barangay !== undefined) setBarangay(patch.barangay);
-                if (patch.postalCode !== undefined) setPostalCode(patch.postalCode);
-              }}
-            />
-          </section>
-          </div>
 
           <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
             <Button variant="outline" onClick={() => setCreateModalOpen(false)}>
@@ -575,6 +358,8 @@ export const ClientsPage: React.FC = () => {
           </div>
         </form>
       </Dialog>
+
+      <Suspense fallback={null}>{filesOpen && <AddClientsFromFilesDialog open onClose={() => setFilesOpen(false)} />}</Suspense>
     </div>
   );
 };
