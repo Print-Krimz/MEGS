@@ -76,6 +76,19 @@ export interface Digital201Aggregate {
   employmentHistory: any[];
 }
 
+// One row per client document. Rows arrive newest first; an approved copy beats a newer
+// pending one so a fresh re-application never hides a document that is already verified.
+const dedupeCompliance = <T extends { documentLabel: string; clientName: string | null; jobTitle: string; reviewStatus: string }>(rows: T[]): T[] => {
+  const byKey = new Map<string, T>();
+  for (const row of rows) {
+    // Direct-hire jobs have no client, so they stay separate by job title instead of merging.
+    const key = `${row.clientName ?? `job:${row.jobTitle}`}|${row.documentLabel.trim().toLowerCase()}`;
+    const kept = byKey.get(key);
+    if (!kept || (kept.reviewStatus !== "APPROVED" && row.reviewStatus === "APPROVED")) byKey.set(key, row);
+  }
+  return [...byKey.values()];
+};
+
 /**
  * Aggregates complete Digital 201 personnel record for an Employee by employeeId.
  */
@@ -239,12 +252,15 @@ export const getDigital201ByEmployeeId = async (employeeId: number): Promise<Dig
     },
     skills: profile?.skills?.map((s: any) => s.skill?.name || s.name || "").filter(Boolean) ?? [],
     originatingApplication: employee.originatingApplication ?? null,
-    compliance: employee.user.applications.flatMap((application) =>
-      application.complianceRequirements.map((requirement) => ({
-        ...requirement,
-        jobTitle: application.jobPosting.title,
-        clientName: application.jobPosting.mrf?.client?.name ?? null,
-      }))
+    // Re-applications and redeployments repeat the same client documents; list each once.
+    compliance: dedupeCompliance(
+      employee.user.applications.flatMap((application) =>
+        application.complianceRequirements.map((requirement) => ({
+          ...requirement,
+          jobTitle: application.jobPosting.title,
+          clientName: application.jobPosting.mrf?.client?.name ?? null,
+        }))
+      )
     ),
     deployments: employee.deployments ?? [],
     employmentHistory: employee.employmentEvents ?? [],
