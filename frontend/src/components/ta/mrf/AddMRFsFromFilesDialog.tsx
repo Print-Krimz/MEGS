@@ -764,8 +764,11 @@ export const AddMRFsFromFilesDialog: React.FC<AddMRFsFromFilesDialogProps> = ({ 
 
           <div
             onDragOver={(e) => {
-              if (pickerOff) return;
               e.preventDefault();
+              if (pickerOff) {
+                e.dataTransfer.dropEffect = "none";
+                return;
+              }
               setDragging(true);
             }}
             onDragLeave={() => setDragging(false)}

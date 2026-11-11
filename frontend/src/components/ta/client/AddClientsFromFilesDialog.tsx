@@ -496,8 +496,11 @@ export const AddClientsFromFilesDialog: React.FC<AddClientsFromFilesDialogProps>
         <div className="space-y-4">
           <div
             onDragOver={(e) => {
-              if (full || saving) return;
               e.preventDefault();
+              if (full || saving) {
+                e.dataTransfer.dropEffect = "none";
+                return;
+              }
               setDragging(true);
             }}
             onDragLeave={() => setDragging(false)}
