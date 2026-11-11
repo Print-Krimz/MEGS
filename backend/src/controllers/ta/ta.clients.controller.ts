@@ -5,8 +5,13 @@ import {
   createClient,
   getClientDetails,
   updateClient,
+  findDuplicateClient,
+  DuplicateClientError,
 } from "../../services/ta/ta.clients.service.js";
 import { readClientDocument } from "../../services/ta/client-read.service.js";
+
+const sendDuplicate = (res: Response, error: DuplicateClientError) =>
+  sendError(res, error.message, 409, { errors: [{ field: error.field, message: error.message }] });
 
 export const listClientsHandler = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -29,6 +34,7 @@ export const createClientHandler = async (req: Request, res: Response): Promise<
     const client = await createClient(req.body, req.user);
     sendSuccess(res, "Client created successfully", client, 201);
   } catch (error: any) {
+    if (error instanceof DuplicateClientError) return void sendDuplicate(res, error);
     sendError(res, error.message, 400);
   }
 };
@@ -57,9 +63,10 @@ export const updateClientHandler = async (req: Request, res: Response): Promise<
       return;
     }
 
-    const updated = await updateClient(id, req.body);
+    const updated = await updateClient(id, req.body, req.user);
     sendSuccess(res, "Client updated successfully", updated);
   } catch (error: any) {
+    if (error instanceof DuplicateClientError) return void sendDuplicate(res, error);
     const status = error.message.includes("not found") ? 404 : 400;
     sendError(res, error.message, status);
   }
@@ -75,6 +82,16 @@ export const readClientFile = async (req: Request, res: Response): Promise<void>
     sendSuccess(res, "Client document read", await readClientDocument(req.file));
   } catch (error: any) {
     // Only an unsupported or oversized file reaches here; a reading failure returns UNREADABLE instead.
+    sendError(res, error.message, 400, error);
+  }
+};
+
+// GET /api/ta/clients/check-duplicate?name=&tradeName= (checks every client, not only the caller's)
+export const checkClientDuplicateHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { name, tradeName } = req.query as Record<string, string | undefined>;
+    sendSuccess(res, "Duplicate check complete", { match: await findDuplicateClient({ name, tradeName }, req.user) });
+  } catch (error: any) {
     sendError(res, error.message, 400, error);
   }
 };

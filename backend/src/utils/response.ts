@@ -28,7 +28,8 @@ export const sendError = (
 ) => {
   const status = Number.isInteger(statusCode) && statusCode >= 400 && statusCode <= 599 ? statusCode : 500;
   const reference = status >= 500 ? loggedReference ?? safeLogError(`API response ${status}`, error || message) : undefined;
-  const validation = message === "Validation failed" && status === 400 && error && typeof error === "object" && "errors" in error && Array.isArray(error.errors)
+  // A 409 may also carry field errors (a duplicate name), so the form can mark the field.
+  const validation = ((message === "Validation failed" && status === 400) || status === 409) && error && typeof error === "object" && "errors" in error && Array.isArray(error.errors)
     ? error.errors.slice(0, 50).map((issue: any) => ({
       field: String(issue.field || "").replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 120),
       message: redactSensitiveText(String(issue.message || "Invalid value")).slice(0, 300),

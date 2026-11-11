@@ -159,6 +159,12 @@ export const taSchema = {
       hideEnded: z.enum(["true", "false", "1", "0"]).optional(),
     }).strict(),
   }),
+  checkClientDuplicate: z.object({
+    query: z.object({
+      name: boundedText(FIELD_LIMITS.shortText).optional(),
+      tradeName: boundedText(FIELD_LIMITS.shortText).optional(),
+    }).strict().refine((query) => Boolean(query.name || query.tradeName), { message: "Enter a company name.", path: ["name"] }),
+  }),
   walkInCheckDuplicate: z.object({
     query: z.object({
       phone: boundedText(30).optional(),

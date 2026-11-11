@@ -88,6 +88,7 @@ import {
   getClientDetailsHandler,
   updateClientHandler,
   readClientFile,
+  checkClientDuplicateHandler,
 } from '../../controllers/ta/ta.clients.controller.js';
 
 import {
@@ -171,6 +172,7 @@ router.get("/clients", validate(taSchema.listClients), listClientsHandler);
 router.post("/clients", validate(taSchema.createClient), createClientHandler);
 // Reads an uploaded client document into suggested form values. Saves nothing.
 router.post("/clients/read", upload.single("file"), readClientFile);
+router.get("/clients/check-duplicate", validate(taSchema.checkClientDuplicate), checkClientDuplicateHandler);
 router.get("/clients/:id", validate(taSchema.idParams), requireOwned("client"), getClientDetailsHandler);
 router.patch("/clients/:id", validate(taSchema.updateClient), requireOwned("client"), updateClientHandler);
 
