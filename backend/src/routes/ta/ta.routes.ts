@@ -87,6 +87,7 @@ import {
   createClientHandler,
   getClientDetailsHandler,
   updateClientHandler,
+  readClientFile,
 } from '../../controllers/ta/ta.clients.controller.js';
 
 import {
@@ -161,13 +162,15 @@ router.use(requireRole("TALENT_ACQUISITION"));
 router.use(validateDateRangeQuery);
 router.use("/analytics", ...analyticsLimiters);
 router.use("/reports", ...reportLimiters);
-router.use(["/talent-pool/search", "/candidates/:candidateId/similar", "/jobs/:jobId/talent-pool", "/jobs/:jobId/rank-candidates", "/candidates/:id/parse-resume", "/walk-ins/read-biodata", "/mrfs/read", "/applications/:id/analyze"], ...aiLimiters);
+router.use(["/talent-pool/search", "/candidates/:candidateId/similar", "/jobs/:jobId/talent-pool", "/jobs/:jobId/rank-candidates", "/candidates/:id/parse-resume", "/walk-ins/read-biodata", "/mrfs/read", "/clients/read", "/applications/:id/analyze"], ...aiLimiters);
 
 router.get("/dashboard-counts", getTADashboardCountsHandler);
 
 // Client & MRF Management
 router.get("/clients", validate(taSchema.listClients), listClientsHandler);
 router.post("/clients", validate(taSchema.createClient), createClientHandler);
+// Reads an uploaded client document into suggested form values. Saves nothing.
+router.post("/clients/read", upload.single("file"), readClientFile);
 router.get("/clients/:id", validate(taSchema.idParams), requireOwned("client"), getClientDetailsHandler);
 router.patch("/clients/:id", validate(taSchema.updateClient), requireOwned("client"), updateClientHandler);
 

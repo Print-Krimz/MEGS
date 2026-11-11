@@ -6,6 +6,7 @@ import {
   getClientDetails,
   updateClient,
 } from "../../services/ta/ta.clients.service.js";
+import { readClientDocument } from "../../services/ta/client-read.service.js";
 
 export const listClientsHandler = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -61,5 +62,19 @@ export const updateClientHandler = async (req: Request, res: Response): Promise<
   } catch (error: any) {
     const status = error.message.includes("not found") ? 404 : 400;
     sendError(res, error.message, status);
+  }
+};
+
+// POST /api/ta/clients/read (multipart, file field "file"). Reads the document with AI; saves nothing.
+export const readClientFile = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.file) {
+      sendError(res, "Attach the client document (PDF, Word file or photo)", 400);
+      return;
+    }
+    sendSuccess(res, "Client document read", await readClientDocument(req.file));
+  } catch (error: any) {
+    // Only an unsupported or oversized file reaches here; a reading failure returns UNREADABLE instead.
+    sendError(res, error.message, 400, error);
   }
 };

@@ -2,7 +2,7 @@
 // Writes nothing and keeps no file: it returns the values it could read and a note for every field the TA should check.
 import { z } from "zod";
 import { validateDocumentBytes } from "../../security/file-validation.js";
-import { extractDocumentText, isUsableResumeText } from "../../security/document-parser.js";
+import { readDocumentWith } from "./document-read.js";
 import {
   classifyExtractionError,
   extractMRFDataFromBuffer,
@@ -189,37 +189,11 @@ export const mapMRFReading = (raw: Record<string, unknown>, now = new Date()): M
 
 const UNREADABLE: MRFReadResult = { status: "UNREADABLE", fields: {}, issues: {} };
 
-const readRaw = async (buffer: Buffer, mimeType: string): Promise<Record<string, unknown>> => {
-  // Word files have no vision path: Gemini rejects their MIME types as inline data.
-  if (mimeType.startsWith("application/") && mimeType !== "application/pdf") {
-    const text = await extractDocumentText(buffer, mimeType);
-    if (!text.trim()) throw new Error("Document text is empty or unreadable");
-    return extractMRFDataFromText(text);
-  }
-  if (mimeType === "application/pdf") {
-    let text = "";
-    try {
-      text = await extractDocumentText(buffer, mimeType);
-    } catch {
-      console.warn("[MRF Read] PDF text extraction failed; trying the document directly.");
-    }
-    if (isUsableResumeText(text)) {
-      try {
-        return await extractMRFDataFromText(text);
-      } catch (error: any) {
-        if (error?.retryable || error?.message === "AI processing timed out") throw error;
-        console.warn(`[MRF Read] Text reading failed (${classifyExtractionError(error)}); trying the document directly.`);
-      }
-    }
-  }
-  return extractMRFDataFromBuffer(buffer, mimeType);
-};
-
 /** Throws only when the file itself is not a supported document. Any reading failure returns UNREADABLE. */
 export const readMRFDocument = async (file: Express.Multer.File): Promise<MRFReadResult> => {
   const validated = validateDocumentBytes(file.buffer, file.mimetype);
   try {
-    return mapMRFReading(await readRaw(file.buffer, validated.mimeType));
+    return mapMRFReading(await readDocumentWith(file.buffer, validated.mimeType, { fromText: extractMRFDataFromText, fromBuffer: extractMRFDataFromBuffer }, "MRF Read"));
   } catch (error: any) {
     console.warn(`[MRF Read] Could not read the file (${classifyExtractionError(error)}).`);
     return UNREADABLE;
