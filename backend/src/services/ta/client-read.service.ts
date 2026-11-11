@@ -65,6 +65,15 @@ export const mapClientReading = (raw: Record<string, unknown>): ClientReadResult
     if (typeof score === "number" && score < UNCERTAIN_BELOW) issues[key] = "uncertain";
   }
 
+  // The client form accepts Philippine mobile numbers only (09XXXXXXXXX, +63 9XX, 9XX), so a landline would block the row.
+  if (fields.contactPhone !== undefined) {
+    const digits = fields.contactPhone.replace(/\D/g, "");
+    if (!/^(09\d{9}|639\d{9}|9\d{9})$/.test(digits)) {
+      delete fields.contactPhone;
+      issues.contactPhone = "invalid";
+    }
+  }
+
   // The address parts only make sense together (city must belong to the province, and so on).
   if (ADDRESS_PARTS.some((key) => fields[key] !== undefined)) {
     try {
