@@ -34,6 +34,8 @@ const ACCEPTED_TYPES = [
   "image/png",
   "image/webp",
 ];
+/** Error keys that have an input (or the address block) on the form. Other server errors show in the row message. */
+const INLINE_KEYS = ["name", "tradeName", "industry", "contactName", "contactEmail", "contactPhone", "street", "address", "postalCode", "province", "city", "barangay"];
 const ACCEPTED_EXTENSIONS = /\.(pdf|docx?|jpe?g|png|webp)$/i;
 
 const FILE_TYPE_MESSAGE = "Use a PDF, Word file, or JPG, PNG or WEBP photo.";
@@ -124,10 +126,10 @@ const RowView: React.FC<RowViewProps> = ({ row, number, batchDuplicateOf, locked
   const bodyId = `${idPrefix}-body`;
 
   return (
-    <li role="group" aria-label={`Client from ${row.file.name}`} className="space-y-3 py-4">
+    <li aria-labelledby={`${idPrefix}-title`} className="space-y-3 py-4">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-slate-900">
+          <p id={`${idPrefix}-title`} className="truncate text-sm font-medium text-slate-900">
             {number}. {row.file.name}
           </p>
           {waiting && (
@@ -154,9 +156,12 @@ const RowView: React.FC<RowViewProps> = ({ row, number, batchDuplicateOf, locked
               </Link>
             </p>
           )}
-          {row.status === "error" && (
+          {row.status === "error" && !row.duplicate && (
             <p role="alert" className="text-xs font-medium text-rose-700">
-              Not saved. {row.message}
+              Not saved.{" "}
+              {[row.message, ...Object.entries(row.serverErrors).filter(([k, m]) => !INLINE_KEYS.includes(k) && m !== row.message).map(([, m]) => m)]
+                .filter(Boolean)
+                .join(" ")}
             </p>
           )}
           {!done && (row.duplicate || batchDuplicateOf !== undefined) && (
@@ -174,7 +179,7 @@ const RowView: React.FC<RowViewProps> = ({ row, number, batchDuplicateOf, locked
                     </Link>
                   </>
                 ) : (
-                  row.duplicate.label
+                  row.duplicate.label.replace(/\.$/, "")
                 )
               ) : (
                 `Same company as row ${batchDuplicateOf}`
@@ -262,6 +267,8 @@ export const AddClientsFromFilesDialog: React.FC<AddClientsFromFilesDialogProps>
     alive.current = true;
     return () => {
       alive.current = false;
+      // Closing the dialog stops reads that have not started, so they do not use up the hourly AI limit.
+      readQueue.current = [];
     };
   }, []);
 
@@ -284,6 +291,7 @@ export const AddClientsFromFilesDialog: React.FC<AddClientsFromFilesDialogProps>
       match = (await taApi.checkClientDuplicate({ name, tradeName })).match;
     } catch {
       // The check is a helper. Saving still works, and the server rejects a true duplicate.
+      checkKeys.current.delete(row.id);
       return;
     }
     if (!alive.current || checkKeys.current.get(row.id) !== key) return;
@@ -308,6 +316,7 @@ export const AddClientsFromFilesDialog: React.FC<AddClientsFromFilesDialogProps>
   };
 
   const pumpReads = () => {
+    if (!alive.current) return;
     while (activeReads.current < READ_CONCURRENCY && readQueue.current.length > 0) {
       const id = readQueue.current.shift() as string;
       const row = rowsRef.current.find((r) => r.id === id);
@@ -318,7 +327,16 @@ export const AddClientsFromFilesDialog: React.FC<AddClientsFromFilesDialogProps>
       taApi
         .readClientFile(row.file)
         .then((read) => finishRead(id, read))
-        .catch((error) => finishRead(id, error instanceof ApiError && error.status === 429 ? "limit" : null))
+        .catch((error) => {
+          const limited = error instanceof ApiError && error.status === 429;
+          if (limited) {
+            // The hourly limit is used up, so the rows still waiting are not sent.
+            const waitingIds = readQueue.current;
+            readQueue.current = [];
+            if (alive.current) updateRows((current) => current.map((r) => (waitingIds.includes(r.id) ? { ...r, read: "limit" } : r)));
+          }
+          finishRead(id, limited ? "limit" : null);
+        })
         .finally(() => {
           activeReads.current -= 1;
           pumpReads();
@@ -371,10 +389,16 @@ export const AddClientsFromFilesDialog: React.FC<AddClientsFromFilesDialogProps>
 
   const changeRow = (id: string, patch: Partial<ClientDraft>) => {
     const namesChanged = "name" in patch || "tradeName" in patch;
+    if (namesChanged) checkKeys.current.delete(id);
     patchRow(id, (row) => ({
       ...row,
       draft: { ...row.draft, ...patch },
-      serverErrors: withoutErrors(row.serverErrors, [...errorKeysFor(patch), ...(namesChanged ? ["name", "tradeName"] : [])]),
+      // Errors for fields with no input on the form (shown in the row message) go on any edit.
+      serverErrors: withoutErrors(row.serverErrors, [
+        ...errorKeysFor(patch),
+        ...(namesChanged ? ["name", "tradeName"] : []),
+        ...Object.keys(row.serverErrors).filter((k) => !INLINE_KEYS.includes(k)),
+      ]),
       // A changed name is checked again when the TA leaves the field.
       duplicate: namesChanged ? null : row.duplicate,
       // Any edit to a row that failed to save clears the old error.
@@ -395,10 +419,14 @@ export const AddClientsFromFilesDialog: React.FC<AddClientsFromFilesDialogProps>
 
   const readingCount = rows.filter(isWaiting).length;
   const readyCount = rows.filter(isReady).length;
-  const needFixCount = pending.length - readyCount - readingCount;
+  const savingCount = rows.filter((r) => r.status === "saving").length;
+  const needFixCount = pending.length - readyCount - readingCount - savingCount;
   const canAdd = readyCount > 0 && !saving;
 
+  const addingRef = useRef(false);
   const addAll = async () => {
+    if (addingRef.current) return;
+    addingRef.current = true;
     setSaving(true);
     let saved = 0;
     let failed = 0;
@@ -422,13 +450,14 @@ export const AddClientsFromFilesDialog: React.FC<AddClientsFromFilesDialogProps>
           patchRow(id, {
             status: "error",
             message,
-            serverErrors: fieldErrors,
+            serverErrors: conflict ? {} : fieldErrors,
             duplicate: conflict ? { label: message } : null,
           });
         }
       }
     }
     queryClient.invalidateQueries({ queryKey: ["ta", "clients"] });
+    addingRef.current = false;
     if (alive.current) setSaving(false);
     if (saved > 0 && failed === 0) notify.success(`${plural(saved, "client")} added`);
     else if (saved > 0) notify.warning(`${saved} added, ${failed} need fixes`, "Fix the marked rows, then add again.");

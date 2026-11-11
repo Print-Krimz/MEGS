@@ -57,8 +57,8 @@ export const CLIENT_INLINE_FIELDS = ["name", "tradeName", "industry", "contactNa
 /** The error keys a change to these draft fields makes stale. */
 export const errorKeysFor = (patch: Partial<ClientDraft>): string[] =>
   Object.keys(patch).flatMap((key) => {
-    if (key === "contactFirstName" || key === "contactLastName") return ["contactName"];
-    if (["province", "city", "barangay", "postalCode"].includes(key)) return ["address", "postalCode"];
+    if (key === "contactFirstName" || key === "contactLastName") return ["contactName", "contactFirstName", "contactLastName"];
+    if (["province", "city", "barangay", "postalCode"].includes(key)) return ["address", "postalCode", "province", "city", "barangay"];
     return [key];
   });
 
@@ -82,11 +82,12 @@ export const validateClientDraft = (draft: ClientDraft): Record<string, string> 
     const tradeErr = validateStandardText(draft.tradeName, "Brand name", { maxLength: 200 });
     if (tradeErr) errors.tradeName = tradeErr;
   }
-  const personErr =
-    (draft.contactFirstName.trim() && validatePersonName(draft.contactFirstName, "Contact first name")) ||
-    (draft.contactLastName.trim() && validatePersonName(draft.contactLastName, "Contact last name")) ||
-    contactNameLengthError(draft.contactFirstName, draft.contactLastName);
-  if (personErr) errors.contactName = personErr;
+  const firstErr = draft.contactFirstName.trim() ? validatePersonName(draft.contactFirstName, "Contact first name") : undefined;
+  if (firstErr) errors.contactFirstName = firstErr;
+  const lastErr = draft.contactLastName.trim() ? validatePersonName(draft.contactLastName, "Contact last name") : undefined;
+  if (lastErr) errors.contactLastName = lastErr;
+  const lengthErr = contactNameLengthError(draft.contactFirstName, draft.contactLastName);
+  if (lengthErr) errors.contactName = lengthErr;
   if (draft.contactPhone.trim()) {
     const phoneErr = validatePhilippineContactPhone(draft.contactPhone, { label: "Contact phone" });
     if (phoneErr) errors.contactPhone = phoneErr;
@@ -191,7 +192,7 @@ export const ClientFields: React.FC<ClientFieldsProps> = ({ value, onChange, err
             nameInput
             placeholder="e.g. Roberto"
             value={value.contactFirstName}
-            error={errors.contactName}
+            error={errors.contactFirstName ?? errors.contactName}
             helperText={notes.contactFirstName}
             disabled={disabled}
             onChange={(e) => onChange({ contactFirstName: e.target.value })}
@@ -202,7 +203,7 @@ export const ClientFields: React.FC<ClientFieldsProps> = ({ value, onChange, err
             maxLength={CONTACT_NAME_PART_MAX}
             nameInput
             placeholder="e.g. Tan"
-            error={contactNameLengthError(value.contactFirstName, value.contactLastName)}
+            error={errors.contactLastName ?? contactNameLengthError(value.contactFirstName, value.contactLastName)}
             helperText={notes.contactLastName}
             value={value.contactLastName}
             disabled={disabled}

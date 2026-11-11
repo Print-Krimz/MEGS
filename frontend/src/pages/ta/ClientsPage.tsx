@@ -328,9 +328,15 @@ export const ClientsPage: React.FC = () => {
             const found = validateClientDraft(draft);
             const first = Object.entries(found)[0];
             if (first) {
-              setErrors(found);
-              if (found.name) nameInputRef.current?.focus();
-              if (first[0] !== "contactEmail") notify.error("Check the highlighted fields", first[1]);
+              // Only the company name and the email show inline here; every other problem is a toast.
+              if (!draft.name.trim()) {
+                setErrors({ name: first[1] });
+                nameInputRef.current?.focus();
+              } else if (first[0] === "contactEmail") {
+                setErrors({ contactEmail: first[1] });
+                return;
+              }
+              notify.error("Check the highlighted fields", first[1]);
               return;
             }
             createClientMutation.mutate(toCreateClientDto(draft));
