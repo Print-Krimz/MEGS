@@ -17,6 +17,7 @@ import { canApplicantWithdraw } from "../../lib/backout";
 import { getPipelineStageIndex } from "../../lib/pipeline-stages";
 import { formatDate, formatDateTime, getApplicationStatusPresentation } from "../../lib/utils";
 import { APPLICANT_NEXT_STEP } from "../../lib/labels";
+import { requirementSubmission } from "../../lib/requirementSubmission";
 import {
   Briefcase,
   Building2,
@@ -312,6 +313,7 @@ export const ApplicationDetailPage: React.FC = () => {
     const expiresSoon = isApproved && expiryDay !== null && expiryDay <= addManilaCalendarDays(getManilaToday(), 30);
     // The backend only replaces an approved document while a TA update request is open (deployed placements), so the replace actions are deployed-only.
     const canReplaceApproved = isDeployed && expiresSoon;
+    const { submittedAt } = requirementSubmission(req.documentVersions, req.reviewStatus);
     const targetDate = req.updateRequestDeadline || req.toFollowExpectedAt || req.deadline;
     const rejectionNote =
       req.reviewNotes || (isDeployed ? null : "Please review document requirements and re-upload a clear and valid copy.");
@@ -338,6 +340,7 @@ export const ApplicationDetailPage: React.FC = () => {
                     Expected by {formatDate(req.toFollowExpectedAt)}
                   </div>
                 )}
+                {submittedAt && <div className="text-xs text-[#486581]">Submitted {formatDate(submittedAt)}</div>}
               </>
             )}
           </div>

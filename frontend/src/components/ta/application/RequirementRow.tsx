@@ -6,6 +6,7 @@ import { Button } from "../../ui";
 import { cn, formatDate, manilaDaysUntil } from "../../../lib/utils";
 import { plural } from "../../../lib/plural";
 import { requirementStatusLabel } from "../../../lib/labels";
+import { requirementSubmission } from "../../../lib/requirementSubmission";
 
 export interface RequirementRowData {
   id: number;
@@ -16,6 +17,7 @@ export interface RequirementRowData {
   reviewNotes?: string | null;
   deadline?: string | null;
   toFollowExpectedAt?: string | null;
+  documentVersions?: Array<{ uploadedAt: string; isCurrent: boolean }>;
 }
 
 /** The one status a row shows. A document that is on file but not decided counts as submitted. */
@@ -54,6 +56,7 @@ export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, 
   const isRejected = status === "REJECTED";
   const isToFollow = status === "TO_FOLLOW";
   const isSubmitted = status === "SUBMITTED";
+  const { submittedAt, resubmitted } = requirementSubmission(req.documentVersions, status);
 
   // Manila calendar days: a deadline is met for its whole day and overdue only from the next one.
   const diffDays = manilaDaysUntil(req.deadline);
@@ -100,6 +103,7 @@ export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, 
             <span className={cn("inline-flex rounded border px-2 py-0.5 text-xs font-semibold", STATUS_STYLE[status])}>
               {requirementStatusLabel(status)}
             </span>
+            {resubmitted && <span className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">Resubmitted</span>}
             {!req.isRequired && <span className="rounded border border-slate-200 bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">Optional</span>}
           </div>
 
@@ -120,6 +124,7 @@ export const RequirementRow: React.FC<RequirementRowProps> = ({ req, canRemove, 
             ) : (
               <span className="text-slate-600">No deadline set</span>
             )}
+            {submittedAt && <span>Submitted {formatDate(submittedAt)}</span>}
             {isApproved && !req.documentId && <span className="text-emerald-800">Requirement approved</span>}
           </div>
 

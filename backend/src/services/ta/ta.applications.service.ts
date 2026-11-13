@@ -697,6 +697,7 @@ export const getTAApplication = async (id: number) => {
       },
       complianceRequirements: {
         orderBy: { createdAt: "asc" },
+        include: { documentVersions: { orderBy: { uploadedAt: "desc" }, select: { uploadedAt: true, isCurrent: true, reviewStatus: true } } },
       },
       candidateScores: {
         orderBy: { calculatedAt: "desc" },

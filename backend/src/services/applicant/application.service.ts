@@ -488,6 +488,7 @@ export const fetchMyApplications = async (
           updateRequestCompletedAt: true,
           createdAt: true,
           updatedAt: true,
+          documentVersions: { orderBy: { uploadedAt: "desc" }, select: { uploadedAt: true, isCurrent: true, reviewStatus: true } },
         },
       },
     },
@@ -560,6 +561,7 @@ export const fetchApplicationDetails = async (applicationId: number, userId: str
           updateRequestCompletedAt: true,
           createdAt: true,
           updatedAt: true,
+          documentVersions: { orderBy: { uploadedAt: "desc" }, select: { uploadedAt: true, isCurrent: true, reviewStatus: true } },
         },
       },
       // The application stays DEPLOYED when an assignment ends; the applicant page reads this to say so.
