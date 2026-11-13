@@ -160,6 +160,33 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
   const completedMilestonesCount = (isStep1Complete ? 1 : 0) + (isStep2Complete ? 1 : 0) + (isDeployed ? 1 : 0);
   const progressPercent = Math.round((completedMilestonesCount / 3) * 100);
 
+  // View/print the contract and optionally attach the signed copy (at contract signing or later).
+  const contractActions =
+    isContractSigningStage || isStep2Complete || isDeployed ? (
+      <div className="flex flex-wrap gap-2 pt-1.5">
+        <Button variant="ghost" size="sm" loading={contractBusy === "pdf"} onClick={viewContract}>
+          View contract
+        </Button>
+        {app.contractDocumentId ? (
+          <Button variant="ghost" size="sm" onClick={() => onViewSignedCopy?.(app.contractDocumentId as number)}>
+            View signed copy
+          </Button>
+        ) : null}
+        <Button variant="ghost" size="sm" loading={contractBusy === "upload"} onClick={() => copyInputRef.current?.click()}>
+          {app.contractDocumentId ? "Replace signed copy" : "Add signed copy (optional)"}
+        </Button>
+        <input
+          ref={copyInputRef}
+          type="file"
+          accept="application/pdf,image/jpeg,image/png"
+          className="sr-only"
+          tabIndex={-1}
+          aria-label="Signed contract file (PDF, JPEG or PNG, up to 10 MB)"
+          onChange={(e) => addSignedCopy(e.target.files?.[0])}
+        />
+      </div>
+    ) : null;
+
   // =========================================================================
   // Deployed: placement summary. The deployment status is stated once.
   // =========================================================================
@@ -244,6 +271,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
                 Contract signed ({formatAppDate(app.contractSignedAt)})
               </li>
             </ul>
+            {contractActions}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {primaryDeployment?.id && (
@@ -301,9 +329,9 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
         </div>
       </div>
 
-      <ol className="divide-y divide-slate-100 border border-slate-200">
+      <ol className="@container divide-y divide-slate-100 border border-slate-200">
         {/* Step 1: requirements */}
-        <li className={cn("flex flex-col justify-between gap-3 p-3.5 md:flex-row md:items-center", step1State === "action" && "bg-amber-50/50")}>
+        <li className={cn("flex flex-col justify-between gap-3 p-3.5 @2xl:flex-row @2xl:items-center", step1State === "action" && "bg-amber-50/50")}>
           <div className="flex min-w-0 items-start gap-3">
             <StepMarker state={step1State} number={1} />
             <div className="min-w-0 space-y-0.5">
@@ -324,7 +352,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2.5 md:justify-end">
+          <div className="flex shrink-0 flex-wrap items-center gap-2.5 @2xl:justify-end">
             <StepStatus state={step1State} label={isStep1Complete ? "Complete" : blockingStepNumber === 1 ? "Action needed" : totalCompReqs === 0 ? "Not set up" : "In progress"} />
             <Button variant="ghost" size="sm" onClick={onOpenComplianceTab}>
               View requirements
@@ -333,7 +361,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
         </li>
 
         {/* Step 2: contract */}
-        <li className={cn("flex flex-col justify-between gap-3 p-3.5 md:flex-row md:items-center", step2State === "action" && "bg-amber-50/50")}>
+        <li className={cn("flex flex-col justify-between gap-3 p-3.5 @2xl:flex-row @2xl:items-center", step2State === "action" && "bg-amber-50/50")}>
           <div className="flex min-w-0 items-start gap-3">
             <StepMarker state={step2State} number={2} locked={!isStep2Complete && (!isStep1Complete || isComplianceStage)} />
             <div className="min-w-0 space-y-0.5">
@@ -357,44 +385,19 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
                   </>
                 )}
               </p>
+              {contractActions}
             </div>
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2.5 md:justify-end">
+          <div className="flex shrink-0 flex-wrap items-center gap-2.5 @2xl:justify-end">
             <StepStatus state={step2State} label={isStep2Complete ? "Complete" : blockingStepNumber === 2 ? "Action needed" : "Locked"} />
-            {isContractSigningStage || isStep2Complete || isDeployed ? (
-              <>
-                <Button variant="ghost" size="sm" loading={contractBusy === "pdf"} onClick={viewContract}>
-                  View contract
-                </Button>
-                {app.contractDocumentId ? (
-                  <Button variant="ghost" size="sm" onClick={() => onViewSignedCopy?.(app.contractDocumentId as number)}>
-                    View signed copy
-                  </Button>
-                ) : null}
-                <Button variant="ghost" size="sm" loading={contractBusy === "upload"} onClick={() => copyInputRef.current?.click()}>
-                  {app.contractDocumentId ? "Replace signed copy" : "Add signed copy (optional)"}
-                </Button>
-                <input
-                  ref={copyInputRef}
-                  type="file"
-                  accept="application/pdf,image/jpeg,image/png"
-                  className="sr-only"
-                  tabIndex={-1}
-                  aria-label="Signed contract file (PDF, JPEG or PNG, up to 10 MB)"
-                  onChange={(e) => addSignedCopy(e.target.files?.[0])}
-                />
-              </>
-            ) : null}
-            {isStep2Complete ? null : isContractSigningStage && isStep1Complete ? (
-              <span className="px-1 text-sm text-slate-600">Use the button in the bar above</span>
-            ) : (
+            {isStep2Complete || (isContractSigningStage && isStep1Complete) ? null : (
               <span className="px-1 text-sm text-slate-600">Not available yet</span>
             )}
           </div>
         </li>
 
         {/* Step 3: site deployment */}
-        <li className={cn("flex flex-col justify-between gap-3 p-3.5 md:flex-row md:items-center", step3State === "action" && "bg-emerald-50/50")}>
+        <li className={cn("flex flex-col justify-between gap-3 p-3.5 @2xl:flex-row @2xl:items-center", step3State === "action" && "bg-emerald-50/50")}>
           <div className="flex min-w-0 items-start gap-3">
             <StepMarker state={step3State} number={3} locked={step3State === "locked"} icon="truck" />
             <div className="min-w-0 space-y-0.5">
@@ -414,7 +417,7 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 flex-wrap items-center gap-2.5 md:justify-end">
+          <div className="flex shrink-0 flex-wrap items-center gap-2.5 @2xl:justify-end">
             <StepStatus state={step3State} label={hasOpenDeployment ? "Scheduled" : isStep4Ready ? "Ready to deploy" : "Locked"} />
             {hasOpenDeployment ? (
               <Button asChild variant="outline" size="sm">

@@ -19,7 +19,7 @@ export function applicationStatusLabel(status?: string | null): string {
   return formatTaStatus(status);
 }
 
-const CONTRACT_SIGNING_NEXT_STEP = "Your documents are approved. Next: sign your contract on the scheduled date.";
+const CONTRACT_SIGNING_NEXT_STEP = "Your documents are approved. Next: sign your contract. Your recruiter will then confirm your start date.";
 
 /**
  * Applicant portal: one plain sentence on what happens next, keyed by application status.
@@ -29,7 +29,7 @@ export const APPLICANT_NEXT_STEP: Partial<Record<string, string>> = {
   REVIEW: "We are reviewing your application. We will message you about the next step.",
   INITIAL_SCREENING: "Your application passed review. Next: attend your initial screening.",
   CLIENT_ENDORSEMENT: "You passed the initial screening. Next: the client reviews your profile.",
-  FINAL_INTERVIEW: "The client approved your profile. Next: attend your final interview.",
+  FINAL_INTERVIEW: "You passed the initial screening. Next: attend your final interview.",
   COMPLIANCE: "You passed the final interview. Next: upload the documents listed under Requirements before each deadline.",
   CONTRACT_SIGNING: CONTRACT_SIGNING_NEXT_STEP,
   ONBOARDING: CONTRACT_SIGNING_NEXT_STEP,

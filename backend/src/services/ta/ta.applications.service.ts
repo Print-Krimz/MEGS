@@ -1312,7 +1312,7 @@ export const saveContractDocument = async (applicationId: number, file: Express.
   if (!exists) throw new Error("Application not found");
   const doc = await uploadAndStoreDocument(actorId, "CONTRACT", file, applicationId);
   await prisma.storedDocument.updateMany({
-    where: { applicationId, category: "CONTRACT", deletedAt: null, id: { not: doc.id } },
+    where: { applicationId, category: "CONTRACT", deletedAt: null, id: { lt: doc.id } },
     data: { deletedAt: new Date() },
   });
   void logAudit(actorId, "CONTRACT_COPY_UPLOADED", "Application", applicationId, { documentId: doc.id, mimeType: doc.mimeType, sizeBytes: doc.sizeBytes });

@@ -320,7 +320,7 @@ export const ApplicationDetailPage: React.FC = () => {
       kind: "schedule",
       type: request.activity,
       isReschedule: true,
-      initialDate: manilaIsoToDateTimeLocal(request.proposedAt),
+      initialDate: request.proposedAt && new Date(request.proposedAt) > new Date() ? manilaIsoToDateTimeLocal(request.proposedAt) : "",
       currentDate: manilaIsoToDateTimeLocal(rescheduleCurrentTime(request)),
       blockedDates: (app.rescheduleRequests || [])
         .filter((r) => r.activity === request.activity && r.previousScheduledAt)
