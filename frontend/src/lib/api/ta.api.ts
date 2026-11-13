@@ -1,5 +1,6 @@
 import { api } from "./client";
 
+import { XLSX_MIME } from "../spreadsheet-import";
 import type {
   Application,
   TAApplicationSummary,
@@ -547,7 +548,8 @@ export const taApi = {
   /** Reads the filled-in Excel template: one result per row. No AI, saves nothing. */
   importClientsFile: (file: File) => {
     const body = new FormData();
-    body.append("file", file);
+    // Some Windows browsers leave File.type blank for .xlsx; the server only accepts the exact type.
+    body.append("file", new File([file], file.name, { type: XLSX_MIME }));
     return api.upload<{ rows: Array<ClientFileReading & { rowNumber: number }> }>("/api/ta/clients/import", body);
   },
 
@@ -615,7 +617,8 @@ export const taApi = {
   /** Reads the filled-in Excel template: one result per row. No AI, saves nothing. */
   importMRFsFile: (file: File) => {
     const body = new FormData();
-    body.append("file", file);
+    // Some Windows browsers leave File.type blank for .xlsx; the server only accepts the exact type.
+    body.append("file", new File([file], file.name, { type: XLSX_MIME }));
     return api.upload<{ rows: Array<MRFFileReading & { rowNumber: number }> }>("/api/ta/mrfs/import", body);
   },
 
