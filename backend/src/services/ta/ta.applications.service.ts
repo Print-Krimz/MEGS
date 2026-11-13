@@ -6,7 +6,7 @@ import { scoringFlags } from '../../utils/scoring-flags.js';
 import { getActiveScoringConfiguration } from "../scoring/scoring-configuration.service.js";
 import { isFullyCompliant, generateComplianceRequirementsFromMRF } from "./ta.compliance.service.js";
 import { logAudit } from '../../utils/audit.js';
-import { resolveDocumentSignedUrl, resolveDocumentSignedUrls } from '../document/document.service.js';
+import { resolveDocumentSignedUrl, resolveDocumentSignedUrls, uploadAndStoreDocument } from '../document/document.service.js';
 import { buildContractPdfBuffer } from './contract-pdf-builder.js';
 import { rebuildCandidateFeatureProfile } from "../scoring/talent-pool-knn.service.js";
 import { formatManilaDateTime, isFutureDateTime, isValidDateOnly, isWorkingHours, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
@@ -781,8 +781,10 @@ export const getTAApplication = async (id: number) => {
   );
 
   const { trackingTokenHash: _tokenHash, ...applicationFields } = application;
+  const contractDocumentId = await findContractDocumentId(application.id);
   return {
     ...applicationFields,
+    contractDocumentId,
     hasPortalAccess: application.user?.accountStatus === "ACTIVE",
     isRedeploymentEligible,
     resumeUrl: resolvedAppResumeUrl,
@@ -1292,6 +1294,29 @@ export const getContractPdf = async (applicationId: number, startDateInput?: str
     position: application.jobPosting?.title || "",
   });
   return { buffer, fileName: `MEGS-Contract-${applicationId}.pdf` };
+};
+
+// Newest live signed copy of the contract, or null. Staff-only: applicant responses never include it.
+const findContractDocumentId = async (applicationId: number) => {
+  const doc = await prisma.storedDocument.findFirst({
+    where: { applicationId, category: "CONTRACT", deletedAt: null },
+    orderBy: { uploadedAt: "desc" },
+    select: { id: true },
+  });
+  return doc?.id ?? null;
+};
+
+// Optional signed copy. A new copy replaces the old one (the old row is soft-deleted, the file stays in storage).
+export const saveContractDocument = async (applicationId: number, file: Express.Multer.File, actorId: string) => {
+  const exists = await prisma.application.findUnique({ where: { id: applicationId }, select: { id: true } });
+  if (!exists) throw new Error("Application not found");
+  const doc = await uploadAndStoreDocument(actorId, "CONTRACT", file, applicationId);
+  await prisma.storedDocument.updateMany({
+    where: { applicationId, category: "CONTRACT", deletedAt: null, id: { not: doc.id } },
+    data: { deletedAt: new Date() },
+  });
+  void logAudit(actorId, "CONTRACT_COPY_UPLOADED", "Application", applicationId, { documentId: doc.id, mimeType: doc.mimeType, sizeBytes: doc.sizeBytes });
+  return { contractDocumentId: doc.id };
 };
 
 // A contract start may be back-dated by up to 30 days (a candidate who already began) and set at most 2 years ahead.

@@ -5,7 +5,7 @@ import prisma from "../utils/prisma.js";
 import type { RequestHandler } from "express";
 import { createHash } from "node:crypto";
 import { publicMessages, CHECK_IN_BIODATA_MESSAGE } from "../security/public-messages.js";
-import { validateDocumentBytes, MAX_DOCUMENT_BYTES, sanitizeUploadFileName } from "../security/file-validation.js";
+import { validateDocumentBytes, MAX_DOCUMENT_BYTES, MAX_CONTRACT_SCAN_BYTES, sanitizeUploadFileName } from "../security/file-validation.js";
 
 // In-memory storage allows direct buffer streaming to Supabase Storage. Max 5MB.
 const storage = multer.memoryStorage();
@@ -93,6 +93,16 @@ export const upload = guardedUpload(MAX_DOCUMENT_BYTES);
 
 // Profile photos accept only JPEG, PNG and WEBP, so a PDF or Word file cannot be stored as a photo.
 export const uploadImage = guardedUpload(MAX_DOCUMENT_BYTES, imageFileFilter);
+
+// Optional signed contract copy: a PDF or a phone photo of the page (PNG/JPEG), up to 10MB. Bytes are checked too.
+export const uploadContractScan = guardedUpload(
+  MAX_CONTRACT_SCAN_BYTES,
+  (_req, file, cb) => {
+    if (["application/pdf", "image/jpeg", "image/png"].includes(file.mimetype)) cb(null, true);
+    else cb(new Error("Attach a PDF, JPEG or PNG file."));
+  },
+  "Attach a PDF, JPEG or PNG file up to 10 MB.",
+);
 
 // Public self check-in biodata: a photo or PDF only (no Word files), with one plain message for every rejection.
 export const uploadCheckInBiodata = guardedUpload(

@@ -3,7 +3,7 @@ import { taComplianceBulkSchema, BULK_UPLOAD_MAX_FILES } from "../../schemas/ta-
 import { requestDocumentUpdateHandler, uploadComplianceDocumentForApplicantHandler, bulkUploadComplianceDocumentsHandler } from "../../controllers/ta/ta.compliance.controller.js";
 import { aiLimiters, reportLimiters, analyticsLimiters } from '../../middleware/rate-limiter.middleware.js';
 import { authenticateJWT, requireRole } from '../../middleware/auth.middleware.js';
-import { upload } from '../../middleware/upload.middleware.js';
+import { upload, uploadContractScan } from '../../middleware/upload.middleware.js';
 import { validate, validateDateRangeQuery } from '../../middleware/validate.middleware.js';
 import { taSchema } from '../../schemas/ta.schema.js';
 import { analyticsSchema } from '../../schemas/analytics.schema.js';
@@ -30,6 +30,7 @@ import {
   restoreApplication,
   getRecruiterDecisionsHandler,
   downloadContractPdfHandler,
+  uploadContractDocumentHandler,
   confirmContractSignedHandler,
   deployApplicantHandler,
   updateCandidateProfileHandler,
@@ -250,6 +251,7 @@ router.post("/bulk/invitations/cancel", validate(taSchema.bulkCancelInvitations)
 router.post("/bulk/deployments/confirm-start", validate(taSchema.bulkConfirmDeploymentStart), bulkConfirmDeploymentStartHandler);
 router.post("/bulk/deployments/end", validate(taSchema.bulkEndDeployments), bulkEndDeploymentsHandler);
 router.get("/applications/:id/contract/pdf", validate(taSchema.downloadContractPdf), requireOwned("application"), downloadContractPdfHandler);
+router.post("/applications/:id/contract/document", uploadContractScan.single("file"), validate(taSchema.idParams), requireOwned("application"), uploadContractDocumentHandler);
 router.post("/applications/:id/contract/signed", validate(taSchema.idParams), requireOwned("application"), confirmContractSignedHandler);
 router.post("/applications/:id/contract/deploy", validate(taSchema.deployApplicant), requireOwned("application"), deployApplicantHandler);
 

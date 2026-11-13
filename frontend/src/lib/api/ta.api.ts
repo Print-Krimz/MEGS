@@ -365,6 +365,14 @@ export const taApi = {
   getRecruiterDecisions: (id: number | string) =>
     api.get<RecruiterDecision[]>(`/api/ta/applications/${id}/decisions`),
 
+  getContractPdf: (id: number | string): Promise<Blob> => api.blob(`/api/ta/applications/${id}/contract/pdf`),
+
+  uploadContractDocument: (id: number | string, file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return api.upload<{ contractDocumentId: number }>(`/api/ta/applications/${id}/contract/document`, formData);
+  },
+
   confirmContractSigned: (id: number | string) =>
     api.post<Application>(`/api/ta/applications/${id}/contract/signed`, {}),
 

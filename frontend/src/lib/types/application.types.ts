@@ -284,6 +284,8 @@ export interface Application {
   candidateFitScore?: number | null;
   candidateFitScoreCalculatedAt?: string | null;
   contractSigned?: boolean;
+  /** Staff-only: newest optional signed copy of the contract, if one was added. */
+  contractDocumentId?: number | null;
   contractSignedAt?: string | null;
   contractNotes?: string | null;
   contractStartDate?: string | null;

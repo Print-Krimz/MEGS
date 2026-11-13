@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   prisma: {
     application: { count: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), groupBy: vi.fn() },
+    storedDocument: { findFirst: vi.fn().mockResolvedValue(null) },
     recruiterDecision: { groupBy: vi.fn() },
     deployment: { findMany: vi.fn() },
     complianceRequirement: { create: vi.fn() },

@@ -16,6 +16,7 @@ import {
   getRecruiterDecisionsService,
   getContractPdf,
   confirmContractSigned,
+  saveContractDocument,
   deploySignedApplicant,
 } from '../../services/ta/ta.applications.service.js';
 import { isPhilippinePhone, normalizeToE164, normalizeToLocal, phoneVariants, toSyntheticEmail } from '../../utils/sms.js';
@@ -236,6 +237,25 @@ export const downloadContractPdfHandler = async (req: Request, res: Response): P
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
     res.send(buffer);
+  } catch (error: any) {
+    sendError(res, error.message, contractStatusCode(error.message));
+  }
+};
+
+// POST /api/ta/applications/:id/contract/document - Optional signed copy (PDF or photo); replaces any earlier copy
+export const uploadContractDocumentHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    if (isNaN(id)) {
+      sendError(res, "Invalid application ID", 400);
+      return;
+    }
+    if (!req.file) {
+      sendError(res, "Attach a PDF, JPEG or PNG file up to 10 MB.", 400);
+      return;
+    }
+    const { contractDocumentId } = await saveContractDocument(id, req.file, req.user!.id);
+    sendSuccess(res, "Signed copy saved", { contractDocumentId });
   } catch (error: any) {
     sendError(res, error.message, contractStatusCode(error.message));
   }

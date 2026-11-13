@@ -737,6 +737,8 @@ export const ApplicationDetailPage: React.FC = () => {
                       });
                     }}
                     onDeployCandidate={() => setDialog({ kind: app.status === ApplicationStatus.CONTRACT_SIGNING ? "contract" : "deploy" })}
+                    onViewSignedCopy={(documentId) => setPreviewDocState({ open: true, documentId, title: "Signed contract" })}
+                    onSignedCopySaved={() => queryClient.invalidateQueries({ queryKey: ["ta", "application", String(applicationId)] })}
                   />
                 }
               />
@@ -921,7 +923,7 @@ export const ApplicationDetailPage: React.FC = () => {
         requirementStatus={previewDocState?.requirementStatus}
         // Approved documents use "Request updated copy" on the row instead of Reject.
         onReject={
-          previewDocState?.requirementStatus === "APPROVED" || !flags.canManageRequirements
+          previewDocState?.requirementStatus === "APPROVED" || !previewDocState?.requirementId || !flags.canManageRequirements
             ? undefined
             : (notes) => {
                 if (!notes.trim()) {

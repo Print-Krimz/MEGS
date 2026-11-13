@@ -8,6 +8,8 @@ import { cn, formatDate as formatAppDate, formatDateTime } from "../../lib/utils
 import { deploymentStatusLabel } from "../../lib/labels";
 import { deploymentStartsOn } from "../../lib/ta-copy";
 import { describeRequirementProgress } from "./application/next-step";
+import { taApi } from "../../lib/api/ta.api";
+import { notify } from "../../lib/feedback";
 
 export interface OnboardingDeploymentStepperProps {
   app: Application;
@@ -31,6 +33,10 @@ export interface OnboardingDeploymentStepperProps {
   onOpenComplianceTab: () => void;
   onAdvanceToContractSigning: () => void;
   onDeployCandidate: () => void;
+  /** Opens the optional signed copy of the contract. */
+  onViewSignedCopy?: (documentId: number) => void;
+  /** Called after a signed copy is saved, so the page can reload the application. */
+  onSignedCopySaved?: () => void;
 }
 
 type StepState = "complete" | "action" | "locked";
@@ -86,11 +92,41 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
   onOpenComplianceTab,
   onAdvanceToContractSigning: _onAdvanceToContractSigning,
   onDeployCandidate,
+  onViewSignedCopy,
+  onSignedCopySaved,
 }) => {
+  const [contractBusy, setContractBusy] = React.useState<"pdf" | "upload" | null>(null);
+  const copyInputRef = React.useRef<HTMLInputElement>(null);
   const isDeployed = app.status === ApplicationStatus.DEPLOYED;
 
   // Single source of truth for milestone completion
   const isStep1Complete = !hasUnapprovedMandatoryCompliance && (totalCompReqs > 0 || isContractSigningStage || isDeployed);
+  const viewContract = async () => {
+    setContractBusy("pdf");
+    try {
+      const url = URL.createObjectURL(await taApi.getContractPdf(app.id));
+      window.open(url, "_blank", "noopener");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      notify.error("Could not open the contract", error);
+    } finally {
+      setContractBusy(null);
+    }
+  };
+  const addSignedCopy = async (file: File | undefined) => {
+    if (!file) return;
+    setContractBusy("upload");
+    try {
+      await taApi.uploadContractDocument(app.id, file);
+      notify.success("Signed copy saved");
+      onSignedCopySaved?.();
+    } catch (error) {
+      notify.error("Could not save the signed copy", error);
+    } finally {
+      setContractBusy(null);
+      if (copyInputRef.current) copyInputRef.current.value = "";
+    }
+  };
   const isStep2Complete = Boolean(isContractSigned || app.contractSigned || app.contractSignedAt);
 
   // A worker with an open (scheduled or active) deployment cannot be deployed again.
@@ -325,6 +361,30 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
           </div>
           <div className="flex shrink-0 flex-wrap items-center gap-2.5 md:justify-end">
             <StepStatus state={step2State} label={isStep2Complete ? "Complete" : blockingStepNumber === 2 ? "Action needed" : "Locked"} />
+            {isContractSigningStage || isStep2Complete || isDeployed ? (
+              <>
+                <Button variant="ghost" size="sm" loading={contractBusy === "pdf"} onClick={viewContract}>
+                  View contract
+                </Button>
+                {app.contractDocumentId ? (
+                  <Button variant="ghost" size="sm" onClick={() => onViewSignedCopy?.(app.contractDocumentId as number)}>
+                    View signed copy
+                  </Button>
+                ) : null}
+                <Button variant="ghost" size="sm" loading={contractBusy === "upload"} onClick={() => copyInputRef.current?.click()}>
+                  {app.contractDocumentId ? "Replace signed copy" : "Add signed copy (optional)"}
+                </Button>
+                <input
+                  ref={copyInputRef}
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png"
+                  className="sr-only"
+                  tabIndex={-1}
+                  aria-label="Signed contract file (PDF, JPEG or PNG, up to 10 MB)"
+                  onChange={(e) => addSignedCopy(e.target.files?.[0])}
+                />
+              </>
+            ) : null}
             {isStep2Complete ? null : isContractSigningStage && isStep1Complete ? (
               <span className="px-1 text-sm text-slate-600">Use the button in the bar above</span>
             ) : (
