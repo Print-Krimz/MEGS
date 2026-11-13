@@ -19,6 +19,22 @@ export function applicationStatusLabel(status?: string | null): string {
   return formatTaStatus(status);
 }
 
+const CONTRACT_SIGNING_NEXT_STEP = "Your documents are approved. Next: sign your contract on the scheduled date.";
+
+/**
+ * Applicant portal: one plain sentence on what happens next, keyed by application status.
+ * Legacy ONBOARDING reads the same as CONTRACT_SIGNING.
+ */
+export const APPLICANT_NEXT_STEP: Partial<Record<string, string>> = {
+  REVIEW: "We are reviewing your application. We will message you about the next step.",
+  INITIAL_SCREENING: "Your application passed review. Next: attend your initial screening.",
+  CLIENT_ENDORSEMENT: "You passed the initial screening. Next: the client reviews your profile.",
+  FINAL_INTERVIEW: "The client approved your profile. Next: attend your final interview.",
+  COMPLIANCE: "You passed the final interview. Next: upload the documents listed under Requirements before each deadline.",
+  CONTRACT_SIGNING: CONTRACT_SIGNING_NEXT_STEP,
+  ONBOARDING: CONTRACT_SIGNING_NEXT_STEP,
+};
+
 /** Deployment status (READY_FOR_DEPLOYMENT, ACTIVE, ENDED, CANCELLED). */
 export function deploymentStatusLabel(status?: string | null): string {
   if (!status) return "Unknown";

@@ -16,6 +16,7 @@ import { BackoutDialog } from "../../components/ta/BackoutDialog";
 import { canApplicantWithdraw } from "../../lib/backout";
 import { getPipelineStageIndex } from "../../lib/pipeline-stages";
 import { formatDate, formatDateTime, getApplicationStatusPresentation } from "../../lib/utils";
+import { APPLICANT_NEXT_STEP } from "../../lib/labels";
 import {
   Briefcase,
   Building2,
@@ -288,6 +289,8 @@ export const ApplicationDetailPage: React.FC = () => {
   }
 
   const application = applicationQuery.data;
+  // An archived application has no next step to show.
+  const nextStep = application.isArchived ? undefined : APPLICANT_NEXT_STEP[application.status];
   const job = application.jobPosting;
   const interviews = application.interviews || [];
   const compliance = application.complianceRequirements || [];
@@ -606,6 +609,7 @@ export const ApplicationDetailPage: React.FC = () => {
             <div className="text-sm text-[#486581]">
               Submitted on {formatDate(application.createdAt)}
             </div>
+            {nextStep && <p className="text-sm text-[#486581]">{nextStep}</p>}
           </div>
         </div>
 
