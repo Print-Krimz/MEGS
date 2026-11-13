@@ -387,7 +387,7 @@ export const JobPostingDetailPage: React.FC = () => {
 
       <RequirementClarityNotice
         clarity={job.requirementClarity}
-        fixHint="This opening is view-only. Change its details on the client request."
+        fixHint="Change these on the manpower request."
       />
 
       {/* One summary strip. The narrative is collapsed so candidates sit in the first screen. */}
@@ -453,6 +453,19 @@ export const JobPostingDetailPage: React.FC = () => {
             : { label: "Manpower request", value: <span className="text-slate-700">None (direct posting)</span> },
         ]}
       >
+        {mrfId ? (
+          <p className="mb-3 text-sm text-slate-600">
+            This opening is view-only. Change its details on{" "}
+            <Link
+              to="/ta/mrfs/$mrfId"
+              params={{ mrfId: String(mrfId) }}
+              className="inline-flex items-center font-medium text-navy underline underline-offset-2 focus-ring pointer-coarse:min-h-11"
+            >
+              {`Request #${mrfId}`}
+            </Link>
+            .
+          </p>
+        ) : null}
         <details className="group">
           <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-sm font-medium text-navy focus-ring md:min-h-0 [&::-webkit-details-marker]:hidden">
             <span className="group-open:hidden">Show description and requirements</span>
