@@ -144,14 +144,21 @@ export const ClientsPage: React.FC = () => {
       key: "contact",
       header: "Contact",
       cell: (c) =>
-        c.contactName || c.contactEmail ? (
+        c.contactName || c.contactEmail || c.contactPhone ? (
           <span>
             {c.contactName && <span className="block">{c.contactName}</span>}
             {c.contactEmail && <span className="block break-all text-xs text-slate-600">{c.contactEmail}</span>}
+            {c.contactPhone && <span className="block text-xs text-slate-600">{c.contactPhone}</span>}
           </span>
         ) : (
           <span className="text-slate-600">No contact</span>
         ),
+    },
+    {
+      key: "location",
+      header: "Location",
+      hideBelow: "lg",
+      cell: (c) => [c.city, c.province].filter(Boolean).join(", ") || c.address || "Not set",
     },
     { key: "requests", header: "Requests", align: "right", cell: (c) => c._count?.manpowerRequests || 0 },
     { key: "deployed", header: "Deployed", align: "right", cell: (c) => c._count?.deployments || 0 },
