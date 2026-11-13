@@ -544,6 +544,15 @@ export const taApi = {
     return api.upload<ClientFileReading>("/api/ta/clients/read", body);
   },
 
+  /** Reads the filled-in Excel template: one result per row. No AI, saves nothing. */
+  importClientsFile: (file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    return api.upload<{ rows: Array<ClientFileReading & { rowNumber: number }> }>("/api/ta/clients/import", body);
+  },
+
+  getClientImportTemplate: (): Promise<Blob> => api.blob("/api/ta/clients/import-template"),
+
   checkClientDuplicate: (params: { name?: string; tradeName?: string }, options?: RequestInit) => {
     const qs = new URLSearchParams();
     if (params.name) qs.append("name", params.name);
@@ -602,6 +611,15 @@ export const taApi = {
     body.append("file", file);
     return api.upload<MRFFileReading>("/api/ta/mrfs/read", body);
   },
+
+  /** Reads the filled-in Excel template: one result per row. No AI, saves nothing. */
+  importMRFsFile: (file: File) => {
+    const body = new FormData();
+    body.append("file", file);
+    return api.upload<{ rows: Array<MRFFileReading & { rowNumber: number }> }>("/api/ta/mrfs/import", body);
+  },
+
+  getMRFImportTemplate: (): Promise<Blob> => api.blob("/api/ta/mrfs/import-template"),
 
   getMRFDetails: (id: number | string) =>
     api.get<ManpowerRequest>(`/api/ta/mrfs/${id}`),

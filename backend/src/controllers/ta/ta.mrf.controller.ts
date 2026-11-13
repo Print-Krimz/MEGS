@@ -9,6 +9,7 @@ import {
   addMRFComplianceTemplatesBulk,
 } from "../../services/ta/ta.mrf.service.js";
 import { readMRFDocument } from "../../services/ta/mrf-read.service.js";
+import { buildImportTemplate, importRequestRows, importTemplateFileName, sendXlsx, SpreadsheetImportError } from "../../services/ta/spreadsheet-import.service.js";
 
 export const listMRFsHandler = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -265,5 +266,28 @@ export const readMRFFile = async (req: Request, res: Response): Promise<void> =>
   } catch (error: any) {
     // Only an unsupported or oversized file reaches here; a reading failure returns UNREADABLE instead.
     sendError(res, error.message, 400, error);
+  }
+};
+
+// GET /api/ta/mrfs/import-template. The fixed Excel template for "Load requests from files".
+export const mrfImportTemplateHandler = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    sendXlsx(res, importTemplateFileName("requests"), await buildImportTemplate("requests"));
+  } catch (error: any) {
+    sendError(res, error.message, 500);
+  }
+};
+
+// POST /api/ta/mrfs/import (multipart, file field "file"). One row per request; no AI, saves nothing.
+export const importMRFsHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.file) {
+      sendError(res, "Attach the Excel template (.xlsx)", 400);
+      return;
+    }
+    sendSuccess(res, "Request rows read", { rows: await importRequestRows(req.file.buffer) });
+  } catch (error: any) {
+    if (error instanceof SpreadsheetImportError) return void sendError(res, error.message, 400);
+    sendError(res, "This file could not be read. Download the template and fill it in.", 400);
   }
 };

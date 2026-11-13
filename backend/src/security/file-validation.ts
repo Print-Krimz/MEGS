@@ -77,6 +77,24 @@ function validateWebp(buffer: Buffer, allowAnimation = true): void {
 // Inspect and actually inflate each entry within a bound before a Word parser sees it.
 // ZIP64, encryption and uncommon compression are unnecessary for supported DOCX files.
 export function validateDocxArchive(buffer: Buffer): void {
+  validateOfficeArchive(buffer, "word/document.xml", "ZIP file is not a Word document");
+}
+
+// An Excel workbook is the same kind of archive, with xl/workbook.xml as its marker part.
+export const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+export function isXlsxArchive(buffer: Buffer): boolean {
+  try { validateOfficeArchive(buffer, "xl/workbook.xml", "ZIP file is not an Excel workbook"); return true; }
+  catch { return false; }
+}
+
+/** Guard check for the spreadsheet upload: size, then a bounded inspection of the archive. Throws when it is not a real .xlsx. */
+export function validateSpreadsheetBytes(buffer: Buffer, _declaredMime?: string, maxBytes = MAX_DOCUMENT_BYTES): void {
+  if (!Buffer.isBuffer(buffer) || !buffer.length || buffer.length > maxBytes || buffer.length < 22 || buffer.readUInt32LE(0) !== 0x04034b50 || !isXlsxArchive(buffer)) {
+    throw new Error("File is not an Excel workbook");
+  }
+}
+
+function validateOfficeArchive(buffer: Buffer, requiredEntry: string, notThisTypeMessage: string): void {
   let end = -1;
   for (let i = buffer.length - 22; i >= Math.max(0, buffer.length - 65_557); i--) {
     if (buffer.readUInt32LE(i) === 0x06054b50 && i + 22 + buffer.readUInt16LE(i + 20) === buffer.length) {
@@ -116,7 +134,7 @@ export function validateDocxArchive(buffer: Buffer): void {
     if (expanded >= MAX_ARCHIVE_BYTES) throw new Error("DOCX archive expansion limit exceeded");
     offset += 46 + nameSize + extraSize + commentSize;
   }
-  if (offset !== centralEnd || !names.has("[Content_Types].xml") || !names.has("word/document.xml")) throw new Error("ZIP file is not a Word document");
+  if (offset !== centralEnd || !names.has("[Content_Types].xml") || !names.has(requiredEntry)) throw new Error(notThisTypeMessage);
 }
 
 export function validateDocumentBytes(buffer: Buffer, declaredMime?: string, maxBytes = MAX_DOCUMENT_BYTES): ValidatedDocument {

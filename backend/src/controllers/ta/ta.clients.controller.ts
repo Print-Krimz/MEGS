@@ -9,6 +9,7 @@ import {
   DuplicateClientError,
 } from "../../services/ta/ta.clients.service.js";
 import { readClientDocument } from "../../services/ta/client-read.service.js";
+import { buildImportTemplate, importClientRows, importTemplateFileName, sendXlsx, SpreadsheetImportError } from "../../services/ta/spreadsheet-import.service.js";
 
 const sendDuplicate = (res: Response, error: DuplicateClientError) =>
   sendError(res, error.message, 409, { errors: [{ field: error.field, message: error.message }] });
@@ -83,6 +84,29 @@ export const readClientFile = async (req: Request, res: Response): Promise<void>
   } catch (error: any) {
     // Only an unsupported or oversized file reaches here; a reading failure returns UNREADABLE instead.
     sendError(res, error.message, 400, error);
+  }
+};
+
+// GET /api/ta/clients/import-template. The fixed Excel template for "Load clients from files".
+export const clientImportTemplateHandler = async (_req: Request, res: Response): Promise<void> => {
+  try {
+    sendXlsx(res, importTemplateFileName("clients"), await buildImportTemplate("clients"));
+  } catch (error: any) {
+    sendError(res, error.message, 500);
+  }
+};
+
+// POST /api/ta/clients/import (multipart, file field "file"). One row per client; no AI, saves nothing.
+export const importClientsHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    if (!req.file) {
+      sendError(res, "Attach the Excel template (.xlsx)", 400);
+      return;
+    }
+    sendSuccess(res, "Client rows read", { rows: await importClientRows(req.file.buffer) });
+  } catch (error: any) {
+    if (error instanceof SpreadsheetImportError) return void sendError(res, error.message, 400);
+    sendError(res, "This file could not be read. Download the template and fill it in.", 400);
   }
 };
 

@@ -3,7 +3,7 @@ import { taComplianceBulkSchema, BULK_UPLOAD_MAX_FILES } from "../../schemas/ta-
 import { requestDocumentUpdateHandler, uploadComplianceDocumentForApplicantHandler, bulkUploadComplianceDocumentsHandler } from "../../controllers/ta/ta.compliance.controller.js";
 import { aiLimiters, reportLimiters, analyticsLimiters } from '../../middleware/rate-limiter.middleware.js';
 import { authenticateJWT, requireRole } from '../../middleware/auth.middleware.js';
-import { upload, uploadContractScan } from '../../middleware/upload.middleware.js';
+import { upload, uploadContractScan, uploadSpreadsheet } from '../../middleware/upload.middleware.js';
 import { validate, validateDateRangeQuery } from '../../middleware/validate.middleware.js';
 import { taSchema } from '../../schemas/ta.schema.js';
 import { analyticsSchema } from '../../schemas/analytics.schema.js';
@@ -89,6 +89,8 @@ import {
   getClientDetailsHandler,
   updateClientHandler,
   readClientFile,
+  clientImportTemplateHandler,
+  importClientsHandler,
   checkClientDuplicateHandler,
 } from '../../controllers/ta/ta.clients.controller.js';
 
@@ -103,6 +105,8 @@ import {
   listMRFComplianceTemplatesHandler,
   removeMRFComplianceTemplateHandler,
   readMRFFile,
+  mrfImportTemplateHandler,
+  importMRFsHandler,
 } from '../../controllers/ta/ta.mrf.controller.js';
 
 import {
@@ -173,6 +177,9 @@ router.get("/clients", validate(taSchema.listClients), listClientsHandler);
 router.post("/clients", validate(taSchema.createClient), createClientHandler);
 // Reads an uploaded client document into suggested form values. Saves nothing.
 router.post("/clients/read", upload.single("file"), readClientFile);
+// Excel import: a fixed template, one row per client. No AI, so these stay outside aiLimiters.
+router.get("/clients/import-template", clientImportTemplateHandler);
+router.post("/clients/import", uploadSpreadsheet.single("file"), importClientsHandler);
 router.get("/clients/check-duplicate", validate(taSchema.checkClientDuplicate), checkClientDuplicateHandler);
 router.get("/clients/:id", validate(taSchema.idParams), requireOwned("client"), getClientDetailsHandler);
 router.patch("/clients/:id", validate(taSchema.updateClient), requireOwned("client"), updateClientHandler);
@@ -181,6 +188,8 @@ router.get("/mrfs", validate(taSchema.listMRFs), listMRFsHandler);
 router.post("/mrfs", validate(taSchema.createMRF), createMRFHandler);
 // Reads an uploaded MRF file into suggested form values. Saves nothing.
 router.post("/mrfs/read", upload.single("file"), readMRFFile);
+router.get("/mrfs/import-template", mrfImportTemplateHandler);
+router.post("/mrfs/import", uploadSpreadsheet.single("file"), importMRFsHandler);
 router.get("/mrfs/:id", validate(taSchema.idParams), requireOwned("mrf"), getMRFDetailsHandler);
 router.patch("/mrfs/:id", validate(taSchema.updateMRF), requireOwned("mrf"), updateMRFHandler);
 router.post("/mrfs/:id/link-job", validate(taSchema.linkJobToMRF), requireOwned("mrf"), linkJobToMRFHandler);

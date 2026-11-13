@@ -21,6 +21,7 @@ import {
   workHoursLabel,
 } from "../../../lib/mrf-schedule";
 import { plural } from "../../../lib/plural";
+import { batchFileCount, isXlsxFile, saveBlob, sourceLabel, XLSX_MIME, type BatchSource } from "../../../lib/spreadsheet-import";
 import type { CreateMRFDto } from "../../../lib/types/ta.types";
 
 export const MAX_BATCH_FILES = 10;
@@ -28,7 +29,7 @@ export const MAX_BATCH_FILES = 10;
 const READ_CONCURRENCY = 2;
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 const ACCEPT_ATTRIBUTE =
-  "application/pdf,.pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png,image/webp";
+  `application/pdf,.pdf,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/jpeg,image/png,image/webp,.xlsx,${XLSX_MIME}`;
 const ACCEPTED_TYPES = [
   "application/pdf",
   "application/msword",
@@ -36,10 +37,11 @@ const ACCEPTED_TYPES = [
   "image/jpeg",
   "image/png",
   "image/webp",
+  XLSX_MIME,
 ];
-const ACCEPTED_EXTENSIONS = /\.(pdf|docx?|jpe?g|png|webp)$/i;
+const ACCEPTED_EXTENSIONS = /\.(pdf|docx?|jpe?g|png|webp|xlsx)$/i;
 
-const FILE_TYPE_MESSAGE = "Use a PDF, Word file, or JPG, PNG or WEBP photo.";
+const FILE_TYPE_MESSAGE = "Use a PDF, Word file, JPG, PNG or WEBP photo, or the Excel template.";
 const FILE_TOO_BIG_MESSAGE = "The file is over 5 MB. Use a smaller file.";
 const UNREADABLE_MESSAGE = "Couldn't read this file. Fill the fields by hand.";
 const LIMIT_MESSAGE = "Hourly AI limit reached. Fill this row by hand or try later.";
@@ -120,7 +122,9 @@ type Extras = Partial<Record<ExtraKey, string | number>>;
 
 interface BatchRow {
   id: string;
-  file: File;
+  /** Missing for a row that came from an Excel file. */
+  file?: File;
+  source: BatchSource;
   read: "queued" | "reading" | "read" | "unreadable" | "limit";
   draft: MRFDraft;
   extras: Extras;
@@ -280,7 +284,7 @@ const RowView: React.FC<RowViewProps> = ({ row, number, client, locked, onChange
               {number}
             </span>
             <span className="sr-only">Request {number}: </span>
-            <span className="truncate">{row.file.name}</span>
+            <span className="truncate">{sourceLabel(row.source)}</span>
           </p>
           {waiting && (
             <p role="status" className="flex items-center gap-1.5 text-xs text-slate-600">
@@ -341,7 +345,7 @@ const RowView: React.FC<RowViewProps> = ({ row, number, client, locked, onChange
               className="min-h-11 md:min-h-8"
               disabled={locked}
               onClick={onRemove}
-              aria-label={`Remove ${row.file.name}`}
+              aria-label={`Remove ${sourceLabel(row.source)}`}
             >
               Remove
             </Button>
@@ -520,6 +524,7 @@ export const AddMRFsFromFilesDialog: React.FC<AddMRFsFromFilesDialogProps> = ({ 
   const activeReads = useRef(0);
   const alive = useRef(true);
   const nextId = useRef(1);
+  const importsActive = useRef(0);
   const clientIdRef = useRef(clientId);
   clientIdRef.current = clientId;
 
@@ -553,27 +558,71 @@ export const AddMRFsFromFilesDialog: React.FC<AddMRFsFromFilesDialogProps> = ({ 
   const anySaved = rows.some((r) => r.status === "done");
   const guard = useDirtyGuard({ isDirty: open && pending.length > 0, message: "Some MRFs are not added yet." });
 
+  /** Fills the empty fields of a row from a reading. Anything already typed stays. */
+  const applyReading = (row: BatchRow, reading: MRFFileReading): BatchRow => {
+    const fields = (reading.fields ?? {}) as Record<string, string | number | undefined>;
+    const draft = { ...row.draft };
+    for (const key of DRAFT_KEYS) {
+      const value = fields[key];
+      if (value !== undefined && value !== null && String(value).trim() && isEmptyDraftField(draft, key)) {
+        draft[key] = String(value).trim();
+      }
+    }
+    const extras: Extras = {};
+    for (const [key] of EXTRA_LABELS) {
+      const value = fields[key];
+      if (value !== undefined && value !== null && String(value).trim() !== "") extras[key] = value;
+    }
+    return { ...row, read: "read", draft, extras, companyName: reading.companyName?.trim() ?? "", issues: reading.issues ?? {} };
+  };
+
   const finishRead = (id: string, outcome: MRFFileReading | "limit" | null) => {
     if (!alive.current) return;
     const readOk = outcome && outcome !== "limit" && outcome.status === "SUCCESS" ? outcome : null;
-    // Rows only get empty fields filled, so anything typed while the file was being read stays.
-    patchRow(id, (row) => {
-      if (!readOk) return { ...row, read: outcome === "limit" ? "limit" : "unreadable" };
-      const fields = (readOk.fields ?? {}) as Record<string, string | number | undefined>;
-      const draft = { ...row.draft };
-      for (const key of DRAFT_KEYS) {
-        const value = fields[key];
-        if (value !== undefined && value !== null && String(value).trim() && isEmptyDraftField(draft, key)) {
-          draft[key] = String(value).trim();
-        }
+    patchRow(id, (row) => (readOk ? applyReading(row, readOk) : { ...row, read: outcome === "limit" ? "limit" : "unreadable" }));
+  };
+
+  /** An Excel file becomes one row per request, already filled in. No AI read. */
+  const importSheet = async (file: File) => {
+    importsActive.current += 1;
+    try {
+      const { rows: imported } = await taApi.importMRFsFile(file);
+      if (!alive.current) return;
+      if (imported.length === 0) {
+        setNotice((current) => [...current, `${file.name}: No request rows found. Fill in the template below the example row.`]);
+        return;
       }
-      const extras: Extras = {};
-      for (const [key] of EXTRA_LABELS) {
-        const value = fields[key];
-        if (value !== undefined && value !== null && String(value).trim() !== "") extras[key] = value;
-      }
-      return { ...row, read: "read", draft, extras, companyName: readOk.companyName?.trim() ?? "", issues: readOk.issues ?? {} };
-    });
+      const added: BatchRow[] = imported.map((item) =>
+        applyReading(
+          {
+            id: String(nextId.current++),
+            source: { fileName: file.name, rowNumber: item.rowNumber },
+            read: "read",
+            draft: emptyDraft(),
+            extras: {},
+            companyName: "",
+            issues: {},
+            serverErrors: {},
+            expanded: true,
+            status: "idle",
+          },
+          item,
+        ),
+      );
+      updateRows((current) => [...current, ...added]);
+    } catch (error) {
+      if (alive.current) setNotice((current) => [...current, `${file.name}: ${formatErrorMessage(error)}`]);
+    } finally {
+      importsActive.current -= 1;
+    }
+  };
+
+  const downloadTemplate = async () => {
+    try {
+      saveBlob(await taApi.getMRFImportTemplate(), "MEGS-requests-template.xlsx");
+    } catch (error) {
+      notify.error("Couldn't download the template", formatErrorMessage(error));
+    }
   };
 
   const pumpReads = () => {
@@ -581,7 +630,7 @@ export const AddMRFsFromFilesDialog: React.FC<AddMRFsFromFilesDialogProps> = ({ 
     while (activeReads.current < READ_CONCURRENCY && readQueue.current.length > 0) {
       const id = readQueue.current.shift() as string;
       const row = rowsRef.current.find((r) => r.id === id);
-      if (!row) continue;
+      if (!row?.file) continue;
       activeReads.current += 1;
       patchRow(id, { read: "reading" });
       // Any failure leaves the row for typing. Nothing is retried.
@@ -609,7 +658,7 @@ export const AddMRFsFromFilesDialog: React.FC<AddMRFsFromFilesDialogProps> = ({ 
     if (!clientIdRef.current) return;
     const messages: string[] = [];
     const accepted: File[] = [];
-    let room = MAX_BATCH_FILES - rowsRef.current.length;
+    let room = MAX_BATCH_FILES - batchFileCount(rowsRef.current) - importsActive.current;
     let leftOut = 0;
     for (const file of files) {
       if (!isAcceptedFile(file)) {
@@ -627,9 +676,14 @@ export const AddMRFsFromFilesDialog: React.FC<AddMRFsFromFilesDialogProps> = ({ 
     setNotice(messages);
     if (accepted.length === 0) return;
 
-    const added: BatchRow[] = accepted.map((file) => ({
+    for (const sheet of accepted.filter(isXlsxFile)) void importSheet(sheet);
+    const documents = accepted.filter((file) => !isXlsxFile(file));
+    if (documents.length === 0) return;
+
+    const added: BatchRow[] = documents.map((file) => ({
       id: String(nextId.current++),
       file,
+      source: { fileName: file.name },
       read: "queued",
       draft: emptyDraft(),
       extras: {},
@@ -725,7 +779,7 @@ export const AddMRFsFromFilesDialog: React.FC<AddMRFsFromFilesDialogProps> = ({ 
     onClose();
   };
 
-  const full = rows.length >= MAX_BATCH_FILES;
+  const full = batchFileCount(rows) >= MAX_BATCH_FILES;
   const pickerOff = full || saving || !clientId;
   const blockedReason =
     pending.length === 0
@@ -790,7 +844,7 @@ export const AddMRFsFromFilesDialog: React.FC<AddMRFsFromFilesDialogProps> = ({ 
           >
             <label htmlFor="mrf-files" className={rows.length === 0 ? "text-base font-medium text-slate-900" : "text-sm font-medium text-slate-800"}>
               {rows.length === 0 ? "Drop MRF files here" : "Add more files"}
-              <span className="sr-only"> (PDF, Word or photo files)</span>
+              <span className="sr-only"> (PDF, Word or photo files, or the Excel template)</span>
             </label>
             <input
               ref={fileInputRef}
@@ -811,9 +865,12 @@ export const AddMRFsFromFilesDialog: React.FC<AddMRFsFromFilesDialogProps> = ({ 
             </Button>
             <p id="mrf-files-help" className="text-xs text-slate-500">
               {clientId
-                ? `PDF, Word or photo files, up to ${MAX_BATCH_FILES} files, 5 MB each.${rows.length > 0 ? ` ${rows.length} added.` : ""}`
+                ? `PDF, Word or photo files, or the Excel template. Up to ${MAX_BATCH_FILES} files, 5 MB each.${rows.length > 0 ? ` ${rows.length} added.` : ""}`
                 : "Choose a client first."}
             </p>
+            <Button type="button" variant="ghost" size="sm" onClick={() => void downloadTemplate()}>
+              Download Excel template
+            </Button>
           </div>
 
           {notice.length > 0 && (

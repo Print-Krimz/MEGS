@@ -5,7 +5,7 @@ import prisma from "../utils/prisma.js";
 import type { RequestHandler } from "express";
 import { createHash } from "node:crypto";
 import { publicMessages, CHECK_IN_BIODATA_MESSAGE } from "../security/public-messages.js";
-import { validateDocumentBytes, MAX_DOCUMENT_BYTES, MAX_CONTRACT_SCAN_BYTES, sanitizeUploadFileName } from "../security/file-validation.js";
+import { validateDocumentBytes, validateSpreadsheetBytes, XLSX_MIME, MAX_DOCUMENT_BYTES, MAX_CONTRACT_SCAN_BYTES, sanitizeUploadFileName } from "../security/file-validation.js";
 
 // In-memory storage allows direct buffer streaming to Supabase Storage. Max 5MB.
 const storage = multer.memoryStorage();
@@ -60,7 +60,7 @@ export const acquireUploadSlot: RequestHandler = (_req, res, next) => {
 
 // Existing routes all use single(). Validate the completed buffer before any
 // controller/storage side effect, and reserve memory before multer buffers it.
-const guardedUpload = (maxBytes: number, fileFilter: multer.Options["fileFilter"] = documentFileFilter, rejectMessage?: string) => {
+const guardedUpload = (maxBytes: number, fileFilter: multer.Options["fileFilter"] = documentFileFilter, rejectMessage?: string, validate: (buffer: Buffer, mime: string, maxBytes: number) => unknown = validateDocumentBytes) => {
   const parser = documentUpload(maxBytes, fileFilter);
   return {
     // Several files in one request. Same type and byte checks per file, and it still holds a single upload slot.
@@ -80,7 +80,7 @@ const guardedUpload = (maxBytes: number, fileFilter: multer.Options["fileFilter"
       return (req, res, next) => acquireUploadSlot(req, res, () => {
         parse(req, res, (error) => {
           if (error) { const message = rejectMessage ?? (error instanceof Error && publicMessages.has(error.message) ? error.message : "Upload failed. Check the document type, size and number of files."); res.status(400).json({ success: false, message }); return; }
-          try { if (req.file) validateDocumentBytes(req.file.buffer, req.file.mimetype, maxBytes); }
+          try { if (req.file) validate(req.file.buffer, req.file.mimetype, maxBytes); }
           catch { res.status(400).json({ success: false, message: rejectMessage ?? "File contents do not match a supported document type or size." }); return; }
           next();
         });
@@ -102,6 +102,18 @@ export const uploadContractScan = guardedUpload(
     else cb(new Error("Attach a PDF, JPEG or PNG file."));
   },
   "Attach a PDF, JPEG or PNG file up to 10 MB.",
+);
+
+// Excel import template: one .xlsx up to 5MB whose archive is checked before it is parsed.
+const SPREADSHEET_MESSAGE = "Attach the Excel template (.xlsx) up to 5 MB.";
+export const uploadSpreadsheet = guardedUpload(
+  MAX_DOCUMENT_BYTES,
+  (_req, file, cb) => {
+    if (file.mimetype === XLSX_MIME) cb(null, true);
+    else cb(new Error(SPREADSHEET_MESSAGE));
+  },
+  SPREADSHEET_MESSAGE,
+  validateSpreadsheetBytes,
 );
 
 // Public self check-in biodata: a photo or PDF only (no Word files), with one plain message for every rejection.
