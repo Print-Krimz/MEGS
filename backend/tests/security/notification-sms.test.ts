@@ -386,8 +386,8 @@ describe("formatSms", () => {
     expect(long).toContain("... Details:");
   });
 
-  it("keeps the old text when there is no link or no login sentence", () => {
-    expect(formatSms("Hello. Log in to MEGS for details.")).toBe("MEGS: Hello. Log in to MEGS for details.");
+  it("names the site instead of a link when there is no link, and leaves other text alone", () => {
+    expect(formatSms("Hello. Log in to MEGS for details.")).toBe("MEGS: Hello. Visit megsinc.com for details.");
     expect(formatSms("Hello there.", "/app/x")).toBe("MEGS: Hello there.");
   });
 

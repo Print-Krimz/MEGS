@@ -30,6 +30,8 @@ const SMS_MAX_LENGTH = 160;
 
 // "MEGS: " prefix, ASCII only (keeps it GSM-7 friendly), at most 160 characters.
 const SMS_LOGIN_SENTENCE = "Log in to MEGS for details.";
+// Smart drops SMS with https:// links but delivers a bare site name (tested 2026-11-13).
+const SMS_SITE_SENTENCE = "Visit megsinc.com for details.";
 
 // With a link, "Log in to MEGS for details." becomes "Details: <url>". The body is trimmed so the URL is never cut.
 export const formatSms = (text: string, link?: string | null): string => {
@@ -43,7 +45,11 @@ export const formatSms = (text: string, link?: string | null): string => {
       return `${head}${tail}`;
     }
   }
-  const ascii = text
+  const trimmed = text.trimEnd();
+  const withSite = trimmed.endsWith(SMS_LOGIN_SENTENCE)
+    ? `${trimmed.slice(0, -SMS_LOGIN_SENTENCE.length)}${SMS_SITE_SENTENCE}`
+    : text;
+  const ascii = withSite
     .replace(/[‘’]/g, "'")
     .replace(/[“”]/g, '"')
     .replace(/[–—]/g, "-")
