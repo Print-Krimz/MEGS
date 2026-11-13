@@ -33,6 +33,7 @@ import {
 } from "../../lib/utils";
 import { ApplicationStatus, JobStatus } from "../../lib/types/enums";
 import { plural } from "../../lib/plural";
+import { confidenceOf } from "../../lib/match-confidence";
 import { humanizeEnum } from "../../lib/labels";
 import { formatWorkSchedule } from "../../lib/mrf-schedule";
 
@@ -322,7 +323,14 @@ export const JobPostingDetailPage: React.FC = () => {
       key: "match",
       header: "AI match score",
       align: "center",
-      cell: (row) => <ScoreBadge score={row.score.finalFitScore} size="md" />,
+      cell: (row) => (
+        <div className="flex flex-col items-center gap-0.5">
+          <ScoreBadge score={row.score.finalFitScore} size="md" />
+          {confidenceOf(row.score.explanation) === "Low" && (
+            <span className="text-xs text-slate-600">Low confidence</span>
+          )}
+        </div>
+      ),
     },
     { key: "skills", header: "Skills", align: "center", cell: (row) => percent(row.score.skillsScore) },
     { key: "experience", header: "Experience", align: "center", cell: (row) => percent(row.score.experienceScore) },
@@ -343,7 +351,12 @@ export const JobPostingDetailPage: React.FC = () => {
           </Link>
           <p className="text-xs text-slate-600">Calculated {formatDate(row.score.calculatedAt)}</p>
         </div>
-        <ScoreBadge score={row.score.finalFitScore} size="md" />
+        <div className="flex shrink-0 flex-col items-end gap-0.5">
+          <ScoreBadge score={row.score.finalFitScore} size="md" />
+          {confidenceOf(row.score.explanation) === "Low" && (
+            <span className="text-xs text-slate-600">Low confidence</span>
+          )}
+        </div>
       </div>
       <StatusBadge
         status={row.score.candidate?.applicationStatus || ApplicationStatus.SUBMITTED}

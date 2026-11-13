@@ -1,8 +1,11 @@
 import React from "react";
 import { ScoreReasons } from "../ScoreReasons";
 import type { DimensionExplanation } from "../../../lib/types/ta.types";
+import { confidenceOf } from "../../../lib/match-confidence";
 
 export interface ScoreExplanation {
+  activeTotalWeight?: number;
+  embeddingUsed?: boolean;
   dimensionStatuses?: Record<string, string>;
   dimensionsApplicable?: Record<string, boolean>;
   dimensionExplanations?: Record<string, DimensionExplanation>;
@@ -43,11 +46,20 @@ const toPercent = (value: number | string | null | undefined) => {
  * The five scores in one row, then the reasons behind the weakest ones. The overall score is in the
  * summary above, so it is not repeated here.
  */
-export const MatchBreakdown: React.FC<MatchBreakdownProps> = ({ scores, explanation, requirementsResult }) => (
+export const MatchBreakdown: React.FC<MatchBreakdownProps> = ({ scores, explanation, requirementsResult }) => {
+  const confidence = confidenceOf(explanation);
+  return (
   <section id="eval-qualifications" aria-labelledby="match-heading" className="space-y-3">
-    <h3 id="match-heading" className="border-b border-slate-200 pb-2 text-base font-semibold text-slate-900">
-      AI match
-    </h3>
+    <div className="flex flex-wrap items-baseline justify-between gap-x-4 border-b border-slate-200 pb-2">
+      <h3 id="match-heading" className="text-base font-semibold text-slate-900">
+        AI match
+      </h3>
+      {confidence && (
+        <p className={`text-sm ${confidence === "Low" ? "font-medium text-amber-800" : "text-slate-600"}`}>
+          {confidence === "Low" ? "Confidence: Low. Review manually." : `Confidence: ${confidence}`}
+        </p>
+      )}
+    </div>
 
     {scores ? (
       <div className="grid grid-cols-2 divide-x divide-y divide-slate-300 overflow-hidden rounded-md border border-slate-300 bg-white sm:grid-cols-5 sm:divide-y-0">
@@ -135,4 +147,5 @@ export const MatchBreakdown: React.FC<MatchBreakdownProps> = ({ scores, explanat
       />
     )}
   </section>
-);
+  );
+};
