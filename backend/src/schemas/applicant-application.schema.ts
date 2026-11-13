@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { boundedId, boundedText, boundedPageSize, finiteNumber, safeProseSchema, FIELD_LIMITS } from "./field-limits.js";
+import { OFFICE_HOURS_MESSAGE } from "../config/business-hours.js";
+import { boundedId, boundedText, boundedPageSize, finiteNumber, safeProseSchema, FIELD_LIMITS, isWorkingHours, isFutureDateTime } from "./field-limits.js";
 import { APPLICANT_SELF_WITHDRAW_REASONS } from "../services/ta/backout-rules.js";
 import { talentPoolInvitationSchema } from "./talent-pool-invitation.schema.js";
 import { listSavedJobsQuerySchema } from "./applicant.schema.js";
@@ -49,6 +50,10 @@ export const applicantApplicationSchema = {
     body: z.object({
       activity: z.enum(["INITIAL_SCREENING", "FINAL_INTERVIEW", "CONTRACT_SIGNING"]),
       reason: safeProseSchema("Reason", 500).pipe(z.string().min(10, "Tell your recruiter why in at least 10 characters.")),
+      proposedAt: z.string().datetime({ offset: true }).max(35)
+        .refine((val) => isFutureDateTime(val), "Pick a time in the future.")
+        .refine((val) => isWorkingHours(val), OFFICE_HOURS_MESSAGE)
+        .optional(),
     }).strict(),
   }),
   respondInvitation: z.object({

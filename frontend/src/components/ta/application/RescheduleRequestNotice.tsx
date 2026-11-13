@@ -38,6 +38,12 @@ export const RescheduleRequestNotice: React.FC<RescheduleRequestNoticeProps> = (
           <span className="font-medium tabular-nums">{formatDateTime(current)}</span>
         </p>
       )}
+      {request.proposedAt && (
+        <p>
+          <span className="text-amber-900">Preferred: </span>
+          <span className="font-medium tabular-nums">{formatDateTime(request.proposedAt)}</span>
+        </p>
+      )}
       <div className="flex flex-wrap gap-2 pt-1">
         <Button variant="primary" size="sm" onClick={() => onPickTime(request)}>
           Pick new time

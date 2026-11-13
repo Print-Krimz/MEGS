@@ -1,0 +1,1 @@
+ALTER TABLE "RescheduleRequest" ADD COLUMN IF NOT EXISTS "proposedAt" TIMESTAMP(3);

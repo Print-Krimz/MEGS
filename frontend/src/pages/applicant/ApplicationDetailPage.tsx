@@ -144,7 +144,7 @@ export const ApplicationDetailPage: React.FC = () => {
   });
 
   const rescheduleMutation = useMutation({
-    mutationFn: (data: { activity: RescheduleActivity; reason: string }) => applicantJobsApi.requestReschedule(applicationId, data),
+    mutationFn: (data: { activity: RescheduleActivity; reason: string; proposedAt?: string }) => applicantJobsApi.requestReschedule(applicationId, data),
     onSuccess: () => {
       setRescheduleActivity(null);
       queryClient.invalidateQueries({ queryKey: ["applicant", "application", applicationId] });
@@ -810,7 +810,7 @@ export const ApplicationDetailPage: React.FC = () => {
         }}
         activity={rescheduleActivity}
         isSubmitting={rescheduleMutation.isPending}
-        onSubmit={(reason) => rescheduleActivity && rescheduleMutation.mutate({ activity: rescheduleActivity, reason })}
+        onSubmit={(reason, proposedAt) => rescheduleActivity && rescheduleMutation.mutate({ activity: rescheduleActivity, reason, proposedAt })}
       />
 
       {/* Reuse a document from the applicant's library */}

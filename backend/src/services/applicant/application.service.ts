@@ -577,6 +577,7 @@ export const fetchApplicationDetails = async (applicationId: number, userId: str
           reason: true,
           previousScheduledAt: true,
           newScheduledAt: true,
+          proposedAt: true,
           decisionNote: true,
           createdAt: true,
           decidedAt: true,

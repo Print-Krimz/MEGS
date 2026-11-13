@@ -88,6 +88,7 @@ export interface RescheduleRequest {
   decidedAt?: string | null;
   decisionNote?: string | null;
   newScheduledAt?: string | null;
+  proposedAt?: string | null;
   createdAt: string;
   updatedAt?: string;
 }

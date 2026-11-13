@@ -171,7 +171,7 @@ export const applicantJobsApi = {
     api.get<ApplicationDetailResponse>(`/api/applicant-jobs/applications/${id}`, options),
 
   // Ask the recruiter for a new interview or contract-signing time
-  requestReschedule: (id: number | string, data: { activity: RescheduleActivity; reason: string }) =>
+  requestReschedule: (id: number | string, data: { activity: RescheduleActivity; reason: string; proposedAt?: string }) =>
     api.post<RescheduleRequest>(`/api/applicant-jobs/applications/${id}/reschedule-requests`, data),
 
   // Upload compliance document

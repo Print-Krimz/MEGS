@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Button, Dialog, Textarea } from "../ui";
+import { Button, Dialog, Textarea, DateTimePicker, dateTimeLocalToManilaIso } from "../ui";
 import type { RescheduleActivity, RescheduleRequest } from "../../lib/types/application.types";
 
 export const REASON_MIN = 10;
@@ -79,7 +79,7 @@ export interface RescheduleRequestDialogProps {
   open: boolean;
   onClose: () => void;
   activity: RescheduleActivity | null;
-  onSubmit: (reason: string) => void;
+  onSubmit: (reason: string, proposedAt?: string) => void;
   isSubmitting?: boolean;
 }
 
@@ -92,10 +92,12 @@ export const RescheduleRequestDialog: React.FC<RescheduleRequestDialogProps> = (
 }) => {
   const [reason, setReason] = useState("");
   const [touched, setTouched] = useState(false);
+  const [preferred, setPreferred] = useState("");
 
   useEffect(() => {
     if (open) {
       setReason("");
+      setPreferred("");
       setTouched(false);
     }
   }, [open]);
@@ -106,7 +108,7 @@ export const RescheduleRequestDialog: React.FC<RescheduleRequestDialogProps> = (
   const submit = () => {
     setTouched(true);
     if (length < REASON_MIN) return;
-    onSubmit(reason.trim());
+    onSubmit(reason.trim(), preferred ? dateTimeLocalToManilaIso(preferred) : undefined);
   };
 
   return (
@@ -127,6 +129,14 @@ export const RescheduleRequestDialog: React.FC<RescheduleRequestDialogProps> = (
           required
           error={error}
           helperText={`${length} / ${REASON_MAX} characters`}
+        />
+        <DateTimePicker
+          label="Preferred date and time (optional)"
+          value={preferred}
+          onChange={setPreferred}
+          minDate={new Date()}
+          workingHoursOnly
+          helperText="Your recruiter will see this when picking the new time."
         />
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
           <Button variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>

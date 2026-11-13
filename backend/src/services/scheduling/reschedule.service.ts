@@ -41,6 +41,7 @@ export const REQUEST_SELECT = {
   reason: true,
   previousScheduledAt: true,
   newScheduledAt: true,
+  proposedAt: true,
   decisionNote: true,
   createdAt: true,
   decidedAt: true,
@@ -56,7 +57,8 @@ export const createRescheduleRequest = async (
   applicationId: number,
   userId: string,
   activity: ScheduleActivityName,
-  reason: string
+  reason: string,
+  proposedAt?: string
 ) => {
   const application = await prisma.application.findFirst({
     where: { id: applicationId, userId },
@@ -130,7 +132,7 @@ export const createRescheduleRequest = async (
   let request;
   try {
     request = await prisma.rescheduleRequest.create({
-      data: { applicationId, activity, interviewId, reason, previousScheduledAt: current, requestedById: userId },
+      data: { applicationId, activity, interviewId, reason, previousScheduledAt: current, requestedById: userId, proposedAt: proposedAt ? new Date(proposedAt) : null },
       select: REQUEST_SELECT,
     });
   } catch (error) {
@@ -145,7 +147,8 @@ export const createRescheduleRequest = async (
     application.jobPosting,
     "Reschedule Requested",
     `${name} asked to move the ${ACTIVITY_LABEL[activity]} for "${application.jobPosting?.title ?? "the job"}" ` +
-      `from ${formatManilaDateTime(current)}${place ? ` (${place})` : ""}. Reason: ${reason}`,
+      `from ${formatManilaDateTime(current)}${place ? ` (${place})` : ""}. Reason: ${reason}` +
+      (proposedAt ? ` Preferred time: ${formatManilaDateTime(new Date(proposedAt))}.` : ""),
     "INFO",
     `/ta/applications/${applicationId}`,
     { sendEmail: true, ctaText: "Review Request" }

@@ -314,13 +314,13 @@ export const ApplicationDetailPage: React.FC = () => {
     request.activity === "CONTRACT_SIGNING"
       ? app.contractSigningAt
       : (app.interviews || []).find((i) => i.id === request.interviewId)?.scheduledAt;
-  // The recruiter picks a new time, so the date starts empty; the place carries over.
+  // The date starts from the applicant's preferred time when they gave one; the place carries over.
   const openRescheduleAnswer = (request: RescheduleRequest) =>
     setDialog({
       kind: "schedule",
       type: request.activity,
       isReschedule: true,
-      initialDate: "",
+      initialDate: manilaIsoToDateTimeLocal(request.proposedAt),
       currentDate: manilaIsoToDateTimeLocal(rescheduleCurrentTime(request)),
       blockedDates: (app.rescheduleRequests || [])
         .filter((r) => r.activity === request.activity && r.previousScheduledAt)

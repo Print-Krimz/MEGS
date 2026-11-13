@@ -6,8 +6,8 @@ import { createRescheduleRequest, SchedulingError } from "../../services/schedul
 export const createRescheduleRequestHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const applicationId = parseInt(req.params.id as string, 10);
-    const { activity, reason } = req.body;
-    const request = await createRescheduleRequest(applicationId, req.user!.id, activity, reason);
+    const { activity, reason, proposedAt } = req.body;
+    const request = await createRescheduleRequest(applicationId, req.user!.id, activity, reason, proposedAt);
     sendSuccess(res, "Reschedule request sent", request, 201);
   } catch (error: any) {
     sendError(res, error.message, error instanceof SchedulingError ? error.status : 400);
