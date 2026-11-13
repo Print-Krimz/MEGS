@@ -84,7 +84,7 @@ export const updateJobStatus = async (req: Request, res: Response): Promise<void
       sendError(res, "Invalid job ID", 400);
       return;
     }
-    const updated = await updateTAJobStatus(jobId, req.body.status);
+    const updated = await updateTAJobStatus(jobId, req.body.status, req.user);
     sendSuccess(res, `Job posting is now ${updated.status}`, updated);
   } catch (error: any) {
     const statusCode = error.message.includes("not found") ? 404 : 400;

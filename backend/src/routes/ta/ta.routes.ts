@@ -164,7 +164,16 @@ import { recordAssistedResponseHandler, sendOfferSmsLinkHandler } from "../../co
 const router = Router();
 
 router.use(authenticateJWT);
-router.use(requireRole("TALENT_ACQUISITION"));
+// Recruiters get the whole API. The Administrator (team leader) gets only clients, requests and job openings.
+const requireTA = requireRole("TALENT_ACQUISITION");
+const requireTAOrAdminForSetup = requireRole("TALENT_ACQUISITION", "ADMINISTRATOR");
+router.use((req, res, next) => {
+  if (req.user?.role === "ADMINISTRATOR" && /^\/(clients|mrfs|jobs)(\/|$)/.test(req.path)) {
+    requireTAOrAdminForSetup(req, res, next);
+    return;
+  }
+  requireTA(req, res, next);
+});
 router.use(validateDateRangeQuery);
 router.use("/analytics", ...analyticsLimiters);
 router.use("/reports", ...reportLimiters);
