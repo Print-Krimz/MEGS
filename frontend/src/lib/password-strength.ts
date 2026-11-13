@@ -4,15 +4,15 @@
  * Evaluates password complexity entirely within the browser runtime.
  * Never stores, logs, or transmits plaintext passwords to backend APIs.
  *
- * Required for a NEW password: 8+ characters, a letter, a number, and not a very common password.
- * Capital letters, symbols and length beyond 8 only raise the meter. Keep the common list and messages
+ * Required for a NEW password: 8+ characters, a letter, a number, a symbol, and not a very common password.
+ * Capital letters and length beyond 8 only raise the meter. Keep the common list and messages
  * in step with backend/src/security/password-policy.ts.
  */
 
 export type PasswordStrengthLevel = "Weak" | "Fair" | "Good" | "Strong";
 
 export interface PasswordRequirement {
-  id: "length" | "letter" | "number" | "common" | "stronger";
+  id: "length" | "letter" | "number" | "symbol" | "common" | "stronger";
   label: string;
   met: boolean;
   /** A tip that raises the meter but is never required. */
@@ -32,6 +32,7 @@ export interface PasswordStrengthResult {
 export const PASSWORD_TOO_SHORT = "Use at least 8 characters.";
 export const PASSWORD_NEEDS_LETTER = "Add at least one letter.";
 export const PASSWORD_NEEDS_NUMBER = "Add at least one number.";
+export const PASSWORD_NEEDS_SYMBOL = "Add at least one symbol, like ! or #.";
 export const PASSWORD_TOO_COMMON = "This password is too common. Choose another.";
 
 const COMMON_PASSWORDS = new Set([
@@ -50,13 +51,14 @@ export function newPasswordProblem(password: string): string | null {
   if (password.length < 8) return PASSWORD_TOO_SHORT;
   if (!/\p{L}/u.test(password)) return PASSWORD_NEEDS_LETTER;
   if (!/\p{N}/u.test(password)) return PASSWORD_NEEDS_NUMBER;
+  if (!/[^\p{L}\p{N}]/u.test(password)) return PASSWORD_NEEDS_SYMBOL;
   if (COMMON_PASSWORDS.has(password.toLowerCase())) return PASSWORD_TOO_COMMON;
   return null;
 }
 
 /**
  * For a Zod `.superRefine` on a new-password field. The existing `.min(8, ...)` already reports a short password,
- * so this adds only the letter, number and too-common messages.
+ * so this adds only the letter, number, symbol and too-common messages.
  */
 export function addNewPasswordIssue(
   value: string,
@@ -72,27 +74,28 @@ export function evaluatePasswordStrength(password: string): PasswordStrengthResu
   const hasMinLength = pwd.length >= 8;
   const hasLetter = /\p{L}/u.test(pwd);
   const hasNumber = /\p{N}/u.test(pwd);
-  const isCommon = hasMinLength && hasLetter && hasNumber && newPasswordProblem(pwd) === PASSWORD_TOO_COMMON;
+  const hasSymbol = /[^\p{L}\p{N}]/u.test(pwd);
+  const isCommon = hasMinLength && hasLetter && hasNumber && hasSymbol && newPasswordProblem(pwd) === PASSWORD_TOO_COMMON;
   const hasUppercase = /[A-Z]/.test(pwd);
-  const hasSpecial = /[^A-Za-z0-9]/.test(pwd);
   const isLong = pwd.length >= 12;
-  const bonusCount = (hasUppercase ? 1 : 0) + (hasSpecial ? 1 : 0);
+  const bonusCount = hasUppercase ? 1 : 0;
 
   const requirements: PasswordRequirement[] = [
     { id: "length", label: "At least 8 characters", met: hasMinLength },
     { id: "letter", label: "At least one letter", met: hasLetter },
     { id: "number", label: "At least one number", met: hasNumber },
+    { id: "symbol", label: "At least one symbol", met: hasSymbol },
   ];
   // Shown only when the password would otherwise pass, so the extra line explains why it is still Weak.
   if (isCommon) requirements.push({ id: "common", label: "Not a very common password", met: false });
   requirements.push({
     id: "stronger",
-    label: "Optional: add a capital letter or symbol, or use 12+ characters",
+    label: "Optional: add a capital letter, or use 12+ characters",
     met: isLong || bonusCount > 0,
     optional: true,
   });
 
-  const isEligible = hasMinLength && hasLetter && hasNumber && !isCommon;
+  const isEligible = hasMinLength && hasLetter && hasNumber && hasSymbol && !isCommon;
 
   if (!pwd) {
     return { score: 0, level: "Weak", percentage: 0, color: "text-slate-400", bgColor: "bg-slate-200", requirements, isEligible: false };
@@ -104,7 +107,7 @@ export function evaluatePasswordStrength(password: string): PasswordStrengthResu
   if (isLong && bonusCount >= 1) {
     return { score: 4, level: "Strong", percentage: 100, color: "text-emerald-700", bgColor: "bg-emerald-600", requirements, isEligible };
   }
-  if (isLong || bonusCount === 2) {
+  if (isLong) {
     return { score: 3, level: "Good", percentage: 75, color: "text-teal-700", bgColor: "bg-teal-600", requirements, isEligible };
   }
   return { score: 2, level: "Fair", percentage: 50, color: "text-amber-600", bgColor: "bg-amber-500", requirements, isEligible };
