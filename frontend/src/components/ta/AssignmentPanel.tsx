@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useId, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { adminApi } from "../../lib/api/admin.api";
 import { Button, Select } from "../ui";
@@ -60,47 +60,62 @@ export const AssignmentPanel: React.FC<AssignmentPanelProps> = ({ mrfId, mrfOwne
     onError: (error: Error) => notify.error("Could not change the owner", error.message),
   });
 
+  const mrfHelpId = useId();
+  const clientHelpId = useId();
+
   return (
     <section aria-label="Ownership" className="bg-white rounded-xl border border-slate-200 p-4 shadow-xs">
       <h3 className="text-xs font-medium text-slate-600">Ownership</h3>
       <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div className="flex items-end gap-2">
-          <Select
-            label="Request owner"
-            helperText="Its openings, candidates and placements follow this recruiter."
-            value={mrfOwner}
-            onChange={(e) => setMrfOwner(e.target.value)}
-            options={selectOptions}
-            disabled={optionsQuery.isLoading}
-            className="flex-1"
-          />
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={() => mrfMutation.mutate()}
-            disabled={mrfOwner === (mrfOwnerId ?? NONE) || mrfMutation.isPending}
-          >
-            Save
-          </Button>
+        <div>
+          <div className="flex items-end gap-2">
+            <Select
+              label="Request owner"
+              aria-describedby={mrfHelpId}
+              value={mrfOwner}
+              onChange={(e) => setMrfOwner(e.target.value)}
+              options={selectOptions}
+              disabled={optionsQuery.isLoading}
+              className="flex-1"
+            />
+            <Button
+              size="sm"
+              variant="primary"
+              className="md:min-h-10"
+              onClick={() => mrfMutation.mutate()}
+              disabled={mrfOwner === (mrfOwnerId ?? NONE) || mrfMutation.isPending}
+            >
+              Save
+            </Button>
+          </div>
+          <p id={mrfHelpId} className="mt-1.5 text-xs text-slate-500">
+            Its openings, candidates and placements follow this recruiter.
+          </p>
         </div>
-        <div className="flex items-end gap-2">
-          <Select
-            label={`Client owner (${clientName})`}
-            helperText="The default owner for new requests from this client."
-            value={clientOwner}
-            onChange={(e) => setClientOwner(e.target.value)}
-            options={selectOptions}
-            disabled={optionsQuery.isLoading}
-            className="flex-1"
-          />
-          <Button
-            size="sm"
-            variant="primary"
-            onClick={() => clientMutation.mutate()}
-            disabled={clientOwner === (clientOwnerId ?? NONE) || clientMutation.isPending}
-          >
-            Save
-          </Button>
+        <div>
+          <div className="flex items-end gap-2">
+            <Select
+              label={`Client owner (${clientName})`}
+              aria-describedby={clientHelpId}
+              value={clientOwner}
+              onChange={(e) => setClientOwner(e.target.value)}
+              options={selectOptions}
+              disabled={optionsQuery.isLoading}
+              className="flex-1"
+            />
+            <Button
+              size="sm"
+              variant="primary"
+              className="md:min-h-10"
+              onClick={() => clientMutation.mutate()}
+              disabled={clientOwner === (clientOwnerId ?? NONE) || clientMutation.isPending}
+            >
+              Save
+            </Button>
+          </div>
+          <p id={clientHelpId} className="mt-1.5 text-xs text-slate-500">
+            The default owner for new requests from this client.
+          </p>
         </div>
       </div>
     </section>
