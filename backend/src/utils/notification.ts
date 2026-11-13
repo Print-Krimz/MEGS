@@ -29,7 +29,20 @@ const isUniqueViolation = (error: unknown) => (error as { code?: string } | null
 const SMS_MAX_LENGTH = 160;
 
 // "MEGS: " prefix, ASCII only (keeps it GSM-7 friendly), at most 160 characters.
-export const formatSms = (text: string): string => {
+const SMS_LOGIN_SENTENCE = "Log in to MEGS for details.";
+
+// With a link, "Log in to MEGS for details." becomes "Details: <url>". The body is trimmed so the URL is never cut.
+export const formatSms = (text: string, link?: string | null): string => {
+  if (link && text.trimEnd().endsWith(SMS_LOGIN_SENTENCE)) {
+    const url = `${mailer.getAppBaseUrl()}${link.startsWith("/") ? "" : "/"}${link}`;
+    const body = formatSms(text.trimEnd().slice(0, -SMS_LOGIN_SENTENCE.length));
+    const tail = ` Details: ${url}`;
+    if (/^[\x21-\x7E]+$/.test(url) && 6 + tail.length <= SMS_MAX_LENGTH) {
+      const room = SMS_MAX_LENGTH - tail.length;
+      const head = body.length <= room ? body : `${body.slice(0, room - 3).trimEnd()}...`;
+      return `${head}${tail}`;
+    }
+  }
   const ascii = text
     .replace(/[‘’]/g, "'")
     .replace(/[“”]/g, '"')
@@ -94,7 +107,8 @@ export const deliverNotificationSms = async (
 export const dispatchNotificationSms = async (
   notificationId: number,
   userId: string,
-  sms: { text: string; always?: boolean }
+  sms: { text: string; always?: boolean },
+  link: string | null = null
 ): Promise<void> => {
   if (process.env.SMS_NOTIFICATIONS_ENABLED !== "true") return;
   let maskedPhone = "";
@@ -116,7 +130,7 @@ export const dispatchNotificationSms = async (
     }
 
     maskedPhone = maskPhoneNumber(phone);
-    const text = formatSms(sms.text);
+    const text = formatSms(sms.text, link);
     const now = new Date();
 
     const duplicate = await prisma.notification.findFirst({
@@ -174,7 +188,7 @@ export const sendNotification = async (
     });
 
     notificationEmitter.emit(`notification:${userId}`, notification);
-    if (emailOptions?.sms) void dispatchNotificationSms(notification.id, userId, emailOptions.sms);
+    if (emailOptions?.sms) void dispatchNotificationSms(notification.id, userId, emailOptions.sms, link);
   } catch (error) {
     if (isUniqueViolation(error)) return "duplicate";
     console.error("[NOTIFICATION FAILED]", error, { userId, title });

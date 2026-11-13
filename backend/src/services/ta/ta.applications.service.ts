@@ -839,7 +839,7 @@ const getCandidateStatusMessage = (fromStatus: string, toStatus: string): string
       const label = COMPLETED_STEP_LABEL[fromStatus];
       if (!label) return `Your application moved to ${toStatus.toLowerCase().replace(/_/g, " ")}.`;
       return toStatus === "COMPLIANCE"
-        ? `${label} completed. Please upload your pre-employment documents.`
+        ? "You passed the final interview. Next: upload your pre-employment documents."
         : `${label} completed.`;
     }
   }

@@ -13,7 +13,7 @@ const interviewLabel = (type: string) => (type === "FINAL_INTERVIEW" ? "Final in
 /** One-line applicant message for a recorded interview result. */
 const interviewResultMessage = (type: string, result: string) => {
   const label = type === "FINAL_INTERVIEW" ? "Final interview" : "Initial screening";
-  if (["PASS", "PASSED"].includes(result)) return `${label} completed.`;
+  if (["PASS", "PASSED"].includes(result)) return `You passed the ${label.toLowerCase()}.`;
   if (["FAIL", "FAILED"].includes(result)) return `${label} was not passed.`;
   return `${label} result is pending.`;
 };

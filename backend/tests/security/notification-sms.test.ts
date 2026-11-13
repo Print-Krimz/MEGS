@@ -20,7 +20,7 @@ vi.mock("../../src/utils/prisma.js", () => ({
   },
 }));
 vi.mock("../../src/utils/sms.js", async (orig) => ({ ...(await orig<any>()), sendSms: mocks.sms }));
-vi.mock("../../src/utils/mailer.js", () => ({ sendMail: vi.fn(), buildNotificationEmailHtml: vi.fn(() => "") }));
+vi.mock("../../src/utils/mailer.js", () => ({ sendMail: vi.fn(), buildNotificationEmailHtml: vi.fn(() => ""), getAppBaseUrl: () => "https://megs.example" }));
 
 import { dispatchNotificationSms, formatSms, isSmsQuietHours } from "../../src/utils/notification.js";
 import { sendSmsOutbox } from "../../src/workers/sms-outbox.js";
@@ -373,6 +373,22 @@ describe("formatSms", () => {
     const result = formatSms("x".repeat(300));
     expect(result).toHaveLength(160);
     expect(result).toBe(`MEGS: ${"x".repeat(151)}...`);
+  });
+
+  it("swaps the login sentence for the link and never cuts the URL", () => {
+    const url = "https://megs.example/app/applications/12";
+    expect(formatSms("Your interview is set. Log in to MEGS for details.", "/app/applications/12")).toBe(
+      `MEGS: Your interview is set. Details: ${url}`
+    );
+    const long = formatSms(`${"word ".repeat(60)}Log in to MEGS for details.`, "/app/applications/12");
+    expect(long.length).toBeLessThanOrEqual(160);
+    expect(long.endsWith(` Details: ${url}`)).toBe(true);
+    expect(long).toContain("... Details:");
+  });
+
+  it("keeps the old text when there is no link or no login sentence", () => {
+    expect(formatSms("Hello. Log in to MEGS for details.")).toBe("MEGS: Hello. Log in to MEGS for details.");
+    expect(formatSms("Hello there.", "/app/x")).toBe("MEGS: Hello there.");
   });
 
   it("does not leave a space before the ellipsis when the cut lands on a word break", () => {

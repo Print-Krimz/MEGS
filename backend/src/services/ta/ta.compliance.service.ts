@@ -736,13 +736,16 @@ export const generateComplianceRequirementsFromMRF = async (
   }
 
   if (created.length > 0 && app.userId && options.notifyApplicant !== false) {
+    const labels = created.slice(0, 5).map((r) => r.documentLabel).join(", ");
+    const more = created.length > 5 ? ` and ${created.length - 5} more` : "";
+    const message = `Upload by ${defaultDeadline ? formatManilaDate(defaultDeadline) : "your deadline"}: ${labels}${more}.`;
     void sendNotification(
       app.userId,
       "Pre-Employment Checklist Available",
-      `${created.length} pre-employment ${created.length === 1 ? "requirement was" : "requirements were"} added to your application.`,
+      message,
       "INFO",
       '/app/applications/' + applicationId,
-      { sms: { text: `${created.length} pre-employment ${created.length === 1 ? "requirement was" : "requirements were"} added to your application. Log in to MEGS for details.` } }
+      { sms: { text: `${message} Log in to MEGS for details.` } }
     );
   }
 
