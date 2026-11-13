@@ -188,7 +188,9 @@ export const sendNotification = async (
     });
 
     notificationEmitter.emit(`notification:${userId}`, notification);
-    if (emailOptions?.sms) void dispatchNotificationSms(notification.id, userId, emailOptions.sms, link);
+    // Off by default: a link-bearing test SMS to a Smart number was reported "Sent" by Semaphore on 2026-11-13 but never arrived. Turn on with SMS_INCLUDE_LINKS=true once links are confirmed to deliver.
+    const smsLink = process.env.SMS_INCLUDE_LINKS === "true" ? link : null;
+    if (emailOptions?.sms) void dispatchNotificationSms(notification.id, userId, emailOptions.sms, smsLink);
   } catch (error) {
     if (isUniqueViolation(error)) return "duplicate";
     console.error("[NOTIFICATION FAILED]", error, { userId, title });
