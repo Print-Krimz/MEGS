@@ -70,11 +70,6 @@ const JobPostingDetailPage = lazyRouteComponent(() => import("./pages/ta/JobPost
 const MRFListPage = lazyRouteComponent(() => import("./pages/ta/MRFListPage"), "MRFListPage");
 const MRFCreatePage = lazyRouteComponent(() => import("./pages/ta/MRFCreatePage"), "MRFCreatePage");
 const MRFDetailPage = lazyRouteComponent(() => import("./pages/ta/MRFDetailPage"), "MRFDetailPage");
-const AdminMrfDetailPage = lazyRouteComponent(
-  () => import("./pages/ta/MRFDetailPage").then(({ MRFDetailPage }) => ({
-    default: (props: any) => <MRFDetailPage {...props} readOnly baseBackPath="/admin/notifications" />,
-  })),
-);
 // const TalentPoolPage = lazyRouteComponent(() => import("./pages/ta/TalentPoolPage"), "TalentPoolPage");
 const InterviewsPage = lazyRouteComponent(() => import("./pages/ta/InterviewsPage"), "InterviewsPage");
 const ClientsPage = lazyRouteComponent(() => import("./pages/ta/ClientsPage"), "ClientsPage");
@@ -714,10 +709,47 @@ export const adminApplicationDetailRoute = createRoute({
   component: AdminApplicationPage,
 });
 
+// The team leader uses the same client, request and job opening pages as recruiters (REC-012).
+export const adminMrfRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: "/admin/mrfs",
+  component: MRFListPage,
+});
+
+export const adminMrfCreateRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: "/admin/mrfs/create",
+  component: MRFCreatePage,
+});
+
 export const adminMrfDetailRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/admin/mrfs/$mrfId",
-  component: AdminMrfDetailPage,
+  component: MRFDetailPage,
+});
+
+export const adminClientsRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: "/admin/clients",
+  component: ClientsPage,
+});
+
+export const adminClientDetailRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: "/admin/clients/$clientId",
+  component: ClientDetailPage,
+});
+
+export const adminJobsRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: "/admin/jobs",
+  component: JobPostingsPage,
+});
+
+export const adminJobDetailRoute = createRoute({
+  getParentRoute: () => adminLayoutRoute,
+  path: "/admin/jobs/$jobId",
+  component: JobPostingDetailPage,
 });
 
 // -------------------------------------------------------------
@@ -786,7 +818,13 @@ const routeTree = rootRoute.addChildren([
     adminMaintenanceRoute,
     adminAuditRoute,
     adminNotificationsRoute,
+    adminMrfRoute,
+    adminMrfCreateRoute,
     adminMrfDetailRoute,
+    adminClientsRoute,
+    adminClientDetailRoute,
+    adminJobsRoute,
+    adminJobDetailRoute,
     adminApplicationDetailRoute,
   ]),
 ]);

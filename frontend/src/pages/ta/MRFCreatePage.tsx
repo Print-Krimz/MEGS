@@ -50,6 +50,8 @@ import {
   matchClientByCompany,
   workHoursLabel,
 } from "../../lib/mrf-schedule";
+import { useRecordBase, recordRootLabel } from "../../hooks/useRecordBase";
+import { RecruiterSelect, assignAfterCreate } from "../../components/ta/RecruiterSelect";
 
 /** Form fields in the order they appear on the page, with the element id used to focus them. */
 const FIELD_ORDER: Array<[string, string]> = [
@@ -136,6 +138,7 @@ const isEmptyField = (key: MRFFileField, values: Record<MRFFileField, string>): 
 type PendingFill = { kind: "clone"; mrf: ManpowerRequest; preserveClient: boolean };
 
 export const MRFCreatePage: React.FC = () => {
+  const base = useRecordBase();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const urlSearch = useSearch({ strict: false }) as { clientId?: number | string };
@@ -143,6 +146,7 @@ export const MRFCreatePage: React.FC = () => {
   const presetClientApplied = useRef(false);
 
   const [clientId, setClientId] = useState<number>(presetClientId);
+  const [recruiterId, setRecruiterId] = useState("");
   const [title, setTitle] = useState("");
   const [headcount, setHeadcount] = useState<number | string>(1);
   const [priority, setPriority] = useState<"LOW" | "NORMAL" | "HIGH" | "URGENT">("NORMAL");
@@ -301,7 +305,11 @@ export const MRFCreatePage: React.FC = () => {
   };
 
   const createMRFMutation = useMutation({
-    mutationFn: taApi.createMRF,
+    mutationFn: async (dto: Parameters<typeof taApi.createMRF>[0]) => {
+      const created = await taApi.createMRF(dto);
+      await assignAfterCreate("request", created.id, recruiterId);
+      return created;
+    },
     onSuccess: (newMRF) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "mrfs"] });
       notify.success("Manpower request created", `Request #${newMRF.id} (${newMRF.title}) is ready.`);
@@ -325,8 +333,8 @@ export const MRFCreatePage: React.FC = () => {
   useEffect(() => {
     if (createdId === null) return;
     navigate({
-      to: "/ta/mrfs/$mrfId",
-      params: { mrfId: String(createdId) },
+      to: `${base}/mrfs/$mrfId` as never,
+      params: { mrfId: String(createdId) } as never,
     });
   }, [createdId, navigate]);
 
@@ -669,7 +677,7 @@ export const MRFCreatePage: React.FC = () => {
   };
 
   // Leaving while the form is dirty is caught by the leave guard, which asks before discarding.
-  const handleCancel = () => navigate({ to: "/ta/mrfs" });
+  const handleCancel = () => navigate({ to: `${base}/mrfs` as never });
 
   const clientOptions = clients.map((c) => ({
     value: String(c.id),
@@ -717,8 +725,8 @@ export const MRFCreatePage: React.FC = () => {
         title={TA_COPY.pageTitles.createManpowerRequest}
         description="Tell us how many workers the client needs and when they are needed."
         breadcrumbs={[
-          { label: TA_COPY.breadcrumbRoot, href: "/ta" },
-          { label: TA_COPY.navigation.manpowerRequests, href: "/ta/mrfs" },
+          { label: recordRootLabel(base), href: base },
+          { label: TA_COPY.navigation.manpowerRequests, href: `${base}/mrfs` },
           { label: "Create" },
         ]}
       />
@@ -821,6 +829,8 @@ export const MRFCreatePage: React.FC = () => {
                 {fileNote("title")}
               </div>
             </div>
+
+            <RecruiterSelect id="mrf-recruiter" value={recruiterId} onChange={setRecruiterId} />
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-1.5">

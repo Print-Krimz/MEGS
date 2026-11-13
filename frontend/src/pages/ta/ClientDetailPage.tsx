@@ -27,6 +27,7 @@ import {
 } from "../../lib/statutory-validation";
 import { z } from "zod";
 import { FIELD_LIMITS } from "../../lib/field-limits";
+import { useRecordBase, recordRootLabel } from "../../hooks/useRecordBase";
 
 const AddMRFsFromFilesDialog = lazy(() =>
   import("../../components/ta/mrf/AddMRFsFromFilesDialog").then((m) => ({ default: m.AddMRFsFromFilesDialog })));
@@ -55,6 +56,9 @@ const CLIENT_INLINE_FIELDS = [
 type ClientTab = "overview" | "requests" | "deployments" | "settings";
 
 export const ClientDetailPage: React.FC = () => {
+  const base = useRecordBase();
+  // Deployments and workforce are recruiter-only. The team leader sees requests and company details.
+  const isAdmin = base === "/admin";
   const [activeTab, setActiveTab] = useState<ClientTab>("overview");
   const queryClient = useQueryClient();
   const { clientId } = useParams({ strict: false }) as { clientId: string };
@@ -101,7 +105,7 @@ export const ClientDetailPage: React.FC = () => {
   const deploymentsQuery = useQuery({
     queryKey: ["ta", "deployments", { clientId }],
     queryFn: () => taApi.listDeployments({ clientId }),
-    enabled: Boolean(clientId),
+    enabled: Boolean(clientId) && !isAdmin,
   });
 
   const updateClientMutation = useMutation({
@@ -164,8 +168,8 @@ export const ClientDetailPage: React.FC = () => {
           title="Client"
           description="Loading client information..."
           breadcrumbs={[
-            { label: TA_COPY.breadcrumbRoot, href: "/ta" },
-            { label: TA_COPY.navigation.clients, href: "/ta/clients" },
+            { label: recordRootLabel(base), href: base },
+            { label: TA_COPY.navigation.clients, href: `${base}/clients` },
             { label: "Client" },
           ]}
         />
@@ -181,8 +185,8 @@ export const ClientDetailPage: React.FC = () => {
           flush
           title="Client"
           breadcrumbs={[
-            { label: TA_COPY.breadcrumbRoot, href: "/ta" },
-            { label: TA_COPY.navigation.clients, href: "/ta/clients" },
+            { label: recordRootLabel(base), href: base },
+            { label: TA_COPY.navigation.clients, href: `${base}/clients` },
             { label: "Client" },
           ]}
         />
@@ -213,7 +217,7 @@ export const ClientDetailPage: React.FC = () => {
         </div>
       </div>
       <Button asChild variant="outline" size="sm">
-        <Link to="/ta/mrfs/$mrfId" params={{ mrfId: String(mrf.id) }}>
+        <Link to={`${base}/mrfs/$mrfId` as never} params={{ mrfId: String(mrf.id) } as never}>
           View request
         </Link>
       </Button>
@@ -243,7 +247,7 @@ export const ClientDetailPage: React.FC = () => {
     <div className="space-y-3 p-6 text-sm text-slate-600">
       <p>No manpower requests placed by this client.</p>
       <Button asChild variant="primary" size="sm">
-        <Link to="/ta/mrfs/create" search={{ clientId: client.id }}>
+        <Link to={`${base}/mrfs/create` as never} search={{ clientId: client.id } as never}>
           Create the first request
         </Link>
       </Button>
@@ -253,11 +257,13 @@ export const ClientDetailPage: React.FC = () => {
   const deploymentsEmpty = (
     <div className="space-y-3 p-6 text-sm text-slate-600">
       <p>No deployments recorded for this client yet.</p>
-      <Button asChild variant="outline" size="sm">
-        <Link to="/ta/workforce" search={{ tab: "deployments", q: client.name }}>
-          Open workforce deployments
-        </Link>
-      </Button>
+      {!isAdmin && (
+        <Button asChild variant="outline" size="sm">
+          <Link to="/ta/workforce" search={{ tab: "deployments", q: client.name }}>
+            Open workforce deployments
+          </Link>
+        </Button>
+      )}
     </div>
   );
 
@@ -278,8 +284,8 @@ export const ClientDetailPage: React.FC = () => {
     <div className="space-y-6">
       <RecordBreadcrumb
         items={[
-          { label: TA_COPY.breadcrumbRoot, href: "/ta" },
-          { label: TA_COPY.navigation.clients, href: "/ta/clients" },
+          { label: recordRootLabel(base), href: base },
+          { label: TA_COPY.navigation.clients, href: `${base}/clients` },
           { label: client.name },
         ]}
       />
@@ -293,17 +299,19 @@ export const ClientDetailPage: React.FC = () => {
         facts={[
           { label: "Industry", value: client.industry || "General Commercial" },
           { label: "Review SLA", value: `${client.reviewThresholdDays ?? 5} days` },
-          { label: "Active deployments", value: String(activeDeployments) },
+          ...(isAdmin ? [] : [{ label: "Active deployments", value: String(activeDeployments) }]),
           { label: "Open requests", value: String(mrfs.filter((m) => m.status !== "CANCELLED" && m.status !== "FILLED").length) },
           { label: "Contact", value: client.contactName || "Not set" },
         ]}
         actions={
           <>
-            <Button asChild variant="outline" size="sm">
-              <Link to="/ta/workforce" search={{ tab: "deployments", q: client.name }}>
-                Open in workforce
-              </Link>
-            </Button>
+            {!isAdmin && (
+              <Button asChild variant="outline" size="sm">
+                <Link to="/ta/workforce" search={{ tab: "deployments", q: client.name }}>
+                  Open in workforce
+                </Link>
+              </Button>
+            )}
             <Button variant="outline" size="sm" onClick={() => setEditModalOpen(true)}>
               Edit client
             </Button>
@@ -311,7 +319,7 @@ export const ClientDetailPage: React.FC = () => {
               Add MRFs from files
             </Button>
             <Button asChild variant="primary" size="sm">
-              <Link to="/ta/mrfs/create" search={{ clientId: client.id }}>
+              <Link to={`${base}/mrfs/create` as never} search={{ clientId: client.id } as never}>
                 Create manpower request
               </Link>
             </Button>
@@ -326,7 +334,7 @@ export const ClientDetailPage: React.FC = () => {
         items={[
           { id: "overview", label: "Overview", panelId: "client-tab-panel" },
           { id: "requests", label: "Requests", panelId: "client-tab-panel", badge: { text: String(mrfs.length), variant: "info" } },
-          { id: "deployments", label: "Deployments", panelId: "client-tab-panel", badge: { text: String(deployments.length), variant: "info" } },
+          ...(isAdmin ? [] : [{ id: "deployments", label: "Deployments", panelId: "client-tab-panel", badge: { text: String(deployments.length), variant: "info" as const } }]),
           { id: "settings", label: "Settings", panelId: "client-tab-panel" },
         ]}
       />
@@ -369,10 +377,12 @@ export const ClientDetailPage: React.FC = () => {
                 {previewHeader("Manpower requests", mrfs.length, "requests")}
                 {mrfs.length === 0 ? requestsEmpty : <ul className="divide-y divide-slate-200">{mrfs.slice(0, PREVIEW_COUNT).map(requestRow)}</ul>}
               </section>
-              <section className={cn(panelClass, "overflow-hidden")}>
-                {previewHeader("Deployments", deployments.length, "deployments")}
-                {deployments.length === 0 ? deploymentsEmpty : <ul className="divide-y divide-slate-200">{deployments.slice(0, PREVIEW_COUNT).map(deploymentRow)}</ul>}
-              </section>
+              {!isAdmin && (
+                <section className={cn(panelClass, "overflow-hidden")}>
+                  {previewHeader("Deployments", deployments.length, "deployments")}
+                  {deployments.length === 0 ? deploymentsEmpty : <ul className="divide-y divide-slate-200">{deployments.slice(0, PREVIEW_COUNT).map(deploymentRow)}</ul>}
+                </section>
+              )}
             </div>
           </>
         )}
@@ -382,7 +392,7 @@ export const ClientDetailPage: React.FC = () => {
             <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4">
               <h3 className={panelTitleClass}>Manpower requests ({mrfs.length})</h3>
               <Button asChild variant="outline" size="sm">
-                <Link to="/ta/mrfs/create" search={{ clientId: client.id }}>
+                <Link to={`${base}/mrfs/create` as never} search={{ clientId: client.id } as never}>
                   New request
                 </Link>
               </Button>
@@ -391,7 +401,7 @@ export const ClientDetailPage: React.FC = () => {
           </section>
         )}
 
-        {activeTab === "deployments" && (
+        {activeTab === "deployments" && !isAdmin && (
           <section className={cn(panelClass, "overflow-hidden")}>
             <div className="border-b border-slate-200 p-4">
               <h3 className={panelTitleClass}>Deployments ({deployments.length})</h3>

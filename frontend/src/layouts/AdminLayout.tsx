@@ -15,6 +15,9 @@ import {
   Menu,
   X,
   Database,
+  Building2,
+  ClipboardList,
+  Briefcase,
 } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 import { useRealtimeNotifications } from "../hooks/useRealtimeNotifications";
@@ -25,6 +28,7 @@ import {
   RealtimeToastContainer,
   SignOutDialog,
 } from "../components/common";
+import { TA_COPY } from "../lib/ta-copy";
 import { getInitials } from "../lib/utils";
 import { resolveUserName } from "../lib/user-name";
 import "./admin.css";
@@ -44,6 +48,14 @@ const adminNavSections: NavSection[] = [
     items: [
       { to: "/admin", label: "Overview", icon: ShieldAlert },
       { to: "/admin/analytics", label: "Reports", icon: BarChart3 },
+    ],
+  },
+  {
+    label: "Clients and requests",
+    items: [
+      { to: "/admin/clients", label: TA_COPY.navigation.clients, icon: Building2 },
+      { to: "/admin/mrfs", label: TA_COPY.navigation.manpowerRequests, icon: ClipboardList },
+      { to: "/admin/jobs", label: TA_COPY.navigation.openings, icon: Briefcase },
     ],
   },
   {

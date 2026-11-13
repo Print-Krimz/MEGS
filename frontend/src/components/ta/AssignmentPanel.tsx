@@ -38,6 +38,8 @@ export const AssignmentPanel: React.FC<AssignmentPanelProps> = ({ mrfId, mrfOwne
     queryClient.invalidateQueries({ queryKey: ["admin", "mrf", String(mrfId)] });
     queryClient.invalidateQueries({ queryKey: ["admin", "mrf", mrfId] });
     queryClient.invalidateQueries({ queryKey: ["admin", "analytics"] });
+    queryClient.invalidateQueries({ queryKey: ["ta", "mrf", String(mrfId)] });
+    queryClient.invalidateQueries({ queryKey: ["ta", "mrfs"] });
   };
 
   const mrfMutation = useMutation({

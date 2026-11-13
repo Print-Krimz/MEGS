@@ -1,10 +1,10 @@
 import { resolveUserName } from "../../lib/user-name";
+import { useRecordBase, recordRootLabel } from "../../hooks/useRecordBase";
 import React, { useState } from "react";
 import { Link, useLocation, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import { getManilaToday, toManilaDateInput, salaryTextError, salaryRangeError, SALARY_RANGE_MESSAGE } from "../../lib/field-limits";
-import { adminApi } from "../../lib/api/admin.api";
 import {
   PageHeader,
   LoadingState,
@@ -36,7 +36,6 @@ import {
 const NOT_SET_OPTION = { value: "", label: "Not set" };
 import { formatDate } from "../../lib/utils";
 import { AssignmentPanel } from "../../components/ta/AssignmentPanel";
-import { formatAdminPipelineStage } from "../../lib/admin-copy";
 import {
   COMPLIANCE_201_PRESETS,
   MANDATORY_REQUIREMENT_LABEL,
@@ -86,20 +85,16 @@ const MRF_MANUAL_NEXT_STATUSES: Record<string, string[]> = {
   CANCELLED: [],
 };
 
-export interface MRFDetailPageProps {
-  readOnly?: boolean;
-  baseBackPath?: string;
-}
-
-export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
-  readOnly = false,
-  baseBackPath = "/ta/mrfs",
-}) => {
+export const MRFDetailPage: React.FC = () => {
+  const base = useRecordBase();
+  // Recruiters and the team leader both edit requests. Only the team leader sees who owns the record.
+  const isAdmin = base === "/admin";
+  const baseBackPath = `${base}/mrfs`;
   const queryClient = useQueryClient();
   const { mrfId } = useParams({ strict: false }) as { mrfId: string };
   const locationState: unknown = useLocation().state;
   // Opened from Admin reports: return to the same report view instead of notifications.
-  const fromReport = readOnly && typeof locationState === "object" && locationState !== null && ADMIN_REPORT_STATE_KEY in locationState;
+  const fromReport = isAdmin && typeof locationState === "object" && locationState !== null && ADMIN_REPORT_STATE_KEY in locationState;
   const reportSearch = readReportReturnState(locationState);
 
   // null until the TA picks a tab; then the default depends on whether anyone is deployed yet.
@@ -206,8 +201,8 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   );
 
   const mrfQuery = useQuery({
-    queryKey: [readOnly ? "admin" : "ta", "mrf", mrfId],
-    queryFn: () => (readOnly ? adminApi.getMRFDetails(mrfId) : taApi.getMRFDetails(mrfId)),
+    queryKey: ["ta", "mrf", mrfId],
+    queryFn: () => taApi.getMRFDetails(mrfId),
     enabled: Boolean(mrfId),
   });
 
@@ -217,7 +212,6 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   const jobsQuery = useQuery({
     queryKey: ["ta", "jobs", "all"],
     queryFn: () => taApi.listJobs(),
-    enabled: !readOnly,
   });
 
   // Mutations
@@ -239,7 +233,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     mutationFn: (data: { documentLabels: string[]; isRequired?: boolean }) =>
       taApi.addMRFComplianceTemplatesBulk(mrfId, data),
     onSuccess: (res: any, variables: any) => {
-      queryClient.invalidateQueries({ queryKey: [readOnly ? "admin" : "ta", "mrf", mrfId] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "mrf", mrfId] });
       queryClient.invalidateQueries({ queryKey: ["ta", "mrfs"] });
       setTemplateModalOpen(false);
       setSelectedReqs([]);
@@ -271,7 +265,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   const updateMRFMutation = useMutation({
     mutationFn: (data: any) => taApi.updateMRF(mrfId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [readOnly ? "admin" : "ta", "mrf", mrfId] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "mrf", mrfId] });
       queryClient.invalidateQueries({ queryKey: ["ta", "mrfs"] });
       setEditStatusModalOpen(false);
       setEditDetailsModalOpen(false);
@@ -471,17 +465,13 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     return (
       <div className="space-y-6">
         <PageHeader
-          title={readOnly ? "Hiring request" : TA_COPY.navigation.manpowerRequests}
-          description={readOnly ? "Loading hiring request details..." : "Loading request details..."}
-          breadcrumbs={
-            readOnly
-              ? undefined
-              : [
-                  { label: TA_COPY.breadcrumbRoot, href: "/ta" },
-                  { label: TA_COPY.navigation.manpowerRequests, href: baseBackPath },
-                  { label: "Request" },
-                ]
-          }
+          title={TA_COPY.navigation.manpowerRequests}
+          description="Loading request details..."
+          breadcrumbs={[
+            { label: recordRootLabel(base), href: base },
+            { label: TA_COPY.navigation.manpowerRequests, href: baseBackPath },
+            { label: "Request" },
+          ]}
         />
         <LoadingState variant="detail" />
       </div>
@@ -496,26 +486,18 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     return (
       <div className="space-y-6">
         <PageHeader
-          title={readOnly ? "Hiring request not found" : "Manpower request not found"}
-                description={`Request #${mrfId || "unknown"}`}
-          breadcrumbs={
-            readOnly
-              ? [
-                  { label: "Administration", href: "/admin" },
-                  { label: "Notifications", href: baseBackPath },
-                  { label: "Record not found" },
-                ]
-              : [
-                  { label: TA_COPY.breadcrumbRoot, href: "/ta" },
-                  { label: TA_COPY.navigation.manpowerRequests, href: baseBackPath },
-                  { label: "Record not found" },
-                ]
-          }
+          title="Manpower request not found"
+          description={`Request #${mrfId || "unknown"}`}
+          breadcrumbs={[
+            { label: recordRootLabel(base), href: base },
+            { label: TA_COPY.navigation.manpowerRequests, href: baseBackPath },
+            { label: "Record not found" },
+          ]}
           actions={
             <Button asChild variant="outline" size="sm">
-              <Link to={baseBackPath}>
+              <Link to={baseBackPath as never}>
                 <ArrowLeft className="w-3.5 h-3.5" />
-                {readOnly ? "Back to notifications" : "Back to requests"}
+                Back to requests
               </Link>
             </Button>
           }
@@ -523,13 +505,13 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
         <div className="rounded-md border border-slate-300 bg-white p-8">
           <EmptyState
             icon={<Briefcase className="w-6 h-6 text-slate-400" />}
-             title={readOnly ? "This hiring request is no longer available" : "Manpower request not found"}
-             description={readOnly ? "It may have been removed. Return to notifications to continue." : `Request #${mrfId} could not be found.`}
+            title="Manpower request not found"
+            description={`Request #${mrfId} could not be found.`}
             action={
               <Button asChild variant="primary" size="sm">
-                <Link to={baseBackPath}>
+                <Link to={baseBackPath as never}>
                   <ArrowLeft className="w-3.5 h-3.5" />
-                  {readOnly ? "Return to notifications" : "Return to requests"}
+                  Return to requests
                 </Link>
               </Button>
             }
@@ -543,17 +525,13 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
     return (
       <div className="space-y-6">
         <PageHeader
-          title={readOnly ? "Hiring request" : TA_COPY.navigation.manpowerRequests}
+          title={TA_COPY.navigation.manpowerRequests}
           description="Request details"
-          breadcrumbs={
-            readOnly
-              ? undefined
-              : [
-                  { label: TA_COPY.breadcrumbRoot, href: "/ta" },
-                  { label: TA_COPY.navigation.manpowerRequests, href: baseBackPath },
-                  { label: "Request" },
-                ]
-          }
+          breadcrumbs={[
+            { label: recordRootLabel(base), href: base },
+            { label: TA_COPY.navigation.manpowerRequests, href: baseBackPath },
+            { label: "Request" },
+          ]}
         />
         <ErrorState
           error={mrfQuery.error || new Error("Unable to load this manpower request")}
@@ -610,30 +588,22 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
   );
 
   const cancelled = mrf.status === "CANCELLED";
-  const statusLabel = formatTaStatus(readOnly ? formatAdminPipelineStage(mrf.status) : mrf.status);
+  const statusLabel = formatTaStatus(mrf.status);
 
   return (
     <div className="space-y-6">
       <RecordBreadcrumb
-        items={
-          readOnly
-            ? [
-                { label: "Administration", href: "/admin" },
-                { label: "Notifications", href: baseBackPath },
-                { label: mrf.title },
-              ]
-            : [
-                { label: TA_COPY.breadcrumbRoot, href: "/ta" },
-                { label: TA_COPY.navigation.manpowerRequests, href: baseBackPath },
-                { label: mrf.title },
-              ]
-        }
+        items={[
+          { label: recordRootLabel(base), href: base },
+          { label: TA_COPY.navigation.manpowerRequests, href: baseBackPath },
+          { label: mrf.title },
+        ]}
       />
 
       <RecordSummary
         titleAs="h1"
         title={mrf.title}
-        subtitle={readOnly ? `Request #${mrf.id} · View only` : `Request #${mrf.id}`}
+        subtitle={`Request #${mrf.id}`}
         chips={<StatusBadge status={statusLabel} type="raw" />}
         progress={{ value: deployedCount, max: mrf.headcount, label: "Positions filled" }}
         facts={[
@@ -647,7 +617,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                   type="targetDate"
                   appearance="text"
                 />
-                {!readOnly && isOverdue && <span className="ml-2 text-xs font-semibold text-rose-700">Overdue</span>}
+                {isOverdue && <span className="ml-2 text-xs font-semibold text-rose-700">Overdue</span>}
               </>
             ),
           },
@@ -658,26 +628,18 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
         ]}
         actions={
           <>
-            {readOnly && (
+            {fromReport && (
               <Button asChild variant="outline" size="sm">
-                {fromReport ? (
-                  <Link to="/admin/analytics" search={reportSearch as never}>
-                    <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-                    Back to reports
-                  </Link>
-                ) : (
-                  <Link to={baseBackPath}>
-                    <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
-                    Back to notifications
-                  </Link>
-                )}
+                <Link to="/admin/analytics" search={reportSearch as never}>
+                  <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                  Back to reports
+                </Link>
               </Button>
             )}
-            {!readOnly && (
               <>
                 {!cancelled && (
                   <Button asChild variant="primary" size="sm">
-                    <Link to="/ta/jobs" search={{ mrfId: mrf.id }}>
+                    <Link to={`${base}/jobs` as never} search={{ mrfId: mrf.id } as never}>
                       Create job opening
                     </Link>
                   </Button>
@@ -699,16 +661,13 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
                   Update status
                 </Button>
               </>
-            )}
           </>
         }
       />
 
-      {!readOnly && (
-        <RequirementClarityNotice clarity={mrf.requirementClarity} fixHint="Use Edit details to fix them." />
-      )}
+      <RequirementClarityNotice clarity={mrf.requirementClarity} fixHint="Use Edit details to fix them." />
 
-      {readOnly && (
+      {isAdmin && (
         <AssignmentPanel
           mrfId={mrf.id}
           mrfOwnerId={mrf.assignedTaId ?? null}
@@ -753,7 +712,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
           <MRFOverviewTab
             mrf={mrf}
             templates={templates}
-            readOnly={readOnly}
+            readOnly={false}
             onAddDocument={() => {
               setSelectedReqs([]);
               setCustomReqText("");
@@ -766,7 +725,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
         <div role="tabpanel" id="mrf-tab-jobs" aria-label="Linked jobs" className={activeTab === "jobs" ? "block" : "hidden"}>
           <MRFLinkedJobsTab
             jobs={linkedJobs}
-            readOnly={readOnly}
+            readOnly={false}
             cancelled={cancelled}
             onLinkExisting={() => setLinkJobModalOpen(true)}
           />
@@ -777,7 +736,7 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
             deployments={deployments}
             headcount={mrf.headcount}
             fallbackSite={mrf.location}
-            readOnly={readOnly}
+            readOnly={isAdmin}
             createdAt={mrf.createdAt}
             createdByName={mrf.createdBy ? resolveUserName(mrf.createdBy) : undefined}
             createdByEmail={mrf.createdBy?.email}
@@ -786,7 +745,6 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
       </div>
 
       {/* Modals & Dialogs (Active actions only) */}
-      {!readOnly && (
         <>
           {/* Link Job Modal */}
           <Dialog
@@ -1472,7 +1430,6 @@ export const MRFDetailPage: React.FC<MRFDetailPageProps> = ({
             confirmLabel="Remove requirement"
           />
         </>
-      )}
     </div>
   );
 };

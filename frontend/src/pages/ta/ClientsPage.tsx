@@ -29,6 +29,8 @@ import { FileUp, Plus } from "lucide-react";
 import { notify, fieldErrorsFrom } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
 import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
+import { useRecordBase, recordRootLabel } from "../../hooks/useRecordBase";
+import { RecruiterSelect, assignAfterCreate } from "../../components/ta/RecruiterSelect";
 
 const EMPTY_LIST: any[] = [];
 type ClientRow = any;
@@ -36,6 +38,7 @@ const AddClientsFromFilesDialog = lazy(() =>
   import("../../components/ta/client/AddClientsFromFilesDialog").then((m) => ({ default: m.AddClientsFromFilesDialog })));
 
 export const ClientsPage: React.FC = () => {
+  const base = useRecordBase();
   const queryClient = useQueryClient();
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
@@ -46,6 +49,7 @@ export const ClientsPage: React.FC = () => {
 
   const [filesOpen, setFilesOpen] = useState(false);
   const [draft, setDraft] = useState<ClientDraft>(emptyClientDraft);
+  const [recruiterId, setRecruiterId] = useState("");
   const nameInputRef = React.useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -56,11 +60,16 @@ export const ClientsPage: React.FC = () => {
   });
 
   const createClientMutation = useMutation({
-    mutationFn: taApi.createClient,
+    mutationFn: async (dto: Parameters<typeof taApi.createClient>[0]) => {
+      const created = await taApi.createClient(dto);
+      await assignAfterCreate("client", created.id, recruiterId);
+      return created;
+    },
     onSuccess: (newClient) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "clients"] });
       setCreateModalOpen(false);
       setDraft(emptyClientDraft);
+      setRecruiterId("");
       setErrors({});
       notify.success("Client added", `Client '${newClient?.name || draft.name}' was registered.`);
     },
@@ -174,8 +183,8 @@ export const ClientsPage: React.FC = () => {
     <div className="space-y-1.5 p-4">
       <div className="flex items-start justify-between gap-3">
         <Link
-          to="/ta/clients/$clientId"
-          params={{ clientId: String(c.id) }}
+          to={`${base}/clients/$clientId` as never}
+          params={{ clientId: String(c.id) } as never}
           className="inline-flex min-h-11 items-center text-sm font-semibold text-navy underline-offset-2 hover:underline focus-ring"
         >
           {c.name}
@@ -202,7 +211,7 @@ export const ClientsPage: React.FC = () => {
         flush
         title={TA_COPY.navigation.clients}
         breadcrumbs={[
-          { label: TA_COPY.breadcrumbRoot, href: "/ta" },
+          { label: recordRootLabel(base), href: base },
           { label: TA_COPY.navigation.clients },
         ]}
         actions={
@@ -268,7 +277,7 @@ export const ClientsPage: React.FC = () => {
           getRowId={(c) => String(c.id)}
           renderCard={renderCard}
           cardsBelow="md"
-          rowHref={(c) => `/ta/clients/${c.id}`}
+          rowHref={(c) => `${base}/clients/${c.id}`}
           empty={
             clients.length === 0 ? (
               <EmptyState
@@ -360,6 +369,8 @@ export const ClientsPage: React.FC = () => {
               setErrors((prev) => withoutErrors(prev, errorKeysFor(patch)));
             }}
           />
+
+          <RecruiterSelect id="add-client-recruiter" value={recruiterId} onChange={setRecruiterId} />
 
           <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
             <Button variant="outline" onClick={() => setCreateModalOpen(false)}>

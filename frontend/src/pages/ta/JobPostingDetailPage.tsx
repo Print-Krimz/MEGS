@@ -69,6 +69,7 @@ import { InvitationsTrackerDrawer } from "../../components/ta/InvitationsTracker
 import { TA_COPY } from "../../lib/ta-copy";
 import { useJobCandidateQueries } from "../../hooks/useJobCandidateQueries";
 import { getInitialJobCandidateView } from "../../lib/job-candidate-query-policy";
+import { useRecordBase, recordRootLabel } from "../../hooks/useRecordBase";
 
 // Backend fields that have an inline input on this form. Any other field's message goes in the toast.
 
@@ -85,6 +86,9 @@ const APPLICANT_STAGE_FILTERS: { id: string; label: string }[] = [
 ];
 
 export const JobPostingDetailPage: React.FC = () => {
+  const base = useRecordBase();
+  // Invitations and the applicant records they lead to belong to recruiters. The team leader reads the matches.
+  const isAdmin = base === "/admin";
   const queryClient = useQueryClient();
   const { jobId } = useParams({ strict: false }) as { jobId: string };
 
@@ -265,8 +269,8 @@ export const JobPostingDetailPage: React.FC = () => {
     .map((score, idx) => ({ score, rank: (candidatePage - 1) * candidatePageSize + idx + 1 }));
 
   const breadcrumbs = [
-    { label: TA_COPY.breadcrumbRoot, href: "/ta" },
-    { label: TA_COPY.navigation.openings, href: "/ta/jobs" },
+    { label: recordRootLabel(base), href: base },
+    { label: TA_COPY.navigation.openings, href: `${base}/jobs` },
   ];
 
   if (jobQuery.isLoading) {
@@ -343,7 +347,7 @@ export const JobPostingDetailPage: React.FC = () => {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <Link
-            to="/ta/applications/$applicationId"
+            to={isAdmin ? "/admin/applications/$applicationId" : "/ta/applications/$applicationId"}
             params={{ applicationId: String(row.score.applicationId) }}
             className="inline-flex min-h-11 items-center break-words text-sm font-semibold text-navy underline-offset-2 hover:underline focus-ring"
           >
@@ -379,7 +383,7 @@ export const JobPostingDetailPage: React.FC = () => {
     statusMutation.mutate(next);
   };
 
-  const invitationsButton = (
+  const invitationsButton = isAdmin ? null : (
     <Button variant="outline" size="sm" onClick={() => setTrackerDrawerOpen(true)}>
       {TA_COPY.invitations.sent}
     </Button>
@@ -392,8 +396,8 @@ export const JobPostingDetailPage: React.FC = () => {
     <div className="space-y-6">
       <RecordBreadcrumb
         items={[
-          { label: TA_COPY.breadcrumbRoot, href: "/ta" },
-          { label: TA_COPY.navigation.openings, href: "/ta/jobs" },
+          { label: recordRootLabel(base), href: base },
+          { label: TA_COPY.navigation.openings, href: `${base}/jobs` },
           { label: job.title },
         ]}
       />
@@ -462,7 +466,7 @@ export const JobPostingDetailPage: React.FC = () => {
             ? [{ label: "Work schedule", value: <span className="font-medium">{formatWorkSchedule(job.mrf)}</span> }]
             : []),
           mrfId
-            ? { label: "Manpower request", value: `Request #${mrfId}`, href: `/ta/mrfs/${mrfId}` }
+            ? { label: "Manpower request", value: `Request #${mrfId}`, href: `${base}/mrfs/${mrfId}` }
             : { label: "Manpower request", value: <span className="text-slate-700">None (direct posting)</span> },
         ]}
       >
@@ -470,8 +474,8 @@ export const JobPostingDetailPage: React.FC = () => {
           <p className="mb-3 text-sm text-slate-600">
             This opening is view-only. Change its details on{" "}
             <Link
-              to="/ta/mrfs/$mrfId"
-              params={{ mrfId: String(mrfId) }}
+              to={`${base}/mrfs/$mrfId` as never}
+              params={{ mrfId: String(mrfId) } as never}
               className="inline-flex items-center font-medium text-navy underline underline-offset-2 focus-ring pointer-coarse:min-h-11"
             >
               {`Request #${mrfId}`}
@@ -522,7 +526,9 @@ export const JobPostingDetailPage: React.FC = () => {
               <LoadingState variant="table" rows={4} />
             ) : rankedScores.length === 0 ? (
               <>
-              <div className="flex justify-end border-b border-slate-200 bg-slate-50 px-4 py-2.5">{invitationsButton}</div>
+              {invitationsButton && (
+                <div className="flex justify-end border-b border-slate-200 bg-slate-50 px-4 py-2.5">{invitationsButton}</div>
+              )}
               <EmptyState
                 bare
                 title="No applicant matches yet"
@@ -607,7 +613,7 @@ export const JobPostingDetailPage: React.FC = () => {
                       getRowId={(row) => String(row.score.id)}
                       renderCard={renderApplicantCard}
                       cardsBelow="lg"
-                      rowHref={(row) => `/ta/applications/${row.score.applicationId}`}
+                      rowHref={(row) => `${isAdmin ? "/admin" : "/ta"}/applications/${row.score.applicationId}`}
                       footer={
                         <Pagination
                           variant="inset"
@@ -659,12 +665,16 @@ export const JobPostingDetailPage: React.FC = () => {
               />
             ) : (
               <div className="space-y-3 p-4">
-              <PoolSelectAll total={invitableIds.length} selected={selectedInvitable.length} onToggle={toggleAllInvitable} />
-              <BulkActionBar count={selectedInvitable.length} onClear={poolSelection.clear}>
-                <Button size="sm" onClick={() => setBulkInviteOpen(true)}>
-                  {TA_COPY.invitations.inviteToApply}
-                </Button>
-              </BulkActionBar>
+              {!isAdmin && (
+                <>
+                  <PoolSelectAll total={invitableIds.length} selected={selectedInvitable.length} onToggle={toggleAllInvitable} />
+                  <BulkActionBar count={selectedInvitable.length} onClear={poolSelection.clear}>
+                    <Button size="sm" onClick={() => setBulkInviteOpen(true)}>
+                      {TA_COPY.invitations.inviteToApply}
+                    </Button>
+                  </BulkActionBar>
+                </>
+              )}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 {talentPoolMatches.map((res) => {
                   const c = res.candidate;
@@ -675,16 +685,20 @@ export const JobPostingDetailPage: React.FC = () => {
                       key={c.id}
                       result={res}
                       maxSkills={5}
-                      selectable={{
-                        checked: poolSelection.selectedIds.has(String(c.applicantProfileId)),
-                        disabled: isAlreadyInPipeline,
-                        onChange: () => toggleCandidate(String(c.applicantProfileId)),
-                      }}
+                      selectable={
+                        isAdmin
+                          ? undefined
+                          : {
+                              checked: poolSelection.selectedIds.has(String(c.applicantProfileId)),
+                              disabled: isAlreadyInPipeline,
+                              onChange: () => toggleCandidate(String(c.applicantProfileId)),
+                            }
+                      }
                       actions={
                         <span className="ml-auto">
                           {isAlreadyInPipeline ? (
                             <span className="text-sm font-medium text-navy">In active pipeline</span>
-                          ) : (
+                          ) : isAdmin ? null : (
                             <Button
                               variant="outline"
                               size="sm"
@@ -725,6 +739,8 @@ export const JobPostingDetailPage: React.FC = () => {
         variant="warning"
       />
 
+      {!isAdmin && (
+        <>
       {/* Send Job Invitation Modal */}
       <SendInvitationModal
         open={inviteModalOpen}
@@ -769,6 +785,8 @@ export const JobPostingDetailPage: React.FC = () => {
         onClose={() => setTrackerDrawerOpen(false)}
         jobPostingId={Number(jobId)}
       />
+        </>
+      )}
     </div>
   );
 };

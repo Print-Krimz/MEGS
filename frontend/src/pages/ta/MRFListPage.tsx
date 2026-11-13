@@ -20,6 +20,7 @@ import { TA_COPY } from "../../lib/ta-copy";
 import { REFERENCE_QUERY_STALE_TIME_MS, SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { plural } from "../../lib/plural";
+import { useRecordBase, recordRootLabel } from "../../hooks/useRecordBase";
 
 const AddMRFsFromFilesDialog = lazy(() =>
   import("../../components/ta/mrf/AddMRFsFromFilesDialog").then((m) => ({ default: m.AddMRFsFromFilesDialog })));
@@ -65,6 +66,7 @@ const FilledCell: React.FC<{ mrf: MrfRow }> = ({ mrf }) => {
 };
 
 export const MRFListPage: React.FC = () => {
+  const base = useRecordBase();
   const [filesOpen, setFilesOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
@@ -142,8 +144,8 @@ export const MRFListPage: React.FC = () => {
     <div className="space-y-2 p-4">
       <div className="flex items-start justify-between gap-3">
         <Link
-          to="/ta/mrfs/$mrfId"
-          params={{ mrfId: String(mrf.id) }}
+          to={`${base}/mrfs/$mrfId` as never}
+          params={{ mrfId: String(mrf.id) } as never}
           className="inline-flex min-h-11 items-center text-sm font-semibold text-navy underline-offset-2 hover:underline focus-ring"
         >
           {mrf.title}
@@ -170,7 +172,7 @@ export const MRFListPage: React.FC = () => {
         flush
         title={TA_COPY.pageTitles.manpowerRequests}
         breadcrumbs={[
-          { label: TA_COPY.breadcrumbRoot, href: "/ta" },
+          { label: recordRootLabel(base), href: base },
           { label: TA_COPY.navigation.manpowerRequests },
         ]}
         actions={
@@ -179,7 +181,7 @@ export const MRFListPage: React.FC = () => {
               Add from files
             </Button>
             <Button asChild variant="primary" size="sm">
-              <Link to="/ta/mrfs/create">
+              <Link to={`${base}/mrfs/create` as never}>
                 <Plus className="h-3.5 w-3.5" aria-hidden="true" />
                 New manpower request
               </Link>
@@ -275,7 +277,7 @@ export const MRFListPage: React.FC = () => {
           getRowId={(mrf) => String(mrf.id)}
           renderCard={renderCard}
           cardsBelow="lg"
-          rowHref={(mrf) => `/ta/mrfs/${mrf.id}`}
+          rowHref={(mrf) => `${base}/mrfs/${mrf.id}`}
           isFetching={mrfsQuery.isFetching}
           empty={
             hasFilters || totalItems > 0 ? (
@@ -296,7 +298,7 @@ export const MRFListPage: React.FC = () => {
                 description="Create a request when a client needs staff."
                 action={
                   <Button asChild variant="primary" size="sm">
-                    <Link to="/ta/mrfs/create">Create manpower request</Link>
+                    <Link to={`${base}/mrfs/create` as never}>Create manpower request</Link>
                   </Button>
                 }
               />

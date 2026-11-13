@@ -4,6 +4,7 @@ import { Button } from "../../../ui";
 import { StatusBadge } from "../../../common";
 import { formatTaStatus } from "../../../../lib/ta-copy";
 import { plural } from "../../../../lib/plural";
+import { useRecordBase } from "../../../../hooks/useRecordBase";
 
 interface MRFLinkedJobsTabProps {
   jobs: any[];
@@ -13,7 +14,9 @@ interface MRFLinkedJobsTabProps {
 }
 
 /** Job openings attached to the request. Creating one lives in the page header; linking an existing one is here. */
-export const MRFLinkedJobsTab: React.FC<MRFLinkedJobsTabProps> = ({ jobs, readOnly, cancelled, onLinkExisting }) => (
+export const MRFLinkedJobsTab: React.FC<MRFLinkedJobsTabProps> = ({ jobs, readOnly, cancelled, onLinkExisting }) => {
+  const base = useRecordBase();
+  return (
   <section className="overflow-hidden rounded-md border border-slate-300 bg-white">
     <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4">
       <h3 className="text-base font-semibold text-slate-950">Job openings ({jobs.length})</h3>
@@ -52,7 +55,7 @@ export const MRFLinkedJobsTab: React.FC<MRFLinkedJobsTabProps> = ({ jobs, readOn
             </div>
             {!readOnly && (
               <Button asChild variant="outline" size="sm">
-                <Link to="/ta/jobs/$jobId" params={{ jobId: String(job.id) }}>
+                <Link to={`${base}/jobs/$jobId` as never} params={{ jobId: String(job.id) } as never}>
                   View opening
                 </Link>
               </Button>
@@ -63,3 +66,4 @@ export const MRFLinkedJobsTab: React.FC<MRFLinkedJobsTabProps> = ({ jobs, readOn
     )}
   </section>
 );
+};

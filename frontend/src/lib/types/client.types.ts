@@ -11,6 +11,8 @@ export interface ClientComplianceTemplate {
 export interface Client {
   id: number;
   name: string;
+  /** Recruiter who owns this record. Shown to the team leader only. */
+  assignedTaId?: string | null;
   tradeName?: string | null;
   industry?: string | null;
   contactName?: string | null;

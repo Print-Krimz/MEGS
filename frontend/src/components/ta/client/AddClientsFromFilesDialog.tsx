@@ -9,6 +9,8 @@ import { fieldErrorsFrom, formatErrorMessage, notify } from "../../../lib/feedba
 import { useDirtyGuard } from "../../../hooks/useDirtyGuard";
 import { normalizeCompanyName } from "../../../lib/mrf-schedule";
 import { plural } from "../../../lib/plural";
+import { useRecordBase } from "../../../hooks/useRecordBase";
+import { RecruiterSelect, assignAfterCreate } from "../RecruiterSelect";
 import { batchFileCount, isXlsxFile, saveBlob, sourceLabel, XLSX_MIME, type BatchSource } from "../../../lib/spreadsheet-import";
 import type { ClientFileReading, ClientReadFieldKey } from "../../../lib/types/client.types";
 import {
@@ -124,6 +126,7 @@ interface RowViewProps {
 }
 
 const RowView: React.FC<RowViewProps> = ({ row, number, batchDuplicateOf, locked, onChange, onCheck, onToggle, onRemove }) => {
+  const base = useRecordBase();
   const done = row.status === "done";
   const waiting = isWaiting(row);
   const errors = { ...(waiting || done ? {} : validateClientDraft(row.draft)), ...row.serverErrors };
@@ -159,8 +162,8 @@ const RowView: React.FC<RowViewProps> = ({ row, number, batchDuplicateOf, locked
             <p role="status" className="text-xs font-medium text-emerald-800">
               Added.{" "}
               <Link
-                to="/ta/clients/$clientId"
-                params={{ clientId: String(row.savedClient.id) }}
+                to={`${base}/clients/$clientId` as never}
+                params={{ clientId: String(row.savedClient.id) } as never}
                 className="underline underline-offset-2 focus-ring"
               >
                 {row.savedClient.name}
@@ -182,8 +185,8 @@ const RowView: React.FC<RowViewProps> = ({ row, number, batchDuplicateOf, locked
                   <>
                     Already a client:{" "}
                     <Link
-                      to="/ta/clients/$clientId"
-                      params={{ clientId: String(row.duplicate.clientId) }}
+                      to={`${base}/clients/$clientId` as never}
+                      params={{ clientId: String(row.duplicate.clientId) } as never}
                       className="underline underline-offset-2 focus-ring"
                     >
                       {row.duplicate.label}
@@ -255,6 +258,7 @@ export const AddClientsFromFilesDialog: React.FC<AddClientsFromFilesDialogProps>
   const [rows, setRows] = useState<BatchRow[]>([]);
   const [notice, setNotice] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [recruiterId, setRecruiterId] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -496,6 +500,7 @@ export const AddClientsFromFilesDialog: React.FC<AddClientsFromFilesDialogProps>
       try {
         const client = await taApi.createClient(toCreateClientDto(row.draft));
         saved += 1;
+        await assignAfterCreate("client", client.id, recruiterId);
         if (alive.current) patchRow(id, { status: "done", savedClient: { id: client.id, name: client.name } });
       } catch (error) {
         failed += 1;
@@ -549,6 +554,7 @@ export const AddClientsFromFilesDialog: React.FC<AddClientsFromFilesDialogProps>
         className="lg:max-w-6xl"
       >
         <div className="space-y-4">
+          <RecruiterSelect id="client-files-recruiter" value={recruiterId} onChange={setRecruiterId} />
           <div
             onDragOver={(e) => {
               e.preventDefault();

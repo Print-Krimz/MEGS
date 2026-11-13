@@ -34,6 +34,7 @@ import {
   REFERENCE_QUERY_STALE_TIME_MS,
   SERVER_SEARCH_DEBOUNCE_MS,
 } from "../../lib/query-policies";
+import { useRecordBase, recordRootLabel } from "../../hooks/useRecordBase";
 
 const EMPTY_LIST: any[] = [];
 
@@ -43,6 +44,7 @@ const JOB_INLINE_FIELDS = ["title", "location", "imageUrl", "description", "requ
 type JobRow = any;
 
 export const JobPostingsPage: React.FC = () => {
+  const base = useRecordBase();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const urlSearch = useSearch({ strict: false }) as { mrfId?: number | string };
@@ -209,14 +211,14 @@ export const JobPostingsPage: React.FC = () => {
     if (!mrfsQuery.data) return;
     prefilledFromUrl.current = prefillMrfId;
     if (mrfsQuery.data.some((m) => m.id === prefillMrfId)) handleSelectMRF(String(prefillMrfId));
-    navigate({ to: "/ta/jobs", search: {} as never, replace: true });
+    navigate({ to: `${base}/jobs` as never, search: {} as never, replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefillMrfId, createModalOpen, mrfsQuery.data]);
 
   // After a save the form is clean, so the router no longer blocks the jump to the new opening.
   useEffect(() => {
     if (justSavedJobId === null) return;
-    navigate({ to: "/ta/jobs/$jobId", params: { jobId: String(justSavedJobId) } });
+    navigate({ to: `${base}/jobs/$jobId` as never, params: { jobId: String(justSavedJobId) } as never });
   }, [justSavedJobId, navigate]);
 
   const createJobMutation = useMutation({
@@ -308,9 +310,9 @@ export const JobPostingsPage: React.FC = () => {
   const poolLink = (job: JobRow, className?: string) =>
     job.status === JobStatus.OPEN ? (
       <Link
-        to="/ta/jobs/$jobId"
-        params={{ jobId: String(job.id) }}
-        search={{ tab: "talentPool" }}
+        to={`${base}/jobs/$jobId` as never}
+        params={{ jobId: String(job.id) } as never}
+        search={{ tab: "talentPool" } as never}
         className={cn(
           "inline-flex min-h-11 items-center font-medium text-navy underline-offset-2 hover:underline focus-ring md:min-h-0",
           className
@@ -372,8 +374,8 @@ export const JobPostingsPage: React.FC = () => {
     <div className="space-y-2 p-4">
       <div className="flex items-start justify-between gap-3">
         <Link
-          to="/ta/jobs/$jobId"
-          params={{ jobId: String(job.id) }}
+          to={`${base}/jobs/$jobId` as never}
+          params={{ jobId: String(job.id) } as never}
           className="inline-flex min-h-11 items-center text-sm font-semibold text-navy underline-offset-2 hover:underline focus-ring"
         >
           {job.title}
@@ -399,7 +401,7 @@ export const JobPostingsPage: React.FC = () => {
         flush
         title="Job openings"
         breadcrumbs={[
-          { label: TA_COPY.breadcrumbRoot, href: "/ta" },
+          { label: recordRootLabel(base), href: base },
           { label: TA_COPY.navigation.openings },
         ]}
         actions={
@@ -461,7 +463,7 @@ export const JobPostingsPage: React.FC = () => {
           getRowId={(job) => String(job.id)}
           renderCard={renderCard}
           cardsBelow="lg"
-          rowHref={(job) => `/ta/jobs/${job.id}`}
+          rowHref={(job) => `${base}/jobs/${job.id}`}
           isFetching={jobsQuery.isFetching}
           empty={
             hasFilters ? (

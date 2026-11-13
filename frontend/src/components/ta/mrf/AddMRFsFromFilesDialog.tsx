@@ -21,6 +21,8 @@ import {
   workHoursLabel,
 } from "../../../lib/mrf-schedule";
 import { plural } from "../../../lib/plural";
+import { useRecordBase } from "../../../hooks/useRecordBase";
+import { RecruiterSelect, assignAfterCreate } from "../RecruiterSelect";
 import { batchFileCount, isXlsxFile, saveBlob, sourceLabel, XLSX_MIME, type BatchSource } from "../../../lib/spreadsheet-import";
 import type { CreateMRFDto } from "../../../lib/types/ta.types";
 
@@ -264,6 +266,7 @@ interface RowViewProps {
 }
 
 const RowView: React.FC<RowViewProps> = ({ row, number, client, locked, onChange, onToggle, onRemove }) => {
+  const base = useRecordBase();
   const done = row.status === "done";
   const waiting = isWaiting(row);
   const errors = { ...(waiting || done ? {} : validateDraft(row.draft)), ...row.serverErrors };
@@ -304,8 +307,8 @@ const RowView: React.FC<RowViewProps> = ({ row, number, client, locked, onChange
             <p role="status" className="text-xs font-medium text-emerald-800">
               Added.{" "}
               <Link
-                to="/ta/mrfs/$mrfId"
-                params={{ mrfId: String(row.saved.id) }}
+                to={`${base}/mrfs/$mrfId` as never}
+                params={{ mrfId: String(row.saved.id) } as never}
                 className="underline underline-offset-2 focus-ring"
               >
                 {row.saved.title}
@@ -514,6 +517,7 @@ export const AddMRFsFromFilesDialog: React.FC<AddMRFsFromFilesDialogProps> = ({ 
   const [rows, setRows] = useState<BatchRow[]>([]);
   const [notice, setNotice] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [recruiterId, setRecruiterId] = useState("");
   const [clientId, setClientId] = useState<number>(presetClientId ?? 0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -754,6 +758,7 @@ export const AddMRFsFromFilesDialog: React.FC<AddMRFsFromFilesDialogProps> = ({ 
         try {
           const mrf = await taApi.createMRF(toCreateDto(clientIdRef.current, row));
           saved += 1;
+          await assignAfterCreate("request", mrf.id, recruiterId);
           if (alive.current) patchRow(id, { status: "done", saved: { id: mrf.id, title: mrf.title } });
         } catch (error) {
           failed += 1;
@@ -823,6 +828,7 @@ export const AddMRFsFromFilesDialog: React.FC<AddMRFsFromFilesDialogProps> = ({ 
             {anySaved && <p className="text-xs text-slate-600">The client can't change after an MRF is added.</p>}
           </div>
 
+          <RecruiterSelect id="mrf-files-recruiter" value={recruiterId} onChange={setRecruiterId} />
           <div
             onDragOver={(e) => {
               e.preventDefault();

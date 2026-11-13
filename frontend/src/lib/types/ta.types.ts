@@ -87,6 +87,8 @@ export interface ManpowerRequest {
   id: number;
   clientId: number;
   title: string;
+  /** Recruiter who owns this request. Shown to the team leader only. */
+  assignedTaId?: string | null;
   description?: string | null;
   headcount: number;
   location?: string | null;
