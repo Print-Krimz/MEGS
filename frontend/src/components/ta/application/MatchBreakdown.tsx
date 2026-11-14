@@ -1,7 +1,7 @@
 import React from "react";
 import { ScoreReasons } from "../ScoreReasons";
 import type { DimensionExplanation } from "../../../lib/types/ta.types";
-import { confidenceOf } from "../../../lib/match-confidence";
+import { confidenceDetails } from "../../../lib/match-confidence";
 
 export interface ScoreExplanation {
   activeTotalWeight?: number;
@@ -47,18 +47,19 @@ const toPercent = (value: number | string | null | undefined) => {
  * summary above, so it is not repeated here.
  */
 export const MatchBreakdown: React.FC<MatchBreakdownProps> = ({ scores, explanation, requirementsResult }) => {
-  const confidence = confidenceOf(explanation);
+  const { level: confidence, reasons } = confidenceDetails(explanation);
   return (
   <section id="eval-qualifications" aria-labelledby="match-heading" className="space-y-3">
     <div className="flex flex-wrap items-baseline justify-between gap-x-4 border-b border-slate-200 pb-2">
       <h3 id="match-heading" className="text-base font-semibold text-slate-900">
         AI match
       </h3>
-      {confidence && (
-        <p className={`text-sm ${confidence === "Low" ? "font-medium text-amber-800" : "text-slate-600"}`}>
-          {confidence === "Low" ? "Confidence: Low. Review manually." : `Confidence: ${confidence}`}
-        </p>
-      )}
+      <p className="text-sm font-medium text-slate-700">{confidence ? `Confidence: ${confidence}` : "Confidence unavailable"}</p>
+    </div>
+
+    <div className="text-sm text-slate-600">
+      <p>Confidence reflects the evidence available for the match, not candidate suitability or a probability of accuracy.</p>
+      {confidence ? <p>{reasons.join(" ")}</p> : <p>There is not enough scoring information to assess confidence.</p>}
     </div>
 
     {scores ? (

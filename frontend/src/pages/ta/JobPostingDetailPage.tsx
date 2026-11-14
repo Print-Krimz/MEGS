@@ -330,9 +330,7 @@ export const JobPostingDetailPage: React.FC = () => {
       cell: (row) => (
         <div className="flex flex-col items-center gap-0.5">
           <ScoreBadge score={row.score.finalFitScore} size="md" />
-          {confidenceOf(row.score.explanation) === "Low" && (
-            <span className="text-xs text-slate-600">Low confidence</span>
-          )}
+          <span className="text-xs text-slate-600">{confidenceOf(row.score.explanation) ? `Confidence: ${confidenceOf(row.score.explanation)}` : "Confidence unavailable"}</span>
         </div>
       ),
     },
@@ -357,9 +355,7 @@ export const JobPostingDetailPage: React.FC = () => {
         </div>
         <div className="flex shrink-0 flex-col items-end gap-0.5">
           <ScoreBadge score={row.score.finalFitScore} size="md" />
-          {confidenceOf(row.score.explanation) === "Low" && (
-            <span className="text-xs text-slate-600">Low confidence</span>
-          )}
+          <span className="text-xs text-slate-600">{confidenceOf(row.score.explanation) ? `Confidence: ${confidenceOf(row.score.explanation)}` : "Confidence unavailable"}</span>
         </div>
       </div>
       <StatusBadge
