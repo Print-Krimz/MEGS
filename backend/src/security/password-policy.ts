@@ -3,6 +3,7 @@
 
 export const PASSWORD_TOO_SHORT = "Use at least 8 characters.";
 export const PASSWORD_NEEDS_LETTER = "Add at least one letter.";
+export const PASSWORD_NEEDS_UPPERCASE = "Add at least one capital letter.";
 export const PASSWORD_NEEDS_NUMBER = "Add at least one number.";
 export const PASSWORD_NEEDS_SYMBOL = "Add at least one symbol, like ! or #.";
 export const PASSWORD_TOO_COMMON = "This password is too common. Choose another.";
@@ -10,6 +11,7 @@ export const PASSWORD_TOO_COMMON = "This password is too common. Choose another.
 export const PASSWORD_POLICY_MESSAGES: readonly string[] = [
   PASSWORD_TOO_SHORT,
   PASSWORD_NEEDS_LETTER,
+  PASSWORD_NEEDS_UPPERCASE,
   PASSWORD_NEEDS_NUMBER,
   PASSWORD_NEEDS_SYMBOL,
   PASSWORD_TOO_COMMON,
@@ -30,6 +32,7 @@ const COMMON_PASSWORDS = new Set([
 export const newPasswordProblem = (password: string): string | null => {
   if (password.length < 8) return PASSWORD_TOO_SHORT;
   if (!/\p{L}/u.test(password)) return PASSWORD_NEEDS_LETTER;
+  if (!/\p{Lu}/u.test(password)) return PASSWORD_NEEDS_UPPERCASE;
   if (!/\p{N}/u.test(password)) return PASSWORD_NEEDS_NUMBER;
   if (!/[^\p{L}\p{N}]/u.test(password)) return PASSWORD_NEEDS_SYMBOL;
   if (COMMON_PASSWORDS.has(password.toLowerCase())) return PASSWORD_TOO_COMMON;
