@@ -14,7 +14,7 @@ export const publicMessages = new Set<string>([
   "Your request is already with your recruiter.",
   "You've already rescheduled this once. Contact your recruiter for changes.",
   "You can request a new schedule once per stage. Contact your recruiter for changes.",
-  "Applicants added by a recruiter reschedule by phone. Contact your recruiter to change your schedule.",
+  "Walk-in applicants reschedule by phone. Contact your recruiter to change your schedule.",
   "This request does not need client review.",
   "Session expired. Please log in again.",
   "This application is closed, so it can't be rescheduled.",

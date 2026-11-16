@@ -96,7 +96,7 @@ export const findWalkInDuplicates = async (query: DuplicateQuery) => {
     or.push({ phoneNumber: { in: variants } }, { applicantProfile: { is: { mobileNumber: { in: variants } } } });
   }
   const email = query.email?.trim().toLowerCase();
-  if (email && !isSyntheticEmail(email)) or.push({ email: { equals: email, mode: "insensitive" } });
+  if (email && !isSyntheticEmail(email)) or.push({ email });
   if (first && last) {
     const raw = (value: string | undefined) => (value ?? "").trim();
     or.push({

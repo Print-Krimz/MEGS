@@ -387,7 +387,8 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
         .readWalkInBiodata(row.file)
         .then((read) => finishRead(id, read))
         .catch((error) => {
-          const limited = error instanceof ApiError && error.status === 429;
+          // "Uploads are busy" is also a 429, but it clears in seconds and says nothing about the hourly limit.
+          const limited = error instanceof ApiError && error.status === 429 && !/busy/i.test(error.message);
           if (limited) {
             // The hourly limit is used up, so the files still waiting are not sent.
             const waitingIds = readQueue.current;

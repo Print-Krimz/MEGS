@@ -231,7 +231,7 @@ export function getStageActions(
   const out: StageAction[] = [];
   const add = (id: StageActionId, label: string, kind: StageAction["kind"]) => out.push({ id, label, kind });
   // Walk-in applicants cannot request a new schedule themselves, so the TA moves it after a phone call.
-  const rescheduleLabel = app.source && app.source !== "ONLINE" ? "Reschedule (by phone)" : "Reschedule";
+  const rescheduleLabel = app.source === "WALK_IN" ? "Reschedule (by phone)" : "Reschedule";
 
   if (flags.canScheduleInitialInterview) add("schedule-initial", "Schedule interview", "primary");
   if (flags.canRecordInitialInterview) {

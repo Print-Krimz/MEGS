@@ -446,7 +446,7 @@ export const ApplicationDetailPage: React.FC = () => {
                   </div>
                 )}
 
-                {(!application.source || application.source === "ONLINE") &&
+                {application.source !== "WALK_IN" &&
                   (!interview.result || interview.result === "PENDING" || interview.result === "SCHEDULED") && (
                   <RescheduleControl
                     activity={interview.type}
@@ -641,7 +641,7 @@ export const ApplicationDetailPage: React.FC = () => {
                   {application.contractSigningLocation ? ` at ${application.contractSigningLocation}` : ""}
                 </p>
                 <VenueMap location={application.contractSigningLocation} />
-                {(!application.source || application.source === "ONLINE") && (
+                {application.source !== "WALK_IN" && (
                   <div className="pt-1">
                     <RescheduleControl
                       activity="CONTRACT_SIGNING"

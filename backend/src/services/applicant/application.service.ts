@@ -500,6 +500,7 @@ const APPLICANT_MRF_SELECT = { select: { requiresClientReview: true, client: { s
 
 // The contract is a TA-only record: applicants must not see its terms, rate or scan reference.
 const APPLICANT_HIDDEN_CONTRACT_FIELDS = {
+  sourceDetail: true,
   contractSigned: true,
   contractSignedAt: true,
   contractNotes: true,
