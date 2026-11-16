@@ -1,3 +1,4 @@
+import { isApplicationSource } from '../../services/ta/walk-in-tokens.js';
 import { Request, Response } from "express";
 import { sendSuccess, sendError } from '../../utils/response.js';
 import prisma from '../../utils/prisma.js';
@@ -52,7 +53,7 @@ export const listApplications = async (req: Request, res: Response): Promise<voi
       sort: sortMode,
       needsAction: needsAction === "true" || needsAction === "1",
       openOnly: openOnly === "true" || openOnly === "1",
-      source: typeof source === "string" && ["ONLINE", "WALK_IN"].includes(source) ? (source as "ONLINE" | "WALK_IN") : undefined,
+      source: isApplicationSource(source) ? source : undefined,
       endedOnly: ended === "true" || ended === "1",
       hideEnded: hideEnded === "true" || hideEnded === "1",
       currentUserId,
@@ -77,7 +78,7 @@ export const countApplications = async (req: Request, res: Response): Promise<vo
       returningOnly: returning === "true",
       needsAction: needsAction === "true" || needsAction === "1",
       openOnly: openOnly === "true" || openOnly === "1",
-      source: typeof source === "string" && ["ONLINE", "WALK_IN"].includes(source) ? (source as "ONLINE" | "WALK_IN") : undefined,
+      source: isApplicationSource(source) ? source : undefined,
       endedOnly: ended === "true" || ended === "1",
       hideEnded: hideEnded === "true" || hideEnded === "1",
       currentUserId: req.user?.id,

@@ -1,6 +1,6 @@
 import prisma from '../../utils/prisma.js';
 import { Prisma } from '@prisma/client';
-import { ApplicationStatus } from "@prisma/client";
+import { ApplicationStatus, type ApplicationSource } from "@prisma/client";
 import { notifyJobOwner, sendNotification } from '../../utils/notification.js';
 import { scoringFlags } from '../../utils/scoring-flags.js';
 import { getActiveScoringConfiguration } from "../scoring/scoring-configuration.service.js";
@@ -40,7 +40,7 @@ export interface ListTAApplicationsOptions {
   needsAction?: boolean;
   /** Hide closed, archived and deployed records: the review queue only lists work still in progress. */
   openOnly?: boolean;
-  source?: "ONLINE" | "WALK_IN";
+  source?: ApplicationSource;
   /** Only finished placements: deployed applications whose every assignment has ended. Hidden from the default list. */
   endedOnly?: boolean;
   /** Leave finished placements out. Only the Applications page asks; search and other lookups still find them. */

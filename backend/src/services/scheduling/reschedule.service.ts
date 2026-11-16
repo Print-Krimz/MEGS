@@ -17,7 +17,7 @@ export const ACTIVITY_LABEL: Record<ScheduleActivityName, string> = {
 export const PENDING_REQUEST_MESSAGE = "Your request is already with your recruiter.";
 export const ALREADY_RESCHEDULED_MESSAGE = "You've already rescheduled this once. Contact your recruiter for changes.";
 export const ONCE_PER_STAGE_MESSAGE = "You can request a new schedule once per stage. Contact your recruiter for changes.";
-export const WALK_IN_RESCHEDULE_MESSAGE = "Walk-in applicants reschedule by phone. Contact your recruiter to change your schedule.";
+export const WALK_IN_RESCHEDULE_MESSAGE = "Applicants added by a recruiter reschedule by phone. Contact your recruiter to change your schedule.";
 
 /** An error that carries the HTTP status the controller should answer with. */
 export class SchedulingError extends Error {
@@ -78,7 +78,7 @@ export const createRescheduleRequest = async (
     throw new SchedulingError("This application is closed, so it can't be rescheduled.");
   }
 
-  if (application.source === "WALK_IN") throw new SchedulingError(WALK_IN_RESCHEDULE_MESSAGE, 403);
+  if (application.source !== "ONLINE") throw new SchedulingError(WALK_IN_RESCHEDULE_MESSAGE, 403);
 
   const now = new Date();
   let interviewId: number | null = null;

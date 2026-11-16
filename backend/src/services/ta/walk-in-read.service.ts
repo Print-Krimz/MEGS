@@ -13,6 +13,8 @@ export interface WalkInReadResult {
   middleName?: string;
   lastName?: string;
   mobileNumber?: string;
+  /** Only for the duplicate check; never saved as the account email. */
+  email?: string;
   birthDate?: string;
   gender?: "Male" | "Female" | "Non-Binary" | "Prefer not to say";
   positionApplied?: string;
@@ -71,6 +73,7 @@ export const readWalkInBiodata = async (actor: Actor, file: Express.Multer.File)
     middleName: extractedData.middleName,
     lastName: extractedData.lastName,
     mobileNumber: extractedData.mobileNumber,
+    email: extractedData.email,
     birthDate: extractedData.dateOfBirth,
     gender: extractedData.gender as WalkInReadResult["gender"],
     positionApplied: extractedData.positionApplied,

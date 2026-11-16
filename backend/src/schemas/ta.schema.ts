@@ -3,6 +3,7 @@ import { ApplicationStatus } from "@prisma/client";
 import { BACKOUT_REASONS_BY_PARTY, REJECTION_REASON_CODES } from "../services/ta/backout-rules.js";
 import { BULK_MAX_IDS } from "../services/ta/bulk-rules.js";
 import { resumeMergeAccept } from "./applicant.schema.js";
+import { ALL_SOURCES, STAFF_SOURCES } from "../services/ta/walk-in-tokens.js";
 import { mrfPaperFieldsShape } from "./mrf-paper-fields.js";
 import { OFFICE_HOURS_MESSAGE } from "../config/business-hours.js";
 import { manilaDateString, boundedIdText, boundedText, dateOnly, finiteNumber, FIELD_LIMITS, formattedMobile, formattedPhone, requiredText, safeTextSchema, safeProseSchema, optionalPersonNameSchema, optionalSafeAddress, optionalSafeText, optionalSafeProse, optionalSafeUrl, adultDateOfBirth, sssNumber, philhealthNumber, pagibigNumber, tinNumber, pageQueryFields, isWorkingHours } from "./field-limits.js";
@@ -131,7 +132,7 @@ export const taSchema = {
       isArchived: z.enum(["true", "false"]).optional(),
       mineOnly: z.enum(["true", "false"]).optional(),
       returning: z.enum(["true", "false"]).optional(),
-      source: z.enum(["ONLINE", "WALK_IN"]).optional(),
+      source: z.enum(ALL_SOURCES).optional(),
       sort: z.enum(["match", "newest", "oldest", "waiting"]).optional(),
       needsAction: z.enum(["true", "false", "1", "0"]).optional(),
       openOnly: z.enum(["true", "false", "1", "0"]).optional(),
@@ -152,7 +153,7 @@ export const taSchema = {
       isArchived: z.enum(["true", "false"]).optional(),
       mineOnly: z.enum(["true", "false"]).optional(),
       returning: z.enum(["true", "false"]).optional(),
-      source: z.enum(["ONLINE", "WALK_IN"]).optional(),
+      source: z.enum(ALL_SOURCES).optional(),
       needsAction: z.enum(["true", "false", "1", "0"]).optional(),
       openOnly: z.enum(["true", "false", "1", "0"]).optional(),
       ended: z.enum(["true", "false", "1", "0"]).optional(),
@@ -171,6 +172,7 @@ export const taSchema = {
       firstName: boundedText(FIELD_LIMITS.name).optional(),
       lastName: boundedText(FIELD_LIMITS.name).optional(),
       birthDate: dateOnly.optional().or(z.literal("")),
+      email: boundedText(FIELD_LIMITS.shortText).optional(),
     }).strict(),
   }),
   createWalkIn: z.object({
@@ -180,11 +182,18 @@ export const taSchema = {
       middleName: optionalPersonNameSchema("Middle name"),
       lastName: z.string().trim().min(1, "Last name is required").max(FIELD_LIMITS.name),
       mobileNumber: boundedText(30).optional().nullable(),
-      // Required: walk-in applicants must be 18 to 65 years old.
-      birthDate: adultDateOfBirth("Applicant", 65),
+      // Required for walk-ins, optional for other sources. When given, the person must be 18 to 65.
+      birthDate: z.union([adultDateOfBirth("Applicant", 65), z.literal("")]).optional().nullable(),
       gender: walkInGender,
       existingUserId: z.string().trim().uuid().optional().or(z.literal("")),
-    }).strict(),
+      source: z.enum(STAFF_SOURCES).optional(),
+      // Channel name for OTHER, referrer for REFERRAL.
+      sourceDetail: boundedText(100).optional().nullable(),
+    }).strict().superRefine((body, ctx) => {
+      if ((body.source ?? "WALK_IN") === "WALK_IN" && !body.birthDate) {
+        ctx.addIssue({ code: "custom", path: ["birthDate"], message: "Birth date is required for walk-ins" });
+      }
+    }),
   }),
   walkInSlip: z.object({ params: z.object({ id: boundedIdText }).strict() }),
   listClients: z.object({

@@ -5,7 +5,21 @@ import type { ApplicationSource } from "@prisma/client";
 
 export type WalkInSource = Exclude<ApplicationSource, "ONLINE">;
 
-const CODE_PREFIX: Record<WalkInSource, string> = { WALK_IN: "WLK" };
+/** Every source a TA can record. ONLINE is only set by the applicant portal. */
+export const STAFF_SOURCES = ["WALK_IN", "LINKEDIN", "JOBSTREET", "BOSSJOB", "FACEBOOK", "EMAIL", "REFERRAL", "OTHER"] as const satisfies readonly WalkInSource[];
+/** Every source value, for list filters. */
+export const ALL_SOURCES = ["ONLINE", ...STAFF_SOURCES] as const;
+export const isApplicationSource = (value: unknown): value is ApplicationSource => (ALL_SOURCES as readonly unknown[]).includes(value);
+
+export const SOURCE_LABELS: Record<ApplicationSource, string> = {
+  ONLINE: "MEGS portal", WALK_IN: "Walk-in", LINKEDIN: "LinkedIn", JOBSTREET: "JobStreet", BOSSJOB: "Bossjob",
+  FACEBOOK: "Facebook", EMAIL: "Email", REFERRAL: "Referral", OTHER: "Other",
+};
+
+// Walk-ins keep WLK; every other staff-added source shares MEG.
+const CODE_PREFIX: Record<WalkInSource, string> = {
+  WALK_IN: "WLK", LINKEDIN: "MEG", JOBSTREET: "MEG", BOSSJOB: "MEG", FACEBOOK: "MEG", EMAIL: "MEG", REFERRAL: "MEG", OTHER: "MEG",
+};
 
 export const buildTrackingCode = (source: WalkInSource, applicationId: number, year: number): string =>
   `${CODE_PREFIX[source]}-${year}-${String(applicationId).padStart(4, "0")}`;

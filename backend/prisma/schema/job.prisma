@@ -75,6 +75,7 @@ model Application {
   // How the application reached MEGS. Staff-encoded walk-ins get a tracking code
   // for the printed QR slip; online ones do not.
   source            ApplicationSource @default(ONLINE)
+  sourceDetail      String?           @db.VarChar(100) // channel name for OTHER, referrer for REFERRAL
   trackingCode      String?           @unique // e.g. WLK-2026-0042
   trackingTokenHash String?           // sha256 of the slip token; the raw token is only printed
   selfEncoded       Boolean           @default(false) // the applicant typed the details at a check-in; a TA confirmed them
@@ -130,6 +131,13 @@ model Application {
 enum ApplicationSource {
   ONLINE
   WALK_IN
+  LINKEDIN
+  JOBSTREET
+  BOSSJOB
+  FACEBOOK
+  EMAIL
+  REFERRAL
+  OTHER
 }
 
 // ─────────────────────────────────────────────

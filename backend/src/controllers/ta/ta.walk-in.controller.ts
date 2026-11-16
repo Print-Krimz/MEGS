@@ -16,8 +16,8 @@ const statusFor = (error: any): number => {
 // GET /api/ta/walk-ins/check-duplicate
 export const checkWalkInDuplicateHandler = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { phone, firstName, lastName, birthDate } = req.query as Record<string, string | undefined>;
-    sendSuccess(res, "Duplicate check complete", await findWalkInDuplicates({ phone, firstName, lastName, birthDate }));
+    const { phone, firstName, lastName, birthDate, email } = req.query as Record<string, string | undefined>;
+    sendSuccess(res, "Duplicate check complete", await findWalkInDuplicates({ phone, firstName, lastName, birthDate, email }));
   } catch (error: any) {
     sendError(res, error.message, statusFor(error), error);
   }
@@ -48,7 +48,8 @@ export const createWalkInHandler = async (req: Request, res: Response): Promise<
       req.user!,
       {
         jobPostingId: Number(body.jobPostingId),
-        source: "WALK_IN",
+        source: body.source || "WALK_IN",
+        sourceDetail: body.sourceDetail || null,
         firstName: body.firstName,
         middleName: body.middleName || null,
         lastName: body.lastName,

@@ -305,6 +305,17 @@ describe("findWalkInDuplicates", () => {
     expect(match.maskedPhone).not.toContain("1234");
   });
 
+  it("matches an existing account by the résumé email, ignoring case, and never searches a placeholder address", async () => {
+    m.prisma.user.findMany.mockResolvedValueOnce([dbRow({ email: "juan@example.com", accountStatus: "ACTIVE" })]);
+    const { matches } = await findWalkInDuplicates({ email: " Juan@Example.com " });
+    expect(matches).toHaveLength(1);
+    expect(JSON.stringify(m.prisma.user.findMany.mock.calls.at(-1)![0].where)).toContain("juan@example.com");
+
+    m.prisma.user.findMany.mockClear();
+    expect(await findWalkInDuplicates({ email: "639171234567@applicant.megs.local" })).toEqual({ matches: [] });
+    expect(m.prisma.user.findMany).not.toHaveBeenCalled();
+  });
+
   it("reports portal access for an ACTIVE account", async () => {
     m.prisma.user.findMany.mockResolvedValueOnce([dbRow({ accountStatus: "ACTIVE", phoneNumber: "+639171234567" })]);
     const { matches } = await findWalkInDuplicates({ phone: "09171234567" });
@@ -394,6 +405,20 @@ describe("createWalkIn: new person", () => {
     expect(slip.jobTitle).toBe("Forklift Operator");
     expect(slip.clientName).toBe("Acme Logistics");
     expect(slip.location).toBe("Cebu City");
+  });
+
+  it("records another source with a MEG tracking code, and keeps the detail only for OTHER and REFERRAL", async () => {
+    const slip = await createWalkIn(TA, baseInput({ source: "REFERRAL", sourceDetail: " Maria Santos " }), FILE);
+    expect(m.prisma.application.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ source: "REFERRAL", sourceDetail: "Maria Santos" }),
+    });
+    expect(slip.trackingCode).toBe("MEG-2026-0042");
+
+    m.prisma.application.create.mockClear();
+    await createWalkIn(TA, baseInput({ source: "LINKEDIN", sourceDetail: "ignored", birthDate: null }), FILE);
+    expect(m.prisma.application.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ source: "LINKEDIN", sourceDetail: null }),
+    });
   });
 
   it("stores the gender on the new profile, and null when none is given", async () => {

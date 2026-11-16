@@ -115,6 +115,7 @@ function adminData(kpiOver: Record<string, unknown> = {}) {
     result: {
       kpis: kpis(kpiOver),
       requests: [request({ ownerId: null, ownerName: "No recruiter assigned" }), request({ mrfId: 2, health: "ON_TRACK" })],
+      sources: [{ source: "LINKEDIN", received: 4, hired: 1 }, { source: "WALK_IN", received: 2, hired: 0 }],
       stageTable: STAGE_ROWS.map((r) => stageRow(r.key, r.label)),
       team: [teamRow()],
       backouts: { withdrawals: 2, backouts: 1, noShows: 1 },

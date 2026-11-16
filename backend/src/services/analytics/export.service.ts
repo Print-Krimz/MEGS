@@ -14,6 +14,7 @@ import {
 import { METRICS, STAGE_ROWS, backoutReasonLabel, manilaDayDiff, stageRowFor, type MetricDefinition, type MetricKey } from "./metric-definitions.js";
 import { manilaDateString } from "../../schemas/field-limits.js";
 import { ownedWhere } from "../ta/ownership.js";
+import { SOURCE_LABELS } from "../ta/walk-in-tokens.js";
 import { getReportMetadata, type ReportMetadata, type ReportRoleScope } from "./report-theme.js";
 import {
   createHRDocument,
@@ -282,6 +283,26 @@ function stageSection(result: ReportResult): Section {
   };
 }
 
+function sourceSection(result: ReportResult): Section {
+  return {
+    sheet: "Applicants by source",
+    title: "Applicants by source",
+    note: "Applications received in these dates, by where the applicant came from. Hired = reached the Deployed stage.",
+    columns: [
+      { header: "Source", key: "source", weight: 150 },
+      { header: "Received", key: "received", weight: 60, align: "right" },
+      { header: "Hired", key: "hired", weight: 60, align: "right" },
+      { header: "Hire rate", key: "rate", weight: 60, align: "right" },
+    ],
+    rows: result.sources.map((s) => ({
+      source: SOURCE_LABELS[s.source as keyof typeof SOURCE_LABELS] ?? s.source,
+      received: s.received,
+      hired: s.hired,
+      rate: s.received ? `${Math.round((s.hired / s.received) * 100)}%` : "",
+    })),
+  };
+}
+
 function recruiterSections(result: ReportResult): Section[] {
   const team = result.team ?? [];
   const sections: Section[] = [
@@ -440,6 +461,7 @@ async function receivedSection(filters: AnalyticsFilterDto, requestedBy: Request
     select: {
       id: true,
       status: true,
+      source: true,
       createdAt: true,
       // The rule-based match score the application page shows, not the AI estimate.
       candidateScores: {
@@ -461,6 +483,7 @@ async function receivedSection(filters: AnalyticsFilterDto, requestedBy: Request
       { header: "Application no.", key: "id", weight: 55, align: "center" },
       { header: "Candidate", key: "candidate", weight: 130 },
       { header: "Email", key: "email", weight: 140 },
+      { header: "Source", key: "source", weight: 70 },
       { header: "Job opening", key: "job", weight: 130 },
       { header: "Client", key: "client", weight: 100 },
       { header: "Client request", key: "request", weight: 120 },
@@ -474,6 +497,7 @@ async function receivedSection(filters: AnalyticsFilterDto, requestedBy: Request
         id: `#${a.id}`,
         candidate: clean(p ? `${p.firstName} ${p.lastName}`.trim() : displayEmail(a.user.email) ?? ""),
         email: clean(displayEmail(a.user.email) ?? ""),
+        source: SOURCE_LABELS[a.source],
         job: clean(a.jobPosting?.title ?? ""),
         client: clean(a.jobPosting?.mrf?.client?.name ?? ""),
         request: clean(a.jobPosting?.mrf?.title ?? "No client request"),
@@ -585,6 +609,7 @@ async function buildPipelineModel(requestedBy: Requester, filters: AnalyticsFilt
     requestsSection(result, admin),
     overdueSection(detail, admin),
     stageSection(result),
+    sourceSection(result),
     ...(admin ? recruiterSections(result) : []),
     backoutSection(detail, admin),
     ...closureSections(result),

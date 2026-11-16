@@ -8,7 +8,7 @@ import { logAudit } from "../../utils/audit.js";
 import { safeLogError } from "../../security/errors.js";
 import { enqueueResumeAnalysis, trackFitRevalidation } from "../../workers/resume.worker.js";
 import { revalidateApplication } from "../scoring/scoring-configuration.service.js";
-import { isPhilippinePhone, maskPhoneNumber, normalizeToE164, normalizeToLocal, phoneVariants, toSyntheticEmail } from "../../utils/sms.js";
+import { isPhilippinePhone, isSyntheticEmail, maskPhoneNumber, normalizeToE164, normalizeToLocal, phoneVariants, toSyntheticEmail } from "../../utils/sms.js";
 import { parseManilaDateOnly } from "../../schemas/field-limits.js";
 import { assertOwns, type Actor } from "./ownership.js";
 import { getWalkInRead } from "./walk-in-read-cache.js";
@@ -80,6 +80,8 @@ export interface DuplicateQuery {
   firstName?: string;
   lastName?: string;
   birthDate?: string;
+  /** The email on a résumé. Only used to find an existing account, never stored. */
+  email?: string;
 }
 
 export const findWalkInDuplicates = async (query: DuplicateQuery) => {
@@ -93,6 +95,8 @@ export const findWalkInDuplicates = async (query: DuplicateQuery) => {
     const variants = phoneVariants(phone);
     or.push({ phoneNumber: { in: variants } }, { applicantProfile: { is: { mobileNumber: { in: variants } } } });
   }
+  const email = query.email?.trim().toLowerCase();
+  if (email && !isSyntheticEmail(email)) or.push({ email: { equals: email, mode: "insensitive" } });
   if (first && last) {
     const raw = (value: string | undefined) => (value ?? "").trim();
     or.push({
@@ -112,6 +116,7 @@ export const findWalkInDuplicates = async (query: DuplicateQuery) => {
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
+      email: true,
       phoneNumber: true,
       accountStatus: true,
       applicantProfile: { select: { firstName: true, middleName: true, lastName: true, mobileNumber: true, dateOfBirth: true } },
@@ -131,6 +136,7 @@ export const findWalkInDuplicates = async (query: DuplicateQuery) => {
         !!phone &&
         [user.phoneNumber, profile?.mobileNumber].some((value) => !!value && normalizeToE164(value) === phone);
       if (phoneHit) return true;
+      if (email && user.email.toLowerCase() === email) return true;
       const nameHit = !!profile && !!first && !!last && normalizeName(profile.firstName) === first && normalizeName(profile.lastName) === last;
       if (!nameHit) return false;
       return birthDate ? sameDay(profile?.dateOfBirth, birthDate) : true;
@@ -156,6 +162,8 @@ export const findWalkInDuplicates = async (query: DuplicateQuery) => {
 export interface CreateWalkInInput {
   jobPostingId: number;
   source: WalkInSource;
+  /** Channel name for OTHER, referrer for REFERRAL; ignored for other sources. */
+  sourceDetail?: string | null;
   firstName: string;
   middleName?: string | null;
   lastName: string;
@@ -352,6 +360,7 @@ export const createWalkIn = async (
           resumeUrl,
           status: initial.status,
           source: input.source,
+          sourceDetail: input.source === "OTHER" || input.source === "REFERRAL" ? input.sourceDetail?.trim() || null : null,
           selfEncoded: options.selfEncoded ?? false,
         },
       });

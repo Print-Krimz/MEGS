@@ -290,6 +290,32 @@ export interface DueSoonCandidate extends StuckCandidate {
   daysLeft: number;
 }
 
+/** Applications received in the range, by recruitment source. Hired = reached DEPLOYED. */
+export interface SourceMixRow {
+  source: string;
+  received: number;
+  hired: number;
+}
+
+export function buildSourceMix(rows: { source: string; status: string }[]): SourceMixRow[] {
+  const bySource = new Map<string, SourceMixRow>();
+  for (const row of rows) {
+    const entry = bySource.get(row.source) ?? { source: row.source, received: 0, hired: 0 };
+    entry.received += 1;
+    if (row.status === "DEPLOYED") entry.hired += 1;
+    bySource.set(row.source, entry);
+  }
+  return [...bySource.values()].sort((a, b) => b.received - a.received || a.source.localeCompare(b.source));
+}
+
+async function loadSourceMix(jobClause: Record<string, unknown>, start: Date, end: Date): Promise<SourceMixRow[]> {
+  const rows = await prisma.application.findMany({
+    where: { createdAt: { gte: start, lte: end }, jobPosting: jobClause as any },
+    select: { source: true, status: true },
+  });
+  return buildSourceMix(rows);
+}
+
 export interface TADeliveryResult {
   dateRange: DateRangeInfo;
   previousPeriod: PreviousPeriod;
@@ -301,6 +327,7 @@ export interface TADeliveryResult {
   requests: RequestRow[];
   stageTable: StageTableRow[];
   dropOff: DropOffRow[];
+  sources: SourceMixRow[];
   backouts: BackoutSummary;
   closures: ClosureSummary;
   clientDecisions: ClientDecisions;
@@ -361,6 +388,7 @@ export interface AdminDeliveryResult {
   dueSoon: DueSoonCandidate[];
   dueSoonTotal: number;
   kpis: DeliveryKpis;
+  sources: SourceMixRow[];
   team: TeamRow[];
   unassigned: UnassignedWork;
   requests: RequestRow[];
@@ -1362,7 +1390,7 @@ async function computeTADelivery(
   const { start, end, days } = parseDateRange(filters);
   const jobClause = buildJobClause(filters, scope);
   const owner = ownerFilter(filters, scope);
-  const [snapshot, entered, backoutRecords, closureRecords, dropOff, placements, clientDecisions, fetched, previousPeriod] = await Promise.all([
+  const [snapshot, entered, backoutRecords, closureRecords, dropOff, placements, clientDecisions, fetched, previousPeriod, sources] = await Promise.all([
     loadSnapshot(jobClause, now),
     loadEntered(jobClause, start, end),
     loadBackouts(jobClause, start, end),
@@ -1372,6 +1400,7 @@ async function computeTADelivery(
     loadClientDecisions(jobClause, start, end),
     fetchRequests(filters, owner, start, end),
     loadPeriodKpis(filters, jobClause, owner, start, days),
+    loadSourceMix(jobClause, start, end),
   ]);
   const requests = assembleRequests(fetched.mrfs, snapshot, backoutRecords, now);
   const postSelection = backoutRecords.filter((b) => POST_SELECTION_STAGES.includes(b.stage));
@@ -1389,6 +1418,7 @@ async function computeTADelivery(
     requests,
     stageTable: buildStageTable(snapshot, entered, backoutRecords),
     dropOff,
+    sources,
     backouts: summarizeBackouts(backoutRecords),
     closures: summarizeClosures(closureRecords),
     clientDecisions,
@@ -1416,7 +1446,7 @@ async function computeAdminDelivery(
   const jobClause = buildJobClause(filters);
   const owner = ownerFilter(filters);
 
-  const [snapshot, entered, backoutRecords, closureRecords, placements, endorsements, clientDecisions, fetched, previousPeriod] = await Promise.all([
+  const [snapshot, entered, backoutRecords, closureRecords, placements, endorsements, clientDecisions, fetched, previousPeriod, sources] = await Promise.all([
     loadSnapshot(jobClause, now),
     loadEntered(jobClause, start, end),
     loadBackouts(jobClause, start, end),
@@ -1429,6 +1459,7 @@ async function computeAdminDelivery(
     loadClientDecisions(jobClause, start, end),
     fetchRequests(filters, owner, start, end),
     loadPeriodKpis(filters, jobClause, owner, start, days),
+    loadSourceMix(jobClause, start, end),
   ]);
 
   const rawRequests = assembleRequests(fetched.mrfs, snapshot, backoutRecords, now);
@@ -1526,6 +1557,7 @@ async function computeAdminDelivery(
     dueSoon: dueSoon.items,
     dueSoonTotal: dueSoon.total,
     kpis: buildKpis(requests, placements, postSelection.length, snapshot, staleFilled),
+    sources,
     team,
     unassigned,
     requests,
