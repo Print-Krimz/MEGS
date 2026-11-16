@@ -9,12 +9,15 @@ import { MAX_AGE, MIN_AGE } from "../../../lib/walk-in-age";
 import { validateDateOfBirth } from "../../../lib/statutory-validation";
 import type { WalkInBiodataRead } from "../../../lib/types/application.types";
 
-export const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-export const ACCEPT_ATTRIBUTE = "image/jpeg,image/png,image/webp,application/pdf";
+const WORD_TYPES = ["application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+export const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf", ...WORD_TYPES];
+export const ACCEPT_ATTRIBUTE = `image/jpeg,image/png,image/webp,application/pdf,.pdf,.doc,.docx,${WORD_TYPES.join(",")}`;
+// Browsers sometimes leave a Word file's type empty, so the extension counts too.
+export const isAcceptedFile = (file: File) => ACCEPTED_TYPES.includes(file.type) || /\.(pdf|docx?|jpe?g|png|webp)$/i.test(file.name);
 export const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 export const FILE_TOO_BIG_MESSAGE = "The file is over 5 MB. Retake the photo or use a smaller file.";
-export const FILE_TYPE_MESSAGE = "Use a JPEG, PNG or WEBP photo, or a PDF.";
+export const FILE_TYPE_MESSAGE = "Use a JPEG, PNG or WEBP photo, a PDF or a Word file.";
 export const UNREADABLE_MESSAGE = "Couldn't read this file. Type the details.";
 
 export const GENDER_SELECT_OPTIONS = GENDER_OPTIONS.map((value) => ({ value, label: value }));
@@ -38,11 +41,21 @@ export const walkInIdentitySchema = z.object({
   gender: z.string().refine((v) => (GENDER_OPTIONS as readonly string[]).includes(v), "Choose a gender."),
 });
 
+/** Same fields for any other source, but birth date and gender may be left blank. A birth date that is given must still pass. */
+export const otherSourceIdentitySchema = walkInIdentitySchema.extend({
+  birthDate: z.string().superRefine((v, ctx) => {
+    if (v && validateDateOfBirth(v, { minAge: MIN_AGE, maxAge: MAX_AGE })) {
+      ctx.addIssue({ code: "custom", message: `Applicant must be ${MIN_AGE} to ${MAX_AGE} years old.` });
+    }
+  }),
+  gender: z.string(),
+});
+
 export const fileSchema = z
   .instanceof(File)
   .optional()
   .refine((f) => !f || f.size <= MAX_FILE_BYTES, FILE_TOO_BIG_MESSAGE)
-  .refine((f) => !f || ACCEPTED_TYPES.includes(f.type), FILE_TYPE_MESSAGE);
+  .refine((f) => !f || isAcceptedFile(f), FILE_TYPE_MESSAGE);
 
 export interface IdentityFields {
   firstName: string;
@@ -83,14 +96,17 @@ export interface DuplicateParams {
   firstName?: string;
   lastName?: string;
   birthDate?: string;
+  email?: string;
 }
 
 /** What to ask the server when looking for an existing person. Null when there is not enough to look with. */
-export function duplicateParamsFor(values: IdentityFields): DuplicateParams | null {
+export function duplicateParamsFor(values: IdentityFields & { email?: string }): DuplicateParams | null {
   const phoneOk = Boolean(values.mobileNumber) && validatePhilippineMobile(values.mobileNumber).isComplete;
   const nameOk = Boolean(values.firstName.trim() && values.lastName.trim());
-  if (!phoneOk && !nameOk) return null;
+  const emailOk = Boolean(values.email?.trim());
+  if (!phoneOk && !nameOk && !emailOk) return null;
   return {
+    email: emailOk ? values.email!.trim() : undefined,
     phone: phoneOk ? values.mobileNumber : undefined,
     firstName: nameOk ? values.firstName.trim() : undefined,
     lastName: nameOk ? values.lastName.trim() : undefined,

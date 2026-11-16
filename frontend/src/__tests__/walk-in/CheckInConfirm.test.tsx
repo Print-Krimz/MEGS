@@ -182,7 +182,7 @@ describe("EncodeWalkInDialog in check-in mode: biodata and submit", () => {
     attachFile(new File(["notes"], "notes.txt", { type: "text/plain" }));
     chooseGender();
     fireEvent.click(confirmButton());
-    expect(await screen.findByRole("alert")).toHaveTextContent("Use a JPEG, PNG or WEBP photo, or a PDF.");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Use a JPEG, PNG or WEBP photo, a PDF or a Word file.");
     expect(confirmCheckIn).not.toHaveBeenCalled();
   });
 

@@ -11,6 +11,8 @@ import type { AuthContextType } from "./context/AuthContext";
 import { parseAdminReportSearch, parseTAReportSearch, type AdminReportSearch } from "./lib/admin-report-search";
 import { getHomePath, landingRedirectPending, markLandingRedirected } from "./lib/home-path";
 import { ApplicationStatus, PIPELINE_FILTER_STAGES, Role } from "./lib/types/enums";
+import { ALL_SOURCES } from "./lib/application-sources";
+import type { ApplicationSource } from "./lib/types/application.types";
 
 // TanStack preloads every matched route component after synchronous guards run.
 // Its native lazy components therefore load layouts and leaf pages in parallel.
@@ -371,8 +373,8 @@ export const taLayoutRoute = createRoute({
   notFoundComponent: NotFoundPage,
 });
 
-export type ApplicationSourceFilter = "ONLINE" | "WALK_IN";
-const APPLICATION_SOURCE_FILTERS: ApplicationSourceFilter[] = ["ONLINE", "WALK_IN"];
+export type ApplicationSourceFilter = ApplicationSource;
+const APPLICATION_SOURCE_FILTERS: ApplicationSourceFilter[] = ALL_SOURCES;
 
 export interface TAApplicationSearch {
   q?: string;

@@ -12,6 +12,7 @@ export * from "./LineChart";
 export * from "./OperationsWorkspace";
 export * from "./PaginationBar";
 export * from "./RequestProgressList";
+export * from "./SourceMixPanel";
 export * from "./StagePipeline";
 export * from "./StuckList";
 export * from "./TeamTable";

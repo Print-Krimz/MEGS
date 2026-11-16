@@ -2,14 +2,15 @@ import React, { useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../../lib/api/ta.api";
+import { ApiError } from "../../../lib/api/client";
+import { SOURCE_DETAIL_LABELS, STAFF_SOURCE_OPTIONS } from "../../../lib/application-sources";
 import { Button, ComboBox, Dialog, Input, PhoneInput, Select } from "../../ui";
 import { DateField } from "../../common/DateField";
 import { fieldErrorsFrom, formatErrorMessage, notify } from "../../../lib/feedback";
 import { useDirtyGuard } from "../../../hooks/useDirtyGuard";
 import { MAX_AGE, MIN_AGE, yearsAgo } from "../../../lib/walk-in-age";
-import type { WalkInBiodataRead, WalkInMatch, WalkInSlip } from "../../../lib/types/application.types";
+import type { ApplicationSource, WalkInBiodataRead, WalkInMatch, WalkInSlip } from "../../../lib/types/application.types";
 import {
-  ACCEPTED_TYPES,
   ACCEPT_ATTRIBUTE,
   FILE_TOO_BIG_MESSAGE,
   FILE_TYPE_MESSAGE,
@@ -18,6 +19,8 @@ import {
   UNREADABLE_MESSAGE,
   duplicateParamsFor,
   fillEmptyFields,
+  isAcceptedFile,
+  otherSourceIdentitySchema,
   useOpenJobOptions,
   walkInIdentitySchema,
   type IdentityFields,
@@ -30,6 +33,10 @@ export const MAX_BATCH_FILES = 15;
 const READ_CONCURRENCY = 2;
 
 type JobSource = "none" | "batch" | "suggested" | "manual";
+/** "batch" follows the source chosen for the whole batch; "manual" is a row the TA changed. */
+type SourceOrigin = "batch" | "manual";
+
+const LIMIT_MESSAGE = "Hourly AI limit reached. Type the details, or add this file again later.";
 
 interface RowResult {
   status: "idle" | "saving" | "done" | "error";
@@ -41,9 +48,15 @@ interface BatchRow extends IdentityFields {
   id: string;
   file: File;
   previewUrl: string;
-  read: "queued" | "reading" | "read" | "unreadable";
+  read: "queued" | "reading" | "read" | "unreadable" | "limit";
   /** "Position applied for" as written on the bio-data. */
   positionApplied: string;
+  /** The email on the resume. Only used to look for an existing account; never saved. */
+  email: string;
+  source: ApplicationSource;
+  sourceOrigin: SourceOrigin;
+  /** Referrer for REFERRAL, channel name for OTHER. */
+  sourceDetail: string;
   jobPostingId: string;
   jobSource: JobSource;
   existingUser: WalkInMatch | null;
@@ -55,7 +68,7 @@ interface BatchRow extends IdentityFields {
 
 /** The first problem for each field, in plain words. Empty when the row can be encoded. */
 const rowProblems = (row: BatchRow): string[] => {
-  const parsed = walkInIdentitySchema.safeParse(row);
+  const parsed = (row.source === "WALK_IN" ? walkInIdentitySchema : otherSourceIdentitySchema).safeParse(row);
   if (parsed.success) return [];
   const seen = new Set<string>();
   const problems: string[] = [];
@@ -76,13 +89,14 @@ const applyRead = (row: BatchRow, read: WalkInBiodataRead | null): BatchRow => {
   return {
     ...next,
     read: "read",
+    email: read.email?.trim() ?? "",
     positionApplied: read.positionApplied?.trim() ?? "",
     jobPostingId: suggested ? String(read.suggestedJobId) : row.jobPostingId,
     jobSource: suggested ? "suggested" : row.jobSource,
   };
 };
 
-const isPdf = (file: File) => file.type === "application/pdf";
+const fileBadge = (file: File) => (file.type === "application/pdf" ? "PDF" : file.type.startsWith("image/") ? null : "DOC");
 
 interface RowViewProps {
   number: number;
@@ -106,14 +120,14 @@ const RowView: React.FC<RowViewProps> = ({ row, number, jobOptions, jobsLoading,
   const idFor = (name: string) => `batch-${row.id}-${name}`;
 
   return (
-    <li role="group" aria-label={`Walk-in from ${row.file.name}`} className="grid gap-3 rounded-md border border-slate-300 p-4 md:grid-cols-[4.5rem_minmax(0,1fr)]">
+    <li role="group" aria-label={`Applicant from ${row.file.name}`} className="grid gap-3 rounded-md border border-slate-300 p-4 md:grid-cols-[4.5rem_minmax(0,1fr)]">
       <button
         type="button"
         aria-label={`View ${row.file.name} larger`}
         onClick={() => window.open(row.previewUrl, "_blank", "noopener")}
         className="flex h-[4.5rem] w-[4.5rem] items-center justify-center overflow-hidden rounded border border-slate-300 bg-slate-50 text-sm font-semibold text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1"
       >
-        {isPdf(row.file) ? "PDF" : <img src={row.previewUrl} alt="" className="h-full w-full object-cover" />}
+        {fileBadge(row.file) ?? <img src={row.previewUrl} alt="" className="h-full w-full object-cover" />}
       </button>
 
       <div className="min-w-0 space-y-3">
@@ -132,6 +146,8 @@ const RowView: React.FC<RowViewProps> = ({ row, number, jobOptions, jobsLoading,
               </p>
             )}
             {row.read === "unreadable" && !done && <p className="text-xs text-slate-600">{UNREADABLE_MESSAGE}</p>}
+            {row.read === "limit" && !done && <p className="text-xs text-slate-600">{LIMIT_MESSAGE}</p>}
+            {row.read === "read" && row.email && !done && <p className="text-xs text-slate-600">Email on resume: {row.email}</p>}
             {row.read === "read" && row.positionApplied && !done && (
               <p className="text-xs text-slate-600">From resume: {row.positionApplied}</p>
             )}
@@ -207,8 +223,8 @@ const RowView: React.FC<RowViewProps> = ({ row, number, jobOptions, jobsLoading,
           <div onBlur={onCheck}>
             <DateField
               id={idFor("birth-date")}
-              label="Birth date"
-              required
+              label={row.source === "WALK_IN" ? "Birth date" : "Birth date (optional)"}
+              required={row.source === "WALK_IN"}
               min={yearsAgo(MAX_AGE + 1)}
               max={yearsAgo(MIN_AGE)}
               disabled={disabled}
@@ -218,13 +234,22 @@ const RowView: React.FC<RowViewProps> = ({ row, number, jobOptions, jobsLoading,
           </div>
           <Select
             id={idFor("gender")}
-            label="Gender"
-            required
+            label={row.source === "WALK_IN" ? "Gender" : "Gender (optional)"}
+            required={row.source === "WALK_IN"}
             placeholder="Choose"
             options={GENDER_SELECT_OPTIONS}
             disabled={disabled}
             value={row.gender}
             onChange={(e) => onChange({ gender: e.target.value })}
+          />
+          <Select
+            id={idFor("source")}
+            label="Source"
+            required
+            options={STAFF_SOURCE_OPTIONS}
+            disabled={disabled}
+            value={row.source}
+            onChange={(e) => onChange({ source: e.target.value as ApplicationSource, sourceOrigin: "manual" })}
           />
           <ComboBox
             id={idFor("job")}
@@ -239,6 +264,20 @@ const RowView: React.FC<RowViewProps> = ({ row, number, jobOptions, jobsLoading,
             emptyText="No open jobs. Open a job first."
           />
         </div>
+
+        {SOURCE_DETAIL_LABELS[row.source] && (
+          <div className="max-w-sm">
+            <Input
+              id={idFor("source-detail")}
+              label={`${SOURCE_DETAIL_LABELS[row.source]} (optional)`}
+              autoComplete="off"
+              maxLength={100}
+              disabled={disabled}
+              value={row.sourceDetail}
+              onChange={(e) => onChange({ sourceDetail: e.target.value })}
+            />
+          </div>
+        )}
 
         {problems.length > 0 && <p className="text-xs text-slate-600">Still needed: {problems.join(" ")}</p>}
 
@@ -270,6 +309,7 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
   const { jobsQuery, jobOptions } = useOpenJobOptions(open);
   const [rows, setRows] = useState<BatchRow[]>([]);
   const [batchJob, setBatchJob] = useState("");
+  const [batchSource, setBatchSource] = useState<ApplicationSource>("WALK_IN");
   const [notice, setNotice] = useState<string[]>([]);
   const [encoding, setEncoding] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -280,6 +320,7 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
   // Rows live in a ref as well, so the read queue and the save loop always see the latest list.
   const rowsRef = useRef<BatchRow[]>([]);
   const batchJobRef = useRef("");
+  const batchSourceRef = useRef<ApplicationSource>("WALK_IN");
   const readQueue = useRef<string[]>([]);
   const activeReads = useRef(0);
   const alive = useRef(true);
@@ -305,7 +346,7 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
   const doneSlips = rows.flatMap((r) => (r.result.status === "done" && r.result.slip ? [r.result.slip] : []));
   const pending = rows.filter((r) => r.result.status !== "done");
   const isDirty = pending.length > 0 || (doneSlips.length > 0 && !sheetSeen);
-  const guard = useDirtyGuard({ isDirty: open && isDirty, message: "Some walk-ins are not saved, or their slips are not printed yet." });
+  const guard = useDirtyGuard({ isDirty: open && isDirty, message: "Some applicants are not saved, or their slips are not printed yet." });
 
   const checkDuplicates = async (row: BatchRow) => {
     if (row.existingUser || row.result.status === "done") return;
@@ -324,13 +365,14 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
     if (alive.current) patchRow(row.id, { matches, checking: false });
   };
 
-  const finishRead = (id: string, read: WalkInBiodataRead | null) => {
+  const finishRead = (id: string, read: WalkInBiodataRead | null, limited = false) => {
     if (!alive.current) return;
     const current = rowsRef.current.find((r) => r.id === id);
     if (!current) return;
     // Rows only get empty fields filled, so anything typed while the file was being read stays.
-    patchRow(id, (row) => applyRead(row, read));
-    void checkDuplicates(applyRead(current, read));
+    const apply = (row: BatchRow): BatchRow => (limited ? { ...row, read: "limit" } : applyRead(row, read));
+    patchRow(id, apply);
+    void checkDuplicates(apply(current));
   };
 
   const pumpReads = () => {
@@ -344,7 +386,16 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
       taApi
         .readWalkInBiodata(row.file)
         .then((read) => finishRead(id, read))
-        .catch(() => finishRead(id, null))
+        .catch((error) => {
+          const limited = error instanceof ApiError && error.status === 429;
+          if (limited) {
+            // The hourly limit is used up, so the files still waiting are not sent.
+            const waitingIds = readQueue.current;
+            readQueue.current = [];
+            if (alive.current) updateRows((current) => current.map((r) => (waitingIds.includes(r.id) ? { ...r, read: "limit" } : r)));
+          }
+          finishRead(id, null, limited);
+        })
         .finally(() => {
           activeReads.current -= 1;
           pumpReads();
@@ -358,7 +409,7 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
     let room = MAX_BATCH_FILES - rowsRef.current.length;
     let leftOut = 0;
     for (const file of files) {
-      if (!ACCEPTED_TYPES.includes(file.type)) {
+      if (!isAcceptedFile(file)) {
         messages.push(`${file.name}: ${FILE_TYPE_MESSAGE}`);
       } else if (file.size > MAX_FILE_BYTES) {
         messages.push(`${file.name}: ${FILE_TOO_BIG_MESSAGE}`);
@@ -379,6 +430,10 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
       previewUrl: URL.createObjectURL(file),
       read: "queued",
       positionApplied: "",
+      email: "",
+      source: batchSourceRef.current,
+      sourceOrigin: "batch",
+      sourceDetail: "",
       firstName: "",
       middleName: "",
       lastName: "",
@@ -419,6 +474,13 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
     );
   };
 
+  const changeBatchSource = (value: ApplicationSource) => {
+    batchSourceRef.current = value;
+    setBatchSource(value);
+    // Rows the TA gave their own source keep it.
+    updateRows((current) => current.map((r) => (r.sourceOrigin === "batch" && r.result.status !== "done" ? { ...r, source: value } : r)));
+  };
+
   const changeRow = (id: string, patch: Partial<BatchRow>) => {
     patchRow(id, patch);
     // Any edit to a row that failed to save clears the old error.
@@ -444,8 +506,10 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
       if (row.middleName.trim()) body.append("middleName", row.middleName.trim());
       body.append("lastName", row.lastName.trim());
       if (row.mobileNumber) body.append("mobileNumber", row.mobileNumber);
-      body.append("birthDate", row.birthDate);
-      body.append("gender", row.gender);
+      if (row.birthDate) body.append("birthDate", row.birthDate);
+      if (row.gender) body.append("gender", row.gender);
+      body.append("source", row.source);
+      if (row.sourceDetail.trim() && SOURCE_DETAIL_LABELS[row.source]) body.append("sourceDetail", row.sourceDetail.trim());
       if (row.existingUser) body.append("existingUserId", row.existingUser.userId);
       try {
         const slip = await taApi.createWalkIn(body);
@@ -460,8 +524,8 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
     queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
     queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
     if (alive.current) setEncoding(false);
-    if (failed === 0) notify.success("Walk-ins saved", `${saved} ${saved === 1 ? "applicant is" : "applicants are"} now in the pipeline.`);
-    else notify.warning(`${saved} saved, ${failed} not saved`, "Fix the marked rows, then encode again.");
+    if (failed === 0) notify.success("Applicants saved", `${saved} ${saved === 1 ? "applicant is" : "applicants are"} now in the pipeline.`);
+    else notify.warning(`${saved} saved, ${failed} not saved`, "Fix the marked rows, then add again.");
   };
 
   const requestClose = async () => {
@@ -477,7 +541,7 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
       : readingCount > 0
         ? `Waiting for ${readingCount} ${readingCount === 1 ? "file" : "files"} to be read.`
         : incompleteCount > 0
-          ? `${incompleteCount} ${incompleteCount === 1 ? "row needs" : "rows need"} details before you can encode.`
+          ? `${incompleteCount} ${incompleteCount === 1 ? "row needs" : "rows need"} details before you can add them.`
           : "";
 
   return (
@@ -485,8 +549,8 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
       <Dialog
         open={open && !sheetOpen}
         onClose={() => void requestClose()}
-        title="Encode walk-in"
-        description="Add one or more resumes. The details fill in from each one. Check each row, then encode."
+        title="Add applicants"
+        description="Add one or more resumes from any source. The details fill in from each one. Check each row, then add."
         size="xl"
         className="lg:max-w-6xl"
       >
@@ -499,7 +563,16 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
               </Button>
             </div>
           ) : (
-            <div className="max-w-xl">
+            <div className="grid max-w-3xl gap-3 sm:grid-cols-2">
+              <Select
+                id="batch-source"
+                label="Source (applies to every row)"
+                options={STAFF_SOURCE_OPTIONS}
+                value={batchSource}
+                onChange={(e) => changeBatchSource(e.target.value as ApplicationSource)}
+                disabled={encoding}
+                helperText="Where these applicants came from. You can change a row."
+              />
               <ComboBox
                 id="batch-job"
                 label="Job (applies to every row)"
@@ -534,7 +607,7 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
           >
             <label htmlFor="batch-files" className={rows.length === 0 ? "text-base font-medium text-slate-900" : "text-sm font-medium text-slate-800"}>
               {rows.length === 0 ? "Drop resumes here" : "Add more resumes"}
-              <span className="sr-only"> (Resume photos or PDFs)</span>
+              <span className="sr-only"> (Resume photos, PDFs or Word files)</span>
             </label>
             <input
               ref={fileInputRef}
@@ -554,7 +627,7 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
               Choose files
             </Button>
             <p id="batch-files-help" className="text-xs text-slate-500">
-              Photos or PDFs, up to {MAX_BATCH_FILES} files, 5 MB each.{rows.length > 0 ? ` ${rows.length} added.` : ""}
+              Photos, PDFs or Word files, up to {MAX_BATCH_FILES} files, 5 MB each.{rows.length > 0 ? ` ${rows.length} added.` : ""}
             </p>
           </div>
 
@@ -619,7 +692,7 @@ export const EncodeSeveralWalkInsDialog: React.FC<EncodeSeveralWalkInsDialogProp
             )}
             {pending.length > 0 && (
               <Button type="button" disabled={!canEncode} loading={encoding} onClick={() => void encodeAll()}>
-                {doneSlips.length > 0 ? "Encode remaining" : rows.length > 1 ? "Encode all" : "Encode"}
+                {doneSlips.length > 0 ? "Add remaining" : rows.length > 1 ? "Add all" : "Add applicant"}
               </Button>
             )}
           </div>

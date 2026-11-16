@@ -51,6 +51,13 @@ export interface DeliveryDateRange {
   days: number;
 }
 
+/** Applications received in the dates, by recruitment source. Hired = reached Deployed. */
+export interface SourceMixRow {
+  source: string;
+  received: number;
+  hired: number;
+}
+
 export interface StageTableRow {
   stage: StageRowKey;
   label: string;
@@ -312,6 +319,8 @@ export interface TADeliveryDashboard {
   kpis: DeliveryKpis;
   requests: RequestRow[];
   stageTable: StageTableRow[];
+  /** Absent on older servers. */
+  sources?: SourceMixRow[];
   dropOff: DropOffRow[];
   backouts: BackoutSummary;
   /** Rejected and Backed Out applications in the period, by disposition. Absent on older servers. */
@@ -340,6 +349,8 @@ export interface AdminDeliveryDashboard {
   backouts: BackoutSummary;
   clientDecisions: ClientDecisions;
   stageTable: StageTableRow[];
+  /** Absent on older servers. */
+  sources?: SourceMixRow[];
   stuck: StuckCandidate[];
   /** Total overdue items before the list is capped. */
   stuckTotal: number;

@@ -17,6 +17,7 @@ import {
   LineChart,
   OperationsWorkspace,
   RequestProgressList,
+  SourceMixPanel,
   StagePipeline,
   StuckList,
 } from "../../components/analytics";
@@ -298,6 +299,8 @@ export const AnalyticsPage: React.FC = () => {
                 />
               </div>
             </div>
+
+            {data.sources && <SourceMixPanel rows={data.sources} />}
 
             <div className="pt-2">
               <OperationsWorkspace<WorkspaceKey>

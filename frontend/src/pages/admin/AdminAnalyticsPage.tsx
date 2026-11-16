@@ -17,6 +17,7 @@ import {
   OperationsWorkspace,
   LineChart,
   RequestProgressList,
+  SourceMixPanel,
   StagePipeline,
   StuckList,
   TeamTable,
@@ -383,6 +384,8 @@ export const AdminAnalyticsPage: React.FC = () => {
               <BackoutReasonsDonut data={data.backouts} className="h-full" />
             </div>
           </div>
+
+          {data.sources && <SourceMixPanel rows={data.sources} />}
 
           <div className="pt-2">
             <OperationsWorkspace<WorkspaceKey>

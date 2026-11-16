@@ -401,7 +401,7 @@ export const ApplicationDetailPage: React.FC = () => {
   const menuItems: ActionMenuItem[] = [
     { label: "Refresh assessment", onSelect: () => m.analyze.mutate(), disabled: m.analyze.isPending },
     ...overflow.map((a) => ({ label: a.label, onSelect: () => runStageAction(a.id) })),
-    ...(app.trackingCode || app.source === "WALK_IN" ? [{ label: app.trackingCode ? "Print new slip" : "Print slip", onSelect: () => setReissueOpen(true) }] : []),
+    ...(app.trackingCode || (app.source && app.source !== "ONLINE") ? [{ label: app.trackingCode ? "Print new slip" : "Print slip", onSelect: () => setReissueOpen(true) }] : []),
     ...(flags.canReject ? [{ label: "Reject applicant", tone: "danger" as const, onSelect: () => setDialog({ kind: "close", outcome: "REJECTED" }) }] : []),
     ...(flags.canBackout ? [{ label: "Mark as backed out", tone: "danger" as const, onSelect: () => setDialog({ kind: "close", outcome: "BACKED_OUT" }) }] : []),
   ];
@@ -533,7 +533,7 @@ export const ApplicationDetailPage: React.FC = () => {
         ended={Boolean(getEndedAssignment(app))}
         listHref={applicationListHref}
         menuItems={menuItems}
-        sourceChip={<SourceChip source={app.source} />}
+        sourceChip={<SourceChip source={app.source} detail={app.sourceDetail} />}
         resumeAction={resumeDrawer}
         stepper={
           <PipelineIndicator

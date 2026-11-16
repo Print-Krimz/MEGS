@@ -387,6 +387,7 @@ export const listTAApplications = async (
       isArchived: true,
       createdAt: true,
       source: true,
+      sourceDetail: true,
       trackingCode: true,
       jobPosting: {
         select: {
@@ -524,6 +525,7 @@ export const listTAApplications = async (
         isArchived: true,
         createdAt: true,
         source: true,
+        sourceDetail: true,
         trackingCode: true,
         jobPosting: {
           select: {

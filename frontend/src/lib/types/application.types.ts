@@ -202,7 +202,7 @@ export interface CandidateScore {
   } | null;
 }
 
-export type ApplicationSource = "ONLINE" | "WALK_IN";
+export type ApplicationSource = "ONLINE" | "WALK_IN" | "LINKEDIN" | "JOBSTREET" | "BOSSJOB" | "FACEBOOK" | "EMAIL" | "REFERRAL" | "OTHER";
 
 export interface WalkInMatch {
   userId: string;
@@ -223,6 +223,8 @@ export interface WalkInBiodataRead {
   middleName?: string;
   lastName?: string;
   mobileNumber?: string;
+  /** Only used to look for an existing account. Never saved as the account email. */
+  email?: string;
   /** YYYY-MM-DD */
   birthDate?: string;
   gender?: WalkInGender;
@@ -273,6 +275,7 @@ export interface CheckInDetail extends CheckInSummary {
 export interface Application {
   id: number;
   source?: ApplicationSource;
+  sourceDetail?: string | null;
   trackingCode?: string | null;
   hasPortalAccess?: boolean;
   userId: string;
@@ -356,6 +359,7 @@ export interface ReturningWorkerInfo {
 export interface TAApplicationSummary {
   id: number;
   source?: ApplicationSource;
+  sourceDetail?: string | null;
   trackingCode?: string | null;
   hasPortalAccess?: boolean;
   status: ApplicationStatus;

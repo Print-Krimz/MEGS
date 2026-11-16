@@ -36,6 +36,7 @@ import {
 import { useRowSelection } from "../../hooks/useRowSelection";
 import type { ApplicationSourceFilter, TAApplicationSearch } from "../../routes";
 import { SourceChip, APPLICATION_SOURCE_LABELS } from "../../components/ta/walk-in/SourceChip";
+import { ALL_SOURCES, isApplicationSource } from "../../lib/application-sources";
 import { CheckInsPanel, useCheckIns } from "../../components/ta/walk-in/CheckInsPanel";
 import { ReviewQueue } from "../../components/ta/recruitment/ReviewQueue";
 import { TA_COPY } from "../../lib/ta-copy";
@@ -199,7 +200,7 @@ export const readApplicationSearch = (): TAApplicationSearch => {
   };
   return {
     q: readStringParam(params, "q") || undefined,
-    source: source === "ONLINE" || source === "WALK_IN" ? source : undefined,
+    source: isApplicationSource(source) ? source : undefined,
     stage: stage && PIPELINE_FILTER_STAGES.includes(stage as ApplicationStatus) ? stage as ApplicationStatus : undefined,
     clientId: number(params.get("clientId")),
     jobId: number(params.get("jobId")),
@@ -675,7 +676,7 @@ export const ApplicationsPage: React.FC = () => {
           {detailLink(app)}
           <div className="text-xs text-slate-600">{displayEmail(app.user?.email)}</div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <SourceChip source={app.source} />
+            <SourceChip source={app.source} detail={app.sourceDetail} />
             <ReturningBadge info={app.returning} />
           </div>
         </div>
@@ -758,7 +759,7 @@ export const ApplicationsPage: React.FC = () => {
             {app.jobPosting?.mrf?.client?.name ? ` · ${app.jobPosting.mrf.client.name}` : ""}
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <SourceChip source={app.source} />
+            <SourceChip source={app.source} detail={app.sourceDetail} />
             <ReturningBadge info={app.returning} />
           </div>
         </div>
@@ -861,7 +862,7 @@ export const ApplicationsPage: React.FC = () => {
         ]}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => setEncodeOpen(true)}>Encode walk-in</Button>
+            <Button onClick={() => setEncodeOpen(true)}>Add applicants</Button>
           </div>
         }
         flush
@@ -1092,7 +1093,7 @@ export const ApplicationsPage: React.FC = () => {
               key: "source",
               label: "Source",
               placeholder: "All sources",
-              options: (["ONLINE", "WALK_IN"] as const).map((value) => ({
+              options: ALL_SOURCES.map((value) => ({
                 value,
                 label: APPLICATION_SOURCE_LABELS[value],
               })),

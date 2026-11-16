@@ -242,7 +242,7 @@ export const taApi = {
   },
 
   checkWalkInDuplicate: (
-    params: { phone?: string; firstName?: string; lastName?: string; birthDate?: string },
+    params: { phone?: string; firstName?: string; lastName?: string; birthDate?: string; email?: string },
     options?: RequestInit,
   ) => {
     const qs = new URLSearchParams();
@@ -250,6 +250,7 @@ export const taApi = {
     if (params.firstName) qs.append("firstName", params.firstName);
     if (params.lastName) qs.append("lastName", params.lastName);
     if (params.birthDate) qs.append("birthDate", params.birthDate);
+    if (params.email) qs.append("email", params.email);
     return api.get<{ matches: WalkInMatch[] }>(`/api/ta/walk-ins/check-duplicate?${qs.toString()}`, options);
   },
 
