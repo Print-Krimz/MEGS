@@ -32,6 +32,7 @@ export const applicantApplicationSchema = {
   }),
   listSavedJobs: z.object({ query: listSavedJobsQuerySchema }),
   jobParams: z.object({ params: idParams }),
+  recommendations: z.object({ query: z.object({ limit: boundedPageSize.optional() }).strict() }),
   applyParams: z.object({ params: idParams }),
   apply: z.object({ params: idParams, body: z.object({}).strict().optional() }),
   withdraw: z.object({

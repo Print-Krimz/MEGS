@@ -15,6 +15,42 @@ import {
 import { fillBlanksFromParse, parseResumeToProposal } from './resume-merge.service.js';
 import { buildApplicantJobWhere, type ApplicantJobFilters } from './job-filter.service.js';
 
+/** What an applicant sees about an open job. Shared by the job list and recommendations. */
+export const OPEN_JOB_SELECT = {
+  id: true,
+  title: true,
+  description: true,
+  requirements: true,
+  location: true,
+  imageUrl: true,
+  status: true,
+  createdAt: true,
+  mrf: {
+    select: {
+      location: true,
+      client: {
+        select: {
+          id: true,
+          name: true,
+          tradeName: true,
+          industry: true,
+          city: true,
+          province: true,
+        },
+      },
+      employmentType: true,
+      workArrangement: true,
+      salaryRangeMin: true,
+      salaryRangeMax: true,
+      department: true,
+      workShift: true,
+      workDays: true,
+      workHoursPerDay: true,
+      workTime: true,
+    },
+  },
+} as const;
+
 export const fetchOpenJobs = async (filters?: ApplicantJobFilters & { page?: number; limit?: number }) => {
   const where: any = { status: "OPEN", ...(await buildApplicantJobWhere(filters)) };
 
@@ -39,40 +75,7 @@ export const fetchOpenJobs = async (filters?: ApplicantJobFilters & { page?: num
     where,
     orderBy: { createdAt: "desc" },
     ...(paginationRequested ? { skip: (page - 1) * limit, take: limit } : {}),
-    select: {
-      id: true,
-      title: true,
-      description: true,
-      requirements: true,
-      location: true,
-      imageUrl: true,
-      status: true,
-      createdAt: true,
-      mrf: {
-        select: {
-          location: true,
-          client: {
-            select: {
-              id: true,
-              name: true,
-              tradeName: true,
-              industry: true,
-              city: true,
-              province: true,
-            },
-          },
-          employmentType: true,
-          workArrangement: true,
-          salaryRangeMin: true,
-          salaryRangeMax: true,
-          department: true,
-          workShift: true,
-          workDays: true,
-          workHoursPerDay: true,
-          workTime: true,
-        },
-      },
-    },
+    select: OPEN_JOB_SELECT,
     }),
     paginationRequested ? prisma.jobPosting.count({ where }) : Promise.resolve(0),
   ]);

@@ -17,6 +17,11 @@ import {
   uploadComplianceDocumentHandler,
   getActiveDeployment,
 } from '../../controllers/applicant/application.controller.js';
+import {
+  getRecommendationsHandler,
+  dismissRecommendationHandler,
+  undoDismissRecommendationHandler,
+} from '../../controllers/applicant/recommendation.controller.js';
 import { createRescheduleRequestHandler } from '../../controllers/applicant/reschedule.controller.js';
 import {
   saveJobHandler,
@@ -47,6 +52,9 @@ router.get("/employers/summary", publicShortCache, validate(applicantApplication
 router.use(authenticateJWT);
 router.use(requireRole("APPLICANT"));
 
+router.get("/recommendations", validate(applicantApplicationSchema.recommendations), getRecommendationsHandler);
+router.post("/recommendations/:id/dismiss", validate(applicantApplicationSchema.jobParams), dismissRecommendationHandler);
+router.delete("/recommendations/:id/dismiss", validate(applicantApplicationSchema.jobParams), undoDismissRecommendationHandler);
 router.get("/jobs/:id", validate(applicantApplicationSchema.jobParams), getJobDetails);
 router.post("/jobs/:id/apply", validate(applicantApplicationSchema.applyParams), upload.single("file"), validate(applicantApplicationSchema.apply), applyToJob);
 router.post("/jobs/:id/save", validate(applicantApplicationSchema.jobParams), saveJobHandler);
