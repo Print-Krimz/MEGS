@@ -13,7 +13,8 @@ export const unsubscribeJobAlertsHandler = async (req: Request, res: Response): 
   } catch (error) {
     return void sendError(res, "Unsubscribe is unavailable right now.", 500, error);
   }
-  if (!userId) return void sendError(res, "This unsubscribe link is not valid.", 400);
+  // Same as every public link route: a bad token is a 404.
+  if (!userId) return void sendError(res, "This unsubscribe link is not valid.", 404);
   try {
     await turnOffJobAlertEmail(userId);
     sendSuccess(res, "You will no longer get job alert emails.", { unsubscribed: true });

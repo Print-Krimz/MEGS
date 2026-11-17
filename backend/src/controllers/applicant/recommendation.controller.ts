@@ -24,6 +24,8 @@ export const dismissRecommendationHandler = async (req: Request, res: Response):
   try {
     sendSuccess(res, "Recommendation hidden", await dismissRecommendation(req.user!.id, Number(req.params.id)));
   } catch (error) {
+    // Foreign key failure: the job does not exist.
+    if ((error as { code?: string } | null)?.code === "P2003") return void sendError(res, "Job not found", 404);
     sendError(res, "Failed to hide this recommendation", 500, error);
   }
 };

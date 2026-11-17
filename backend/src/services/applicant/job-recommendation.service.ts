@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import prisma from "../../utils/prisma.js";
 import { getActiveScoringConfiguration } from "../scoring/scoring-configuration.service.js";
 import { buildJobFeatureInput, computeMatchScore } from "../scoring/match-score.js";
-import { readFeatureInput } from "../scoring/talent-pool-knn.service.js";
+import { FEATURE_SCHEMA_VERSION, readFeatureInput } from "../scoring/talent-pool-knn.service.js";
 import type { ScoringWeights } from "../scoring/scoring.types.js";
 import { OPEN_JOB_SELECT } from "./open-job-select.js";
 
@@ -14,7 +14,9 @@ import { OPEN_JOB_SELECT } from "./open-job-select.js";
  * location and education all count and every result can be explained.
  */
 
-export const PORTAL_MIN_SCORE = 40;
+// Low on purpose: the portal shows the best-ranked jobs and drops only near-zero noise. Live data on
+// 2026-11-17 put each applicant's best match between 27 and 81. Emails use the admin match threshold instead.
+export const PORTAL_MIN_SCORE = 25;
 // shortcut: scores at most this many newest open jobs per request, add a vector index and a SQL shortlist past a few thousand open jobs.
 const MAX_JOBS_SCORED = 200;
 const DIGEST_KINDS = ["EMAILED", "SMS", "DISMISSED"];
@@ -97,7 +99,7 @@ export const recommendJobsForApplicant = async (
       isActive: true,
       expectedMonthlySalary: true,
       preferredWorkLocations: true,
-      candidateFeatureProfile: { select: { rawFeatures: true } },
+      candidateFeatureProfile: { select: { rawFeatures: true, featureSchemaVersion: true } },
     },
   });
   if (!profile || !profile.isActive) return { items: [], coldStart: false };
@@ -120,7 +122,9 @@ export const recommendJobsForApplicant = async (
   });
   if (jobs.length === 0) return { items: [], coldStart: false };
 
-  const rawFeatures = profile.candidateFeatureProfile?.rawFeatures;
+  // Features from an older schema version are rebuilt by revalidation; until then treat the profile as unscored.
+  const featureProfile = profile.candidateFeatureProfile;
+  const rawFeatures = featureProfile?.featureSchemaVersion === FEATURE_SCHEMA_VERSION ? featureProfile.rawFeatures : null;
   const salary = profile.expectedMonthlySalary;
   // A job whose top pay is below what the applicant expects goes last in the portal and never into the digest.
   const belowSalary = (job: ScoredJob) =>

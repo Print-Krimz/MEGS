@@ -6,17 +6,17 @@ import { Button } from "@/components/shadcn/button";
 import { Spinner } from "@/components/shadcn/spinner";
 import { publicApi } from "../../lib/api/public.api";
 import { formatErrorMessage } from "../../lib/feedback";
-import { LinkProblem, PublicShell } from "./PublicShell";
+import { LinkProblem, PublicShell, isDeadLink } from "./PublicShell";
 
 /** Route: /unsubscribe, search { token }. The button is deliberate: mail scanners that open links must not unsubscribe anyone. */
 export const UnsubscribePage: React.FC = () => {
   const { token } = useSearch({ strict: false }) as { token?: string };
   const unsubscribe = useMutation({ mutationFn: () => publicApi.unsubscribeJobAlerts(token ?? "") });
 
-  if (!token) {
+  if (!token || (unsubscribe.isError && isDeadLink(unsubscribe.error))) {
     return (
       <PublicShell title="Job alerts">
-        <LinkProblem title="Link not working" message="This link is not complete. Use the unsubscribe link in your job alert email, or turn alerts off in Settings after you sign in." />
+        <LinkProblem title="Link not working" message="This link does not work. Use the unsubscribe link in your latest job alert email, or turn alerts off in Settings after you sign in." />
       </PublicShell>
     );
   }

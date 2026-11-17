@@ -72,6 +72,8 @@ export const sendJobAlerts = async (now: Date = new Date()): Promise<JobAlertsRe
   const applicants = await prisma.applicantProfile.findMany({
     where: {
       isActive: true,
+      // Only live, verified accounts: never mail an unverified or deactivated address.
+      user: { isActive: true, accountStatus: "ACTIVE" },
       AND: [
         {
           OR: [
