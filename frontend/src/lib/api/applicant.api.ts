@@ -18,7 +18,24 @@ import type {
   ApplyResumeResult,
 } from "../types/applicant.types";
 
+export type JobAlertEmail = "WEEKLY" | "DAILY" | "OFF";
+
+export interface JobAlertSettings {
+  email: JobAlertEmail;
+  sms: boolean;
+  expectedMonthlySalary: number | null;
+  /** False for accounts without a real email address. */
+  hasEmail: boolean;
+  /** Masked number a text would go to, or null when none is on file. */
+  smsPhone: string | null;
+}
+
 export const applicantApi = {
+  getJobAlerts: () => api.get<JobAlertSettings>("/api/applicants/job-alerts"),
+
+  updateJobAlerts: (data: Partial<Pick<JobAlertSettings, "email" | "sms" | "expectedMonthlySalary">>) =>
+    api.patch<JobAlertSettings>("/api/applicants/job-alerts", data),
+
   // Profile
   getProfile: () => api.get<ApplicantProfile>("/api/applicants/profile"),
 

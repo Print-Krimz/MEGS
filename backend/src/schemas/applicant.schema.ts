@@ -99,6 +99,14 @@ export const applicantSchema = {
   }),
   emptyUploadBody: z.object({ body: z.object({}).strict().optional() }),
   privacyConsent: z.object({ body: z.object({}).strict().optional() }),
+  updateJobAlerts: z.object({
+    body: z.object({
+      email: z.enum(["WEEKLY", "DAILY", "OFF"]).optional(),
+      sms: z.boolean().optional(),
+      // Monthly pesos, whole number. null clears it.
+      expectedMonthlySalary: z.number().int().min(0).max(1_000_000).nullable().optional(),
+    }).strict(),
+  }),
   upsertProfile: z.object({
     body: z.object({
       firstName: requiredProfileName("First Name", "First name is required."),

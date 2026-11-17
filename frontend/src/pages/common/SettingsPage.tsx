@@ -9,6 +9,7 @@ import { settingsApi } from "../../lib/api/settings.api";
 import { getSessionGeneration, onSessionGenerationChange } from "../../lib/auth/session-generation";
 import { DISPLAY_NAME_MAX_LENGTH, staffDisplayNameSchema } from "../../lib/user-name";
 import { Role } from "../../lib/types/enums";
+import { JobAlertsSection } from "../../components/applicant/JobAlertsSection";
 import type { AccountSettings } from "../../lib/types/settings.types";
 
 const ChangePasswordModal = lazy(() =>
@@ -292,6 +293,8 @@ function SettingsContent({ userId, sessionGeneration, identityRef, refreshUser }
           )}
         </dl>
       </section>
+
+      {isApplicant && <JobAlertsSection />}
 
       <section aria-labelledby="related-pages-heading" className="space-y-2">
         <h2 id="related-pages-heading" className="text-base font-semibold text-slate-900">Related pages</h2>

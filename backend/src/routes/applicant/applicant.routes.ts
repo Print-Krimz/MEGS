@@ -15,6 +15,8 @@ import {
   getResumeProposal, applyResumeMerge, acceptPrivacyConsent
 } from '../../controllers/applicant/applicant.controller.js';
 
+import { getJobAlertsHandler, updateJobAlertsHandler } from '../../controllers/applicant/job-alert.controller.js';
+
 const router = Router();
 
 router.use(authenticateJWT);
@@ -41,6 +43,9 @@ router.post("/profile/assets", upload.single("file"), validate(applicantSchema.a
 router.delete("/profile/assets/:id", validate(applicantSchema.idParams), deleteAsset);
 router.post("/profile/photo", uploadImage.single("file"), validate(applicantSchema.emptyUploadBody), uploadPhoto);
 router.post("/profile/privacy-consent", validate(applicantSchema.privacyConsent), acceptPrivacyConsent);
+
+router.get("/job-alerts", getJobAlertsHandler);
+router.patch("/job-alerts", validate(applicantSchema.updateJobAlerts), updateJobAlertsHandler);
 router.post("/profile/resume", upload.single("file"), validate(applicantSchema.emptyUploadBody), uploadResume);
 router.get("/profile/resume/proposal", getResumeProposal);
 router.post("/profile/resume/:parseId/apply", validate(applicantSchema.applyResumeMerge), applyResumeMerge);
