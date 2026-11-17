@@ -269,7 +269,6 @@ function SettingsContent({ userId, sessionGeneration, identityRef, refreshUser }
         </div>
       </section>
 
-      {isApplicant && <JobAlertsSection />}
       </div>
 
       <div className="space-y-6">
@@ -317,6 +316,8 @@ function SettingsContent({ userId, sessionGeneration, identityRef, refreshUser }
       </section>
       </div>
       </div>
+
+      {isApplicant && <JobAlertsSection />}
 
       {dirtyGuard.discardDialog}
       {mfaOpen && <Suspense fallback={null}><ChangeMfaModal open onClose={() => setMfaOpen(false)} email={account.email ?? ""} /></Suspense>}

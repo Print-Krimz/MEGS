@@ -50,7 +50,7 @@ export const JobAlertsSection: React.FC = () => {
         ) : query.isError || !query.data ? (
           <ErrorState subject="job alert settings" error={query.error} onRetry={() => query.refetch()} compact />
         ) : (
-          <div className="divide-y divide-slate-200">
+          <div className="grid divide-y divide-slate-200 md:grid-cols-3 md:divide-x md:divide-y-0">
             <div role="radiogroup" aria-labelledby="job-alert-email-label" className="space-y-2 px-4 py-4 sm:px-5">
               <p id="job-alert-email-label" className="text-sm font-medium text-slate-700">Email me about matching jobs</p>
               {!query.data.hasEmail && (
