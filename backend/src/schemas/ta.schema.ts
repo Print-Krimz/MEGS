@@ -324,6 +324,16 @@ export const taSchema = {
       notes: requiredText("Notes", FIELD_LIMITS.notes),
     }),
   }),
+  bulkScheduleInterviews: z.object({
+    body: z.object({
+      items: z
+        .array(z.object({ applicationId: idValue, scheduledAt: scheduleDateTime }))
+        .min(1, "Select at least one application")
+        .max(BULK_MAX_IDS, `Select at most ${BULK_MAX_IDS} applications at a time`),
+      type: z.enum(["INITIAL_SCREENING", "FINAL_INTERVIEW"]),
+      location: boundedText(FIELD_LIMITS.address).optional(),
+    }),
+  }),
   scheduleInterview: z.object({
     params: z.object({ id: boundedIdText }),
     body: z.object({
@@ -540,6 +550,10 @@ export const taSchema = {
       tattooPolicy: z.enum(["ALLOWED", "NO_VISIBLE", "NONE"]).optional(),
       ...mrfPaperFieldsShape,
       requiresClientReview: z.boolean().optional(),
+      jobAction: z.enum(["NONE", "OPEN", "DRAFT"]).optional(),
+      isEvergreen: z.boolean().optional(),
+      complianceDocumentLabels: z.array(requiredText("Document label", FIELD_LIMITS.label)).max(50).optional(),
+      inheritClientTemplates: z.boolean().optional(),
     }).strict().superRefine((value, ctx) => {
       if (value.salaryRangeMin != null && value.salaryRangeMax != null && value.salaryRangeMin > value.salaryRangeMax) {
         ctx.addIssue({ code: "custom", path: ["salaryRangeMax"], message: "Maximum salary cannot be less than minimum salary" });

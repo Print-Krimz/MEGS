@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Button, Dialog, Select, Textarea } from "../ui";
 import { FIELD_LIMITS } from "../../lib/field-limits";
 import { REJECTION_REASON_OPTIONS, type ClosureDisposition } from "../../lib/backout";
+import { ARCHIVE_REASON_PRESETS, RESTORE_REASON_PRESETS, getRejectionNotePresets } from "../../lib/ta-note-presets";
+import { QuickNoteChips } from "./QuickNoteChips";
 
 export type BulkApplicationAction = "reject" | "archive" | "restore";
 
@@ -90,6 +92,11 @@ export const BulkApplicationsDialog: React.FC<BulkApplicationsDialogProps> = ({ 
                 { value: "TALENT_POOL", label: "Talent Pool (may qualify for future openings)" },
               ]}
             />
+            <QuickNoteChips
+              presets={getRejectionNotePresets(reasonCode)}
+              currentValue={notes}
+              onSelect={setNotes}
+            />
             <Textarea
               label="Notes"
               placeholder="Add details..."
@@ -103,19 +110,26 @@ export const BulkApplicationsDialog: React.FC<BulkApplicationsDialogProps> = ({ 
           </>
         )}
         {(action === "archive" || action === "restore") && (
-          <Textarea
-            label="Reason for this change"
-            placeholder={
-              action === "archive"
-                ? "e.g. Position filled, candidate unresponsive, or withdrew application"
-                : "e.g. Candidate recontacted and available for consideration"
-            }
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            maxLength={FIELD_LIMITS.notes}
-            rows={3}
-            required
-          />
+          <>
+            <QuickNoteChips
+              presets={action === "archive" ? ARCHIVE_REASON_PRESETS : RESTORE_REASON_PRESETS}
+              currentValue={reason}
+              onSelect={setReason}
+            />
+            <Textarea
+              label="Reason for this change"
+              placeholder={
+                action === "archive"
+                  ? "e.g. Position filled, candidate unresponsive, or withdrew application"
+                  : "e.g. Candidate recontacted and available for consideration"
+              }
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              maxLength={FIELD_LIMITS.notes}
+              rows={3}
+              required
+            />
+          </>
         )}
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
           <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>

@@ -10,6 +10,8 @@ import {
   type ClosureDisposition,
   type ClosureOutcome,
 } from "../../lib/backout";
+import { CLOSE_BACKOUT_PRESETS, getRejectionNotePresets } from "../../lib/ta-note-presets";
+import { QuickNoteChips } from "./QuickNoteChips";
 
 export interface CloseSubmission {
   outcome: ClosureOutcome;
@@ -134,6 +136,11 @@ export const CloseApplicationDialog: React.FC<CloseApplicationDialogProps> = ({
             ]}
           />
         )}
+        <QuickNoteChips
+          presets={isBackout ? CLOSE_BACKOUT_PRESETS : getRejectionNotePresets(reason)}
+          currentValue={notes}
+          onSelect={setNotes}
+        />
         <Textarea
           label="Notes"
           placeholder="Add details..."

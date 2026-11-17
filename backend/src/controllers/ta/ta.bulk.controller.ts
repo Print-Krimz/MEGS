@@ -9,6 +9,7 @@ import {
   bulkRecordInterviews,
   bulkRejectApplications,
   bulkRestoreApplications,
+  bulkScheduleInterviews,
   type BulkSummary,
 } from "../../services/ta/ta.bulk.service.js";
 
@@ -85,6 +86,16 @@ export const bulkEndDeploymentsHandler = async (req: Request, res: Response): Pr
   try {
     const { ids, actualEnd, reason, disposition } = req.body;
     respond(res, await bulkEndDeployments(ids, { actualEnd, reason, disposition }, req.user!));
+  } catch (error: any) {
+    sendError(res, error.message, 500, error);
+  }
+};
+
+// POST /api/ta/bulk/interviews/schedule - Schedule interviews for many applications
+export const bulkScheduleInterviewsHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { items, type, location } = req.body;
+    respond(res, await bulkScheduleInterviews(items, { type, location }, req.user!));
   } catch (error: any) {
     sendError(res, error.message, 500, error);
   }

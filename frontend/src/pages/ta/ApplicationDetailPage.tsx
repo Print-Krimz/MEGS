@@ -54,6 +54,8 @@ import type { WalkInSlip } from "../../lib/types/application.types";
 import type { TAApplicationSearch } from "../../routes";
 import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
 import { addManilaCalendarDays, getManilaToday } from "../../lib/field-limits";
+import { formatWorkSchedule } from "../../lib/mrf-schedule";
+import { buildClientEndorsementDraft } from "../../lib/endorsement-draft";
 
 type DialogState =
   | null
@@ -267,6 +269,24 @@ export const ApplicationDetailPage: React.FC = () => {
   const linkedClientName = linkedClient?.name || clients.find((c) => c.id === linkedClientId)?.name || "";
   const mrfLocation = (app.jobPosting?.mrf as any)?.location as string | undefined;
   const defaultSite = app.jobPosting?.location || mrfLocation || (linkedClient as any)?.address || "";
+  const workScheduleText = formatWorkSchedule(app.jobPosting?.mrf ?? {});
+  const defaultDeploymentNotes =
+    [workScheduleText ? `Schedule: ${workScheduleText}` : "", defaultSite ? `Site: ${defaultSite}` : ""]
+      .filter(Boolean)
+      .join("\n") || undefined;
+  const latestScreeningNotes = (app.interviews || [])
+    .filter((i) => i.type === InterviewType.INITIAL_SCREENING && i.notes)
+    .sort((a, b) => new Date(b.updatedAt || b.scheduledAt || 0).getTime() - new Date(a.updatedAt || a.scheduledAt || 0).getTime())[0]?.notes;
+  const numericFitScore = typeof fitScore === "number" ? fitScore : fitScore != null && Number.isFinite(Number(fitScore)) ? Number(fitScore) : null;
+  const endorsementDraftNotes = buildClientEndorsementDraft({
+    fitScore: numericFitScore,
+    skills: (profile?.skills || []).map((s: any) => (typeof s === "string" ? s : s?.name || s?.skillName || "")).filter(Boolean),
+    aiSummary: app.aiSummary,
+    screeningNotes: latestScreeningNotes,
+  });
+  const remainingMandatoryCount = (app.complianceRequirements || []).filter(
+    (r) => r.isRequired && r.reviewStatus !== "APPROVED",
+  ).length;
   const isFinalInterviewStage = app.status === ApplicationStatus.FINAL_INTERVIEW;
 
   const activeTab: ApplicationTab = tabOverride ?? defaultApplicationTab(app.status, Boolean(flags.pendingScreeningInterview || flags.pendingFinalInterview));
@@ -765,21 +785,59 @@ export const ApplicationDetailPage: React.FC = () => {
       )}
 
       {/* Dialogs */}
-      <InterviewOutcomeDialog
-        open={Boolean(outcomeDialog)}
-        onClose={closeDialog}
-        candidateName={candidateName}
-        jobTitle={jobTitle}
-        isFinalInterview={(outcomeDialog?.interview?.type ?? outcomeDialog?.type) === InterviewType.FINAL_INTERVIEW}
-        scheduledAt={outcomeDialog?.interview?.scheduledAt}
-        isSubmitting={m.updateInterviewStatus.isPending}
-        onSubmit={({ result, notes }) => {
-          if (!outcomeDialog) return;
-          const targetType =
-            outcomeDialog.interview?.type || (isFinalInterviewStage ? InterviewType.FINAL_INTERVIEW : InterviewType.INITIAL_SCREENING);
-          m.updateInterviewStatus.mutate({ interviewId: outcomeDialog.interview?.id, type: targetType, result, notes }, { onSuccess: closeDialog });
-        }}
-      />
+      {(() => {
+        const outcomeType = outcomeDialog?.interview?.type ?? outcomeDialog?.type;
+        const isFinalOutcome = outcomeType === InterviewType.FINAL_INTERVIEW;
+        const canAutoAdvanceOutcome = isFinalOutcome
+          ? app.status === ApplicationStatus.FINAL_INTERVIEW
+          : !flags.requiresClientReview && app.status === ApplicationStatus.INITIAL_SCREENING;
+        const autoAdvanceLabel = isFinalOutcome
+          ? "Advance to Pre-employment Compliance after saving"
+          : "Advance to Final Interview after saving";
+        return (
+          <InterviewOutcomeDialog
+            open={Boolean(outcomeDialog)}
+            onClose={closeDialog}
+            candidateName={candidateName}
+            jobTitle={jobTitle}
+            isFinalInterview={isFinalOutcome}
+            scheduledAt={outcomeDialog?.interview?.scheduledAt}
+            canAutoAdvance={canAutoAdvanceOutcome}
+            autoAdvanceLabel={autoAdvanceLabel}
+            isSubmitting={m.updateInterviewStatus.isPending}
+            onSubmit={({ result, notes }, options) => {
+              if (!outcomeDialog) return;
+              const targetType =
+                outcomeDialog.interview?.type || (isFinalInterviewStage ? InterviewType.FINAL_INTERVIEW : InterviewType.INITIAL_SCREENING);
+              m.updateInterviewStatus.mutate(
+                { interviewId: outcomeDialog.interview?.id, type: targetType, result, notes },
+                {
+                  onSuccess: () => {
+                    closeDialog();
+                    if (result === "PASS" && options?.autoAdvance) {
+                      if (targetType === InterviewType.FINAL_INTERVIEW && app.status === ApplicationStatus.FINAL_INTERVIEW) {
+                        m.updateStatus.mutate({
+                          status: ApplicationStatus.COMPLIANCE,
+                          reason: "Final interview passed.",
+                        });
+                      } else if (
+                        targetType === InterviewType.INITIAL_SCREENING &&
+                        !flags.requiresClientReview &&
+                        app.status === ApplicationStatus.INITIAL_SCREENING
+                      ) {
+                        m.updateStatus.mutate({
+                          status: ApplicationStatus.FINAL_INTERVIEW,
+                          reason: "Initial screening passed (client review not required).",
+                        });
+                      }
+                    }
+                  },
+                },
+              );
+            }}
+          />
+        );
+      })()}
 
       <ScheduleInterviewDialog
         open={dlg?.kind === "schedule"}
@@ -793,6 +851,8 @@ export const ApplicationDetailPage: React.FC = () => {
         currentDate={dlg?.kind === "schedule" ? dlg.currentDate : undefined}
         blockedDates={dlg?.kind === "schedule" ? dlg.blockedDates : undefined}
         initialLocation={dlg?.kind === "schedule" ? dlg.initialLocation : ""}
+        clientAddress={(linkedClient as any)?.address ?? null}
+        jobLocation={app.jobPosting?.location ?? null}
         isSubmitting={m.scheduleInterview.isPending || m.scheduleContractSigning.isPending || m.approveReschedule.isPending}
         onSubmit={(values) => {
           if (dlg?.kind !== "schedule") return;
@@ -835,6 +895,7 @@ export const ApplicationDetailPage: React.FC = () => {
         requestTitle={app.jobPosting?.mrf?.title}
         clients={clients}
         initialClientId={linkedClientId || null}
+        initialDraftNotes={endorsementDraftNotes || undefined}
         isSubmitting={m.endorse.isPending}
         onSubmit={(values) => m.endorse.mutate(values, { onSuccess: closeDialog })}
       />
@@ -879,6 +940,9 @@ export const ApplicationDetailPage: React.FC = () => {
         subtitle={[candidateName, jobTitle].filter(Boolean).join(" · ")}
         requirements={reviewList}
         initialRequirementId={dlg?.kind === "review" ? dlg.requirementId : null}
+        medicalValidityMonths={(app.jobPosting?.mrf?.client as { medicalValidityMonths?: number | null } | undefined)?.medicalValidityMonths ?? 6}
+        canAutoAdvanceToContractSigning={app.status === ApplicationStatus.COMPLIANCE}
+        remainingMandatoryCount={remainingMandatoryCount}
         renderDocumentPreview={(req) =>
           req.documentId ? (
             <RequirementDocumentPreview
@@ -906,8 +970,21 @@ export const ApplicationDetailPage: React.FC = () => {
             requirementStatus: req.reviewStatus,
           })
         }
-        onSubmit={(values, req) =>
-          m.reviewRequirement.mutate({ id: req.id, data: values as ReviewComplianceDto }, { onSuccess: closeDialog })
+        onSubmit={(values, req, options) =>
+          m.reviewRequirement.mutate(
+            { id: req.id, data: values as ReviewComplianceDto },
+            {
+              onSuccess: () => {
+                closeDialog();
+                if (options?.advanceToContractSigning && app.status === ApplicationStatus.COMPLIANCE) {
+                  m.updateStatus.mutate({
+                    status: ApplicationStatus.CONTRACT_SIGNING,
+                    reason: "All mandatory clearances verified and approved.",
+                  });
+                }
+              },
+            },
+          )
         }
       />
 
@@ -950,6 +1027,7 @@ export const ApplicationDetailPage: React.FC = () => {
         clients={clients}
         initialClientId={linkedClientId || latestEndorsement?.clientId || 0}
         initialSite={defaultSite}
+        defaultNotes={defaultDeploymentNotes}
         mrfLocation={mrfLocation}
         jobLocation={app.jobPosting?.location}
         linkedClientAddress={(linkedClient as any)?.address}

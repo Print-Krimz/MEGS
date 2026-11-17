@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Button, Dialog, Textarea } from "../../ui";
+import { SKIP_TO_FINAL_PRESETS } from "../../../lib/ta-note-presets";
+import { QuickNoteChips } from "../QuickNoteChips";
 
 export interface SkipToFinalDialogProps {
   open: boolean;
@@ -23,6 +25,14 @@ export const SkipToFinalDialog: React.FC<SkipToFinalDialogProps> = ({ open, onCl
   return (
     <Dialog open={open} onClose={onClose} title="Skip client review?" description={`${candidateName} goes straight to final interview without a client decision.`}>
       <div className="space-y-4">
+        <QuickNoteChips
+          presets={SKIP_TO_FINAL_PRESETS}
+          currentValue={reason}
+          onSelect={(text) => {
+            setReason(text);
+            setTouched(true);
+          }}
+        />
         <Textarea
           label="Client instruction or recruitment rule"
           required

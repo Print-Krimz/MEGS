@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Button, Dialog, Textarea } from "../ui";
 import { FIELD_LIMITS } from "../../lib/field-limits";
+import { INTERVIEW_NOTE_PRESETS } from "../../lib/ta-note-presets";
 import { interviewOutcomeNextStep } from "./InterviewOutcomeDialog";
+import { QuickNoteChips } from "./QuickNoteChips";
 
 export type BulkInterviewAction = "PASS" | "NO_SHOW";
 
@@ -53,6 +55,17 @@ export const BulkInterviewDialog: React.FC<BulkInterviewDialogProps> = ({
       }
     >
       <div className="space-y-4">
+        <QuickNoteChips
+          presets={
+            noShow
+              ? INTERVIEW_NOTE_PRESETS.NO_SHOW
+              : isFinalInterview
+                ? INTERVIEW_NOTE_PRESETS.FINAL_PASS
+                : INTERVIEW_NOTE_PRESETS.INITIAL_PASS
+          }
+          currentValue={notes}
+          onSelect={setNotes}
+        />
         <Textarea
           label="Notes"
           required

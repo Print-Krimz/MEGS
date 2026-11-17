@@ -14,6 +14,8 @@ import {
   WORK_ARRANGEMENT_OPTIONS,
   MRF_EDUCATION_OPTIONS,
   MRF_EXPERIENCE_OPTIONS,
+  REQUIREMENT_GROUPS,
+  MANDATORY_REQUIREMENT_LABEL,
 } from "../../lib/hr-constants";
 import { TA_COPY } from "../../lib/ta-copy";
 import { getManilaToday, salaryTextError, salaryRangeError, SALARY_RANGE_MESSAGE } from "../../lib/field-limits";
@@ -176,6 +178,11 @@ export const MRFCreatePage: React.FC = () => {
   /** Company named on the file when it matched none of the TA's clients. */
   const [unmatchedCompany, setUnmatchedCompany] = useState<string | null>(null);
   const [requiresClientReview, setRequiresClientReview] = useState(true);
+  const [jobAction, setJobAction] = useState<"NONE" | "OPEN" | "DRAFT">("NONE");
+  const [isEvergreen, setIsEvergreen] = useState(false);
+  const [complianceDocsOpen, setComplianceDocsOpen] = useState(false);
+  const [selectedComplianceDocs, setSelectedComplianceDocs] = useState<string[]>([]);
+  const [inheritClientTemplates, setInheritClientTemplates] = useState(true);
   const [clientRequirementsOpen, setClientRequirementsOpen] = useState(false);
   const [moreDetailsOpen, setMoreDetailsOpen] = useState(false);
   const [cloneModalOpen, setCloneModalOpen] = useState(false);
@@ -212,6 +219,12 @@ export const MRFCreatePage: React.FC = () => {
       return next;
     });
 
+  const toggleComplianceDoc = (label: string) => {
+    setSelectedComplianceDocs((prev) =>
+      prev.includes(label) ? prev.filter((item) => item !== label) : [...prev, label],
+    );
+  };
+
   // Anything typed beyond the page defaults. A client chosen through ?clientId= is not typed work.
   const hasSpecifications = Boolean(
     title.trim() ||
@@ -236,7 +249,11 @@ export const MRFCreatePage: React.FC = () => {
       genderPreference !== "ANY" ||
       tattooPolicy !== "ALLOWED" ||
       [department, workShift, workDays, workHours, workTime, requestReason, requestReasonNote].some((value) => value.trim() !== "") ||
-      !requiresClientReview);
+      !requiresClientReview ||
+      jobAction !== "NONE" ||
+      isEvergreen ||
+      selectedComplianceDocs.length > 0 ||
+      !inheritClientTemplates);
   const { discardDialog } = useDirtyGuard({
     isDirty,
     message: "You have unsaved changes in this manpower request.",
@@ -312,6 +329,9 @@ export const MRFCreatePage: React.FC = () => {
     },
     onSuccess: (newMRF) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "mrfs"] });
+      if (newMRF.createdJobId) {
+        queryClient.invalidateQueries({ queryKey: ["ta", "jobs"] });
+      }
       notify.success("Manpower request created", `Request #${newMRF.id} (${newMRF.title}) is ready.`);
       setCreatedId(newMRF.id);
     },
@@ -673,6 +693,16 @@ export const MRFCreatePage: React.FC = () => {
       requestReason: requestReason || undefined,
       requestReasonNote: requestReasonNote.trim() || undefined,
       requiresClientReview,
+      ...(jobAction !== "NONE"
+        ? {
+            jobAction,
+            ...(isEvergreen ? { isEvergreen: true } : {}),
+          }
+        : {}),
+      ...(selectedComplianceDocs.length > 0
+        ? { complianceDocumentLabels: selectedComplianceDocs }
+        : {}),
+      ...(!inheritClientTemplates ? { inheritClientTemplates: false } : {}),
     });
   };
 
@@ -1299,6 +1329,122 @@ export const MRFCreatePage: React.FC = () => {
                 />
                 {fileNote("workTime")}
               </div>
+            </div>
+          </section>
+
+          {/* Posting & pre-employment documents */}
+          <section id="mrf-posting-compliance" aria-labelledby="mrf-posting-compliance-title" className={sectionClass}>
+            <div className="border-b border-slate-200 pb-3">
+              <h2 id="mrf-posting-compliance-title" className={sectionTitleClass}>
+                Posting &amp; pre-employment documents
+              </h2>
+              <p className="text-xs text-slate-600">
+                Choose whether to create a job opening right away and which pre-employment documents this role requires.
+              </p>
+            </div>
+
+            <fieldset className="space-y-2">
+              <legend className="text-xs font-medium text-slate-900">Job opening action</legend>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                {(
+                  [
+                    { value: "NONE", label: "Create request only" },
+                    { value: "OPEN", label: "Publish job opening immediately" },
+                    { value: "DRAFT", label: "Save job opening as draft" },
+                  ] as const
+                ).map((option) => (
+                  <label
+                    key={option.value}
+                    className={cn(
+                      "flex min-h-11 md:min-h-8 cursor-pointer items-center gap-2 rounded border px-3 py-2 text-xs font-medium transition-colors",
+                      jobAction === option.value
+                        ? "border-navy bg-navy-soft text-navy"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300",
+                    )}
+                  >
+                    <input
+                      type="radio"
+                      name="mrf-job-action"
+                      value={option.value}
+                      checked={jobAction === option.value}
+                      onChange={() => setJobAction(option.value)}
+                      className="focus-ring accent-navy h-4 w-4 border-slate-300"
+                    />
+                    <span>{option.label}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            {jobAction !== "NONE" && (
+              <label className="flex min-h-11 md:min-h-8 cursor-pointer items-center gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800">
+                <input
+                  type="checkbox"
+                  checked={isEvergreen}
+                  onChange={(e) => setIsEvergreen(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                />
+                <span>Keep job opening open for ongoing hiring (evergreen)</span>
+              </label>
+            )}
+
+            <div className="border-t border-slate-200 pt-3">
+              <button
+                type="button"
+                aria-expanded={complianceDocsOpen}
+                onClick={() => setComplianceDocsOpen((prev) => !prev)}
+                className="focus-ring flex min-h-11 md:min-h-8 w-full items-center justify-between rounded text-left text-xs font-medium text-slate-900 hover:text-slate-700"
+              >
+                <span>
+                  Pre-employment documents
+                  {selectedComplianceDocs.length > 0 && (
+                    <span className="ml-2 text-slate-600">({selectedComplianceDocs.length} selected)</span>
+                  )}
+                </span>
+                <span className="text-slate-600">{complianceDocsOpen ? "Hide" : "Show"}</span>
+              </button>
+
+              {complianceDocsOpen && (
+                <div className="mt-3 space-y-4">
+                  <p className="text-xs text-slate-600">
+                    {MANDATORY_REQUIREMENT_LABEL} is always required and added automatically.
+                  </p>
+
+                  <label className="flex min-h-11 md:min-h-8 cursor-pointer items-center gap-2 text-xs text-slate-800">
+                    <input
+                      type="checkbox"
+                      checked={inheritClientTemplates}
+                      onChange={(e) => setInheritClientTemplates(e.target.checked)}
+                      className="focus-ring accent-navy h-4 w-4 rounded border-slate-300"
+                    />
+                    <span>Include client default document templates</span>
+                  </label>
+
+                  <div className="space-y-3">
+                    {REQUIREMENT_GROUPS.map((group) => (
+                      <div key={group.id} className="space-y-1.5">
+                        <h3 className="text-xs font-semibold text-slate-800">{group.title}</h3>
+                        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                          {group.items.map((item) => (
+                            <label
+                              key={item.label}
+                              className="flex min-h-11 md:min-h-8 cursor-pointer items-center gap-2 rounded border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800 hover:border-slate-300"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedComplianceDocs.includes(item.label)}
+                                onChange={() => toggleComplianceDoc(item.label)}
+                                className="focus-ring accent-navy h-4 w-4 rounded border-slate-300"
+                              />
+                              <span>{item.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </section>
 

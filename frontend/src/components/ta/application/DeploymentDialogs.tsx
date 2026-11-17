@@ -5,6 +5,8 @@ import { DateField } from "../../common/DateField";
 import { notify } from "../../../lib/feedback";
 import { addManilaCalendarDays, getManilaToday } from "../../../lib/field-limits";
 import { formatDate } from "../../../lib/utils";
+import { DEPLOYMENT_NOTE_PRESETS } from "../../../lib/ta-note-presets";
+import { QuickNoteChips } from "../QuickNoteChips";
 
 type ClientOption = { id: number; name: string; industry?: string | null; address?: string | null };
 
@@ -23,6 +25,7 @@ export interface ActivateDeploymentDialogProps {
   mrfLocation?: string | null;
   jobLocation?: string | null;
   linkedClientAddress?: string | null;
+  defaultNotes?: string;
   onSubmit: (values: { clientId: number; site?: string; contractStart?: string; contractEnd?: string; notes: string }) => void;
   isSubmitting?: boolean;
 }
@@ -41,6 +44,7 @@ export const ActivateDeploymentDialog: React.FC<ActivateDeploymentDialogProps> =
   mrfLocation,
   jobLocation,
   linkedClientAddress,
+  defaultNotes = "",
   onSubmit,
   isSubmitting = false,
 }) => {
@@ -48,7 +52,7 @@ export const ActivateDeploymentDialog: React.FC<ActivateDeploymentDialogProps> =
   const [site, setSite] = useState(initialSite);
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(defaultNotes);
   const [showNotesError, setShowNotesError] = useState(false);
 
   useEffect(() => {
@@ -58,7 +62,7 @@ export const ActivateDeploymentDialog: React.FC<ActivateDeploymentDialogProps> =
     setSite(initialSite);
     setStart("");
     setEnd("");
-    setNotes("");
+    setNotes(defaultNotes);
     // Only reopening resets the form.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -128,6 +132,8 @@ export const ActivateDeploymentDialog: React.FC<ActivateDeploymentDialogProps> =
             error={datesInvalid ? "Must be on or after start date" : undefined}
           />
         </div>
+
+        <QuickNoteChips presets={DEPLOYMENT_NOTE_PRESETS} currentValue={notes} onSelect={setNotes} />
 
         <Textarea
           label="Deployment notes"

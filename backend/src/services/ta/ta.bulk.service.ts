@@ -5,7 +5,7 @@ import { assertOwns, type Actor } from "./ownership.js";
 import { BackoutConflictError } from "./backout.service.js";
 import { closeApplication } from "./closure.service.js";
 import { archiveTAApplication, restoreTAApplication } from "./ta.applications.service.js";
-import { updateInterviewResult } from "./ta.interviews.service.js";
+import { scheduleNewInterview, updateInterviewResult } from "./ta.interviews.service.js";
 import { dismissCheckIn } from "./walk-in-check-in.service.js";
 import { WalkInConflictError } from "./walk-in.service.js";
 import { cancelTalentPoolInvitation } from "./talent-pool-invitation.service.js";
@@ -168,3 +168,16 @@ export const bulkEndDeployments = (
   input: { actualEnd: string; reason: string; disposition: "AVAILABLE_FOR_REDEPLOYMENT" | "NOT_CONFIRMED" | "BACKED_OUT" | "SEPARATED" },
   actor: Actor
 ) => runBulk(ids, actor, (id) => endEmployeeDeployment(id, actor.id, input), "deployment");
+
+/** Schedules one interview type/location for many applications, each with its own slot. */
+export const bulkScheduleInterviews = (
+  items: { applicationId: number; scheduledAt: string }[],
+  input: { type: "INITIAL_SCREENING" | "FINAL_INTERVIEW"; location?: string },
+  actor: Actor
+) => {
+  const scheduledAtOf = new Map(items.map((item) => [item.applicationId, item.scheduledAt]));
+  return settle([...scheduledAtOf.keys()], async (applicationId) => {
+    await assertOwns("application", applicationId, actor);
+    await scheduleNewInterview(applicationId, input.type, scheduledAtOf.get(applicationId)!, input.location, actor.id);
+  });
+};

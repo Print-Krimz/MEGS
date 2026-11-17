@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Button, Dialog, Textarea } from "../../ui";
 import { formatDateTime } from "../../../lib/utils";
 import type { RescheduleActivity, RescheduleRequest } from "../../../lib/types/application.types";
+import { DECLINE_RESCHEDULE_PRESETS } from "../../../lib/ta-note-presets";
+import { QuickNoteChips } from "../QuickNoteChips";
 
 const MAX_NOTE = 2000;
 
@@ -90,6 +92,7 @@ export const DeclineRescheduleDialog: React.FC<DeclineRescheduleDialogProps> = (
       description={`${candidateName} will keep the current ${activity ? rescheduleActivityLabel(activity) : "schedule"}.`}
     >
       <div className="space-y-4">
+        <QuickNoteChips presets={DECLINE_RESCHEDULE_PRESETS} currentValue={note} onSelect={setNote} />
         <Textarea
           label="Note for the applicant"
           required

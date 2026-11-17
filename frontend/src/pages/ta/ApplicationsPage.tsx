@@ -33,6 +33,7 @@ import {
   type BulkApplicationAction,
   type BulkSubmission,
 } from "../../components/ta/BulkApplicationsDialog";
+import { BulkScheduleInterviewDialog } from "../../components/ta/BulkScheduleInterviewDialog";
 import { useRowSelection } from "../../hooks/useRowSelection";
 import type { ApplicationSourceFilter, TAApplicationSearch } from "../../routes";
 import { SourceChip, APPLICATION_SOURCE_LABELS } from "../../components/ta/walk-in/SourceChip";
@@ -506,7 +507,27 @@ export const ApplicationsPage: React.FC = () => {
   );
   const selectedRows = applications.filter((app) => selection.selectedIds.has(String(app.id)));
   const [bulkAction, setBulkAction] = useState<BulkApplicationAction | null>(null);
+  const [bulkScheduleOpen, setBulkScheduleOpen] = useState(false);
   const [bulkResult, setBulkResult] = useState<{ title: string; summary: BulkSummary } | null>(null);
+
+  const bulkScheduleMutation = useMutation({
+    mutationFn: (data: {
+      items: { applicationId: number; scheduledAt: string }[];
+      type: "INITIAL_SCREENING" | "FINAL_INTERVIEW";
+      location?: string;
+    }) => taApi.bulkScheduleInterviews(data),
+    onSuccess: (summary) => {
+      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "interviews"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
+      selection.remove(summary.results.filter((row) => row.ok).map((row) => String(row.id)));
+      setBulkScheduleOpen(false);
+      const title = "Schedule interviews";
+      if (summary.failed > 0) setBulkResult({ title, summary });
+      else notify.success(title, `${summary.succeeded} ${summary.succeeded === 1 ? "interview" : "interviews"} scheduled.`);
+    },
+    onError: (err: any) => notify.error("Unable to schedule interviews", err),
+  });
 
   const bulkMutation = useMutation({
     mutationFn: ({ action, ids, data }: { action: BulkApplicationAction; ids: number[]; data: BulkSubmission }) => {
@@ -536,6 +557,21 @@ export const ApplicationsPage: React.FC = () => {
     },
     onError: (err: any) => notify.error("Unable to complete the bulk action", err),
   });
+
+  const SCHEDULABLE_STAGES = new Set<ApplicationStatus>([
+    ApplicationStatus.SUBMITTED,
+    ApplicationStatus.INITIAL_SCREENING,
+    ApplicationStatus.CLIENT_ENDORSEMENT,
+    ApplicationStatus.FINAL_INTERVIEW,
+  ]);
+  const canBulkSchedule =
+    selectedRows.length > 0 &&
+    selectedRows.every((app) => !isClosedRecord(app) && !app.isArchived && SCHEDULABLE_STAGES.has(app.status));
+  const defaultScheduleType = selectedRows.every(
+    (app) => app.status === ApplicationStatus.CLIENT_ENDORSEMENT || app.status === ApplicationStatus.FINAL_INTERVIEW,
+  )
+    ? "FINAL_INTERVIEW"
+    : "INITIAL_SCREENING";
 
   const bulkActions: { action: BulkApplicationAction; label: string; variant: "primary" | "outline" | "danger" }[] = [];
   if (selectedRows.length > 0) {
@@ -1130,6 +1166,11 @@ export const ApplicationsPage: React.FC = () => {
         note={totalItems > applications.length ? `on this page (${totalItems} in the list)` : undefined}
         emptyHint="No action fits this mix. Select open records to reject, closed ones to archive, or archived ones to restore."
       >
+        {canBulkSchedule && (
+          <Button size="sm" variant="primary" onClick={() => setBulkScheduleOpen(true)}>
+            Schedule interviews
+          </Button>
+        )}
         {bulkActions.length > 0 &&
           bulkActions.map(({ action, label, variant }) => (
             <Button key={action} size="sm" variant={variant} onClick={() => setBulkAction(action)}>
@@ -1199,6 +1240,17 @@ export const ApplicationsPage: React.FC = () => {
           bulkAction &&
           bulkMutation.mutate({ action: bulkAction, ids: selectedRows.map((app) => app.id), data })
         }
+      />
+      <BulkScheduleInterviewDialog
+        open={bulkScheduleOpen}
+        onClose={() => setBulkScheduleOpen(false)}
+        applications={selectedRows.map((app) => ({
+          id: app.id,
+          candidateName: candidateNameOf(app),
+        }))}
+        defaultType={defaultScheduleType}
+        loading={bulkScheduleMutation.isPending}
+        onSubmit={(data) => bulkScheduleMutation.mutate(data)}
       />
       <BulkResultDialog
         open={Boolean(bulkResult)}

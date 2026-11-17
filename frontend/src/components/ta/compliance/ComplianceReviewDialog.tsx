@@ -17,6 +17,8 @@ export interface ComplianceReviewDialogProps {
   isSubmitting: boolean;
   /** Right-hand text of each picker row. Defaults to the document status. */
   renderListMeta?: (requirement: ReviewableRequirement) => React.ReactNode;
+  /** Client medical validity in months for auto-calculating medical expiry preview. */
+  medicalValidityMonths?: number;
 }
 
 /** The one review dialog for both compliance queues, with the inline file preview and the full-size viewer. */
@@ -27,6 +29,7 @@ export const ComplianceReviewDialog: React.FC<ComplianceReviewDialogProps> = ({
   onSubmit,
   isSubmitting,
   renderListMeta,
+  medicalValidityMonths,
 }) => {
   const { application } = session;
   const [viewer, setViewer] = useState<{ documentId: number; title: string } | null>(null);
@@ -45,6 +48,7 @@ export const ComplianceReviewDialog: React.FC<ComplianceReviewDialogProps> = ({
         requirements={openRequirementsOf(application)}
         initialRequirementId={session.initialId}
         renderListMeta={renderListMeta}
+        medicalValidityMonths={medicalValidityMonths}
         renderDocumentPreview={(req) =>
           req.documentId ? (
             <RequirementDocumentPreview

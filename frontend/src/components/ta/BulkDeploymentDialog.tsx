@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Button, Dialog, Select, Textarea } from "../ui";
 import { DateField } from "../common/DateField";
 import { FIELD_LIMITS, getManilaToday } from "../../lib/field-limits";
+import { DEPLOYMENT_NOTE_PRESETS } from "../../lib/ta-note-presets";
+import { QuickNoteChips } from "./QuickNoteChips";
 
 export interface BulkDeploymentSubmission {
   /** "each" keeps every worker's own contract start date; "same" uses `date` for all. */
@@ -67,6 +69,7 @@ export const BulkDeploymentDialog: React.FC<BulkDeploymentDialogProps> = ({ open
             required
           />
         )}
+        <QuickNoteChips presets={DEPLOYMENT_NOTE_PRESETS} currentValue={notes} onSelect={setNotes} />
         <Textarea
           label="Notes"
           value={notes}

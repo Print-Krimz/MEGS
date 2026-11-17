@@ -4,6 +4,7 @@ import { Button, Dialog, Input, DateTimePicker, dateTimeLocalToManilaIso, isWork
 import { notify } from "../../../lib/feedback";
 import { InterviewType } from "../../../lib/types/enums";
 import { COMPANY_ADDRESS, OFFICE_HOURS_MESSAGE, OFFICE_HOURS_SHORT } from "../../../lib/business-hours";
+import { getRememberedInterviewLocation, rememberInterviewLocation } from "../../../lib/schedule-location";
 
 /** What is being scheduled: an interview round, or the contract signing appointment. */
 export type ScheduleActivity = InterviewType | "CONTRACT_SIGNING";
@@ -26,6 +27,10 @@ export interface ScheduleInterviewDialogProps {
   blockedDates?: string[];
   /** Meeting place or link to start from. Contract signing falls back to the company address. */
   initialLocation?: string;
+  /** Optional client facility address for 1-click site chip. */
+  clientAddress?: string | null;
+  /** Optional job site location for 1-click site chip. */
+  jobLocation?: string | null;
   onSubmit: (values: { type: ScheduleActivity; scheduledAt: string; location?: string }) => void;
   isSubmitting?: boolean;
 }
@@ -44,19 +49,23 @@ export const ScheduleInterviewDialog: React.FC<ScheduleInterviewDialogProps> = (
   currentDate,
   blockedDates,
   initialLocation = "",
+  clientAddress,
+  jobLocation,
   onSubmit,
   isSubmitting = false,
 }) => {
   const isContract = type === "CONTRACT_SIGNING";
-  const startLocation = initialLocation || (isContract ? COMPANY_ADDRESS : "");
   const [date, setDate] = useState(initialDate);
-  const [location, setLocation] = useState(startLocation);
+  const [location, setLocation] = useState(initialLocation || (isContract ? COMPANY_ADDRESS : ""));
+  const [rememberedLocation, setRememberedLocation] = useState("");
 
   // Start from the values the caller passes each time the dialog opens.
   useEffect(() => {
     if (!open) return;
+    const saved = getRememberedInterviewLocation();
+    setRememberedLocation(saved);
     setDate(initialDate);
-    setLocation(startLocation);
+    setLocation(initialLocation || (isContract ? COMPANY_ADDRESS : !isReschedule ? saved : ""));
     // Only reopening resets the form.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -90,8 +99,30 @@ export const ScheduleInterviewDialog: React.FC<ScheduleInterviewDialogProps> = (
     }
     const place = location.trim();
     if (isContract && !place) return;
+    if (!isContract && place) rememberInterviewLocation(place);
     onSubmit({ type, scheduledAt, location: place || undefined });
   };
+
+  const locationChips: { label: string; value: string }[] = [
+    { label: "MEGS Main Office", value: COMPANY_ADDRESS },
+  ];
+  if (clientAddress?.trim() && clientAddress.trim() !== COMPANY_ADDRESS) {
+    locationChips.push({ label: "Client site", value: clientAddress.trim() });
+  }
+  if (
+    jobLocation?.trim() &&
+    jobLocation.trim() !== COMPANY_ADDRESS &&
+    jobLocation.trim() !== clientAddress?.trim()
+  ) {
+    locationChips.push({ label: "Job site", value: jobLocation.trim() });
+  }
+  if (
+    !isContract &&
+    rememberedLocation &&
+    !locationChips.some((chip) => chip.value === rememberedLocation)
+  ) {
+    locationChips.push({ label: "Last used", value: rememberedLocation });
+  }
 
   return (
     <Dialog
@@ -134,14 +165,36 @@ export const ScheduleInterviewDialog: React.FC<ScheduleInterviewDialogProps> = (
           workingHoursOnly
           helperText={OFFICE_HOURS_SHORT}
         />
-        <Input
-          label="Location or meeting link"
-          placeholder={isContract ? undefined : "e.g. Google Meet link or room number"}
-          value={location}
-          onChange={(e) => setLocation(e.target.value)}
-          maxLength={LOCATION_MAX}
-          required={isContract}
-        />
+        <div className="space-y-2">
+          <Input
+            label="Location or meeting link"
+            placeholder={isContract ? undefined : "e.g. Google Meet link or room number"}
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            maxLength={LOCATION_MAX}
+            required={isContract}
+          />
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Quick locations">
+            {locationChips.map((chip) => {
+              const active = location.trim() === chip.value;
+              return (
+                <button
+                  key={chip.label}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setLocation(chip.value)}
+                  className={`focus-ring min-h-11 rounded border px-2.5 py-1 text-xs font-medium transition-colors md:min-h-8 ${
+                    active
+                      ? "border-navy bg-navy text-white"
+                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3">
           {blockReason && (
             <p className="mr-auto text-sm text-slate-600" role="status">

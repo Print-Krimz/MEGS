@@ -44,6 +44,7 @@ import {
   bulkCancelInvitationsHandler,
   bulkConfirmDeploymentStartHandler,
   bulkEndDeploymentsHandler,
+  bulkScheduleInterviewsHandler,
 } from '../../controllers/ta/ta.bulk.controller.js';
 import { getCandidateResumeProposalHandler, applyCandidateResumeMergeHandler, reparseCandidateResumeHandler } from '../../controllers/ta/ta.resume.controller.js';
 
@@ -264,6 +265,7 @@ router.post("/bulk/applications/reject", validate(taSchema.bulkRejectApplication
 router.post("/bulk/applications/archive", validate(taSchema.bulkArchiveRestoreApplications), bulkArchiveApplicationsHandler);
 router.post("/bulk/applications/restore", validate(taSchema.bulkArchiveRestoreApplications), bulkRestoreApplicationsHandler);
 router.post("/bulk/interviews/result", validate(taSchema.bulkRecordInterviews), bulkRecordInterviewsHandler);
+router.post("/bulk/interviews/schedule", validate(taSchema.bulkScheduleInterviews), bulkScheduleInterviewsHandler);
 router.post("/bulk/check-ins/dismiss", validate(taSchema.bulkDismissCheckIns), bulkDismissCheckInsHandler);
 router.post("/bulk/invitations/cancel", validate(taSchema.bulkCancelInvitations), bulkCancelInvitationsHandler);
 router.post("/bulk/deployments/confirm-start", validate(taSchema.bulkConfirmDeploymentStart), bulkConfirmDeploymentStartHandler);

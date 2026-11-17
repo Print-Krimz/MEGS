@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button, Dialog, Select } from "../../ui";
 import { taApi, type BulkUploadResult } from "../../../lib/api/ta.api";
 import { formatErrorMessage } from "../../../lib/feedback";
+import { matchFileToRequirement } from "../../../lib/compliance-filename-match";
 import type { RequirementRowData } from "./RequirementRow";
 
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
@@ -69,12 +70,24 @@ export const BulkUploadRequirementsDialog: React.FC<BulkUploadRequirementsDialog
     const accepted = incoming.slice(0, Math.max(room, 0));
     const problem = incoming.length > accepted.length ? `Up to ${BULK_MAX_FILES} files at a time.` : accepted.map((f) => fileProblem(f)).find(Boolean) ?? null;
     setPickError(problem);
-    setItems((prev) => [
-      ...prev,
-      ...accepted
+    setItems((prev) => {
+      const takenIds = new Set<number>(
+        prev.map((i) => i.requirementId).filter((id): id is number => id !== "")
+      );
+      const added = accepted
         .filter((f) => !fileProblem(f))
-        .map((file) => ({ key: nextKey.current++, file, requirementId: "" as const, previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : null })),
-    ]);
+        .map((file) => {
+          const matchedId = matchFileToRequirement(file.name, options, takenIds);
+          if (matchedId !== "") takenIds.add(matchedId);
+          return {
+            key: nextKey.current++,
+            file,
+            requirementId: matchedId,
+            previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
+          };
+        });
+      return [...prev, ...added];
+    });
   };
 
   const remove = (key: number) =>

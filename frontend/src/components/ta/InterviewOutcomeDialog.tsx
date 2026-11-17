@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Button, Dialog, Select, Textarea } from "../ui";
 import { formatDateTime } from "../../lib/utils";
 import { TA_COPY } from "../../lib/ta-copy";
+import { INTERVIEW_NOTE_PRESETS } from "../../lib/ta-note-presets";
+import { QuickNoteChips } from "./QuickNoteChips";
 
 export type InterviewOutcomeResult = "PASS" | "FAIL" | "NO_SHOW";
 
@@ -28,7 +30,11 @@ export interface InterviewOutcomeDialogProps {
   isFinalInterview: boolean;
   scheduledAt?: string | null;
   defaultNotes?: string;
-  onSubmit: (values: { result: InterviewOutcomeResult; notes: string }) => void;
+  /** Offer a checked-by-default toggle to advance the candidate to the next stage when Passed is saved. */
+  canAutoAdvance?: boolean;
+  /** Label for the auto-advance checkbox (e.g., "Move candidate to Requirements now"). */
+  autoAdvanceLabel?: string;
+  onSubmit: (values: { result: InterviewOutcomeResult; notes: string }, options?: { autoAdvance?: boolean }) => void;
   isSubmitting?: boolean;
 }
 
@@ -40,6 +46,8 @@ export const InterviewOutcomeDialog: React.FC<InterviewOutcomeDialogProps> = ({
   isFinalInterview,
   scheduledAt,
   defaultNotes = "",
+  canAutoAdvance = false,
+  autoAdvanceLabel,
   onSubmit,
   isSubmitting = false,
 }) => {
@@ -47,6 +55,7 @@ export const InterviewOutcomeDialog: React.FC<InterviewOutcomeDialogProps> = ({
   const [result, setResult] = useState<InterviewOutcomeResult | "">("");
   const [notes, setNotes] = useState(defaultNotes);
   const [showNotesError, setShowNotesError] = useState(false);
+  const [autoAdvance, setAutoAdvance] = useState(true);
 
   // Start clean every time the dialog opens, so a reopened dialog never keeps the last outcome.
   useEffect(() => {
@@ -54,6 +63,7 @@ export const InterviewOutcomeDialog: React.FC<InterviewOutcomeDialogProps> = ({
       setResult("");
       setNotes(defaultNotes);
       setShowNotesError(false);
+      setAutoAdvance(true);
     }
     // defaultNotes is read only when the dialog opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -81,13 +91,29 @@ export const InterviewOutcomeDialog: React.FC<InterviewOutcomeDialogProps> = ({
         { value: "NO_SHOW", label: "No show" },
       ];
 
+  const showAutoAdvance = Boolean(canAutoAdvance && result === "PASS");
+  const notePresets =
+    result === "PASS"
+      ? isFinalInterview
+        ? INTERVIEW_NOTE_PRESETS.FINAL_PASS
+        : INTERVIEW_NOTE_PRESETS.INITIAL_PASS
+      : result === "FAIL"
+        ? INTERVIEW_NOTE_PRESETS.FAIL
+        : result === "NO_SHOW"
+          ? INTERVIEW_NOTE_PRESETS.NO_SHOW
+          : [];
+
   const handleSave = () => {
     if (!result) return;
     if (!notes.trim()) {
       setShowNotesError(true);
       return;
     }
-    onSubmit({ result, notes: notes.trim() });
+    if (showAutoAdvance) {
+      onSubmit({ result, notes: notes.trim() }, { autoAdvance });
+    } else {
+      onSubmit({ result, notes: notes.trim() });
+    }
   };
 
   return (
@@ -124,6 +150,10 @@ export const InterviewOutcomeDialog: React.FC<InterviewOutcomeDialogProps> = ({
           </p>
         )}
 
+        {notePresets.length > 0 && (
+          <QuickNoteChips presets={notePresets} currentValue={notes} onSelect={setNotes} />
+        )}
+
         <Textarea
           label={isFinalInterview ? "Client notes" : "Interview notes"}
           placeholder={
@@ -137,6 +167,23 @@ export const InterviewOutcomeDialog: React.FC<InterviewOutcomeDialogProps> = ({
           required
           rows={3}
         />
+
+        {showAutoAdvance && (
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-slate-700 md:min-h-8">
+            <input
+              type="checkbox"
+              checked={autoAdvance}
+              onChange={(e) => setAutoAdvance(e.target.checked)}
+              className="focus-ring h-4 w-4 rounded border-slate-300 text-navy"
+            />
+            <span>
+              {autoAdvanceLabel ||
+                (isFinalInterview
+                  ? "Move candidate to Requirements after saving"
+                  : "Move candidate to Final interview after saving")}
+            </span>
+          </label>
+        )}
 
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
           <Button variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>

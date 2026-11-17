@@ -4,6 +4,10 @@ import { Button, Dialog, Select, Textarea } from "../ui";
 import { DateField } from "../common/DateField";
 import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 import { requirementStatusLabel } from "../../lib/labels";
+import { addManilaCalendarMonths, defaultValidityForLabel, isMedicalRequirementLabel } from "../../lib/compliance-validity";
+import { COMPLIANCE_NOTE_PRESETS } from "../../lib/ta-note-presets";
+import { formatDate } from "../../lib/utils";
+import { QuickNoteChips } from "./QuickNoteChips";
 
 export type RequirementDecision = "APPROVED" | "REJECTED" | "TO_FOLLOW";
 export type RequirementValidity = "UNKNOWN" | "HAS_EXPIRY" | "NO_EXPIRY";
@@ -13,6 +17,7 @@ export interface ReviewableRequirement {
   id: number;
   documentLabel: string;
   documentId?: number | null;
+  isRequired?: boolean;
   reviewStatus: string;
   reviewNotes?: string | null;
   toFollowExpectedAt?: string | null;
@@ -53,8 +58,18 @@ export interface RequirementReviewDialogProps {
   renderListMeta?: (requirement: ReviewableRequirement) => React.ReactNode;
   /** Approval needs an uploaded file. Default true. */
   requireDocumentForApproval?: boolean;
+  /** Client medical validity in months (used to preview auto-calculated medical expiry). */
+  medicalValidityMonths?: number;
+  /** Offer a checked-by-default toggle to move the candidate to Contract Signing when the last mandatory doc clears. */
+  canAutoAdvanceToContractSigning?: boolean;
+  /** Count of remaining open mandatory documents for this application. */
+  remainingMandatoryCount?: number;
   /** Caller keeps its own mutation and cache invalidation. */
-  onSubmit: (values: RequirementReviewValues, requirement: ReviewableRequirement) => void;
+  onSubmit: (
+    values: RequirementReviewValues,
+    requirement: ReviewableRequirement,
+    options?: { advanceToContractSigning?: boolean }
+  ) => void;
   isSubmitting?: boolean;
 }
 
@@ -80,6 +95,9 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
   renderDocumentPreview,
   renderListMeta,
   requireDocumentForApproval = true,
+  medicalValidityMonths,
+  canAutoAdvanceToContractSigning = false,
+  remainingMandatoryCount,
   onSubmit,
   isSubmitting = false,
 }) => {
@@ -90,6 +108,7 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
   const [expiresAt, setExpiresAt] = useState("");
   const [validity, setValidity] = useState<RequirementValidity>("UNKNOWN");
   const [followDate, setFollowDate] = useState("");
+  const [autoAdvance, setAutoAdvance] = useState(true);
 
   const selected = useMemo(
     () => requirements.find((r) => r.id === selectedId) ?? null,
@@ -104,6 +123,7 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
     setExpiresAt(req?.expiresAt?.slice(0, 10) || "");
     setValidity(req?.validityStatus || "UNKNOWN");
     setFollowDate(req?.toFollowExpectedAt ? toManilaDateInput(req.toFollowExpectedAt) : "");
+    setAutoAdvance(true);
   };
 
   // Load the starting requirement each time the dialog opens.
@@ -116,6 +136,21 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
 
   const hasFile = Boolean(selected?.documentId);
   const awaitingCopy = isAwaitingUpdatedCopy(selected);
+  const isMedical = isMedicalRequirementLabel(selected?.documentLabel);
+  const effectiveMedicalMonths = medicalValidityMonths ?? 6;
+  const autoCalculatedExpiry =
+    isMedical && validity === "HAS_EXPIRY" && issuedAt && !expiresAt
+      ? addManilaCalendarMonths(issuedAt, effectiveMedicalMonths)
+      : "";
+  const showAutoAdvance = Boolean(
+    canAutoAdvanceToContractSigning &&
+      remainingMandatoryCount === 1 &&
+      selected &&
+      selected.isRequired !== false &&
+      selected.reviewStatus !== "APPROVED" &&
+      selected.reviewStatus !== "TO_FOLLOW" &&
+      (decision === "APPROVED" || decision === "TO_FOLLOW")
+  );
 
   // The first reason the reviewer cannot save yet. Shown next to the button so a disabled button is never a mystery.
   const blockReason = (() => {
@@ -125,7 +160,7 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
       if (requireDocumentForApproval && !hasFile) return "The document has not been uploaded yet.";
       if (awaitingCopy) return "An updated copy was requested. Approve once the new file is uploaded.";
       if (validity === "UNKNOWN") return "Choose whether the document has an expiry date.";
-      if (validity === "HAS_EXPIRY" && !expiresAt) return "Enter the expiry date.";
+      if (validity === "HAS_EXPIRY" && !expiresAt && !(isMedical && issuedAt)) return "Enter the expiry date.";
     }
     if (decision === "APPROVED" && !notes.trim()) return "Add a note about what you verified.";
     if (decision === "REJECTED" && !notes.trim()) return "Add a note explaining why this was rejected.";
@@ -146,7 +181,11 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
     if (decision === "TO_FOLLOW") {
       values.toFollowExpectedAt = mode === "post" ? followDate || null : followDate || undefined;
     }
-    onSubmit(values, selected);
+    if (showAutoAdvance) {
+      onSubmit(values, selected, { advanceToContractSigning: autoAdvance });
+    } else {
+      onSubmit(values, selected);
+    }
   };
 
   const picker = requirements.length > 1;
@@ -202,7 +241,13 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
       <Select
         label="Decision"
         value={decision}
-        onChange={(e) => setDecision(e.target.value as RequirementDecision | "")}
+        onChange={(e) => {
+          const next = e.target.value as RequirementDecision | "";
+          setDecision(next);
+          if (next === "APPROVED" && validity === "UNKNOWN" && selected) {
+            setValidity(defaultValidityForLabel(selected.documentLabel));
+          }
+        }}
         options={decisionOptions}
       />
 
@@ -230,7 +275,12 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
               value={expiresAt}
               min={issuedAt || undefined}
               onChange={(e) => setExpiresAt(e.target.value)}
-              required
+              required={!(isMedical && Boolean(issuedAt))}
+              help={
+                autoCalculatedExpiry
+                  ? `If left blank, expires ${formatDate(autoCalculatedExpiry)} (${effectiveMedicalMonths} months from issue date).`
+                  : undefined
+              }
             />
           )}
         </>
@@ -251,6 +301,14 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
         />
       )}
 
+      {(decision === "APPROVED" || decision === "REJECTED") && (
+        <QuickNoteChips
+          presets={COMPLIANCE_NOTE_PRESETS[decision]}
+          currentValue={notes}
+          onSelect={setNotes}
+        />
+      )}
+
       <Textarea
         label={decision === "TO_FOLLOW" || !decision ? "Notes for the candidate (optional)" : "Notes for the candidate"}
         required={decision === "APPROVED" || decision === "REJECTED"}
@@ -266,6 +324,18 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
         }
         rows={2}
       />
+
+      {showAutoAdvance && (
+        <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-slate-700 md:min-h-8">
+          <input
+            type="checkbox"
+            checked={autoAdvance}
+            onChange={(e) => setAutoAdvance(e.target.checked)}
+            className="focus-ring h-4 w-4 rounded border-slate-300 text-navy"
+          />
+          <span>Move candidate to Contract Signing after saving</span>
+        </label>
+      )}
 
       <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3">
         {blockReason && decision !== "" && decision !== "REJECTED" && !(decision === "APPROVED" && !notes.trim()) && (

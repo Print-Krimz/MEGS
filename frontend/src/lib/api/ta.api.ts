@@ -348,6 +348,12 @@ export const taApi = {
     notes?: string;
   }) => api.post<BulkSummary>("/api/ta/bulk/interviews/result", data),
 
+  bulkScheduleInterviews: (data: {
+    items: { applicationId: number; scheduledAt: string }[];
+    type: "INITIAL_SCREENING" | "FINAL_INTERVIEW";
+    location?: string;
+  }) => api.post<BulkSummary>("/api/ta/bulk/interviews/schedule", data),
+
   bulkDismissCheckIns: (data: { ids: number[]; reason: string }) =>
     api.post<BulkSummary>("/api/ta/bulk/check-ins/dismiss", data),
 

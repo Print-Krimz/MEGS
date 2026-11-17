@@ -119,6 +119,7 @@ export interface ManpowerRequest {
   requestReasonNote?: string | null;
   /** false = no client review step for this request. Existing requests are true. */
   requiresClientReview?: boolean;
+  createdJobId?: number;
   status: "OPEN" | "IN_PROGRESS" | "FILLED" | "CANCELLED" | "ON_HOLD";
   createdById: string;
   createdAt: string;
@@ -171,6 +172,10 @@ export interface CreateMRFDto {
   requestReason?: string | null;
   requestReasonNote?: string | null;
   requiresClientReview?: boolean;
+  jobAction?: "NONE" | "OPEN" | "DRAFT";
+  isEvergreen?: boolean;
+  complianceDocumentLabels?: string[];
+  inheritClientTemplates?: boolean;
 }
 
 export interface UpdateMRFDto extends Partial<CreateMRFDto> {

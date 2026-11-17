@@ -20,6 +20,8 @@ export interface SendToClientDialogProps {
   clients: ClientOption[];
   /** Client to start with when the opening has no linked client. */
   initialClientId?: number | null;
+  /** Pre-filled pitch draft when mode === "send". */
+  initialDraftNotes?: string;
   onSubmit: (values: { clientId: number; outcome: "PENDING" | "APPROVED" | "DECLINED"; notes: string }) => void;
   isSubmitting?: boolean;
 }
@@ -35,19 +37,20 @@ export const SendToClientDialog: React.FC<SendToClientDialogProps> = ({
   requestTitle,
   clients,
   initialClientId = null,
+  initialDraftNotes = "",
   onSubmit,
   isSubmitting = false,
 }) => {
   const [manualClientId, setManualClientId] = useState<number | null>(initialClientId);
   const [outcome, setOutcome] = useState<"" | "PENDING" | "APPROVED" | "DECLINED">(mode === "send" ? "PENDING" : "");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(mode === "send" ? initialDraftNotes : "");
   const [showNotesError, setShowNotesError] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setManualClientId(initialClientId);
     setOutcome(mode === "send" ? "PENDING" : "");
-    setNotes("");
+    setNotes(mode === "send" ? initialDraftNotes : "");
     setShowNotesError(false);
     // Only reopening resets the form.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -107,19 +110,30 @@ export const SendToClientDialog: React.FC<SendToClientDialogProps> = ({
             ]}
           />
         )}
-        <Textarea
-          label={isSend ? "Notes for the client" : "Client notes"}
-          placeholder={
-            isSend
-              ? "Summarize strengths, interview findings, or other useful context."
-              : "Record client feedback, salary details, or interview notes."
-          }
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          error={showNotesError && !notes.trim() ? (isSend ? "Add a note for the client." : "Add a note about the client's decision.") : undefined}
-          required
-          rows={2}
-        />
+        <div className="space-y-1.5">
+          <Textarea
+            label={isSend ? "Notes for the client" : "Client notes"}
+            placeholder={
+              isSend
+                ? "Summarize strengths, interview findings, or other useful context."
+                : "Record client feedback, salary details, or interview notes."
+            }
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            error={showNotesError && !notes.trim() ? (isSend ? "Add a note for the client." : "Add a note about the client's decision.") : undefined}
+            required
+            rows={isSend ? 6 : 2}
+          />
+          {isSend && initialDraftNotes && notes.trim() !== initialDraftNotes.trim() && (
+            <button
+              type="button"
+              onClick={() => setNotes(initialDraftNotes)}
+              className="focus-ring min-h-11 text-xs font-medium text-navy underline hover:text-navy-hover md:min-h-8"
+            >
+              Reset draft
+            </button>
+          )}
+        </div>
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
           <Button variant="outline" size="sm" onClick={onClose}>
             Cancel

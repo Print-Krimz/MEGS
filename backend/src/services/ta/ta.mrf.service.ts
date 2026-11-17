@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { logAudit } from "../../utils/audit.js";
 import { sendRoleNotification, sendNotification } from "../../utils/notification.js";
 import { assertOwns, ownedWhere, type Actor } from "./ownership.js";
+import { triggerTalentPoolAutoDiscovery } from "./ta.jobs.service.js";
 import { jobRequirementClarity } from "../scoring/match-score.js";
 import { isPageRequested, pageEnvelope, resolvePage, type PageRequest } from "../../utils/pagination.js";
 import { isValidDateOnly, manilaDateString, parseManilaDateOnly, toManilaDateOnly } from "../../schemas/field-limits.js";
@@ -360,6 +361,24 @@ export const listMRFs = async (
 const blankToNull = <T>(value: T | null | undefined): T | null =>
   value === undefined || value === null || (typeof value === "string" && value.trim() === "") ? null : value;
 
+const FIT_TO_WORK_PATTERN = /fit[\s-]*to[\s-]*work/i;
+
+/** Formats MRF qualification fields into a job posting's requirements text, falling back to description. */
+export const buildJobRequirementsText = (mrf: {
+  requiredSkills?: string | null;
+  requiredExperience?: string | null;
+  requiredEducation?: string | null;
+  requiredCertifications?: string | null;
+  description?: string | null;
+}): string => {
+  const sections: string[] = [];
+  if (mrf.requiredSkills?.trim()) sections.push(`Required skills:\n${mrf.requiredSkills.trim()}`);
+  if (mrf.requiredExperience?.trim()) sections.push(`Required experience:\n${mrf.requiredExperience.trim()}`);
+  if (mrf.requiredEducation?.trim()) sections.push(`Minimum education:\n${mrf.requiredEducation.trim()}`);
+  if (mrf.requiredCertifications?.trim()) sections.push(`Certifications & licenses:\n${mrf.requiredCertifications.trim()}`);
+  return sections.join("\n\n") || (mrf.description ?? "").trim();
+};
+
 export const createMRF = async (
   createdById: string,
   data: {
@@ -391,6 +410,10 @@ export const createMRF = async (
     requestReason?: string | null;
     requestReasonNote?: string | null;
     requiresClientReview?: boolean;
+    jobAction?: "NONE" | "OPEN" | "DRAFT";
+    isEvergreen?: boolean;
+    complianceDocumentLabels?: string[];
+    inheritClientTemplates?: boolean;
   },
   actor?: Actor
 ) => {
@@ -401,7 +424,10 @@ export const createMRF = async (
       throw new Error("Target fill date must be today or a future date.");
     }
   }
-  const client = await prisma.client.findUnique({ where: { id: data.clientId } });
+  const client = await prisma.client.findUnique({
+    where: { id: data.clientId },
+    include: { complianceTemplates: true },
+  });
   if (!client) throw new Error("Client not found");
   if (actor) await assertOwns("client", data.clientId, actor);
 
@@ -444,6 +470,60 @@ export const createMRF = async (
     },
   });
 
+  // Copy client templates (unless opted out) + any extra labels, skipping Fit-to-Work since compliance generation enforces it.
+  const seenLabels = new Set<string>();
+  const templatesToCreate: { mrfId: number; documentLabel: string; isRequired: boolean }[] = [];
+  const pushTemplate = (rawLabel: string | null | undefined, isRequired: boolean) => {
+    const trimmed = (rawLabel || "").trim();
+    if (!trimmed || FIT_TO_WORK_PATTERN.test(trimmed)) return;
+    const lower = trimmed.toLowerCase();
+    if (seenLabels.has(lower)) return;
+    seenLabels.add(lower);
+    templatesToCreate.push({ mrfId: mrf.id, documentLabel: trimmed, isRequired });
+  };
+
+  if (data.inheritClientTemplates !== false) {
+    const clientTemplates = (client as any).complianceTemplates ?? [];
+    for (const tmpl of clientTemplates) {
+      pushTemplate(tmpl.documentLabel, tmpl.isRequired ?? true);
+    }
+  }
+  for (const label of data.complianceDocumentLabels ?? []) {
+    pushTemplate(label, true);
+  }
+  if (templatesToCreate.length > 0) {
+    await (prisma as any).mRFComplianceTemplate.createMany({ data: templatesToCreate });
+  }
+
+  let createdJobId: number | undefined;
+  if (data.jobAction === "OPEN" || data.jobAction === "DRAFT") {
+    const job = await prisma.jobPosting.create({
+      data: {
+        postedById: createdById,
+        title: mrf.title.trim(),
+        description: (mrf.description ?? data.description).trim(),
+        requirements: buildJobRequirementsText(mrf),
+        location: mrf.location?.trim() ?? null,
+        mrfId: mrf.id,
+        status: data.jobAction,
+        isEvergreen: Boolean(data.isEvergreen),
+      },
+    });
+    createdJobId = job.id;
+
+    void logAudit(createdById, "JOB_POSTING_CREATED", "JobPosting", job.id, {
+      jobId: job.id,
+      title: job.title,
+      location: job.location,
+      status: job.status,
+      isEvergreen: job.isEvergreen,
+    });
+
+    if (job.status === "OPEN") {
+      void triggerTalentPoolAutoDiscovery(job.id);
+    }
+  }
+
   void logAudit(createdById, "MRF_CREATED", "ManpowerRequest", mrf.id, {
     mrfId: mrf.id,
     title: mrf.title,
@@ -460,7 +540,7 @@ export const createMRF = async (
     createdById
   );
 
-  return mrf;
+  return createdJobId !== undefined ? { ...mrf, createdJobId } : mrf;
 };
 
 export const getMRFDetails = async (id: number) => {
