@@ -51,8 +51,8 @@ export const JobAlertsSection: React.FC = () => {
           <ErrorState subject="job alert settings" error={query.error} onRetry={() => query.refetch()} compact />
         ) : (
           <div className="divide-y divide-slate-200">
-            <fieldset className="space-y-3 px-4 py-4 sm:px-5" disabled={save.isPending || !query.data.hasEmail}>
-              <legend className="text-sm font-medium text-slate-700">Email me about matching jobs</legend>
+            <div role="radiogroup" aria-labelledby="job-alert-email-label" className="space-y-2 px-4 py-4 sm:px-5">
+              <p id="job-alert-email-label" className="text-sm font-medium text-slate-700">Email me about matching jobs</p>
               {!query.data.hasEmail && (
                 <p className="text-sm text-slate-600">Your account has no email address, so job emails cannot be sent.</p>
               )}
@@ -64,6 +64,7 @@ export const JobAlertsSection: React.FC = () => {
                       name="job-alert-email"
                       className="mt-1 size-4 accent-navy"
                       checked={query.data.email === choice.value}
+                      disabled={save.isPending || !query.data.hasEmail}
                       onChange={() => save.mutate({ email: choice.value })}
                     />
                     <span className="text-sm">
@@ -73,7 +74,7 @@ export const JobAlertsSection: React.FC = () => {
                   </label>
                 ))}
               </div>
-            </fieldset>
+            </div>
 
             <div className="px-4 py-4 sm:px-5">
               <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-md px-2 py-2 hover:bg-navy-soft">

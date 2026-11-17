@@ -225,6 +225,7 @@ function SettingsContent({ userId, sessionGeneration, identityRef, refreshUser }
       )}
 
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-2">
+      <div className="space-y-6">
       <section aria-labelledby="account-information-heading" className="space-y-2">
         <h2 id="account-information-heading" className="text-base font-semibold text-slate-900">Profile</h2>
         <div className={panelClass}>
@@ -268,6 +269,9 @@ function SettingsContent({ userId, sessionGeneration, identityRef, refreshUser }
         </div>
       </section>
 
+      {isApplicant && <JobAlertsSection />}
+      </div>
+
       <div className="space-y-6">
       <section aria-labelledby="security-heading" className="space-y-2">
         <h2 id="security-heading" className="text-base font-semibold text-slate-900">Security</h2>
@@ -293,8 +297,6 @@ function SettingsContent({ userId, sessionGeneration, identityRef, refreshUser }
           )}
         </dl>
       </section>
-
-      {isApplicant && <JobAlertsSection />}
 
       <section aria-labelledby="related-pages-heading" className="space-y-2">
         <h2 id="related-pages-heading" className="text-base font-semibold text-slate-900">Related pages</h2>
