@@ -49,6 +49,7 @@ const CheckInPage = lazyRouteComponent(() => import("./pages/public/CheckInPage"
 const ApplicantDashboard = lazyRouteComponent(() => import("./pages/applicant/ApplicantDashboard"), "ApplicantDashboard");
 const ProfilePage = lazyRouteComponent(() => import("./pages/applicant/ProfilePage"), "ProfilePage");
 const JobsPage = lazyRouteComponent(() => import("./pages/applicant/JobsPage"), "JobsPage");
+const RecommendedJobsPage = lazyRouteComponent(() => import("./pages/applicant/RecommendedJobsPage"), "RecommendedJobsPage");
 const JobDetailPage = lazyRouteComponent(() => import("./pages/applicant/JobDetailPage"), "JobDetailPage");
 const MyApplicationsPage = lazyRouteComponent(() => import("./pages/applicant/MyApplicationsPage"), "MyApplicationsPage");
 const MyDocumentsPage = lazyRouteComponent(() => import("./pages/applicant/MyDocumentsPage"), "MyDocumentsPage");
@@ -296,6 +297,12 @@ export const applicantJobsRoute = createRoute({
   getParentRoute: () => applicantLayoutRoute,
   path: "/app/jobs",
   component: JobsPage,
+});
+
+export const applicantRecommendedRoute = createRoute({
+  getParentRoute: () => applicantLayoutRoute,
+  path: "/app/recommended",
+  component: RecommendedJobsPage,
 });
 
 export const applicantJobDetailRoute = createRoute({
@@ -777,6 +784,7 @@ const routeTree = rootRoute.addChildren([
   applicantLayoutRoute.addChildren([
     applicantDashboardRoute,
     applicantJobsRoute,
+    applicantRecommendedRoute,
     applicantJobDetailRoute,
     applicantApplicationsRoute,
     applicantApplicationDetailRoute,

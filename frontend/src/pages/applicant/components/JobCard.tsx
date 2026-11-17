@@ -18,6 +18,10 @@ interface JobCardProps {
   /** True when the applicant is at the saved-jobs cap, so an unsaved job cannot be bookmarked. */
   saveDisabled?: boolean;
   onToggleSave: (jobId: number) => void;
+  /** Why this job was recommended. Shown as one line under the job terms. */
+  reasons?: string[];
+  /** When set, shows a "Not interested" button that hides the job from recommendations. */
+  onDismiss?: (jobId: number) => void;
 }
 
 /** The place the person would work: the posting's own location, else the requisition's. */
@@ -51,7 +55,7 @@ export const firstParagraph = (description?: string | null): string => {
   return paragraph.join(" ");
 };
 
-export const JobCard: React.FC<JobCardProps> = ({ job, saved, saveDisabled = false, onToggleSave }) => {
+export const JobCard: React.FC<JobCardProps> = ({ job, saved, saveDisabled = false, onToggleSave, reasons, onDismiss }) => {
   const worksite = jobWorksite(job);
   const summary = firstParagraph(job.description);
   const client = job.mrf?.client;
@@ -132,11 +136,25 @@ export const JobCard: React.FC<JobCardProps> = ({ job, saved, saveDisabled = fal
 
       {terms.length > 0 && <p className="mt-3 text-sm text-slate-600">{terms.join(" · ")}</p>}
 
+      {reasons && reasons.length > 0 && <p className="mt-3 text-sm font-medium text-navy">{reasons.join(" · ")}</p>}
+
       {summary && <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-slate-600">{summary}</p>}
 
       <div className="mt-auto pt-5">
         <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-4">
-          <span className="text-xs text-slate-600">Posted {formatDate(job.createdAt)}</span>
+          <div className="flex flex-col items-start">
+            <span className="text-xs text-slate-600">Posted {formatDate(job.createdAt)}</span>
+            {onDismiss && (
+              <button
+                type="button"
+                onClick={() => onDismiss(job.id)}
+                aria-label={`Not interested in ${job.title}`}
+                className="-ml-2 min-h-11 rounded-md px-2 text-sm font-medium text-slate-700 underline-offset-4 hover:bg-navy-soft hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+              >
+                Not interested
+              </button>
+            )}
+          </div>
           <Link
             to="/app/jobs/$jobId"
             params={{ jobId: String(job.id) }}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useSearch } from "@tanstack/react-router";
+import { Link, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { applicantJobsApi, type JobPosting } from "../../lib/api/applicant-jobs.api";
 import type { PaginatedListResponse } from "../../lib/types/api.types";
@@ -13,8 +13,9 @@ import {
 } from "../../components/common";
 import { Button } from "../../components/ui";
 import { cn } from "../../lib/utils";
-import { Briefcase, Bookmark, SearchX, Trash2 } from "lucide-react";
+import { Briefcase, Bookmark, SearchX, Sparkles, Trash2 } from "lucide-react";
 import { JobCard } from "./components/JobCard";
+import { useSavedJobs } from "./hooks/useSavedJobs";
 import { JobFilters, type JobFilterValues } from "./components/JobFilters";
 import { jobLocationLabel } from "../../lib/job-locations";
 import { MAX_SAVED_JOBS } from "../../lib/saved-jobs";
@@ -96,10 +97,7 @@ export const JobsPage: React.FC = () => {
     },
   });
 
-  const savedJobIdsQuery = useQuery({
-    queryKey: ["applicant", "saved-jobs", "ids"],
-    queryFn: applicantJobsApi.getSavedJobIds,
-  });
+  const { savedJobIds, savedCount, atSaveLimit, savedIdsLoading, toggleBookmark } = useSavedJobs();
 
   const deploymentQuery = useQuery({
     queryKey: ["applicant", "active-deployment"],
@@ -107,48 +105,6 @@ export const JobsPage: React.FC = () => {
   });
 
   const isDeployed = Boolean(deploymentQuery.data?.isCurrentlyDeployed);
-
-  const savedJobIds = new Set(savedJobIdsQuery.data || []);
-
-  // Flip the id in the cache at once so the bookmark fills without waiting for the server.
-  const savedIdsKey = ["applicant", "saved-jobs", "ids"];
-  const optimisticallySetSaved = async (jobId: number, saved: boolean) => {
-    await queryClient.cancelQueries({ queryKey: savedIdsKey });
-    const previous = queryClient.getQueryData<number[]>(savedIdsKey);
-    queryClient.setQueryData<number[]>(savedIdsKey, (ids = []) =>
-      saved ? [...new Set([...ids, jobId])] : ids.filter((id) => id !== jobId),
-    );
-    return { previous };
-  };
-  const rollbackSaved = (context?: { previous?: number[] }) => {
-    if (context?.previous) queryClient.setQueryData(savedIdsKey, context.previous);
-  };
-  const refreshSaved = () => {
-    queryClient.invalidateQueries({ queryKey: ["applicant", "jobs"] });
-    queryClient.invalidateQueries({ queryKey: ["applicant", "saved-jobs"] });
-  };
-
-  const saveMutation = useMutation({
-    mutationFn: (jobId: number) => applicantJobsApi.saveJob(jobId),
-    onMutate: (jobId) => optimisticallySetSaved(jobId, true),
-    onSuccess: () => notify.success("Job Saved", "Position added to your saved jobs."),
-    onError: (err: any, _jobId, context) => {
-      rollbackSaved(context);
-      notify.error("Save Failed", err);
-    },
-    onSettled: refreshSaved,
-  });
-
-  const unsaveMutation = useMutation({
-    mutationFn: (jobId: number) => applicantJobsApi.unsaveJob(jobId),
-    onMutate: (jobId) => optimisticallySetSaved(jobId, false),
-    onSuccess: () => notify.success("Job Removed", "Position removed from your saved jobs."),
-    onError: (err: any, _jobId, context) => {
-      rollbackSaved(context);
-      notify.error("Action Failed", err);
-    },
-    onSettled: refreshSaved,
-  });
 
   const [confirmClearSaved, setConfirmClearSaved] = useState(false);
   const clearSavedMutation = useMutation({
@@ -162,21 +118,6 @@ export const JobsPage: React.FC = () => {
     },
     onError: (err: any) => notify.error("Action Failed", err),
   });
-  const savedCount = savedJobIds.size;
-  const atSaveLimit = savedCount >= MAX_SAVED_JOBS;
-
-  const toggleBookmark = (jobId: number) => {
-    if (saveMutation.isPending || unsaveMutation.isPending) return;
-    if (!savedJobIds.has(jobId) && atSaveLimit) {
-      notify.error("Saved Jobs Limit", `You can save up to ${MAX_SAVED_JOBS} jobs. Remove one to save another.`);
-      return;
-    }
-    if (savedJobIds.has(jobId)) {
-      unsaveMutation.mutate(jobId);
-    } else {
-      saveMutation.mutate(jobId);
-    }
-  };
 
   // Old results stay on screen while a new search loads; dim them so they are not mistaken for the answer.
   const resultsAreStale = jobsQuery.isFetching && jobsQuery.isPlaceholderData;
@@ -285,8 +226,15 @@ export const JobsPage: React.FC = () => {
               )}
             >
               <Bookmark className="size-4" aria-hidden="true" />
-              <span>{savedJobIdsQuery.isLoading ? "Saved Jobs" : `Saved Jobs (${savedCount}/${MAX_SAVED_JOBS})`}</span>
+              <span>{savedIdsLoading ? "Saved Jobs" : `Saved Jobs (${savedCount}/${MAX_SAVED_JOBS})`}</span>
             </button>
+            <Link
+              to="/app/recommended"
+              className="flex min-h-11 items-center gap-2 rounded-md px-3.5 font-medium text-slate-700 transition-colors hover:bg-navy-soft hover:text-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1"
+            >
+              <Sparkles className="size-4" aria-hidden="true" />
+              <span>Recommended</span>
+            </Link>
           </div>
         }
       />

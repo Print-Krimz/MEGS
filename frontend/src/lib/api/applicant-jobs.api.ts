@@ -59,6 +59,17 @@ export interface JobPosting extends BaseJobPosting {
   activeDeployment?: ActiveDeploymentInfo;
 }
 
+/** An open job picked for the applicant, with plain reasons (never a score). */
+export interface RecommendedJobPosting extends JobPosting {
+  reasons: string[];
+}
+
+export interface RecommendationsResponse {
+  items: RecommendedJobPosting[];
+  /** True when the profile has no skills or resume data yet, so the list is just the newest jobs. */
+  coldStart: boolean;
+}
+
 export interface JobQueryFilters {
   search?: string;
   location?: string;
@@ -127,6 +138,15 @@ export const applicantJobsApi = {
       options,
     );
   },
+
+  getRecommendations: (limit: number, options?: RequestInit) =>
+    api.get<RecommendationsResponse>(`/api/applicant-jobs/recommendations?limit=${limit}`, options),
+
+  dismissRecommendation: (jobId: number | string) =>
+    api.post<{ dismissed: boolean }>(`/api/applicant-jobs/recommendations/${jobId}/dismiss`, {}),
+
+  undoDismissRecommendation: (jobId: number | string) =>
+    api.delete<{ dismissed: boolean }>(`/api/applicant-jobs/recommendations/${jobId}/dismiss`),
 
   getOpenEmployerSummary: (options?: RequestInit) =>
     api.get<OpenEmployerSummary>("/api/applicant-jobs/employers/summary", options),

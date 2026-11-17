@@ -95,7 +95,7 @@ const SECTION_LINK_CLASS =
   "inline-flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-md text-sm font-medium text-slate-900 hover:text-slate-950 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 md:min-h-0 applicant-touch:min-h-11";
 
 const RECENT_DESCRIPTION = "Track progress from submission to job placement.";
-const JOBS_DESCRIPTION = "Verified vacancies matching recruitment demands nationwide.";
+const JOBS_DESCRIPTION = "Open jobs that fit your skills, experience and preferred work areas.";
 
 function listSkeleton(rows: number, rowClass = "h-[193px] sm:h-[137px] lg:h-[85px]") {
   return (
@@ -178,13 +178,12 @@ export const ApplicantDashboard: React.FC = () => {
   });
 
   const jobsQuery = useQuery({
-    queryKey: ["applicant", "open-jobs-preview"],
-    queryFn: ({ signal }) => applicantJobsApi.getJobsPage({ page: 1, limit: 4 }, { signal }),
+    queryKey: ["applicant", "recommendations", 4],
+    queryFn: ({ signal }) => applicantJobsApi.getRecommendations(4, { signal }),
   });
 
   const profile = profileQuery.data || null;
-  const openJobs = Array.isArray(jobsQuery.data) ? jobsQuery.data : jobsQuery.data?.items ?? [];
-  const openJobsTotal = Array.isArray(jobsQuery.data) ? jobsQuery.data.length : jobsQuery.data?.total ?? openJobs.length;
+  const openJobs = jobsQuery.data?.items ?? [];
 
   const applicationTotal = applicationsQuery.data ? summarizeApplications(applicationsQuery.data).totalApps : undefined;
 
@@ -465,8 +464,8 @@ export const ApplicantDashboard: React.FC = () => {
               title="Recommended Positions for You"
               description={JOBS_DESCRIPTION}
               action={
-                <Link to="/app/jobs" className={SECTION_LINK_CLASS}>
-                  {jobsQuery.data ? `Browse All (${openJobsTotal})` : "Browse All"}
+                <Link to="/app/recommended" className={SECTION_LINK_CLASS}>
+                  See all
                 </Link>
               }
             />
@@ -500,6 +499,10 @@ export const ApplicantDashboard: React.FC = () => {
                               </span>
                             ) : null}
                           </div>
+
+                          {job.reasons.length > 0 && (
+                            <p className="text-sm font-medium text-navy">{job.reasons.join(" · ")}</p>
+                          )}
 
                           {job.description && (
                             <p className="text-sm text-slate-600 line-clamp-2 leading-relaxed">
