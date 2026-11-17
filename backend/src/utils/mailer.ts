@@ -293,7 +293,8 @@ const sendViaBrevo = async (
   to: string,
   subject: string,
   text: string,
-  html: string
+  html: string,
+  headers?: Record<string, string>
 ): Promise<{ success: boolean; messageId?: string }> => {
   try {
     const res = await fetch(BREVO_SEND_URL, {
@@ -305,6 +306,7 @@ const sendViaBrevo = async (
         subject,
         textContent: text,
         htmlContent: html,
+        ...(headers ? { headers } : {}),
       }),
       signal: AbortSignal.timeout(15_000),
     });
@@ -324,7 +326,9 @@ export const sendMail = async (
   to: string,
   subject: string,
   text: string,
-  html?: string
+  html?: string,
+  // Extra message headers, e.g. List-Unsubscribe for bulk mail.
+  headers?: Record<string, string>
 ): Promise<{ success: boolean; messageId?: string }> => {
   // Placeholder addresses (phone sign-ups, walk-ins) have no mailbox.
   if (isSyntheticEmail(to)) {
@@ -339,7 +343,7 @@ export const sendMail = async (
   const brevoKey = process.env.BREVO_API_KEY?.trim();
   if (brevoKey && (!isTest || isLiveTest || isFetchMocked())) {
     const brevoHtml = html || renderBrandedEmail({ heading: subject, bodyHtml: textToHtml(text) });
-    const sending = sendViaBrevo(brevoKey, from, to, subject, `${text}\n\n${plainTextFooter()}`, brevoHtml);
+    const sending = sendViaBrevo(brevoKey, from, to, subject, `${text}\n\n${plainTextFooter()}`, brevoHtml, headers);
     pendingSends.add(sending);
     return sending.finally(() => pendingSends.delete(sending));
   }
@@ -374,6 +378,7 @@ export const sendMail = async (
       subject,
       text: `${text}\n\n${plainTextFooter()}`,
       html: finalHtml,
+      ...(headers ? { headers } : {}),
     }));
     pendingSends.add(sending);
     const info = await sending.finally(() => pendingSends.delete(sending));

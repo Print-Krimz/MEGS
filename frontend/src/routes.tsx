@@ -41,6 +41,7 @@ const ForgotPasswordPage = lazyRouteComponent(() => import("./pages/auth/ForgotP
 const ResetPasswordPage = lazyRouteComponent(() => import("./pages/auth/ResetPasswordPage"), "ResetPasswordPage");
 const SetupAccountPage = lazyRouteComponent(() => import("./pages/auth/SetupAccountPage"), "SetupAccountPage");
 const ClaimAccountPage = lazyRouteComponent(() => import("./pages/auth/ClaimAccountPage"), "ClaimAccountPage");
+const UnsubscribePage = lazyRouteComponent(() => import("./pages/public/UnsubscribePage"), "UnsubscribePage");
 const TrackPage = lazyRouteComponent(() => import("./pages/public/TrackPage"), "TrackPage");
 const OfferPage = lazyRouteComponent(() => import("./pages/public/OfferPage"), "OfferPage");
 const PrivacyPage = lazyRouteComponent(() => import("./pages/public/PrivacyPage"), "PrivacyPage");
@@ -242,6 +243,13 @@ export const offerRoute = createRoute({
   path: "/offer/$id",
   validateSearch: parsePublicTokenSearch,
   component: OfferPage,
+});
+
+export const unsubscribeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/unsubscribe",
+  validateSearch: parsePublicTokenSearch,
+  component: UnsubscribePage,
 });
 
 export const privacyRoute = createRoute({
@@ -769,6 +777,7 @@ const routeTree = rootRoute.addChildren([
   forbiddenRoute,
   trackRoute,
   offerRoute,
+  unsubscribeRoute,
   privacyRoute,
   checkInRoute,
   checkInStatusRoute,

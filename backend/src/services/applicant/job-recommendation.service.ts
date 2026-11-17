@@ -4,7 +4,7 @@ import { getActiveScoringConfiguration } from "../scoring/scoring-configuration.
 import { buildJobFeatureInput, computeMatchScore } from "../scoring/match-score.js";
 import { readFeatureInput } from "../scoring/talent-pool-knn.service.js";
 import type { ScoringWeights } from "../scoring/scoring.types.js";
-import { OPEN_JOB_SELECT } from "./application.service.js";
+import { OPEN_JOB_SELECT } from "./open-job-select.js";
 
 /**
  * Personalised open jobs for one applicant.

@@ -14,42 +14,7 @@ import {
 } from './applicant.service.js';
 import { fillBlanksFromParse, parseResumeToProposal } from './resume-merge.service.js';
 import { buildApplicantJobWhere, type ApplicantJobFilters } from './job-filter.service.js';
-
-/** What an applicant sees about an open job. Shared by the job list and recommendations. */
-export const OPEN_JOB_SELECT = {
-  id: true,
-  title: true,
-  description: true,
-  requirements: true,
-  location: true,
-  imageUrl: true,
-  status: true,
-  createdAt: true,
-  mrf: {
-    select: {
-      location: true,
-      client: {
-        select: {
-          id: true,
-          name: true,
-          tradeName: true,
-          industry: true,
-          city: true,
-          province: true,
-        },
-      },
-      employmentType: true,
-      workArrangement: true,
-      salaryRangeMin: true,
-      salaryRangeMax: true,
-      department: true,
-      workShift: true,
-      workDays: true,
-      workHoursPerDay: true,
-      workTime: true,
-    },
-  },
-} as const;
+import { OPEN_JOB_SELECT } from './open-job-select.js';
 
 export const fetchOpenJobs = async (filters?: ApplicantJobFilters & { page?: number; limit?: number }) => {
   const where: any = { status: "OPEN", ...(await buildApplicantJobWhere(filters)) };

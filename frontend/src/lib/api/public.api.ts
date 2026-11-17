@@ -45,6 +45,10 @@ export const publicApi = {
   respondOffer: (id: number | string, body: PublicOfferResponseBody) =>
     api.post<PublicOfferResult>(`/api/public/offers/${encodeURIComponent(String(id))}/respond`, body),
 
+  /** The signed token in a job alert email. It can only turn job emails off. */
+  unsubscribeJobAlerts: (token: string) =>
+    api.post<{ unsubscribed: boolean }>(`/api/public/job-alerts/unsubscribe?token=${encodeURIComponent(token)}`, {}),
+
   claimStart: (phone: string, turnstileToken?: string) =>
     api.post<{ message: string } & OtpDeadlines>(
       "/api/auth/claim/start",

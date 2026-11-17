@@ -41,6 +41,11 @@ const toSettings = async (userId: string, profile: Awaited<ReturnType<typeof loa
   };
 };
 
+/** Stops job emails for a user. Safe to repeat. Texts stay as the applicant set them. */
+export const turnOffJobAlertEmail = async (userId: string) => {
+  await prisma.applicantProfile.updateMany({ where: { userId }, data: { jobAlertEmail: "OFF" } });
+};
+
 export const getJobAlertSettings = async (userId: string) => toSettings(userId, await load(userId));
 
 export const updateJobAlertSettings = async (

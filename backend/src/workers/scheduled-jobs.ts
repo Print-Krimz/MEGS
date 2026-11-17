@@ -4,6 +4,8 @@ import { checkReviewSLABreaches } from "./review-sla.worker.js";
 import { purgeExpiredAuthTokens } from "./auth-token-purge.js";
 import { REMINDER_JOBS } from "./reminders/index.js";
 import { sendSmsOutbox } from "./sms-outbox.js";
+import { sendJobAlerts } from "./job-alerts.js";
+import { backfillOpenJobEmbeddings } from "../services/scoring/job-embedding.service.js";
 import { generateComplianceRequirementsFromMRF } from "../services/ta/ta.compliance.service.js";
 import { activateDueDeployments } from "../services/ta/ta.deployments.service.js";
 
@@ -83,6 +85,8 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
   { name: "compliance-checklists", run: () => ensureComplianceChecklists() },
   { name: "auth-token-purge", run: () => purgeExpiredAuthTokens() },
   ...REMINDER_JOBS,
+  { name: "job-embeddings", run: () => backfillOpenJobEmbeddings() },
+  { name: "job-alerts", run: () => sendJobAlerts() },
   { name: "sms-outbox", run: () => sendSmsOutbox() },
 ];
 

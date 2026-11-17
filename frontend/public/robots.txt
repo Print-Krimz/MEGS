@@ -6,5 +6,6 @@ Disallow: /admin/
 Disallow: /t/
 Disallow: /offer/
 Disallow: /check-in
+Disallow: /unsubscribe
 
 Sitemap: https://megsinc.com/sitemap.xml

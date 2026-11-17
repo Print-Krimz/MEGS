@@ -8,6 +8,7 @@ import {
   getCheckInStatusHandler,
   submitCheckInHandler,
 } from "../../controllers/public/public-check-in.controller.js";
+import { unsubscribeJobAlertsHandler } from "../../controllers/public/public-job-alert.controller.js";
 import { verifyTurnstile } from "../../middleware/turnstile.middleware.js";
 import { uploadCheckInBiodata } from "../../middleware/upload.middleware.js";
 import { validate } from "../../middleware/validate.middleware.js";
@@ -26,6 +27,8 @@ router.get("/check-in/:publicId/stream", streamFailureLimiter, streamCheckInHand
 router.use(publicLimiter);
 
 router.get("/track/:code", getPublicTrackingHandler);
+// Job alert emails link here; the signed token in the query is the only credential.
+router.post("/job-alerts/unsubscribe", unsubscribeJobAlertsHandler);
 // No validate(): the handlers parse themselves so a bad id or token is a 404, not a 400.
 router.get("/offers/:id", getPublicOfferHandler);
 router.post("/offers/:id/respond", respondPublicOfferHandler);
