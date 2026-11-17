@@ -20,6 +20,10 @@ model JobPosting {
   status       JobStatus @default(OPEN)
   isEvergreen  Boolean   @default(false)
 
+  // Stored job vector for applicant recommendations; hash of the embedded text avoids re-embedding.
+  embedding         Unsupported("vector(768)")?
+  embeddingTextHash String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -33,6 +37,7 @@ model JobPosting {
   talentPoolContacts TalentPoolContact[]
   talentPoolInvitations TalentPoolInvitation[]
   savedBy SavedJob[]
+  recommendationEvents JobRecommendationEvent[]
 
   @@index([status, createdAt])
   @@index([mrfId])
@@ -448,4 +453,24 @@ model WalkInCheckIn {
 
   @@unique([queueDate, queueSeq])
   @@index([status, expiresAt])
+}
+
+// ─────────────────────────────────────────────
+// JOB RECOMMENDATION EVENT
+// Remembers jobs already emailed/texted to an applicant (never repeat) and jobs they dismissed.
+// kind: EMAILED | SMS | DISMISSED
+// ─────────────────────────────────────────────
+
+model JobRecommendationEvent {
+  id           Int        @id @default(autoincrement())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobPostingId Int
+  jobPosting   JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  kind         String
+  createdAt    DateTime   @default(now())
+
+  @@unique([userId, jobPostingId, kind])
+  @@index([userId, kind])
+  @@index([jobPostingId])
 }

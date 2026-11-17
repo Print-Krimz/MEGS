@@ -4,6 +4,7 @@ import { getActiveScoringConfiguration, revalidateJobScoring } from "../scoring/
 import { logAudit } from "../../utils/audit.js";
 import { discoverTalentPoolForJob } from "../scoring/talent-pool-knn.service.js";
 import { jobRequirementClarity } from "../scoring/match-score.js";
+import { ensureJobEmbedding } from "../scoring/job-embedding.service.js";
 import { notifyJobOwner } from "../../utils/notification.js";
 import { assertOwns, JOB_OWNER_SELECT, ownedWhere, type Actor } from "./ownership.js";
 
@@ -195,6 +196,7 @@ export const createTAJob = async (postedById: string, data: any, actor?: Actor) 
   });
 
   if (job.status === "OPEN") {
+    void ensureJobEmbedding(job.id);
     void triggerTalentPoolAutoDiscovery(job.id);
   }
 
@@ -298,6 +300,7 @@ export const updateTAJob = async (jobId: number, data: any, actor?: Actor) => {
     },
   });
   void revalidateJobScoring(updated.id).catch((error) => console.error("[Scoring] failed to synchronously revalidate job scoring", error));
+  if (updated.status === "OPEN") void ensureJobEmbedding(updated.id);
 
   void logAudit(actor?.id ?? existing.postedById, "JOB_POSTING_UPDATED", "JobPosting", jobId, {
     jobId,
@@ -308,6 +311,7 @@ export const updateTAJob = async (jobId: number, data: any, actor?: Actor) => {
   });
 
   if (existing.status !== "OPEN" && updated.status === "OPEN") {
+    void ensureJobEmbedding(updated.id);
     void triggerTalentPoolAutoDiscovery(updated.id);
   }
 
@@ -349,6 +353,7 @@ export const updateTAJobStatus = async (jobId: number, status: any, actor?: Acto
   });
 
   if (existing.status !== "OPEN" && updated.status === "OPEN") {
+    void ensureJobEmbedding(updated.id);
     void triggerTalentPoolAutoDiscovery(updated.id);
   }
 

@@ -54,6 +54,13 @@ model ApplicantProfile {
   // Professional Summary
   professionalSummary String?
 
+  // Job preferences and alerts. jobAlertEmail: WEEKLY | DAILY | OFF. SMS is opt-in only.
+  expectedMonthlySalary Int?
+  jobAlertEmail         String    @default("WEEKLY")
+  jobAlertSms           Boolean   @default(false)
+  jobAlertConsentAt     DateTime?
+  jobAlertLastSentAt    DateTime?
+
   // Emergency Contact
   emergencyContactName         String?
   emergencyContactRelationship String?

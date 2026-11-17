@@ -64,6 +64,7 @@ model User {
   mfaRecoveryCodes UserMfaRecoveryCode[]
   invitations UserInvitation[]
   savedJobs SavedJob[]
+  jobRecommendationEvents JobRecommendationEvent[]
   initiatedBackups DatabaseBackupRecord[]
   initiatedRestores DatabaseRestoreRecord[]
 }
