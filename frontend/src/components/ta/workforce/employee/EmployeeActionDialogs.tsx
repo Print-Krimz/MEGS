@@ -1,13 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ErrorState } from "../../../common";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { DateField } from "../../../common/DateField";
-import { Button, ComboBox, Dialog, Select, Textarea } from "../../../ui";
+import { Button, Dialog, Select, Textarea } from "../../../ui";
 import { employeesApi } from "../../../../lib/api/employees.api";
 import { taApi } from "../../../../lib/api/ta.api";
 import { getManilaToday } from "../../../../lib/field-limits";
 import { notify } from "../../../../lib/feedback";
-import { TA_COPY } from "../../../../lib/ta-copy";
 import { EmploymentStatus } from "../../../../lib/types/enums";
 
 /** Change the employment status, with an optional reason. */
@@ -151,100 +149,6 @@ export const RecordValidityDialog: React.FC<{
             onClick={() => mutation.mutate()}
           >
             Save validity
-          </Button>
-        </div>
-      </div>
-    </Dialog>
-  );
-};
-
-/** Invite an employee who is available for redeployment to one open job. */
-export const PlacementDialog: React.FC<{
-  open: boolean;
-  onClose: () => void;
-  employeeName: string;
-  applicantProfileId: number | null;
-  hasPortalAccess: boolean;
-}> = ({ open, onClose, employeeName, applicantProfileId, hasPortalAccess }) => {
-  const [targetJobId, setTargetJobId] = useState("");
-  const [message, setMessage] = useState("");
-
-  const openJobsQuery = useQuery({
-    queryKey: ["ta", "redeployment-open-jobs"],
-    queryFn: () => taApi.listJobs({ status: "OPEN" }),
-    enabled: open,
-  });
-
-  const mutation = useMutation({
-    mutationFn: () => {
-      if (!applicantProfileId || !targetJobId) throw new Error("Choose an open role first.");
-      return taApi.sendTalentPoolInvitation({
-        applicantProfileId,
-        targetJobId: Number(targetJobId),
-        message: message.trim() || "Your previous assignment has ended. Please review this opportunity and accept if you are interested.",
-        expiresInDays: 7,
-      });
-    },
-    onSuccess: () => {
-      onClose();
-      setTargetJobId("");
-      setMessage("");
-      notify.success(
-        "Invitation sent",
-        hasPortalAccess
-          ? "The applicant can review and accept it from their account."
-          : "Record their reply or text them an offer link from the pending invitation."
-      );
-    },
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    onError: (error: any) => notify.error("Could not send invitation", error?.message || error),
-  });
-
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title={TA_COPY.workforce.actions.findJob}
-      description={
-        hasPortalAccess
-          ? `Choose an open role to invite ${employeeName} to. They accept it from their applicant account.`
-          : `Choose an open role to invite ${employeeName} to. They have no applicant account, so you record their reply.`
-      }
-    >
-      <div className="space-y-4">
-        {openJobsQuery.isError ? (
-          <ErrorState error={openJobsQuery.error} onRetry={() => openJobsQuery.refetch()} />
-        ) : (
-          <ComboBox
-            label="Open role"
-            placeholder="Search open roles and clients"
-            value={targetJobId}
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            options={(openJobsQuery.data || []).map((job: any) => ({
-              value: String(job.id),
-              label: job.title,
-              subtitle: job.mrf?.client?.name || "Client not assigned",
-            }))}
-            onChange={(value) => setTargetJobId(value)}
-          />
-        )}
-        <Textarea
-          label="Message (optional)"
-          value={message}
-          onChange={(event) => setMessage(event.target.value)}
-          rows={3}
-          placeholder="Add a short note about the role or work site."
-        />
-        <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
-          <Button variant="outline" size="sm" onClick={onClose}>Cancel</Button>
-          <Button
-            variant="primary"
-            size="sm"
-            disabled={!targetJobId || !applicantProfileId}
-            loading={mutation.isPending}
-            onClick={() => mutation.mutate()}
-          >
-            {TA_COPY.workforce.actions.sendInvitation}
           </Button>
         </div>
       </div>

@@ -96,6 +96,7 @@ export const AuditLogsPage: React.FC = () => {
     sort?: string;
     dir?: "asc" | "desc";
     page?: number;
+    pageSize?: number;
   };
 
   const [search, setSearch] = useState(urlSearch.q ?? "");
@@ -115,7 +116,7 @@ export const AuditLogsPage: React.FC = () => {
   const startDate = urlSearch.startDate ?? "";
   const endDate = urlSearch.endDate ?? "";
   const page = urlSearch.page && urlSearch.page > 0 ? urlSearch.page : 1;
-  const [pageSize, setPageSize] = useState<10 | 25 | 50>(10);
+  const pageSize: 10 | 25 | 50 = urlSearch.pageSize === 25 || urlSearch.pageSize === 50 ? urlSearch.pageSize : 10;
   const sort: DataTableSort = {
     key: urlSearch.sort === "when" ? "when" : "when",
     direction: urlSearch.dir === "asc" ? "asc" : "desc",
@@ -229,8 +230,7 @@ export const AuditLogsPage: React.FC = () => {
 
   const handlePageSizeChange = (nextSize: number) => {
     const valid = nextSize === 25 || nextSize === 50 ? nextSize : 10;
-    setPageSize(valid);
-    updateUrlSearch({ page: undefined });
+    updateUrlSearch({ pageSize: valid === 10 ? undefined : valid, page: undefined });
   };
 
   const handleSortChange = (next: DataTableSort) => {

@@ -698,9 +698,9 @@ test.describe("Team leader reports (/admin/analytics)", () => {
     await expect(now.getByRole("link", { name: /^Client review wait/ })).toContainText("1 client past their limit");
     await expect(period.getByText("18.5 days")).toBeVisible();
     await expect(period.getByText("Typical, from 5 starts")).toBeVisible();
-    // 18.5 days now against 22 in the previous seven days.
+    // 18.5 days now against 22 in the previous seven days (plus Starts delta).
     await expect(period.getByText("-3.5 days")).toBeVisible();
-    await expect(period.getByText("vs previous 7 days")).toBeVisible();
+    await expect(period.getByText("vs previous 7 days")).toHaveCount(2);
   });
 
   test("how each number is counted sits behind one disclosure", async ({ page }) => {

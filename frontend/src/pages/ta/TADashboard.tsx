@@ -53,7 +53,7 @@ function MetricValue<T>({ query, children }: { query: UseQueryResult<T>; childre
   if (query.isError) {
     return (
       <div className="flex h-8 items-center gap-2">
-        <span className="text-2xl font-semibold text-slate-400" aria-label="Unavailable">—</span>
+        <span className="text-2xl font-semibold text-slate-600" aria-label="Unavailable">—</span>
         <button
           type="button"
           onClick={() => { void query.refetch(); }}

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Link, Outlet } from "@tanstack/react-router";
+import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   Briefcase,
@@ -16,13 +16,35 @@ import {
 import { useAuth } from "../hooks/useAuth";
 import { useRealtimeNotifications } from "../hooks/useRealtimeNotifications";
 import { NotificationBell, RealtimeToastContainer, SignOutDialog } from "../components/common";
-import { getInitials } from "../lib/utils";
+import { cn, getInitials } from "../lib/utils";
 import { applicantApi } from "../lib/api/applicant.api";
 
 import { normalizeTitleCase } from "../lib/text-case";
 
+function isApplicantNavActive(pathname: string, to: string): boolean {
+  if (to === "/app") return pathname === "/app" || pathname === "/app/";
+  if (to === "/app/jobs") {
+    return (
+      pathname === "/app/jobs" ||
+      pathname.startsWith("/app/jobs/") ||
+      pathname === "/app/recommended" ||
+      pathname.startsWith("/app/recommended/")
+    );
+  }
+  if (to === "/app/applications") {
+    return (
+      pathname === "/app/applications" ||
+      pathname.startsWith("/app/applications/") ||
+      pathname === "/app/invitations" ||
+      pathname.startsWith("/app/invitations/")
+    );
+  }
+  return pathname === to || pathname.startsWith(`${to}/`);
+}
+
 export const ApplicantLayout: React.FC = () => {
   const { user } = useAuth();
+  const { pathname } = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
@@ -187,20 +209,19 @@ export const ApplicantLayout: React.FC = () => {
               <nav className="hidden xl:flex items-center gap-1 ml-4" aria-label="Main Applicant Navigation">
                 {navLinks.map((item) => {
                   const Icon = item.icon;
+                  const isActive = isApplicantNavActive(pathname, item.to);
                   return (
                     <Link
                       key={item.to}
                       to={item.to}
                       activeOptions={{ exact: item.to === "/app" }}
-                      activeProps={{
-                        className:
-                          "bg-[#EAF0F7] text-[#0B315D] font-semibold ring-1 ring-inset ring-[#0B315D]/15",
-                      }}
-                      inactiveProps={{
-                        className:
-                          "text-slate-600 font-medium hover:text-[#0B315D] hover:bg-slate-100/80",
-                      }}
-                      className="inline-flex h-9 items-center gap-2 whitespace-nowrap px-3 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-1"
+                      aria-current={isActive ? "page" : undefined}
+                      className={cn(
+                        "inline-flex h-9 items-center gap-2 whitespace-nowrap px-3 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-1",
+                        isActive
+                          ? "bg-[#EAF0F7] text-[#0B315D] font-semibold ring-1 ring-inset ring-[#0B315D]/15"
+                          : "text-slate-600 font-medium hover:text-[#0B315D] hover:bg-slate-100/80",
+                      )}
                     >
                       <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
                       <span>{item.label}</span>
@@ -345,15 +366,20 @@ export const ApplicantLayout: React.FC = () => {
           <div id="applicant-mobile-menu" className="xl:hidden border-t border-slate-200 bg-white px-4 py-3 space-y-1 shadow-md animate-in slide-in-from-top-2 duration-150">
             {navLinks.map((item) => {
               const Icon = item.icon;
+              const isActive = isApplicantNavActive(pathname, item.to);
               return (
                 <Link
                   key={item.to}
                   to={item.to}
                   onClick={() => setMobileMenuOpen(false)}
                   activeOptions={{ exact: item.to === "/app" }}
-                  activeProps={{ className: "bg-[#0B315D] text-white hover:bg-[#082747] hover:text-white font-bold" }}
-                  inactiveProps={{ className: "font-medium text-[#102A43] hover:bg-[#EAF0F7] hover:text-[#0B315D]" }}
-                  className="flex min-h-11 items-center gap-3 px-3.5 py-2.5 text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+                  aria-current={isActive ? "page" : undefined}
+                  className={cn(
+                    "flex min-h-11 items-center gap-3 px-3.5 py-2.5 text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]",
+                    isActive
+                      ? "bg-[#0B315D] text-white hover:bg-[#082747] hover:text-white font-bold"
+                      : "font-medium text-[#102A43] hover:bg-[#EAF0F7] hover:text-[#0B315D]",
+                  )}
                 >
                   <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
                   <span>{item.label}</span>

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ApplicantLayout } from "../ApplicantLayout";
 
 const mockLogout = vi.fn().mockResolvedValue(undefined);
+let mockPathname = "/app";
 
 vi.mock("../../hooks/useAuth", () => ({
   useAuth: () => ({
@@ -42,6 +43,7 @@ vi.mock("@tanstack/react-router", () => ({
   ),
   Outlet: () => <div data-testid="outlet-content">Child Content</div>,
   useNavigate: () => vi.fn(),
+  useLocation: () => ({ pathname: mockPathname }),
 }));
 
 function renderWithClient(ui: React.ReactElement) {
@@ -56,6 +58,7 @@ function renderWithClient(ui: React.ReactElement) {
 describe("ApplicantLayout Navigation & Account Menu", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockPathname = "/app";
   });
 
   it("renders primary recruitment navigation items including My Profile", () => {
@@ -212,5 +215,16 @@ describe("ApplicantLayout Navigation & Account Menu", () => {
     drawerLinks.forEach((link) => {
       expect(link.className).toContain("min-h-11");
     });
+  });
+
+  it("highlights Browse Jobs when viewing /app/recommended", () => {
+    mockPathname = "/app/recommended";
+    renderWithClient(<ApplicantLayout />);
+
+    const browseLink = screen.getByRole("link", { name: /Browse Jobs/i });
+    const dashboardLink = screen.getByRole("link", { name: /Dashboard/i });
+    expect(browseLink.getAttribute("aria-current")).toBe("page");
+    expect(browseLink.className).toContain("bg-[#EAF0F7]");
+    expect(dashboardLink.getAttribute("aria-current")).toBeNull();
   });
 });

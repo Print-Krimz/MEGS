@@ -13,6 +13,7 @@ import {
   ScoreBadge,
   type RecordSummaryFact,
 } from "../../components/common";
+import { RecordBreadcrumb } from "../../components/ta/recruitment/RecordBreadcrumb";
 import { Button } from "../../components/ui";
 import { displayEmail, formatDate } from "../../lib/utils";
 import { resolveUserName } from "../../lib/user-name";
@@ -169,15 +170,27 @@ export const AdminApplicationPage: React.FC = () => {
     },
   ];
 
+  const subtitleParts = [
+    job?.title ? `${job.title}${client?.name ? ` · ${client.name}` : ""}` : null,
+    `Application #${app.id}. Only the assigned recruiter can change it.`,
+  ].filter(Boolean);
+
   return (
     <div className="space-y-5">
-      <PageHeader
+      <RecordBreadcrumb items={[...originBreadcrumbs, { label: name }]} />
+
+      <RecordSummary
+        titleAs="h1"
         title={name}
-        flush
-        description={`Application #${app.id}. Only the assigned recruiter can change it.`}
-        breadcrumbs={[...originBreadcrumbs, { label: name }]}
+        subtitle={subtitleParts.join(" — ")}
+        chips={
+          <>
+            <StatusBadge status={app.isArchived ? "ARCHIVED" : app.status} />
+            {fitScore != null && <ScoreBadge score={fitScore} size="sm" />}
+          </>
+        }
         actions={
-          <div className="flex flex-wrap items-center gap-2">
+          <>
             {canRemind && (
               <Button
                 variant="outline"
@@ -190,17 +203,6 @@ export const AdminApplicationPage: React.FC = () => {
               </Button>
             )}
             {back}
-          </div>
-        }
-      />
-
-      <RecordSummary
-        title={name}
-        subtitle={job?.title ? `${job.title}${client?.name ? ` · ${client.name}` : ""}` : undefined}
-        chips={
-          <>
-            <StatusBadge status={app.isArchived ? "ARCHIVED" : app.status} />
-            {fitScore != null && <ScoreBadge score={fitScore} size="sm" />}
           </>
         }
         facts={facts}

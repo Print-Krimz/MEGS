@@ -69,6 +69,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
     sort?: string;
     dir?: "asc" | "desc";
     page?: number;
+    pageSize?: number;
   };
 
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -99,7 +100,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
 
   // Pagination & Sort State
   const page = urlSearch.page && urlSearch.page > 0 ? urlSearch.page : 1;
-  const [pageSize, setPageSize] = useState<10 | 25 | 50>(10);
+  const pageSize: 10 | 25 | 50 = urlSearch.pageSize === 25 || urlSearch.pageSize === 50 ? urlSearch.pageSize : 10;
   const sort: DataTableSort = {
     key: urlSearch.sort && ["name", "created", "size"].includes(urlSearch.sort) ? urlSearch.sort : "created",
     direction: urlSearch.dir === "asc" ? "asc" : "desc",
@@ -391,8 +392,7 @@ export const DatabaseMaintenancePage: React.FC = () => {
 
   const handlePageSizeChange = (nextSize: number) => {
     const valid = nextSize === 25 || nextSize === 50 ? nextSize : 10;
-    setPageSize(valid);
-    updateUrlSearch({ page: undefined });
+    updateUrlSearch({ pageSize: valid === 10 ? undefined : valid, page: undefined });
   };
 
   const handleSortChange = (next: DataTableSort) => {

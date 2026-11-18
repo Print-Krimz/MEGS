@@ -549,9 +549,11 @@ export interface TAInterviewsSearch {
   stage?: string;
   position?: string;
   client?: string;
+  clientId?: string;
   sort?: string;
   dir?: "asc" | "desc";
   page?: number;
+  pageSize?: number;
 }
 
 export const taInterviewsRoute = createRoute({
@@ -565,9 +567,11 @@ export const taInterviewsRoute = createRoute({
       stage: parseNonEmptyString(search.stage),
       position: parseNonEmptyString(search.position),
       client: parseNonEmptyString(search.client),
+      clientId: parseNonEmptyString(search.clientId),
       sort: parseNonEmptyString(search.sort),
       dir: parseSortDir(search.dir),
       page: parsePositiveNumber(search.page),
+      pageSize: parsePositiveNumber(search.pageSize),
     }),
   component: InterviewsPage,
 });
@@ -595,10 +599,13 @@ export interface TARequirementsSearch {
   q?: string;
   status?: string;
   job?: string;
+  jobTitle?: string;
   client?: string;
+  clientId?: string;
   sort?: string;
   dir?: "asc" | "desc";
   page?: number;
+  pageSize?: number;
 }
 
 // Pre-employment requirements live in the Recruitment group; /ta/compliance was its old address.
@@ -610,10 +617,13 @@ export const taRequirementsRoute = createRoute({
       q: parseNonEmptyString(search.q),
       status: parseNonEmptyString(search.status),
       job: parseNonEmptyString(search.job),
+      jobTitle: parseNonEmptyString(search.jobTitle),
       client: parseNonEmptyString(search.client),
+      clientId: parseNonEmptyString(search.clientId),
       sort: parseNonEmptyString(search.sort),
       dir: parseSortDir(search.dir),
       page: parsePositiveNumber(search.page),
+      pageSize: parsePositiveNumber(search.pageSize),
     }),
   component: CompliancePage,
 });
@@ -796,6 +806,7 @@ export interface AdminMaintenanceSearch {
   sort?: string;
   dir?: "asc" | "desc";
   page?: number;
+  pageSize?: number;
 }
 
 export const adminMaintenanceRoute = createRoute({
@@ -811,6 +822,7 @@ export const adminMaintenanceRoute = createRoute({
       sort: parseNonEmptyString(search.sort),
       dir: parseSortDir(search.dir),
       page: parsePositiveNumber(search.page),
+      pageSize: parsePositiveNumber(search.pageSize),
     }),
   component: DatabaseMaintenancePage,
 });
@@ -826,6 +838,7 @@ export interface AdminAuditSearch {
   sort?: string;
   dir?: "asc" | "desc";
   page?: number;
+  pageSize?: number;
 }
 
 export const adminAuditRoute = createRoute({
@@ -843,6 +856,7 @@ export const adminAuditRoute = createRoute({
       sort: parseNonEmptyString(search.sort),
       dir: parseSortDir(search.dir),
       page: parsePositiveNumber(search.page),
+      pageSize: parsePositiveNumber(search.pageSize),
     }),
   component: AuditLogsPage,
 });

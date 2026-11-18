@@ -6,6 +6,7 @@ import { taApi } from "../../../lib/api/ta.api";
 import { employeesApi } from "../../../lib/api/employees.api";
 import { addManilaCalendarDays, getManilaToday, toManilaDateInput } from "../../../lib/field-limits";
 import { formatDate } from "../../../lib/utils";
+import { EmptyState } from "../../common";
 import { Button } from "../../ui";
 import type { Deployment } from "../../../lib/types/employee.types";
 
@@ -210,9 +211,7 @@ export const ComingUp: React.FC<{ deploymentsQuery: UseQueryResult<Deployment[]>
             </div>
           )}
           {visible.length === 0 && failed.length === 0 && (
-            <p className="px-3.5 py-4 text-sm text-slate-600">
-              No upcoming items in the periods shown.
-            </p>
+            <EmptyState bare title="No upcoming items in the periods shown." />
           )}
         </>
       )}
