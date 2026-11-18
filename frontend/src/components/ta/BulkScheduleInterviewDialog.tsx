@@ -13,7 +13,7 @@ import { FIELD_LIMITS } from "../../lib/field-limits";
 import { getRememberedInterviewLocation, rememberInterviewLocation } from "../../lib/schedule-location";
 import { formatDateTime } from "../../lib/utils";
 
-export type BulkScheduleInterviewType = "INITIAL_SCREENING" | "FINAL_INTERVIEW";
+export type BulkScheduleInterviewType = "INITIAL_SCREENING" | "FINAL_INTERVIEW" | "CONTRACT_SIGNING";
 export type SlotSpacing = "0" | "15" | "30" | "60";
 
 export interface BulkScheduleApplicationItem {
@@ -102,7 +102,7 @@ export const BulkScheduleInterviewDialog: React.FC<BulkScheduleInterviewDialogPr
     setSpacing("15");
     setSkipLunch(true);
     setRememberedLocation(saved);
-    setLocation(saved);
+    setLocation(defaultType === "CONTRACT_SIGNING" ? COMPANY_ADDRESS : saved);
   }, [open, defaultType]);
 
   const stepMinutes = Number(spacing);
@@ -130,10 +130,14 @@ export const BulkScheduleInterviewDialog: React.FC<BulkScheduleInterviewDialogPr
   const blockReason = useMemo(() => {
     if (applications.length === 0) return "Select at least one application.";
     if (!startLocal) return "Choose a start date and time.";
-    if (scheduledSlots.some((s) => !s.iso || !s.inFuture)) return "All interview times must be in the future.";
+    if (scheduledSlots.some((s) => !s.iso || !s.inFuture)) {
+      return type === "CONTRACT_SIGNING"
+        ? "All contract signing times must be in the future."
+        : "All interview times must be in the future.";
+    }
     if (scheduledSlots.some((s) => !s.inHours)) return OFFICE_HOURS_MESSAGE;
     return null;
-  }, [applications.length, startLocal, scheduledSlots]);
+  }, [applications.length, startLocal, scheduledSlots, type]);
 
   const locationChips = useMemo(() => {
     const chips: { label: string; value: string }[] = [
@@ -160,7 +164,7 @@ export const BulkScheduleInterviewDialog: React.FC<BulkScheduleInterviewDialogPr
     <Dialog
       open={open}
       onClose={onClose}
-      title="Schedule interviews"
+      title={type === "CONTRACT_SIGNING" ? "Schedule contract signing" : "Schedule interviews"}
       description={`Book ${applications.length === 1 ? "1 candidate" : `${applications.length} candidates`} at once.`}
       size="lg"
     >
@@ -173,6 +177,7 @@ export const BulkScheduleInterviewDialog: React.FC<BulkScheduleInterviewDialogPr
             options={[
               { value: "INITIAL_SCREENING", label: "Initial screening" },
               { value: "FINAL_INTERVIEW", label: "Final interview" },
+              { value: "CONTRACT_SIGNING", label: "Contract signing" },
             ]}
           />
           <Select

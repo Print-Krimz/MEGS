@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button, Dialog, Input, PhoneInput } from "../../../ui";
+import { Button, ComboBox, Dialog, Input, PhoneInput } from "../../../ui";
+import { DEPARTMENT_SUGGESTIONS } from "../../../../lib/mrf-schedule";
 import { PhilippineAddressFields } from "../../../common/PhilippineAddressFields";
 import { employeesApi } from "../../../../lib/api/employees.api";
 import type { UpdateEmployeeDetailsDto } from "../../../../lib/types/employee.types";
@@ -21,6 +22,8 @@ import {
   validateStandardText,
   validateAddressText,
 } from "../../../../lib/statutory-validation";
+
+const RELATIONSHIP_OPTIONS = ["Spouse", "Parent", "Sibling", "Child", "Relative", "Guardian"];
 
 const EMPTY_FORM = {
   firstName: "",
@@ -228,6 +231,17 @@ export const EditEmployeeDialog: React.FC<EditEmployeeDialogProps> = ({
     });
   };
 
+  const residentialAddressText = [
+    editForm.address,
+    editForm.barangay,
+    editForm.city,
+    editForm.province,
+    editForm.postalCode,
+  ]
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .join(", ");
+
   return (
       <>
       <Dialog
@@ -396,11 +410,19 @@ export const EditEmployeeDialog: React.FC<EditEmployeeDialogProps> = ({
                 onChange={(e) => setEditForm((prev) => ({ ...prev, emergencyContactName: e.target.value }))}
                 placeholder="Full name"
               />
-              <Input
+              <ComboBox
                 label="Relationship"
                 value={editForm.emergencyContactRelationship}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, emergencyContactRelationship: e.target.value }))}
-                placeholder="Relationship (e.g. Spouse)"
+                error={editFormErrors.emergencyContactRelationship}
+                onChange={(val) => {
+                  setEditForm((prev) => ({ ...prev, emergencyContactRelationship: val }));
+                  if (editFormErrors.emergencyContactRelationship) {
+                    setEditFormErrors((err) => ({ ...err, emergencyContactRelationship: "" }));
+                  }
+                }}
+                options={RELATIONSHIP_OPTIONS}
+                allowCustom
+                placeholder="Select or type relationship"
               />
               <PhoneInput
                 label="Contact Phone"
@@ -415,9 +437,28 @@ export const EditEmployeeDialog: React.FC<EditEmployeeDialogProps> = ({
                 helperText="e.g. 0917-123-4567"
               />
             </div>
-            <div>
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label htmlFor="edit-emp-emergency-address" className="block text-xs font-medium text-slate-600">
+                  Emergency Contact Address
+                </label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={!residentialAddressText}
+                  onClick={() =>
+                    setEditForm((prev) => ({
+                      ...prev,
+                      emergencyContactAddress: residentialAddressText,
+                    }))
+                  }
+                >
+                  Same as residential address
+                </Button>
+              </div>
               <Input
-                label="Emergency Contact Address"
+                id="edit-emp-emergency-address"
                 value={editForm.emergencyContactAddress}
                 onChange={(e) => setEditForm((prev) => ({ ...prev, emergencyContactAddress: e.target.value }))}
                 placeholder="Address (optional)"
@@ -437,11 +478,19 @@ export const EditEmployeeDialog: React.FC<EditEmployeeDialogProps> = ({
                 onChange={(e) => setEditForm((prev) => ({ ...prev, position: e.target.value }))}
                 placeholder="Job title / position"
               />
-              <Input
+              <ComboBox
                 label="Department"
                 value={editForm.department}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, department: e.target.value }))}
-                placeholder="Department"
+                error={editFormErrors.department}
+                onChange={(val) => {
+                  setEditForm((prev) => ({ ...prev, department: val }));
+                  if (editFormErrors.department) {
+                    setEditFormErrors((err) => ({ ...err, department: "" }));
+                  }
+                }}
+                options={DEPARTMENT_SUGGESTIONS.map((d) => ({ value: d, label: d }))}
+                allowCustom
+                placeholder="Select or type department"
               />
             </div>
           </div>

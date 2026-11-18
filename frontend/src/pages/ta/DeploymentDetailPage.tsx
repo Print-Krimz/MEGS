@@ -17,6 +17,8 @@ import { formatDate, getDeploymentStatusMeta, displayEmail } from "../../lib/uti
 import { DeploymentStatus, ALLOWED_DEPLOYMENT_TRANSITIONS } from "../../lib/types/enums";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
+import { AGREEMENT_UPDATE_PRESETS, CONFIRM_START_NOTE_PRESETS } from "../../lib/ta-note-presets";
+import { QuickNoteChips } from "../../components/ta/QuickNoteChips";
 import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 import { plural } from "../../lib/plural";
 import { EndAssignmentDialog } from "../../components/ta/EndAssignmentDialog";
@@ -161,6 +163,7 @@ export const DeploymentDetailPage: React.FC = () => {
               ? startYmd
               : getManilaToday();
             setActualStart(defaultStart);
+            setStatusNotes("");
             setStatusModalOpen(true);
           }}
         >
@@ -290,6 +293,13 @@ export const DeploymentDetailPage: React.FC = () => {
               label: getDeploymentStatusMeta(s).label,
             }))}
           />}
+          {newStatus === DeploymentStatus.ACTIVE && (
+            <QuickNoteChips
+              presets={CONFIRM_START_NOTE_PRESETS}
+              currentValue={statusNotes}
+              onSelect={setStatusNotes}
+            />
+          )}
           <Textarea
             label="Notes (optional)"
             placeholder="Add a reason or note for this change..."
@@ -350,6 +360,11 @@ export const DeploymentDetailPage: React.FC = () => {
               This agreement has no fixed end date
             </span>
           </div>
+          <QuickNoteChips
+            presets={AGREEMENT_UPDATE_PRESETS}
+            currentValue={agreementTerms}
+            onSelect={setAgreementTerms}
+          />
           <Textarea label="Agreement update notes" value={agreementTerms} onChange={(event) => setAgreementTerms(event.target.value)} rows={3} placeholder="Record the extension or amendment details." />
           <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
             <Button variant="outline" size="sm" onClick={() => setAgreementModalOpen(false)}>Cancel</Button>

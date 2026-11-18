@@ -96,15 +96,33 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
   onSignedCopySaved,
 }) => {
   const [contractBusy, setContractBusy] = React.useState<"pdf" | "upload" | null>(null);
+  const [dailyRateText, setDailyRateText] = React.useState("");
+  const dailyRateInputId = React.useId();
+  const dailyRateErrorId = `${dailyRateInputId}-error`;
   const copyInputRef = React.useRef<HTMLInputElement>(null);
   const isDeployed = app.status === ApplicationStatus.DEPLOYED;
+
+  const trimmedDailyRate = dailyRateText.trim();
+  const parsedDailyRate = trimmedDailyRate !== "" ? Number(trimmedDailyRate) : undefined;
+  const isValidDailyRate =
+    trimmedDailyRate === "" ||
+    (parsedDailyRate !== undefined &&
+      Number.isFinite(parsedDailyRate) &&
+      parsedDailyRate >= 0 &&
+      parsedDailyRate <= 1_000_000 &&
+      /^\d+(?:\.\d{1,2})?$/.test(trimmedDailyRate));
 
   // Single source of truth for milestone completion
   const isStep1Complete = !hasUnapprovedMandatoryCompliance && (totalCompReqs > 0 || isContractSigningStage || isDeployed);
   const viewContract = async () => {
+    if (!isValidDailyRate) return;
     setContractBusy("pdf");
     try {
-      const url = URL.createObjectURL(await taApi.getContractPdf(app.id));
+      const blob =
+        parsedDailyRate !== undefined
+          ? await taApi.getContractPdf(app.id, { dailyRate: parsedDailyRate })
+          : await taApi.getContractPdf(app.id);
+      const url = URL.createObjectURL(blob);
       window.open(url, "_blank", "noopener");
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (error) {
@@ -163,27 +181,55 @@ export const OnboardingDeploymentStepper: React.FC<OnboardingDeploymentStepperPr
   // View/print the contract and optionally attach the signed copy (at contract signing or later).
   const contractActions =
     isContractSigningStage || isStep2Complete || isDeployed ? (
-      <div className="flex flex-wrap gap-2 pt-1.5">
-        <Button variant="ghost" size="sm" loading={contractBusy === "pdf"} onClick={viewContract}>
-          View contract
-        </Button>
-        {app.contractDocumentId ? (
-          <Button variant="ghost" size="sm" onClick={() => onViewSignedCopy?.(app.contractDocumentId as number)}>
-            View signed copy
+      <div className="space-y-1 pt-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor={dailyRateInputId} className="sr-only">
+            Daily rate in PHP (optional)
+          </label>
+          <input
+            id={dailyRateInputId}
+            type="text"
+            inputMode="decimal"
+            aria-label="Daily rate in PHP (optional)"
+            aria-invalid={!isValidDailyRate || undefined}
+            aria-describedby={!isValidDailyRate ? dailyRateErrorId : undefined}
+            placeholder="Daily rate (optional)"
+            maxLength={12}
+            value={dailyRateText}
+            onChange={(e) => setDailyRateText(e.target.value)}
+            className={cn(
+              "focus-ring min-h-11 w-40 rounded-md border bg-white px-2.5 text-sm text-slate-900 placeholder:text-slate-400 transition-colors md:min-h-9",
+              !isValidDailyRate
+                ? "border-rose-400 bg-rose-50/20 text-rose-900 focus-visible:ring-rose-600"
+                : "border-slate-300 hover:border-slate-400"
+            )}
+          />
+          <Button variant="ghost" size="sm" loading={contractBusy === "pdf"} disabled={!isValidDailyRate} onClick={viewContract}>
+            View contract
           </Button>
-        ) : null}
-        <Button variant="ghost" size="sm" loading={contractBusy === "upload"} onClick={() => copyInputRef.current?.click()}>
-          {app.contractDocumentId ? "Replace signed copy" : "Add signed copy (optional)"}
-        </Button>
-        <input
-          ref={copyInputRef}
-          type="file"
-          accept="application/pdf,image/jpeg,image/png"
-          className="sr-only"
-          tabIndex={-1}
-          aria-label="Signed contract file (PDF, JPEG or PNG, up to 10 MB)"
-          onChange={(e) => addSignedCopy(e.target.files?.[0])}
-        />
+          {app.contractDocumentId ? (
+            <Button variant="ghost" size="sm" onClick={() => onViewSignedCopy?.(app.contractDocumentId as number)}>
+              View signed copy
+            </Button>
+          ) : null}
+          <Button variant="ghost" size="sm" loading={contractBusy === "upload"} onClick={() => copyInputRef.current?.click()}>
+            {app.contractDocumentId ? "Replace signed copy" : "Add signed copy (optional)"}
+          </Button>
+          <input
+            ref={copyInputRef}
+            type="file"
+            accept="application/pdf,image/jpeg,image/png"
+            className="sr-only"
+            tabIndex={-1}
+            aria-label="Signed contract file (PDF, JPEG or PNG, up to 10 MB)"
+            onChange={(e) => addSignedCopy(e.target.files?.[0])}
+          />
+        </div>
+        {!isValidDailyRate && (
+          <p id={dailyRateErrorId} role="alert" className="text-xs font-medium text-rose-600">
+            Enter a daily rate between 0 and 1,000,000 (up to 2 decimal places).
+          </p>
+        )}
       </div>
     ) : null;
 

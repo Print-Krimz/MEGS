@@ -45,6 +45,10 @@ import {
   bulkConfirmDeploymentStartHandler,
   bulkEndDeploymentsHandler,
   bulkScheduleInterviewsHandler,
+  bulkEndorseApplicationsHandler,
+  bulkClientDecisionHandler,
+  bulkAdvanceToContractSigningHandler,
+  bulkConfirmContractSignedHandler,
 } from '../../controllers/ta/ta.bulk.controller.js';
 import { getCandidateResumeProposalHandler, applyCandidateResumeMergeHandler, reparseCandidateResumeHandler } from '../../controllers/ta/ta.resume.controller.js';
 
@@ -264,6 +268,10 @@ router.get("/applications/:id/decisions", validate(taSchema.idParams), requireOw
 router.post("/bulk/applications/reject", validate(taSchema.bulkRejectApplications), bulkRejectApplicationsHandler);
 router.post("/bulk/applications/archive", validate(taSchema.bulkArchiveRestoreApplications), bulkArchiveApplicationsHandler);
 router.post("/bulk/applications/restore", validate(taSchema.bulkArchiveRestoreApplications), bulkRestoreApplicationsHandler);
+router.post("/bulk/applications/endorse", validate(taSchema.bulkEndorseApplications), bulkEndorseApplicationsHandler);
+router.post("/bulk/applications/client-decision", validate(taSchema.bulkClientDecision), bulkClientDecisionHandler);
+router.post("/bulk/applications/advance-contract-signing", validate(taSchema.bulkApplicationIds), bulkAdvanceToContractSigningHandler);
+router.post("/bulk/applications/confirm-contract-signed", validate(taSchema.bulkApplicationIds), bulkConfirmContractSignedHandler);
 router.post("/bulk/interviews/result", validate(taSchema.bulkRecordInterviews), bulkRecordInterviewsHandler);
 router.post("/bulk/interviews/schedule", validate(taSchema.bulkScheduleInterviews), bulkScheduleInterviewsHandler);
 router.post("/bulk/check-ins/dismiss", validate(taSchema.bulkDismissCheckIns), bulkDismissCheckInsHandler);

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
 import { Textarea } from "../ui/Textarea";
+import { QuickNoteChips } from "../ta/QuickNoteChips";
 
 interface BulkReasonDialogProps {
   open: boolean;
@@ -13,6 +14,7 @@ interface BulkReasonDialogProps {
   /** Matches the backend limit for the action. */
   maxLength?: number;
   placeholder?: string;
+  presets?: readonly { label: string; text: string }[];
   onSubmit: (reason: string) => void;
 }
 
@@ -26,6 +28,7 @@ export const BulkReasonDialog: React.FC<BulkReasonDialogProps> = ({
   loading,
   maxLength = 300,
   placeholder,
+  presets,
   onSubmit,
 }) => {
   const [reason, setReason] = useState("");
@@ -44,6 +47,9 @@ export const BulkReasonDialog: React.FC<BulkReasonDialogProps> = ({
           if (reason.trim()) onSubmit(reason.trim());
         }}
       >
+        {presets && presets.length > 0 && (
+          <QuickNoteChips presets={presets} currentValue={reason} onSelect={setReason} />
+        )}
         <Textarea
           label="Reason"
           required

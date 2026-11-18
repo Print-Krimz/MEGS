@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Building2 } from "lucide-react";
 import { Button, ComboBox, Dialog, Select, Textarea } from "../../ui";
 import { useDirtyGuard } from "../../../hooks/useDirtyGuard";
+import { QuickNoteChips } from "../QuickNoteChips";
+import { CLIENT_DECISION_PRESETS } from "../../../lib/ta-note-presets";
 
 type ClientOption = { id: number; name: string; industry?: string | null; address?: string | null };
 
@@ -116,6 +118,13 @@ export const SendToClientDialog: React.FC<SendToClientDialogProps> = ({
               { value: "APPROVED", label: "Approved by client" },
               { value: "DECLINED", label: "Declined by client" },
             ]}
+          />
+        )}
+        {!isSend && (outcome === "APPROVED" || outcome === "DECLINED") && (
+          <QuickNoteChips
+            presets={CLIENT_DECISION_PRESETS[outcome]}
+            currentValue={notes}
+            onSelect={setNotes}
           />
         )}
         <div className="space-y-1.5">
@@ -247,6 +256,13 @@ export const ClientDecisionDialog: React.FC<ClientDecisionDialogProps> = ({
             { value: "DECLINED", label: "Declined by client" },
           ]}
         />
+        {(outcome === "APPROVED" || outcome === "DECLINED") && (
+          <QuickNoteChips
+            presets={CLIENT_DECISION_PRESETS[outcome]}
+            currentValue={notes}
+            onSelect={setNotes}
+          />
+        )}
         <Textarea
           label="Client decision note"
           placeholder="Record client feedback, salary details, or interview notes..."

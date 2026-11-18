@@ -16,6 +16,7 @@ import {
   DataTable,
   BulkActionBar,
   BulkResultDialog,
+  ConfirmDialog,
   type DataTableColumn,
 } from "../../components/common";
 import { Button, ComboBox, Dialog, Textarea } from "../../components/ui";
@@ -33,7 +34,11 @@ import {
   type BulkApplicationAction,
   type BulkSubmission,
 } from "../../components/ta/BulkApplicationsDialog";
-import { BulkScheduleInterviewDialog } from "../../components/ta/BulkScheduleInterviewDialog";
+import {
+  BulkScheduleInterviewDialog,
+  type BulkScheduleInterviewType,
+} from "../../components/ta/BulkScheduleInterviewDialog";
+import { BulkClientActionDialog, type BulkClientActionMode } from "../../components/ta/BulkClientActionDialog";
 import { useRowSelection } from "../../hooks/useRowSelection";
 import type { ApplicationSourceFilter, TAApplicationSearch } from "../../routes";
 import { SourceChip, APPLICATION_SOURCE_LABELS } from "../../components/ta/walk-in/SourceChip";
@@ -503,25 +508,85 @@ export const ApplicationsPage: React.FC = () => {
   const selectedRows = applications.filter((app) => selection.selectedIds.has(String(app.id)));
   const [bulkAction, setBulkAction] = useState<BulkApplicationAction | null>(null);
   const [bulkScheduleOpen, setBulkScheduleOpen] = useState(false);
-  const [bulkResult, setBulkResult] = useState<{ title: string; summary: BulkSummary } | null>(null);
+  const [bulkClientMode, setBulkClientMode] = useState<BulkClientActionMode | null>(null);
+  const [confirmContractSignedOpen, setConfirmContractSignedOpen] = useState(false);
+  const [bulkResult, setBulkResult] = useState<{
+    title: string;
+    summary: BulkSummary;
+    names?: Record<number, string>;
+  } | null>(null);
+
+  const snapshotSelectedNames = () =>
+    Object.fromEntries(selectedRows.map((app) => [app.id, candidateNameOf(app)]));
 
   const bulkScheduleMutation = useMutation({
     mutationFn: (data: {
       items: { applicationId: number; scheduledAt: string }[];
-      type: "INITIAL_SCREENING" | "FINAL_INTERVIEW";
+      type: BulkScheduleInterviewType;
       location?: string;
     }) => taApi.bulkScheduleInterviews(data),
-    onSuccess: (summary) => {
+    onSuccess: (summary, vars) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "interviews"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
       selection.remove(summary.results.filter((row) => row.ok).map((row) => String(row.id)));
       setBulkScheduleOpen(false);
-      const title = "Schedule interviews";
-      if (summary.failed > 0) setBulkResult({ title, summary });
-      else notify.success(title, `${summary.succeeded} ${summary.succeeded === 1 ? "interview" : "interviews"} scheduled.`);
+      const isContract = vars.type === "CONTRACT_SIGNING";
+      const title = isContract ? "Schedule contract signing" : "Schedule interviews";
+      const unit = isContract
+        ? summary.succeeded === 1
+          ? "signing"
+          : "signings"
+        : summary.succeeded === 1
+        ? "interview"
+        : "interviews";
+      if (summary.failed > 0) setBulkResult({ title, summary, names: snapshotSelectedNames() });
+      else notify.success(title, `${summary.succeeded} ${unit} scheduled.`);
     },
-    onError: (err: any) => notify.error("Unable to schedule interviews", err),
+    onError: (err: any) => notify.error("Unable to schedule appointments", err),
+  });
+
+  const bulkEndorseMutation = useMutation({
+    mutationFn: (data: { ids: number[]; notes?: string }) => taApi.bulkEndorseApplications(data),
+    onSuccess: (summary) => {
+      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
+      selection.remove(summary.results.filter((row) => row.ok).map((row) => String(row.id)));
+      setBulkClientMode(null);
+      const title = "Send candidates to client";
+      if (summary.failed > 0) setBulkResult({ title, summary, names: snapshotSelectedNames() });
+      else notify.success(title, `${summary.succeeded} ${summary.succeeded === 1 ? "candidate" : "candidates"} sent to client.`);
+    },
+    onError: (err: any) => notify.error("Unable to send candidates to client", err),
+  });
+
+  const bulkClientDecisionMutation = useMutation({
+    mutationFn: (data: { ids: number[]; outcome: "APPROVED" | "DECLINED"; notes: string }) =>
+      taApi.bulkRecordClientDecision(data),
+    onSuccess: (summary) => {
+      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
+      selection.remove(summary.results.filter((row) => row.ok).map((row) => String(row.id)));
+      setBulkClientMode(null);
+      const title = "Record client decision";
+      if (summary.failed > 0) setBulkResult({ title, summary, names: snapshotSelectedNames() });
+      else notify.success(title, `${summary.succeeded} ${summary.succeeded === 1 ? "decision" : "decisions"} recorded.`);
+    },
+    onError: (err: any) => notify.error("Unable to record client decision", err),
+  });
+
+  const bulkConfirmContractSignedMutation = useMutation({
+    mutationFn: (ids: number[]) => taApi.bulkConfirmContractSigned({ ids }),
+    onSuccess: (summary) => {
+      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
+      selection.remove(summary.results.filter((row) => row.ok).map((row) => String(row.id)));
+      setConfirmContractSignedOpen(false);
+      const title = "Confirm contract signed";
+      if (summary.failed > 0) setBulkResult({ title, summary, names: snapshotSelectedNames() });
+      else notify.success(title, `${summary.succeeded} ${summary.succeeded === 1 ? "contract" : "contracts"} confirmed signed.`);
+    },
+    onError: (err: any) => notify.error("Unable to confirm contract signing", err),
   });
 
   const bulkMutation = useMutation({
@@ -547,7 +612,7 @@ export const ApplicationsPage: React.FC = () => {
       selection.remove(summary.results.filter((row) => row.ok).map((row) => String(row.id)));
       setBulkAction(null);
       const title = BULK_ACTION_TITLES[vars.action];
-      if (summary.failed > 0) setBulkResult({ title, summary });
+      if (summary.failed > 0) setBulkResult({ title, summary, names: snapshotSelectedNames() });
       else notify.success(title, `${summary.succeeded} ${summary.succeeded === 1 ? "application" : "applications"} done.`);
     },
     onError: (err: any) => notify.error("Unable to complete the bulk action", err),
@@ -558,15 +623,45 @@ export const ApplicationsPage: React.FC = () => {
     ApplicationStatus.INITIAL_SCREENING,
     ApplicationStatus.CLIENT_ENDORSEMENT,
     ApplicationStatus.FINAL_INTERVIEW,
+    ApplicationStatus.CONTRACT_SIGNING,
   ]);
+  const allSelectedOpen =
+    selectedRows.length > 0 && selectedRows.every((app) => !isClosedRecord(app) && !app.isArchived);
   const canBulkSchedule =
-    selectedRows.length > 0 &&
-    selectedRows.every((app) => !isClosedRecord(app) && !app.isArchived && SCHEDULABLE_STAGES.has(app.status));
-  const defaultScheduleType = selectedRows.every(
-    (app) => app.status === ApplicationStatus.CLIENT_ENDORSEMENT || app.status === ApplicationStatus.FINAL_INTERVIEW,
+    allSelectedOpen &&
+    selectedRows.every(
+      (app) =>
+        SCHEDULABLE_STAGES.has(app.status) &&
+        !(app.status === ApplicationStatus.CONTRACT_SIGNING && app.contractSigned),
+    );
+  const defaultScheduleType: BulkScheduleInterviewType = selectedRows.every(
+    (app) => app.status === ApplicationStatus.CONTRACT_SIGNING,
   )
+    ? "CONTRACT_SIGNING"
+    : selectedRows.every(
+        (app) =>
+          app.status === ApplicationStatus.CLIENT_ENDORSEMENT ||
+          app.status === ApplicationStatus.FINAL_INTERVIEW ||
+          (app.status === ApplicationStatus.INITIAL_SCREENING &&
+            (app.interviewCount ?? 0) > 0 &&
+            app.jobPosting?.mrf?.requiresClientReview === false),
+      )
     ? "FINAL_INTERVIEW"
     : "INITIAL_SCREENING";
+
+  const canBulkEndorse =
+    allSelectedOpen &&
+    selectedRows.every(
+      (app) =>
+        app.status === ApplicationStatus.INITIAL_SCREENING &&
+        (app.interviewCount ?? 0) > 0 &&
+        app.jobPosting?.mrf?.requiresClientReview !== false,
+    );
+  const canBulkClientDecision =
+    allSelectedOpen && selectedRows.every((app) => app.status === ApplicationStatus.CLIENT_ENDORSEMENT);
+  const canBulkConfirmContractSigned =
+    allSelectedOpen &&
+    selectedRows.every((app) => app.status === ApplicationStatus.CONTRACT_SIGNING && !app.contractSigned);
 
   const bulkActions: { action: BulkApplicationAction; label: string; variant: "primary" | "outline" | "danger" }[] = [];
   if (selectedRows.length > 0) {
@@ -1143,17 +1238,40 @@ export const ApplicationsPage: React.FC = () => {
         note={totalItems > applications.length ? `on this page (${totalItems} in the list)` : undefined}
         emptyHint="No action fits this mix. Select open records to reject, closed ones to archive, or archived ones to restore."
       >
-        {canBulkSchedule && (
-          <Button size="sm" variant="primary" onClick={() => setBulkScheduleOpen(true)}>
-            Schedule interviews
-          </Button>
-        )}
-        {bulkActions.length > 0 &&
-          bulkActions.map(({ action, label, variant }) => (
-            <Button key={action} size="sm" variant={variant} onClick={() => setBulkAction(action)}>
-              {label}
-            </Button>
-          ))}
+        {(canBulkEndorse || canBulkClientDecision || canBulkConfirmContractSigned || canBulkSchedule || bulkActions.length > 0) ? (
+          <>
+            {canBulkEndorse && (
+              <Button size="sm" variant="primary" onClick={() => setBulkClientMode("endorse")}>
+                Send to client
+              </Button>
+            )}
+            {canBulkClientDecision && (
+              <Button size="sm" variant="primary" onClick={() => setBulkClientMode("decision")}>
+                Record client decision
+              </Button>
+            )}
+            {canBulkConfirmContractSigned && (
+              <Button size="sm" variant="primary" onClick={() => setConfirmContractSignedOpen(true)}>
+                Confirm contract signed
+              </Button>
+            )}
+            {canBulkSchedule && (
+              <Button
+                size="sm"
+                variant={canBulkEndorse || canBulkClientDecision || canBulkConfirmContractSigned ? "outline" : "primary"}
+                onClick={() => setBulkScheduleOpen(true)}
+              >
+                {defaultScheduleType === "CONTRACT_SIGNING" ? "Schedule contract signing" : "Schedule interviews"}
+              </Button>
+            )}
+            {bulkActions.length > 0 &&
+              bulkActions.map(({ action, label, variant }) => (
+                <Button key={action} size="sm" variant={variant} onClick={() => setBulkAction(action)}>
+                  {label}
+                </Button>
+              ))}
+          </>
+        ) : null}
       </BulkActionBar>
       )}
 
@@ -1249,12 +1367,47 @@ export const ApplicationsPage: React.FC = () => {
         loading={bulkScheduleMutation.isPending}
         onSubmit={(data) => bulkScheduleMutation.mutate(data)}
       />
+      <BulkClientActionDialog
+        mode={bulkClientMode}
+        count={selectedRows.length}
+        loading={bulkEndorseMutation.isPending || bulkClientDecisionMutation.isPending}
+        onClose={() => setBulkClientMode(null)}
+        onEndorse={(notes) =>
+          bulkEndorseMutation.mutate({ ids: selectedRows.map((app) => app.id), notes })
+        }
+        onDecision={({ outcome, notes }) =>
+          bulkClientDecisionMutation.mutate({
+            ids: selectedRows.map((app) => app.id),
+            outcome,
+            notes,
+          })
+        }
+      />
+      <ConfirmDialog
+        open={confirmContractSignedOpen}
+        onClose={() => setConfirmContractSignedOpen(false)}
+        onConfirm={() => bulkConfirmContractSignedMutation.mutate(selectedRows.map((app) => app.id))}
+        title={
+          selectedRows.length === 1
+            ? "Confirm the contract was signed?"
+            : `Confirm ${selectedRows.length} contracts were signed?`
+        }
+        description={
+          selectedRows.length === 1
+            ? `Confirm that ${candidateNameOf(selectedRows[0])} signed the contract. This can't be undone.`
+            : `Confirm that all ${selectedRows.length} selected candidates signed their contracts. This can't be undone.`
+        }
+        confirmLabel={selectedRows.length === 1 ? "Yes, contract signed" : `Yes, confirm ${selectedRows.length} signed`}
+        cancelLabel="Cancel"
+        variant="warning"
+        loading={bulkConfirmContractSignedMutation.isPending}
+      />
       <BulkResultDialog
         open={Boolean(bulkResult)}
         onClose={() => setBulkResult(null)}
         title={bulkResult?.title ?? ""}
         summary={bulkResult?.summary ?? null}
-        labelFor={bulkLabelFor}
+        labelFor={(id) => bulkResult?.names?.[id] ?? bulkLabelFor(id)}
       />
 
       {/* Archive / Restore Modal */}

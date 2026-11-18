@@ -1,11 +1,15 @@
 import type { Request, Response } from "express";
 import { sendError, sendSuccess } from "../../utils/response.js";
 import {
+  bulkAdvanceToContractSigning,
   bulkArchiveApplications,
   bulkCancelInvitations,
+  bulkConfirmContractSigned,
   bulkConfirmDeploymentStart,
   bulkDismissCheckIns,
   bulkEndDeployments,
+  bulkEndorseApplications,
+  bulkRecordClientDecision,
   bulkRecordInterviews,
   bulkRejectApplications,
   bulkRestoreApplications,
@@ -47,8 +51,8 @@ export const bulkRestoreApplicationsHandler = async (req: Request, res: Response
 // POST /api/ta/bulk/interviews/result - Record Passed or No show for many interviews
 export const bulkRecordInterviewsHandler = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { items, result, notes } = req.body;
-    respond(res, await bulkRecordInterviews(items, { result, notes }, req.user!));
+    const { items, result, notes, autoAdvance } = req.body;
+    respond(res, await bulkRecordInterviews(items, { result, notes, autoAdvance }, req.user!));
   } catch (error: any) {
     sendError(res, error.message, 500, error);
   }
@@ -96,6 +100,44 @@ export const bulkScheduleInterviewsHandler = async (req: Request, res: Response)
   try {
     const { items, type, location } = req.body;
     respond(res, await bulkScheduleInterviews(items, { type, location }, req.user!));
+  } catch (error: any) {
+    sendError(res, error.message, 500, error);
+  }
+};
+
+// POST /api/ta/bulk/applications/endorse - Send selected applications to client review
+export const bulkEndorseApplicationsHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { ids, clientId, notes } = req.body;
+    respond(res, await bulkEndorseApplications(ids, { clientId, notes }, req.user!));
+  } catch (error: any) {
+    sendError(res, error.message, 500, error);
+  }
+};
+
+// POST /api/ta/bulk/applications/client-decision - Record client approval or decline across applications
+export const bulkClientDecisionHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { ids, outcome, notes } = req.body;
+    respond(res, await bulkRecordClientDecision(ids, { outcome, notes }, req.user!));
+  } catch (error: any) {
+    sendError(res, error.message, 500, error);
+  }
+};
+
+// POST /api/ta/bulk/applications/advance-contract-signing - Move compliant applications to Contract Signing
+export const bulkAdvanceToContractSigningHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    respond(res, await bulkAdvanceToContractSigning(req.body.ids, req.user!));
+  } catch (error: any) {
+    sendError(res, error.message, 500, error);
+  }
+};
+
+// POST /api/ta/bulk/applications/confirm-contract-signed - Confirm contract signing for selected applications
+export const bulkConfirmContractSignedHandler = async (req: Request, res: Response): Promise<void> => {
+  try {
+    respond(res, await bulkConfirmContractSigned(req.body.ids, req.user!));
   } catch (error: any) {
     sendError(res, error.message, 500, error);
   }

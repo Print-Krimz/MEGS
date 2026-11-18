@@ -13,7 +13,7 @@ interface BulkInterviewDialogProps {
   isFinalInterview: boolean;
   loading?: boolean;
   onClose: () => void;
-  onSubmit: (notes: string) => void;
+  onSubmit: (notes: string, options?: { autoAdvance?: boolean }) => void;
 }
 
 const plural = (count: number) => (count === 1 ? "1 interview" : `${count} interviews`);
@@ -32,11 +32,13 @@ export const BulkInterviewDialog: React.FC<BulkInterviewDialogProps> = ({
 }) => {
   const [notes, setNotes] = useState("");
   const [showError, setShowError] = useState(false);
+  const [autoAdvance, setAutoAdvance] = useState(true);
 
   useEffect(() => {
     if (action) {
       setNotes("");
       setShowError(false);
+      setAutoAdvance(true);
     }
   }, [action]);
 
@@ -76,6 +78,21 @@ export const BulkInterviewDialog: React.FC<BulkInterviewDialogProps> = ({
           maxLength={FIELD_LIMITS.notes}
           rows={3}
         />
+        {!noShow && (
+          <label className="flex min-h-11 cursor-pointer items-center gap-2 text-sm text-slate-700 md:min-h-8">
+            <input
+              type="checkbox"
+              checked={autoAdvance}
+              onChange={(e) => setAutoAdvance(e.target.checked)}
+              className="focus-ring h-4 w-4 rounded border-slate-300 text-navy"
+            />
+            <span>
+              {isFinalInterview
+                ? "Move passed candidates to Requirements after saving"
+                : "Send passed candidates to client review (or Final interview when client review is not required)"}
+            </span>
+          </label>
+        )}
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
           <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>
             Cancel
@@ -90,7 +107,11 @@ export const BulkInterviewDialog: React.FC<BulkInterviewDialogProps> = ({
                 setShowError(true);
                 return;
               }
-              onSubmit(notes.trim());
+              if (noShow) {
+                onSubmit(notes.trim());
+              } else {
+                onSubmit(notes.trim(), { autoAdvance });
+              }
             }}
           >
             {noShow ? `Mark ${count} as no show` : `Mark ${count} as passed`}

@@ -220,11 +220,22 @@ export const InterviewsPage: React.FC = () => {
   const bulkIsFinal = bulkStages.size === 1 && bulkStages.has("FINAL_INTERVIEW");
 
   const bulkMutation = useMutation({
-    mutationFn: ({ action, rows, notes }: { action: BulkInterviewAction; rows: InterviewRow[]; notes?: string }) =>
+    mutationFn: ({
+      action,
+      rows,
+      notes,
+      autoAdvance,
+    }: {
+      action: BulkInterviewAction;
+      rows: InterviewRow[];
+      notes?: string;
+      autoAdvance?: boolean;
+    }) =>
       taApi.bulkRecordInterviews({
         items: rows.map((row) => ({ applicationId: row.applicationId, interviewId: row.interviewId as number })),
         result: action,
         notes,
+        ...(action === "PASS" && autoAdvance !== undefined ? { autoAdvance } : {}),
       }),
     onSuccess: (summary, vars) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "compliance", "interviews"] });
@@ -647,7 +658,15 @@ export const InterviewsPage: React.FC = () => {
         isFinalInterview={bulkIsFinal}
         loading={bulkMutation.isPending}
         onClose={() => setBulkAction(null)}
-        onSubmit={(notes) => bulkAction && bulkMutation.mutate({ action: bulkAction, rows: selectedRows, notes })}
+        onSubmit={(notes, options) =>
+          bulkAction &&
+          bulkMutation.mutate({
+            action: bulkAction,
+            rows: selectedRows,
+            notes,
+            autoAdvance: options?.autoAdvance,
+          })
+        }
       />
       <BulkResultDialog
         open={Boolean(bulkResult)}

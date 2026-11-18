@@ -1,10 +1,13 @@
 import { DeploymentStatus } from "@prisma/client";
 import prisma from "../../utils/prisma.js";
+import { COMPANY_ADDRESS } from "../../config/business-hours.js";
 import { redactSensitiveText } from "../../security/errors.js";
 import { assertOwns, type Actor } from "./ownership.js";
 import { BackoutConflictError } from "./backout.service.js";
 import { closeApplication } from "./closure.service.js";
-import { archiveTAApplication, restoreTAApplication } from "./ta.applications.service.js";
+import { archiveTAApplication, confirmContractSigned, restoreTAApplication, scheduleContractSigning, updateTAApplicationStatus } from "./ta.applications.service.js";
+import { getLatestClientEndorsement, recordClientEndorsement, updateClientEndorsement } from "./ta.endorsement.service.js";
+import { ClientReviewNotRequiredError } from "./pipeline-rules.js";
 import { scheduleNewInterview, updateInterviewResult } from "./ta.interviews.service.js";
 import { dismissCheckIn } from "./walk-in-check-in.service.js";
 import { WalkInConflictError } from "./walk-in.service.js";
@@ -32,7 +35,15 @@ const GENERIC_REASON = "Could not process this record. Open it and try again.";
  * through (redacted). Anything else (database, network, programming errors) becomes a generic line.
  */
 export const bulkReason = (error: unknown): string => {
-  if (error instanceof BackoutConflictError || error instanceof DeploymentConflictError || error instanceof WalkInConflictError || error instanceof InvalidKnnRequestError) return redactSensitiveText(error.message).slice(0, 200);
+  if (
+    error instanceof BackoutConflictError ||
+    error instanceof DeploymentConflictError ||
+    error instanceof WalkInConflictError ||
+    error instanceof InvalidKnnRequestError ||
+    error instanceof ClientReviewNotRequiredError
+  ) {
+    return redactSensitiveText(error.message).slice(0, 200);
+  }
   if (error instanceof Error && error.constructor === Error && error.message) {
     return redactSensitiveText(error.message).slice(0, 200);
   }
@@ -109,7 +120,7 @@ export const bulkRestoreApplications = (ids: number[], reason: string, actor: Ac
  */
 export const bulkRecordInterviews = (
   items: { applicationId: number; interviewId: number }[],
-  input: { result: "PASS" | "NO_SHOW"; notes?: string },
+  input: { result: "PASS" | "NO_SHOW"; notes?: string; autoAdvance?: boolean },
   actor: Actor
 ) => {
   const applicationOf = new Map(items.map((item) => [item.interviewId, item.applicationId]));
@@ -128,6 +139,44 @@ export const bulkRecordInterviews = (
     // A no-show is saved even when the backout step fails, so the row is done but needs a look.
     if (applicationUpdateMessage.includes("Could not record the backout")) {
       return { warning: "Marked as no show, but the application was not closed. Open it to close it." };
+    }
+    if (input.result === "PASS" && input.autoAdvance) {
+      try {
+        const [interview, app] = await Promise.all([
+          prisma.interview.findUnique({ where: { id: interviewId }, select: { type: true } }),
+          prisma.application.findUnique({
+            where: { id: applicationId },
+            select: { status: true, jobPosting: { select: { mrf: { select: { requiresClientReview: true } } } } },
+          }),
+        ]);
+        const type = interview?.type;
+        const status = app?.status;
+        const requiresClientReview = app?.jobPosting?.mrf?.requiresClientReview;
+
+        if (type === "FINAL_INTERVIEW" && status === "FINAL_INTERVIEW") {
+          await updateTAApplicationStatus(applicationId, "COMPLIANCE", actor.id, "Final interview passed.");
+        } else if (type === "INITIAL_SCREENING") {
+          if (requiresClientReview === false && status === "INITIAL_SCREENING") {
+            await updateTAApplicationStatus(
+              applicationId,
+              "FINAL_INTERVIEW",
+              actor.id,
+              "Initial screening passed (client review not required)."
+            );
+          } else if (requiresClientReview !== false && status === "INITIAL_SCREENING") {
+            await recordClientEndorsement(
+              applicationId,
+              undefined,
+              "PENDING",
+              actor.id,
+              input.notes || "Passed initial screening."
+            );
+          }
+        }
+      } catch (err) {
+        // Interview result already saved; surface follow-up transition errors as a row warning.
+        return { warning: bulkReason(err) };
+      }
     }
   });
 };
@@ -169,15 +218,114 @@ export const bulkEndDeployments = (
   actor: Actor
 ) => runBulk(ids, actor, (id) => endEmployeeDeployment(id, actor.id, input), "deployment");
 
-/** Schedules one interview type/location for many applications, each with its own slot. */
+/** Schedules one interview or contract-signing slot/location for many applications, each with its own slot. */
 export const bulkScheduleInterviews = (
   items: { applicationId: number; scheduledAt: string }[],
-  input: { type: "INITIAL_SCREENING" | "FINAL_INTERVIEW"; location?: string },
+  input: { type: "INITIAL_SCREENING" | "FINAL_INTERVIEW" | "CONTRACT_SIGNING"; location?: string },
   actor: Actor
 ) => {
   const scheduledAtOf = new Map(items.map((item) => [item.applicationId, item.scheduledAt]));
   return settle([...scheduledAtOf.keys()], async (applicationId) => {
     await assertOwns("application", applicationId, actor);
-    await scheduleNewInterview(applicationId, input.type, scheduledAtOf.get(applicationId)!, input.location, actor.id);
+    const scheduledAt = scheduledAtOf.get(applicationId)!;
+    if (input.type === "CONTRACT_SIGNING") {
+      await scheduleContractSigning(applicationId, scheduledAt, input.location?.trim() || COMPANY_ADDRESS, actor.id);
+      return;
+    }
+    await scheduleNewInterview(applicationId, input.type, scheduledAt, input.location, actor.id);
   });
 };
+
+const ENDORSEMENT_FALLBACK_NOTE = "Candidate passed initial screening and is endorsed for client review.";
+
+const composeEndorsementNote = async (applicationId: number, explicitNotes?: string): Promise<string> => {
+  const trimmed = explicitNotes?.trim();
+  if (trimmed) return trimmed;
+
+  const app = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: {
+      aiScore: true,
+      candidateScores: {
+        where: { status: { in: ["CALCULATED", "STALE"] } },
+        orderBy: { calculatedAt: "desc" },
+        take: 1,
+        select: { finalFitScore: true },
+      },
+      user: {
+        select: {
+          applicantProfile: {
+            select: {
+              skills: {
+                take: 4,
+                select: { skill: { select: { name: true } } },
+              },
+            },
+          },
+        },
+      },
+      interviews: {
+        where: { type: "INITIAL_SCREENING", result: { in: ["PASS", "PASSED"] }, isActive: true },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { notes: true },
+      },
+    },
+  });
+
+  const rawScore = app?.candidateScores?.[0]?.finalFitScore ?? app?.aiScore;
+  const score = rawScore !== null && rawScore !== undefined ? Number(rawScore) : null;
+  const skills = (app?.user?.applicantProfile?.skills ?? [])
+    .map((entry) => entry.skill?.name?.trim())
+    .filter((name): name is string => Boolean(name))
+    .slice(0, 4);
+  const screeningNotes = app?.interviews?.[0]?.notes?.trim();
+
+  const parts: string[] = [];
+  if (score !== null && Number.isFinite(score)) {
+    const formatted = Number.isInteger(score) ? String(score) : score.toFixed(1);
+    parts.push(`Fit score: ${formatted}%.`);
+  }
+  if (skills.length > 0) {
+    parts.push(`Skills: ${skills.join(", ")}.`);
+  }
+  if (screeningNotes) {
+    parts.push(`Screening: ${screeningNotes}`);
+  }
+  return parts.length > 0 ? parts.join(" ").slice(0, 2000) : ENDORSEMENT_FALLBACK_NOTE;
+};
+
+/** Endorses selected applications to the client, composing a brief pitch from score, skills, and screening notes when no note is provided. */
+export const bulkEndorseApplications = (
+  ids: number[],
+  input: { clientId?: number; notes?: string },
+  actor: Actor
+) =>
+  runBulk(ids, actor, async (id) => {
+    const note = await composeEndorsementNote(id, input.notes);
+    return recordClientEndorsement(id, input.clientId, "PENDING", actor.id, note);
+  });
+
+/** Records a shared client endorsement decision across selected applications, updating the latest endorsement if one exists. */
+export const bulkRecordClientDecision = (
+  ids: number[],
+  input: { outcome: "APPROVED" | "DECLINED"; notes: string },
+  actor: Actor
+) =>
+  runBulk(ids, actor, async (id) => {
+    const latest = await getLatestClientEndorsement(id);
+    if (latest) {
+      return updateClientEndorsement(id, latest.id, input.outcome, actor.id, input.notes);
+    }
+    return recordClientEndorsement(id, undefined, input.outcome, actor.id, input.notes);
+  });
+
+/** Advances compliant applications from Compliance to Contract Signing. */
+export const bulkAdvanceToContractSigning = (ids: number[], actor: Actor) =>
+  runBulk(ids, actor, (id) =>
+    updateTAApplicationStatus(id, "CONTRACT_SIGNING", actor.id, "All mandatory pre-employment requirements approved.")
+  );
+
+/** Confirms that contracts were signed for selected applications with a scheduled contract signing. */
+export const bulkConfirmContractSigned = (ids: number[], actor: Actor) =>
+  runBulk(ids, actor, (id) => confirmContractSigned(id, actor.id));

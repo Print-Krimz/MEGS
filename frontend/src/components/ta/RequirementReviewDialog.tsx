@@ -4,7 +4,7 @@ import { Button, Dialog, Select, Textarea } from "../ui";
 import { DateField } from "../common/DateField";
 import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 import { requirementStatusLabel } from "../../lib/labels";
-import { addManilaCalendarMonths, defaultValidityForLabel, isMedicalRequirementLabel } from "../../lib/compliance-validity";
+import { addManilaCalendarMonths, defaultValidityForLabel, defaultValidityMonthsForLabel, isMedicalRequirementLabel } from "../../lib/compliance-validity";
 import { COMPLIANCE_NOTE_PRESETS } from "../../lib/ta-note-presets";
 import { formatDate } from "../../lib/utils";
 import { useDirtyGuard } from "../../hooks/useDirtyGuard";
@@ -110,6 +110,7 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
   const [validity, setValidity] = useState<RequirementValidity>("UNKNOWN");
   const [followDate, setFollowDate] = useState("");
   const [autoAdvance, setAutoAdvance] = useState(true);
+  const [expiresManuallyEdited, setExpiresManuallyEdited] = useState(false);
 
   const selected = useMemo(
     () => requirements.find((r) => r.id === selectedId) ?? null,
@@ -132,6 +133,7 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
     setValidity(req?.validityStatus || "UNKNOWN");
     setFollowDate(req?.toFollowExpectedAt ? toManilaDateInput(req.toFollowExpectedAt) : "");
     setAutoAdvance(true);
+    setExpiresManuallyEdited(false);
   };
 
   // Load the starting requirement each time the dialog opens.
@@ -146,6 +148,7 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
   const awaitingCopy = isAwaitingUpdatedCopy(selected);
   const isMedical = isMedicalRequirementLabel(selected?.documentLabel);
   const effectiveMedicalMonths = medicalValidityMonths ?? 6;
+  const defaultValidityMonths = defaultValidityMonthsForLabel(selected?.documentLabel, effectiveMedicalMonths);
   const autoCalculatedExpiry =
     isMedical && validity === "HAS_EXPIRY" && issuedAt && !expiresAt
       ? addManilaCalendarMonths(issuedAt, effectiveMedicalMonths)
@@ -253,7 +256,17 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
           const next = e.target.value as RequirementDecision | "";
           setDecision(next);
           if (next === "APPROVED" && validity === "UNKNOWN" && selected) {
-            setValidity(defaultValidityForLabel(selected.documentLabel));
+            const nextValidity = defaultValidityForLabel(selected.documentLabel);
+            setValidity(nextValidity);
+            if (
+              nextValidity === "HAS_EXPIRY" &&
+              issuedAt &&
+              !expiresAt &&
+              defaultValidityMonths !== null &&
+              !expiresManuallyEdited
+            ) {
+              setExpiresAt(addManilaCalendarMonths(issuedAt, defaultValidityMonths));
+            }
           }
         }}
         options={decisionOptions}
@@ -265,12 +278,33 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
             label="Issue date (if shown)"
             value={issuedAt}
             max={getManilaToday()}
-            onChange={(e) => setIssuedAt(e.target.value)}
+            onChange={(e) => {
+              const nextIssuedAt = e.target.value;
+              setIssuedAt(nextIssuedAt);
+              if (defaultValidityMonths !== null && !expiresManuallyEdited) {
+                if (validity === "UNKNOWN") {
+                  setValidity("HAS_EXPIRY");
+                }
+                setExpiresAt(nextIssuedAt ? addManilaCalendarMonths(nextIssuedAt, defaultValidityMonths) : "");
+              }
+            }}
           />
           <Select
             label="Document validity"
             value={validity}
-            onChange={(e) => setValidity(e.target.value as RequirementValidity)}
+            onChange={(e) => {
+              const nextValidity = e.target.value as RequirementValidity;
+              setValidity(nextValidity);
+              if (
+                nextValidity === "HAS_EXPIRY" &&
+                issuedAt &&
+                !expiresAt &&
+                defaultValidityMonths !== null &&
+                !expiresManuallyEdited
+              ) {
+                setExpiresAt(addManilaCalendarMonths(issuedAt, defaultValidityMonths));
+              }
+            }}
             options={[
               { value: "UNKNOWN", label: "Choose…" },
               { value: "HAS_EXPIRY", label: "Has an expiry date" },
@@ -282,12 +316,21 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
               label="Expiry date"
               value={expiresAt}
               min={issuedAt || undefined}
-              onChange={(e) => setExpiresAt(e.target.value)}
+              onChange={(e) => {
+                setExpiresAt(e.target.value);
+                setExpiresManuallyEdited(Boolean(e.target.value));
+              }}
               required={!(isMedical && Boolean(issuedAt))}
               help={
                 autoCalculatedExpiry
                   ? `If left blank, expires ${formatDate(autoCalculatedExpiry)} (${effectiveMedicalMonths} months from issue date).`
-                  : undefined
+                  : defaultValidityMonths !== null &&
+                      Boolean(issuedAt) &&
+                      Boolean(expiresAt) &&
+                      !expiresManuallyEdited &&
+                      expiresAt === addManilaCalendarMonths(issuedAt, defaultValidityMonths)
+                    ? `Calculated ${defaultValidityMonths} months from issue date. Edit if the document shows a different date.`
+                    : undefined
               }
             />
           )}

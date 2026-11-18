@@ -363,6 +363,7 @@ export interface TAApplicationSummary {
   trackingCode?: string | null;
   hasPortalAccess?: boolean;
   status: ApplicationStatus;
+  contractSigned?: boolean;
   isArchived: boolean;
   returning?: ReturningWorkerInfo | null;
   /** Deployment statuses; lets the list mark a deployed row whose assignments have all ended. */

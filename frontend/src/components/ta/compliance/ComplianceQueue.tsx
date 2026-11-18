@@ -6,6 +6,7 @@ import {
   Pagination,
   SearchFilters,
   type DataTableColumn,
+  type DataTableProps,
   type DataTableSort,
 } from "../../common";
 import type { FilterConfig } from "../../common/SearchFilters";
@@ -48,6 +49,10 @@ export interface ComplianceQueueProps {
   onPageSizeChange?: (pageSize: number) => void;
   itemLabel: string;
   isFetching?: boolean;
+  /** Optional row selection configuration passed to DataTable. */
+  selection?: DataTableProps<Application>["selection"];
+  /** Optional bulk action bar rendered above the table. */
+  bulkBar?: React.ReactNode;
   /** Optional action rendered for cleared candidates (zero open requirements). */
   renderClearedAction?: (app: Application) => React.ReactNode;
 }
@@ -82,6 +87,8 @@ export const ComplianceQueue: React.FC<ComplianceQueueProps> = ({
   onPageSizeChange,
   itemLabel,
   isFetching,
+  selection,
+  bulkBar,
   renderClearedAction: _renderClearedAction,
 }) => (
   <div className="space-y-4">
@@ -111,6 +118,8 @@ export const ComplianceQueue: React.FC<ComplianceQueueProps> = ({
       onReset={onReset}
     />
 
+    {bulkBar}
+
     <DataTable
       caption={caption}
       columns={columns}
@@ -121,6 +130,7 @@ export const ComplianceQueue: React.FC<ComplianceQueueProps> = ({
       sort={sort}
       onSortChange={onSortChange}
       isFetching={isFetching}
+      selection={selection}
       empty={empty}
       footer={
         <Pagination

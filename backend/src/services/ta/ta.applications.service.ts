@@ -383,6 +383,7 @@ export const listTAApplications = async (
     const summarySelect = {
       id: true,
       status: true,
+      contractSigned: true,
       aiScore: true,
       isArchived: true,
       createdAt: true,
@@ -394,7 +395,15 @@ export const listTAApplications = async (
           id: true,
           title: true,
           location: true,
-          mrf: { select: { id: true, title: true, clientId: true, client: { select: { id: true, name: true } } } },
+          mrf: {
+            select: {
+              id: true,
+              title: true,
+              clientId: true,
+              requiresClientReview: true,
+              client: { select: { id: true, name: true } },
+            },
+          },
         },
       },
       user: {
@@ -1269,8 +1278,8 @@ const parseContractStartDate = (value: string | undefined) => {
   return parseManilaDateOnly(startDate);
 };
 
-// Optional printable copy: name, position and start date prefilled; the daily rate is written by hand.
-export const getContractPdf = async (applicationId: number, startDateInput?: string) => {
+// Optional printable copy: name, position and start date prefilled; the daily rate is written by hand unless provided.
+export const getContractPdf = async (applicationId: number, startDateInput?: string, dailyRate?: number) => {
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
     select: {
@@ -1294,6 +1303,7 @@ export const getContractPdf = async (applicationId: number, startDateInput?: str
     issueDate: new Date(),
     startDate,
     position: application.jobPosting?.title || "",
+    ...(dailyRate !== undefined && Number.isFinite(dailyRate) ? { dailyRate } : {}),
   });
   return { buffer, fileName: `MEGS-Contract-${applicationId}.pdf` };
 };

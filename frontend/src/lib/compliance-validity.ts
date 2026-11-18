@@ -3,6 +3,16 @@ import type { RequirementValidity } from "../components/ta/RequirementReviewDial
 export const isMedicalRequirementLabel = (label?: string | null): boolean =>
   Boolean(label) && !/phil\s*health/i.test(label!) && /\bmedical\b|\bfit\s+to\s+work\b|\bhealth\b/i.test(label!);
 
+export const defaultValidityMonthsForLabel = (
+  label?: string | null,
+  medicalValidityMonths = 6,
+): number | null => {
+  if (isMedicalRequirementLabel(label)) return medicalValidityMonths;
+  if (/\bnbi\b|\bdrug\s*test\b/i.test(label ?? "")) return 12;
+  if (/\bpolice\b|\bbarangay\b/i.test(label ?? "")) return 6;
+  return null;
+};
+
 export const defaultValidityForLabel = (label?: string | null): RequirementValidity => {
   if (!label) return "UNKNOWN";
   const text = label.trim().toLowerCase();

@@ -23,6 +23,8 @@ import { cn, formatDate, getDeploymentStatusMeta } from "../../lib/utils";
 import { DeploymentStatus, ALLOWED_DEPLOYMENT_TRANSITIONS } from "../../lib/types/enums";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
+import { CONFIRM_START_NOTE_PRESETS } from "../../lib/ta-note-presets";
+import { QuickNoteChips } from "../../components/ta/QuickNoteChips";
 import { EndAssignmentDialog } from "../../components/ta/EndAssignmentDialog";
 import { PersonCell, StatusWithAge, WorkforceCard } from "../../components/ta/workforce/WorkforceRow";
 import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
@@ -202,6 +204,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
   const openConfirmStart = (dep: DeploymentRow) => {
     setStatusModalDeployment({ id: dep.id, currentStatus: dep.status });
     setNewStatus(DeploymentStatus.ACTIVE);
+    setStatusNotes("");
     setActualStart(ownStartDate(dep));
   };
 
@@ -516,6 +519,13 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
                 : []
             }
           />}
+          {newStatus === DeploymentStatus.ACTIVE && (
+            <QuickNoteChips
+              presets={CONFIRM_START_NOTE_PRESETS}
+              currentValue={statusNotes}
+              onSelect={setStatusNotes}
+            />
+          )}
           <Textarea
             label="Notes (optional)"
             placeholder="Add a reason or note for this change..."

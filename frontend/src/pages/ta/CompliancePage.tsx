@@ -3,7 +3,17 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ShieldCheck } from "lucide-react";
 import { taApi } from "../../lib/api/ta.api";
-import { PageHeader, LoadingState, ErrorState, EmptyState, ConfirmDialog, type DataTableColumn, type DataTableSort } from "../../components/common";
+import {
+  PageHeader,
+  LoadingState,
+  ErrorState,
+  EmptyState,
+  ConfirmDialog,
+  BulkActionBar,
+  BulkResultDialog,
+  type DataTableColumn,
+  type DataTableSort,
+} from "../../components/common";
 import type { FilterConfig } from "../../components/common/SearchFilters";
 import { Button } from "../../components/ui";
 import {
@@ -17,6 +27,8 @@ import type { RequirementReviewValues } from "../../components/ta/RequirementRev
 import { formatDate, displayEmail } from "../../lib/utils";
 import { ApplicationStatus } from "../../lib/types/enums";
 import type { Application } from "../../lib/types";
+import type { BulkSummary } from "../../lib/types/application.types";
+import { useRowSelection } from "../../hooks/useRowSelection";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
 import { plural } from "../../lib/plural";
@@ -144,6 +156,15 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
     return parsed === 10 || parsed === 25 || parsed === 50 ? parsed : PAGE_SIZE;
   });
   const [confirmAdvanceApp, setConfirmAdvanceApp] = useState<Application | null>(null);
+  const [bulkResult, setBulkResult] = useState<{
+    title: string;
+    summary: BulkSummary;
+    names: Record<number, string>;
+  } | null>(null);
+
+  const selection = useRowSelection(
+    JSON.stringify([queuePage, pageSize, search, jobTitleFilter, clientFilter, statusFilter, sort])
+  );
 
   const review = useComplianceReviewSession("pre");
 
@@ -238,6 +259,9 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
   }, [filteredApps, sort]);
 
   const pagedApps = sortedApps.slice((queuePage - 1) * pageSize, queuePage * pageSize);
+  const selectedRows = pagedApps.filter(
+    (app) => selection.selectedIds.has(String(app.id)) && isCleared(getComplianceCounts(app))
+  );
 
   const handleReset = () => {
     setSearch("");
@@ -247,6 +271,33 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
     setQueuePage(1);
     syncUrl({ q: undefined, jobTitle: undefined, clientId: undefined, status: undefined, page: undefined });
   };
+
+  const bulkAdvanceMutation = useMutation({
+    mutationFn: (rows: Application[]) =>
+      taApi.bulkAdvanceToContractSigning({ ids: rows.map((app) => app.id) }),
+    onSuccess: (summary, rows) => {
+      queryClient.invalidateQueries({ queryKey: ["ta"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "analytics", "compliance"] });
+      selection.remove(summary.results.filter((row) => row.ok).map((row) => String(row.id)));
+      const title = "Move to contract signing";
+      if (summary.failed > 0 || summary.results.some((row) => row.reason)) {
+        setBulkResult({
+          title,
+          summary,
+          names: Object.fromEntries(rows.map((app) => [app.id, candidateNameOf(app)])),
+        });
+      } else {
+        notify.success(
+          "Stage updated",
+          `${summary.succeeded} ${summary.succeeded === 1 ? "candidate" : "candidates"} moved to Contract signing.`
+        );
+      }
+    },
+    onError: (err: unknown) => {
+      notify.error("Unable to move candidates", err);
+    },
+  });
 
   const advanceMutation = useMutation({
     mutationFn: (appId: number) =>
@@ -476,6 +527,24 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
           rows={pagedApps}
           renderCard={renderCard}
           renderClearedAction={(app) => clearedButton(app)}
+          selection={{
+            selectedIds: selection.selectedIds,
+            onChange: selection.setSelectedIds,
+            rowLabel: (app) => `Select ${candidateNameOf(app)}`,
+            isRowSelectable: (app) => isCleared(getComplianceCounts(app)),
+          }}
+          bulkBar={
+            <BulkActionBar count={selectedRows.length} onClear={selection.clear}>
+              <Button
+                size="sm"
+                variant="primary"
+                loading={bulkAdvanceMutation.isPending}
+                onClick={() => bulkAdvanceMutation.mutate(selectedRows)}
+              >
+                Move to contract signing
+              </Button>
+            </BulkActionBar>
+          }
           sort={sort}
           onSortChange={(next) => {
             setSort(next);
@@ -539,6 +608,14 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
         }
         confirmLabel="Move to contract signing"
         loading={advanceMutation.isPending}
+      />
+
+      <BulkResultDialog
+        open={Boolean(bulkResult)}
+        onClose={() => setBulkResult(null)}
+        title={bulkResult?.title ?? ""}
+        summary={bulkResult?.summary ?? null}
+        labelFor={(id) => bulkResult?.names[id] ?? `Application ${id}`}
       />
     </div>
   );

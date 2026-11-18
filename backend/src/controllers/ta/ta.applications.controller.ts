@@ -225,7 +225,7 @@ export const restoreApplication = async (req: Request, res: Response): Promise<v
 
 const contractStatusCode = (message: string) => (message.includes("not found") ? 404 : 400);
 
-// GET /api/ta/applications/:id/contract/pdf - Optional printable copy (rate left blank)
+// GET /api/ta/applications/:id/contract/pdf - Optional printable copy (rate left blank unless provided)
 export const downloadContractPdfHandler = async (req: Request, res: Response): Promise<void> => {
   try {
     const id = parseInt(req.params.id as string, 10);
@@ -234,7 +234,18 @@ export const downloadContractPdfHandler = async (req: Request, res: Response): P
       return;
     }
     const startDate = typeof req.query.startDate === "string" ? req.query.startDate : undefined;
-    const { buffer, fileName } = await getContractPdf(id, startDate);
+    const rawDailyRate = req.query.dailyRate;
+    const dailyRate =
+      typeof rawDailyRate === "number"
+        ? rawDailyRate
+        : typeof rawDailyRate === "string" && rawDailyRate.trim() !== ""
+          ? Number(rawDailyRate)
+          : undefined;
+    const { buffer, fileName } = await getContractPdf(
+      id,
+      startDate,
+      dailyRate !== undefined && Number.isFinite(dailyRate) ? dailyRate : undefined
+    );
     res.setHeader("Content-Type", "application/pdf");
     res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
     res.send(buffer);

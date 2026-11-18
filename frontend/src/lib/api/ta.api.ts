@@ -346,13 +346,26 @@ export const taApi = {
     items: { applicationId: number; interviewId: number }[];
     result: "PASS" | "NO_SHOW";
     notes?: string;
+    autoAdvance?: boolean;
   }) => api.post<BulkSummary>("/api/ta/bulk/interviews/result", data),
 
   bulkScheduleInterviews: (data: {
     items: { applicationId: number; scheduledAt: string }[];
-    type: "INITIAL_SCREENING" | "FINAL_INTERVIEW";
+    type: "INITIAL_SCREENING" | "FINAL_INTERVIEW" | "CONTRACT_SIGNING";
     location?: string;
   }) => api.post<BulkSummary>("/api/ta/bulk/interviews/schedule", data),
+
+  bulkEndorseApplications: (data: { ids: number[]; clientId?: number; notes?: string }) =>
+    api.post<BulkSummary>("/api/ta/bulk/applications/endorse", data),
+
+  bulkRecordClientDecision: (data: { ids: number[]; outcome: "APPROVED" | "DECLINED"; notes: string }) =>
+    api.post<BulkSummary>("/api/ta/bulk/applications/client-decision", data),
+
+  bulkAdvanceToContractSigning: (data: { ids: number[] }) =>
+    api.post<BulkSummary>("/api/ta/bulk/applications/advance-contract-signing", data),
+
+  bulkConfirmContractSigned: (data: { ids: number[] }) =>
+    api.post<BulkSummary>("/api/ta/bulk/applications/confirm-contract-signed", data),
 
   bulkDismissCheckIns: (data: { ids: number[]; reason: string }) =>
     api.post<BulkSummary>("/api/ta/bulk/check-ins/dismiss", data),
@@ -373,7 +386,13 @@ export const taApi = {
   getRecruiterDecisions: (id: number | string) =>
     api.get<RecruiterDecision[]>(`/api/ta/applications/${id}/decisions`),
 
-  getContractPdf: (id: number | string): Promise<Blob> => api.blob(`/api/ta/applications/${id}/contract/pdf`),
+  getContractPdf: (id: number | string, params?: { startDate?: string; dailyRate?: number }): Promise<Blob> => {
+    const qs = new URLSearchParams();
+    if (params?.startDate) qs.append("startDate", params.startDate);
+    if (params?.dailyRate !== undefined) qs.append("dailyRate", String(params.dailyRate));
+    const query = qs.toString();
+    return api.blob(`/api/ta/applications/${id}/contract/pdf${query ? `?${query}` : ""}`);
+  },
 
   uploadContractDocument: (id: number | string, file: File) => {
     const formData = new FormData();

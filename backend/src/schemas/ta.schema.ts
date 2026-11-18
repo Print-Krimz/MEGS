@@ -322,6 +322,7 @@ export const taSchema = {
       // Fail needs a note per candidate, so it stays one by one.
       result: z.enum(["PASS", "NO_SHOW"]),
       notes: requiredText("Notes", FIELD_LIMITS.notes),
+      autoAdvance: z.boolean().optional(),
     }),
   }),
   bulkScheduleInterviews: z.object({
@@ -330,9 +331,26 @@ export const taSchema = {
         .array(z.object({ applicationId: idValue, scheduledAt: scheduleDateTime }))
         .min(1, "Select at least one application")
         .max(BULK_MAX_IDS, `Select at most ${BULK_MAX_IDS} applications at a time`),
-      type: z.enum(["INITIAL_SCREENING", "FINAL_INTERVIEW"]),
+      type: z.enum(["INITIAL_SCREENING", "FINAL_INTERVIEW", "CONTRACT_SIGNING"]),
       location: boundedText(FIELD_LIMITS.address).optional(),
     }),
+  }),
+  bulkEndorseApplications: z.object({
+    body: z.object({
+      ids: bulkIds,
+      clientId: idValue.optional(),
+      notes: boundedText(FIELD_LIMITS.notes).optional(),
+    }).strict(),
+  }),
+  bulkClientDecision: z.object({
+    body: z.object({
+      ids: bulkIds,
+      outcome: z.enum(["APPROVED", "DECLINED"]),
+      notes: requiredText("Notes", FIELD_LIMITS.notes),
+    }).strict(),
+  }),
+  bulkApplicationIds: z.object({
+    body: z.object({ ids: bulkIds }).strict(),
   }),
   scheduleInterview: z.object({
     params: z.object({ id: boundedIdText }),
@@ -421,7 +439,10 @@ export const taSchema = {
   }),
   downloadContractPdf: z.object({
     params: z.object({ id: boundedIdText }),
-    query: z.object({ startDate: dateOnly.optional() }).strict(),
+    query: z.object({
+      startDate: dateOnly.optional(),
+      dailyRate: finiteNumber({ min: 0, max: 1_000_000, decimals: 2 }).optional(),
+    }).strict(),
   }),
   deployApplicant: z.object({
     params: z.object({ id: boundedIdText }),

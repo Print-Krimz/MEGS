@@ -7,7 +7,17 @@ import { PageHeader, ConfirmDialog, DateField, SelectBox } from "../../component
 import { MRFCreateSummary, MRFStepList, type MRFStep } from "../../components/ta/recruitment/MRFCreateSummary";
 import { MRFFileReviewDialog, type MRFFileReviewRow } from "../../components/ta/MRFFileReviewDialog";
 import { cn } from "../../lib/utils";
-import { Button, Input, Select, Textarea, ComboBox } from "../../components/ui";
+import { Button, Dialog, Input, Select, Textarea, ComboBox } from "../../components/ui";
+import {
+  ClientFields,
+  CLIENT_INLINE_FIELDS,
+  emptyClientDraft,
+  errorKeysFor,
+  toCreateClientDto,
+  validateClientDraft,
+  withoutErrors,
+  type ClientDraft,
+} from "../../components/ta/client/ClientFields";
 import { notify, formatErrorMessage, fieldErrorsFrom } from "../../lib/feedback";
 import {
   EMPLOYMENT_TYPE_OPTIONS,
@@ -177,6 +187,10 @@ export const MRFCreatePage: React.FC = () => {
   const [requestReasonNote, setRequestReasonNote] = useState("");
   /** Company named on the file when it matched none of the TA's clients. */
   const [unmatchedCompany, setUnmatchedCompany] = useState<string | null>(null);
+  const [addClientOpen, setAddClientOpen] = useState(false);
+  const [clientDraft, setClientDraft] = useState<ClientDraft>(emptyClientDraft);
+  const [clientDraftErrors, setClientDraftErrors] = useState<Record<string, string>>({});
+  const clientNameInputRef = useRef<HTMLInputElement>(null);
   const [requiresClientReview, setRequiresClientReview] = useState(true);
   const [jobAction, setJobAction] = useState<"NONE" | "OPEN" | "DRAFT">("NONE");
   const [isEvergreen, setIsEvergreen] = useState(false);
@@ -346,6 +360,35 @@ export const MRFCreatePage: React.FC = () => {
       const formatted = formatErrorMessage(err);
       setValidationError("Unable to create this manpower request: " + formatted);
       notify.error("Unable to create request", err);
+    },
+  });
+
+  const createClientMutation = useMutation({
+    mutationFn: (dto: Parameters<typeof taApi.createClient>[0]) => taApi.createClient(dto),
+    onSuccess: async (created) => {
+      await queryClient.invalidateQueries({ queryKey: ["ta", "clients"] });
+      setClientId(created.id);
+      clearServerFieldError("clientId");
+      const workLocation = clientWorkLocation(created);
+      if (workLocation && (!location || location === "Philippines")) {
+        setLocation(workLocation);
+      }
+      setUnmatchedCompany(null);
+      setAddClientOpen(false);
+      setClientDraft(emptyClientDraft);
+      setClientDraftErrors({});
+      notify.success("Client added", `Client '${created.name}' was registered.`);
+    },
+    onError: (err: any) => {
+      const fieldErrors = fieldErrorsFrom(err);
+      const entries = Object.entries(fieldErrors);
+      if (entries.length > 0) {
+        setClientDraftErrors(fieldErrors);
+        const toastEntry = entries.find(([field]) => !CLIENT_INLINE_FIELDS.includes(field)) ?? entries[0];
+        notify.error("Check the highlighted fields", toastEntry[1]);
+        return;
+      }
+      notify.error("Unable to add client", err);
     },
   });
 
@@ -840,7 +883,21 @@ export const MRFCreatePage: React.FC = () => {
                   required
                 />
                 {unmatchedCompany && !clientId && (
-                  <p className="text-xs text-slate-600">The form names {unmatchedCompany}, which isn't one of your clients.</p>
+                  <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                    <p className="text-xs text-slate-600">The form names {unmatchedCompany}, which isn't one of your clients.</p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setClientDraft({ ...emptyClientDraft, name: unmatchedCompany });
+                        setClientDraftErrors({});
+                        setAddClientOpen(true);
+                      }}
+                    >
+                      {`Add "${unmatchedCompany}" as client`}
+                    </Button>
+                  </div>
                 )}
               </div>
               <div className="space-y-1.5">
@@ -1527,6 +1584,67 @@ export const MRFCreatePage: React.FC = () => {
         cancelLabel="Keep my entries"
         variant="warning"
       />
+
+      <Dialog
+        open={addClientOpen}
+        onClose={() => {
+          if (createClientMutation.isPending) return;
+          setAddClientOpen(false);
+          setClientDraftErrors({});
+        }}
+        title="Add client"
+        description="Register the company and its main contact details."
+        size="xl"
+      >
+        <form
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault();
+            const found = validateClientDraft(clientDraft);
+            const first = Object.entries(found)[0];
+            if (first) {
+              setClientDraftErrors(found);
+              if (!clientDraft.name.trim()) {
+                clientNameInputRef.current?.focus();
+              }
+              notify.error("Check the highlighted fields", first[1]);
+              return;
+            }
+            createClientMutation.mutate(toCreateClientDto(clientDraft));
+          }}
+          className="space-y-5"
+        >
+          <ClientFields
+            idPrefix="mrf-add-client"
+            value={clientDraft}
+            errors={clientDraftErrors}
+            nameRef={clientNameInputRef}
+            disabled={createClientMutation.isPending}
+            onChange={(patch) => {
+              setClientDraft((prev) => ({ ...prev, ...patch }));
+              setClientDraftErrors((prev) => withoutErrors(prev, errorKeysFor(patch)));
+            }}
+          />
+
+          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={createClientMutation.isPending}
+              onClick={() => {
+                setAddClientOpen(false);
+                setClientDraftErrors({});
+              }}
+            >
+              Cancel
+            </Button>
+            <Button variant="primary" size="sm" type="submit" loading={createClientMutation.isPending}>
+              Add client
+            </Button>
+          </div>
+        </form>
+      </Dialog>
 
       {discardDialog}
     </div>

@@ -130,3 +130,32 @@ export const DEPLOYMENT_NOTE_PRESETS: readonly NotePreset[] = [
   { label: "Report to site supervisor", text: "Report to client site supervisor on shift start." },
   { label: "Confirmed first day", text: "Confirmed first working day and reporting instructions." },
 ];
+
+export const CLIENT_DECISION_PRESETS = {
+  APPROVED: [
+    { label: "Approved for final interview", text: "Client approved the candidate for the final interview." },
+    { label: "Shortlisted by hiring manager", text: "Shortlisted by client hiring manager after profile review." },
+  ],
+  DECLINED: [
+    { label: "Selected another candidate", text: "Client selected another candidate for this opening." },
+    { label: "Did not match criteria", text: "Candidate profile did not match client requirements." },
+    { label: "Headcount on hold", text: "Client placed this headcount on hold." },
+  ],
+} as const satisfies Record<"APPROVED" | "DECLINED", readonly NotePreset[]>;
+
+export const DISMISS_CHECKIN_PRESETS: readonly NotePreset[] = [
+  { label: "Left office before turn", text: "Candidate left the office before being called for their turn." },
+  { label: "Duplicate check-in", text: "Duplicate walk-in check-in for an active candidate." },
+  { label: "Applied online instead", text: "Candidate applied online instead." },
+  { label: "Did not meet age or ID requirement", text: "Candidate did not meet the minimum age or valid ID requirement." },
+];
+
+export const CONFIRM_START_NOTE_PRESETS: readonly NotePreset[] = [
+  { label: "Reported on site", text: "Candidate reported on site for their scheduled start." },
+  { label: "Confirmed with site supervisor", text: "Confirmed candidate start with the client site supervisor." },
+];
+
+export const AGREEMENT_UPDATE_PRESETS: readonly NotePreset[] = [
+  { label: "Extended per client request", text: "Deployment agreement extended per client request." },
+  { label: "Updated schedule or site terms", text: "Updated deployment schedule or site terms." },
+];

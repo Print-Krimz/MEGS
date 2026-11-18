@@ -10,6 +10,18 @@ import { PIPELINE_STAGE_ORDER, assertRequirementStage } from "./pipeline-rules.j
 export const isMedicalDocumentLabel = (label: string | null | undefined): boolean =>
   Boolean(label) && !/phil\s*health/i.test(label!) && /\bmedical\b|\bfit\s+to\s+work\b|\bhealth\b/i.test(label!);
 
+/** Standard clearance validity periods in months for medical and common Philippine clearances. */
+export const standardClearanceValidityMonths = (
+  label: string | null | undefined,
+  clientMedicalMonths = 6
+): number | null => {
+  if (!label) return null;
+  if (isMedicalDocumentLabel(label)) return clientMedicalMonths;
+  if (/\bnbi\b|\bdrug\s*test\b/i.test(label)) return 12;
+  if (/\bpolice\b|\bbarangay\b/i.test(label)) return 6;
+  return null;
+};
+
 /** Adds calendar months on the Manila date, clamping the day (Jan 31 + 1 month = Feb 28/29). Returns Manila 00:00. */
 export const addManilaMonths = (from: Date, months: number): Date => {
   const [year, month, day] = manilaDateString(from).split("-").map(Number);
@@ -289,12 +301,22 @@ export const reviewComplianceRequirement = async (
   if (validityStatus === "NO_EXPIRY") calculatedExpiresAt = null;
 
   const isMedicalDoc = isMedicalDocumentLabel(requirement.documentLabel);
+  const clientMedicalMonths = requirement.application?.jobPosting?.mrf?.client?.medicalValidityMonths ?? 6;
+  const stdMonths = standardClearanceValidityMonths(requirement.documentLabel, clientMedicalMonths);
 
   if (reviewStatus === "APPROVED" && !expiresAt && isMedicalDoc && validityStatus !== "NO_EXPIRY") {
     if (!issuedAt) throw new Error("Enter the issue date so the medical document’s validity can be calculated.");
-    const validityMonths =
-      requirement.application?.jobPosting?.mrf?.client?.medicalValidityMonths ?? 6;
-    calculatedExpiresAt = addManilaMonths(resolvedIssuedAt!, validityMonths);
+    calculatedExpiresAt = addManilaMonths(resolvedIssuedAt!, stdMonths!);
+    resolvedValidityStatus = "HAS_EXPIRY";
+  } else if (
+    reviewStatus === "APPROVED" &&
+    !expiresAt &&
+    !isMedicalDoc &&
+    stdMonths !== null &&
+    validityStatus !== "NO_EXPIRY" &&
+    resolvedIssuedAt
+  ) {
+    calculatedExpiresAt = addManilaMonths(resolvedIssuedAt, stdMonths);
     resolvedValidityStatus = "HAS_EXPIRY";
   }
 

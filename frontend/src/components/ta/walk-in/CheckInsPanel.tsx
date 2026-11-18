@@ -13,6 +13,8 @@ import {
 } from "../../common";
 import { useRowSelection } from "../../../hooks/useRowSelection";
 import { notify } from "../../../lib/feedback";
+import { DISMISS_CHECKIN_PRESETS } from "../../../lib/ta-note-presets";
+import { QuickNoteChips } from "../QuickNoteChips";
 import { EncodeWalkInDialog } from "./EncodeWalkInDialog";
 import type { BulkSummary, CheckInDetail, CheckInSummary, WalkInSlip } from "../../../lib/types/application.types";
 
@@ -203,6 +205,7 @@ export const CheckInsPanel: React.FC<CheckInsPanelProps> = ({ onConfirmed }) => 
         submitLabel={`Dismiss ${selectedItems.length}`}
         loading={bulkMutation.isPending}
         maxLength={REASON_MAX}
+        presets={DISMISS_CHECKIN_PRESETS}
         onSubmit={(reason) => bulkMutation.mutate({ items: selectedItems, reason })}
       />
       <BulkResultDialog
@@ -225,6 +228,14 @@ export const CheckInsPanel: React.FC<CheckInsPanelProps> = ({ onConfirmed }) => 
         size="sm"
       >
         <form onSubmit={submitDismiss} noValidate className="space-y-4">
+          <QuickNoteChips
+            presets={DISMISS_CHECKIN_PRESETS}
+            currentValue={reason}
+            onSelect={(text) => {
+              setReason(text);
+              if (reasonError) setReasonError("");
+            }}
+          />
           <Textarea
             id="check-in-dismiss-reason"
             label="Reason"
