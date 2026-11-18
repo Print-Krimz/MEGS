@@ -4,7 +4,13 @@ import { Button, Dialog, Input, DateTimePicker, dateTimeLocalToManilaIso, isWork
 import { notify } from "../../../lib/feedback";
 import { InterviewType } from "../../../lib/types/enums";
 import { COMPANY_ADDRESS, OFFICE_HOURS_MESSAGE, OFFICE_HOURS_SHORT } from "../../../lib/business-hours";
-import { getRememberedInterviewLocation, rememberInterviewLocation } from "../../../lib/schedule-location";
+import {
+  getRememberedInterviewLocation,
+  isManagedDailyRoomUrl,
+  rememberInterviewLocation,
+} from "../../../lib/schedule-location";
+import type { InterviewMeetingMode } from "../../../lib/types/ta.types";
+import { InterviewFormatPicker, type InterviewFormatMode } from "../InterviewFormatPicker";
 
 /** What is being scheduled: an interview round, or the contract signing appointment. */
 export type ScheduleActivity = InterviewType | "CONTRACT_SIGNING";
@@ -31,7 +37,14 @@ export interface ScheduleInterviewDialogProps {
   clientAddress?: string | null;
   /** Optional job site location for 1-click site chip. */
   jobLocation?: string | null;
-  onSubmit: (values: { type: ScheduleActivity; scheduledAt: string; location?: string }) => void;
+  /** True when the server can auto-provision Daily.co rooms for Initial Screening. */
+  autoOnlineMeetingEnabled?: boolean;
+  onSubmit: (values: {
+    type: ScheduleActivity;
+    scheduledAt: string;
+    location?: string;
+    meetingMode?: InterviewMeetingMode;
+  }) => void;
   isSubmitting?: boolean;
 }
 
@@ -51,26 +64,30 @@ export const ScheduleInterviewDialog: React.FC<ScheduleInterviewDialogProps> = (
   initialLocation = "",
   clientAddress,
   jobLocation,
+  autoOnlineMeetingEnabled = false,
   onSubmit,
   isSubmitting = false,
 }) => {
   const isContract = type === "CONTRACT_SIGNING";
+  const isInitial = type === InterviewType.INITIAL_SCREENING;
   const [date, setDate] = useState(initialDate);
   const [location, setLocation] = useState(initialLocation || (isContract ? COMPANY_ADDRESS : ""));
   const [rememberedLocation, setRememberedLocation] = useState("");
+  const [formatMode, setFormatMode] = useState<InterviewFormatMode>("MANUAL");
 
   // Start from the values the caller passes each time the dialog opens.
   useEffect(() => {
     if (!open) return;
     const saved = getRememberedInterviewLocation();
+    const startAutoOnline = isInitial && autoOnlineMeetingEnabled && isManagedDailyRoomUrl(initialLocation);
     setRememberedLocation(saved);
     setDate(initialDate);
+    setFormatMode(startAutoOnline ? "ONLINE_AUTO" : "MANUAL");
     setLocation(initialLocation || (isContract ? COMPANY_ADDRESS : !isReschedule ? saved : ""));
     // Only reopening resets the form.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const isInitial = type === InterviewType.INITIAL_SCREENING;
   const noun = isContract ? "contract signing" : isInitial ? "interview" : "final interview";
   const scheduledAt = date ? dateTimeLocalToManilaIso(date) : "";
   // The first reason Save is off, shown next to the button so a disabled button is never a mystery.
@@ -95,6 +112,10 @@ export const ScheduleInterviewDialog: React.FC<ScheduleInterviewDialogProps> = (
     }
     if (!isWorkingHoursIso(date)) {
       notify.error("Outside office hours", OFFICE_HOURS_MESSAGE);
+      return;
+    }
+    if (isInitial && formatMode === "ONLINE_AUTO") {
+      onSubmit({ type, scheduledAt, meetingMode: "ONLINE_AUTO" });
       return;
     }
     const place = location.trim();
@@ -165,36 +186,50 @@ export const ScheduleInterviewDialog: React.FC<ScheduleInterviewDialogProps> = (
           workingHoursOnly
           helperText={OFFICE_HOURS_SHORT}
         />
-        <div className="space-y-2">
-          <Input
-            label="Location or meeting link"
-            placeholder={isContract ? undefined : "e.g. Google Meet link or room number"}
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            maxLength={LOCATION_MAX}
-            required={isContract}
+        {isInitial && (
+          <InterviewFormatPicker
+            mode={formatMode}
+            onChange={setFormatMode}
+            autoOnlineEnabled={autoOnlineMeetingEnabled}
+            autoNote={
+              isReschedule && isManagedDailyRoomUrl(initialLocation)
+                ? "Your existing video link will stay active and update to the new time. A calendar invite will be emailed automatically."
+                : "A private video link and calendar invite will be created and emailed automatically."
+            }
           />
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Quick locations">
-            {locationChips.map((chip) => {
-              const active = location.trim() === chip.value;
-              return (
-                <button
-                  key={chip.label}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => setLocation(chip.value)}
-                  className={`focus-ring min-h-11 rounded border px-2.5 py-1 text-xs font-medium transition-colors md:min-h-8 ${
-                    active
-                      ? "border-navy bg-navy text-white"
-                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  {chip.label}
-                </button>
-              );
-            })}
+        )}
+        {(!isInitial || formatMode === "MANUAL") && (
+          <div className="space-y-2">
+            <Input
+              label="Location or meeting link"
+              placeholder={isContract ? undefined : "e.g. Google Meet link or room number"}
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              maxLength={LOCATION_MAX}
+              required={isContract}
+            />
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Quick locations">
+              {locationChips.map((chip) => {
+                const active = location.trim() === chip.value;
+                return (
+                  <button
+                    key={chip.label}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setLocation(chip.value)}
+                    className={`focus-ring min-h-11 rounded border px-2.5 py-1 text-xs font-medium transition-colors md:min-h-8 ${
+                      active
+                        ? "border-navy bg-navy text-white"
+                        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
         <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3">
           {blockReason && (
             <p className="mr-auto text-sm text-slate-600" role="status">

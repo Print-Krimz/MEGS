@@ -4,7 +4,7 @@ import { taApi } from "../../../lib/api/ta.api";
 import { notify, formatErrorMessage } from "../../../lib/feedback";
 import { getApplicationStatusMeta } from "../../../lib/utils";
 import { ApplicationStatus, InterviewType } from "../../../lib/types/enums";
-import type { ReviewComplianceDto } from "../../../lib/types/ta.types";
+import type { InterviewMeetingMode, ReviewComplianceDto } from "../../../lib/types/ta.types";
 import type { CloseSubmission } from "../CloseApplicationDialog";
 import { interviewOutcomeNextStep, interviewOutcomeWord } from "../InterviewOutcomeDialog";
 
@@ -193,8 +193,12 @@ export function useApplicationMutations({ applicationId, status }: Options) {
   });
 
   const scheduleInterview = useMutation({
-    mutationFn: (data: { type: InterviewType; scheduledAt: string; location?: string }) =>
-      taApi.scheduleInterview(applicationId, data),
+    mutationFn: (data: {
+      type: InterviewType;
+      scheduledAt: string;
+      location?: string;
+      meetingMode?: InterviewMeetingMode;
+    }) => taApi.scheduleInterview(applicationId, data),
     onSuccess: () => {
       refreshApplicationQueries();
       queryClient.invalidateQueries({ queryKey: ["applicant"] });
@@ -229,8 +233,17 @@ export function useApplicationMutations({ applicationId, status }: Options) {
   };
 
   const approveReschedule = useMutation({
-    mutationFn: (data: { requestId: number; scheduledAt: string; location?: string }) =>
-      taApi.approveRescheduleRequest(applicationId, data.requestId, { scheduledAt: data.scheduledAt, location: data.location }),
+    mutationFn: (data: {
+      requestId: number;
+      scheduledAt: string;
+      location?: string;
+      meetingMode?: InterviewMeetingMode;
+    }) =>
+      taApi.approveRescheduleRequest(applicationId, data.requestId, {
+        scheduledAt: data.scheduledAt,
+        location: data.location,
+        meetingMode: data.meetingMode,
+      }),
     onSuccess: () => {
       refreshAfterReschedule();
       const msg = "The new time was saved and the applicant was notified.";

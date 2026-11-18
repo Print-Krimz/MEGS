@@ -20,6 +20,8 @@ export interface NotificationEmailOptions {
   dedupeKey?: string;
   // Workflow SMS. always = send even when the applicant has a real email; otherwise only phone-only/walk-in applicants.
   sms?: { text: string; always?: boolean };
+  // Optional email attachments (or factory given the resolved recipient email).
+  attachments?: mailer.MailAttachment[] | ((recipientEmail: string) => mailer.MailAttachment[]);
 }
 
 export type NotificationResult = "sent" | "duplicate" | "failed" | "skipped";
@@ -225,7 +227,16 @@ export const sendNotification = async (
             ctaUrl: emailOptions.ctaUrl || link || undefined,
           });
 
-          await mailer.sendMail(recipientEmail, subject, message, html);
+          const attachments =
+            typeof emailOptions.attachments === "function"
+              ? emailOptions.attachments(recipientEmail)
+              : emailOptions.attachments;
+
+          if (attachments?.length) {
+            await mailer.sendMail(recipientEmail, subject, message, html, undefined, attachments);
+          } else {
+            await mailer.sendMail(recipientEmail, subject, message, html);
+          }
         }
       } catch (err: any) {
         console.error("[NOTIFICATION EMAIL ERROR]", err?.message || err, { userId, title });
@@ -251,7 +262,7 @@ const broadcastToRole = async (
 ): Promise<NotificationTally> => {
   const tally = emptyTally();
   if (!prisma?.user?.findMany) return tally;
-  const { dedupeKey, recipientEmail: _recipientEmail, sms: _sms, ...emailOptions } = options;
+  const { dedupeKey, recipientEmail: _recipientEmail, sms: _sms, attachments: _attachments, ...emailOptions } = options;
   try {
     const users = await prisma.user.findMany({
       where: {

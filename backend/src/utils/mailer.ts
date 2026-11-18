@@ -174,7 +174,38 @@ export const escapeHtml = (value: string): string =>
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 
-const textToHtml = (value: string): string => escapeHtml(value).replace(/\r?\n/g, "<br/>");
+const HTTPS_URL_PATTERN = /https:\/\/[^\s<>"']+/g;
+
+const linkifySegment = (segment: string): string => {
+  let out = "";
+  let lastIndex = 0;
+  HTTPS_URL_PATTERN.lastIndex = 0;
+  for (const match of segment.matchAll(HTTPS_URL_PATTERN)) {
+    const start = match.index ?? 0;
+    const raw = match[0];
+    const trailingMatch = raw.match(/[.,;:!?)]+$/);
+    const trailing = trailingMatch ? trailingMatch[0] : "";
+    const url = trailing ? raw.slice(0, -trailing.length) : raw;
+    out += escapeHtml(segment.slice(lastIndex, start));
+    try {
+      const parsed = new URL(url);
+      if (parsed.protocol === "https:") {
+        const escapedUrl = escapeHtml(url);
+        out += `<a href="${escapedUrl}" style="color: ${BRAND.navy}; word-break: break-all;">${escapedUrl}</a>${escapeHtml(trailing)}`;
+        lastIndex = start + raw.length;
+        continue;
+      }
+    } catch {
+      // Malformed URL falls back to plain escaped text.
+    }
+    out += escapeHtml(raw);
+    lastIndex = start + raw.length;
+  }
+  out += escapeHtml(segment.slice(lastIndex));
+  return out;
+};
+
+const textToHtml = (value: string): string => linkifySegment(value).replace(/\r?\n/g, "<br/>");
 
 export const plainTextFooter = (): string =>
   [
@@ -287,6 +318,12 @@ const isFetchMocked = (): boolean => {
   return Boolean(f?._isMockFunction || f?.mock);
 };
 
+export interface MailAttachment {
+  filename: string;
+  content: string;
+  contentType: string;
+}
+
 const sendViaBrevo = async (
   apiKey: string,
   from: string,
@@ -294,7 +331,8 @@ const sendViaBrevo = async (
   subject: string,
   text: string,
   html: string,
-  headers?: Record<string, string>
+  headers?: Record<string, string>,
+  attachments?: MailAttachment[]
 ): Promise<{ success: boolean; messageId?: string }> => {
   try {
     const res = await fetch(BREVO_SEND_URL, {
@@ -307,6 +345,14 @@ const sendViaBrevo = async (
         textContent: text,
         htmlContent: html,
         ...(headers ? { headers } : {}),
+        ...(attachments?.length
+          ? {
+              attachment: attachments.map((item) => ({
+                name: item.filename,
+                content: Buffer.from(item.content, "utf8").toString("base64"),
+              })),
+            }
+          : {}),
       }),
       signal: AbortSignal.timeout(15_000),
     });
@@ -328,7 +374,8 @@ export const sendMail = async (
   text: string,
   html?: string,
   // Extra message headers, e.g. List-Unsubscribe for bulk mail.
-  headers?: Record<string, string>
+  headers?: Record<string, string>,
+  attachments?: MailAttachment[]
 ): Promise<{ success: boolean; messageId?: string }> => {
   // Placeholder addresses (phone sign-ups, walk-ins) have no mailbox.
   if (isSyntheticEmail(to)) {
@@ -343,7 +390,7 @@ export const sendMail = async (
   const brevoKey = process.env.BREVO_API_KEY?.trim();
   if (brevoKey && (!isTest || isLiveTest || isFetchMocked())) {
     const brevoHtml = html || renderBrandedEmail({ heading: subject, bodyHtml: textToHtml(text) });
-    const sending = sendViaBrevo(brevoKey, from, to, subject, `${text}\n\n${plainTextFooter()}`, brevoHtml, headers);
+    const sending = sendViaBrevo(brevoKey, from, to, subject, `${text}\n\n${plainTextFooter()}`, brevoHtml, headers, attachments);
     pendingSends.add(sending);
     return sending.finally(() => pendingSends.delete(sending));
   }
@@ -364,6 +411,9 @@ export const sendMail = async (
     console.log(`   To: ${to.replace(/(^.).*(@.*$)/, "$1***$2")}`);
     console.log(`   From: ${redactSensitiveText(from)}`);
     console.log(`   Subject: ${redactSensitiveText(subject)}`);
+    if (attachments?.length) {
+      console.log(`   Attachments: ${attachments.map((a) => a.filename).join(", ")}`);
+    }
     console.log(`   Body: ${sanitizedText}\n`);
     return { success: true, messageId: "dev-mock-id" };
   }
@@ -379,6 +429,15 @@ export const sendMail = async (
       text: `${text}\n\n${plainTextFooter()}`,
       html: finalHtml,
       ...(headers ? { headers } : {}),
+      ...(attachments?.length
+        ? {
+            attachments: attachments.map((item) => ({
+              filename: item.filename,
+              content: item.content,
+              contentType: item.contentType,
+            })),
+          }
+        : {}),
     }));
     pendingSends.add(sending);
     const info = await sending.finally(() => pendingSends.delete(sending));

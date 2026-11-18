@@ -30,6 +30,7 @@ import type {
   ScheduleInterviewDto,
   ScheduleContractSigningDto,
   ApproveRescheduleDto,
+  InterviewMeetingMode,
   UpdateInterviewResultDto,
   EndorseCandidateDto,
   AddComplianceRequirementDto,
@@ -353,6 +354,7 @@ export const taApi = {
     items: { applicationId: number; scheduledAt: string }[];
     type: "INITIAL_SCREENING" | "FINAL_INTERVIEW" | "CONTRACT_SIGNING";
     location?: string;
+    meetingMode?: InterviewMeetingMode;
   }) => api.post<BulkSummary>("/api/ta/bulk/interviews/schedule", data),
 
   bulkEndorseApplications: (data: { ids: number[]; clientId?: number; notes?: string }) =>

@@ -208,12 +208,15 @@ export interface UpdateJobDto {
   isEvergreen?: boolean;
 }
 
+export type InterviewMeetingMode = "ONSITE" | "ONLINE_AUTO";
+
 export interface ScheduleInterviewDto {
   type: InterviewType;
   scheduledAt: string;
   /** Meeting place or link. */
   location?: string;
   notes?: string;
+  meetingMode?: InterviewMeetingMode;
 }
 
 export interface ScheduleContractSigningDto {
@@ -224,6 +227,7 @@ export interface ScheduleContractSigningDto {
 export interface ApproveRescheduleDto {
   scheduledAt: string;
   location?: string;
+  meetingMode?: InterviewMeetingMode;
 }
 
 export interface UpdateInterviewResultDto {

@@ -7,6 +7,15 @@ import { resolvePendingRescheduleRequest } from "../scheduling/reschedule.servic
 import { formatManilaDateTime, isFutureDateTime, isWorkingHours, parseManilaDateOnly } from "../../schemas/field-limits.js";
 import { JOB_OWNER_SELECT, ownedWhere, type Actor } from "./ownership.js";
 import { isPageRequested, paginateArray, type PageRequest } from "../../utils/pagination.js";
+import {
+  deleteDailyInterviewRoomBestEffort,
+  extractManagedDailyRoomName,
+  provisionInitialScreeningRoom,
+  smsLocationClause,
+} from "../scheduling/daily-meeting.service.js";
+import { buildInitialInterviewAttachments } from "../../utils/ics.js";
+
+export type InterviewMeetingMode = "ONSITE" | "ONLINE_AUTO";
 
 const interviewLabel = (type: string) => (type === "FINAL_INTERVIEW" ? "Final interview" : "Initial interview");
 
@@ -32,12 +41,15 @@ export const scheduleNewInterview = async (
   scheduledAt: string,
   location?: string,
   actorId?: string,
-  options: { skipApplicantNotice?: boolean } = {}
+  options: { skipApplicantNotice?: boolean; meetingMode?: InterviewMeetingMode } = {}
 ) => {
   if (!["INITIAL_SCREENING", "FINAL_INTERVIEW"].includes(type)) {
     throw new Error("Choose either Initial Screening or Final Interview.");
   }
-  const place = location?.trim() || undefined;
+  if (options.meetingMode === "ONLINE_AUTO" && type !== "INITIAL_SCREENING") {
+    throw new Error("Automatic online meeting links are only available for Initial Screening.");
+  }
+  let place = location?.trim() || undefined;
 
   const scheduledDate = new Date(scheduledAt);
   if (isNaN(scheduledDate.getTime())) {
@@ -86,19 +98,6 @@ export const scheduleNewInterview = async (
     if (passedScreening && ["PASS", "PASSED"].includes(String(passedScreening.result))) {
       throw new Error("The candidate already passed the Initial interview. Another Initial interview cannot be scheduled.");
     }
-
-    // Advance application status to INITIAL_SCREENING if in pre-screening stages
-    if (application.status !== "INITIAL_SCREENING") {
-      const { updateTAApplicationStatus } = await import("./ta.applications.service.js");
-      await updateTAApplicationStatus(
-        applicationId,
-        "INITIAL_SCREENING",
-        actorId,
-        "Initial screening interview scheduled",
-        undefined,
-        { notifyApplicant: false }
-      );
-    }
   } else if (type === "FINAL_INTERVIEW") {
     // FINAL_INTERVIEW requires that the candidate passed Initial Screening
     const screening = await prisma.interview.findFirst({
@@ -144,25 +143,9 @@ export const scheduleNewInterview = async (
     if (!finalStages.includes(application.status)) {
       throw new Error("A Final Interview can't be scheduled at this application's current stage.");
     }
-
-    // Advance application status to FINAL_INTERVIEW if not already in FINAL_INTERVIEW
-    if (application.status !== "FINAL_INTERVIEW") {
-      const { updateTAApplicationStatus } = await import("./ta.applications.service.js");
-      await updateTAApplicationStatus(
-        applicationId,
-        "FINAL_INTERVIEW",
-        actorId,
-        "Final client interview scheduled",
-        undefined,
-        { notifyApplicant: false }
-      );
-    }
   }
 
-  // Follow-up window runs 7 days from the interview itself, on schedule and on reschedule.
-  const deadline = new Date(new Date(scheduledAt).getTime() + 7 * 24 * 60 * 60 * 1000);
-
-  // Check if an existing pending interview of this type exists for this application
+  // Check if an existing pending interview of this type exists for this application before mutating state
   const existingPending = await prisma.interview.findFirst({
     where: {
       applicationId,
@@ -172,6 +155,41 @@ export const scheduleNewInterview = async (
     },
     orderBy: { createdAt: "desc" },
   });
+
+  if (options.meetingMode === "ONLINE_AUTO") {
+    place = await provisionInitialScreeningRoom({
+      applicationId,
+      scheduledAt: scheduledDate,
+      existingLocation: existingPending?.location,
+    });
+  }
+
+  // Advance application status only after validations and external room provisioning succeed
+  if (type === "INITIAL_SCREENING" && application.status !== "INITIAL_SCREENING") {
+    const { updateTAApplicationStatus } = await import("./ta.applications.service.js");
+    await updateTAApplicationStatus(
+      applicationId,
+      "INITIAL_SCREENING",
+      actorId,
+      "Initial screening interview scheduled",
+      undefined,
+      { notifyApplicant: false }
+    );
+  } else if (type === "FINAL_INTERVIEW" && application.status !== "FINAL_INTERVIEW") {
+    const { updateTAApplicationStatus } = await import("./ta.applications.service.js");
+    await updateTAApplicationStatus(
+      applicationId,
+      "FINAL_INTERVIEW",
+      actorId,
+      "Final client interview scheduled",
+      undefined,
+      { notifyApplicant: false }
+    );
+  }
+
+  // Follow-up window runs 7 days from the interview itself, on schedule and on reschedule.
+  const deadline = new Date(new Date(scheduledAt).getTime() + 7 * 24 * 60 * 60 * 1000);
+  const jobTitle = application.jobPosting?.title || "Job";
 
   let interview;
   if (existingPending) {
@@ -185,20 +203,42 @@ export const scheduleNewInterview = async (
       },
     });
 
+    if (
+      existingPending.location &&
+      place !== undefined &&
+      place !== existingPending.location &&
+      extractManagedDailyRoomName(existingPending.location)
+    ) {
+      void deleteDailyInterviewRoomBestEffort(existingPending.location);
+    }
+
     if (!options.skipApplicantNotice) {
+      const resolvedLocation = interview.location;
+      const attachments =
+        type === "INITIAL_SCREENING"
+          ? buildInitialInterviewAttachments({
+              interviewId: interview.id,
+              jobTitle,
+              scheduledAt: new Date(scheduledAt),
+              location: resolvedLocation,
+              isReschedule: true,
+              createdAt: existingPending.createdAt ?? interview.createdAt,
+            })
+          : undefined;
       sendNotification(
         application.userId,
         "Interview Rescheduled",
-        `${interviewLabel(type)} rescheduled to ${formatManilaDateTime(new Date(scheduledAt))}.${interview.location ? ` Location: ${interview.location}.` : ""}`,
+        `${interviewLabel(type)} rescheduled to ${formatManilaDateTime(new Date(scheduledAt))}.${resolvedLocation ? ` Location: ${resolvedLocation}.` : ""}`,
         "INFO",
         `/app/applications/${applicationId}`,
         {
           sendEmail: true,
           ctaText: "View Interview Details",
           dedupeKey: `interview-rescheduled:${interview.id}:${new Date(scheduledAt).toISOString()}:${application.userId}`,
+          ...(attachments ? { attachments } : {}),
           sms: {
             always: true,
-            text: `${interviewLabel(type)} rescheduled to ${formatManilaDateTime(new Date(scheduledAt))}.${interview.location ? ` Location: ${interview.location}.` : ""} Log in to MEGS for details.`,
+            text: `${interviewLabel(type)} rescheduled to ${formatManilaDateTime(new Date(scheduledAt))}.${smsLocationClause(resolvedLocation)} Log in to MEGS for details.`,
           },
         }
       );
@@ -226,22 +266,35 @@ export const scheduleNewInterview = async (
       },
     });
 
-    sendNotification(
-      application.userId,
-      "Interview Scheduled",
-      `${interviewLabel(type)} scheduled for ${formatManilaDateTime(new Date(scheduledAt))}.${place ? ` Location: ${place}.` : ""}`,
-      "INFO",
-      `/app/applications/${applicationId}`,
-      {
-        sendEmail: true,
-        ctaText: "View Interview Details",
-        dedupeKey: `interview-scheduled:${interview.id}:${new Date(scheduledAt).toISOString()}:${application.userId}`,
-        sms: {
-          always: true,
-          text: `${interviewLabel(type)} scheduled for ${formatManilaDateTime(new Date(scheduledAt))}.${place ? ` Location: ${place}.` : ""} Log in to MEGS for details.`,
-        },
-      }
-    );
+    if (!options.skipApplicantNotice) {
+      const attachments =
+        type === "INITIAL_SCREENING"
+          ? buildInitialInterviewAttachments({
+              interviewId: interview.id,
+              jobTitle,
+              scheduledAt: new Date(scheduledAt),
+              location: place,
+              isReschedule: false,
+            })
+          : undefined;
+      sendNotification(
+        application.userId,
+        "Interview Scheduled",
+        `${interviewLabel(type)} scheduled for ${formatManilaDateTime(new Date(scheduledAt))}.${place ? ` Location: ${place}.` : ""}`,
+        "INFO",
+        `/app/applications/${applicationId}`,
+        {
+          sendEmail: true,
+          ctaText: "View Interview Details",
+          dedupeKey: `interview-scheduled:${interview.id}:${new Date(scheduledAt).toISOString()}:${application.userId}`,
+          ...(attachments ? { attachments } : {}),
+          sms: {
+            always: true,
+            text: `${interviewLabel(type)} scheduled for ${formatManilaDateTime(new Date(scheduledAt))}.${smsLocationClause(place)} Log in to MEGS for details.`,
+          },
+        }
+      );
+    }
 
     void logAudit(actorId || application.userId, "INTERVIEW_SCHEDULED", "Application", applicationId, {
       interviewId: interview.id,
@@ -251,7 +304,6 @@ export const scheduleNewInterview = async (
     });
   }
 
-  const jobTitle = application.jobPosting?.title || "Job";
   void notifyJobOwner(
     application.jobPosting,
     existingPending ? "Interview Rescheduled" : "Interview Scheduled for Candidate",
@@ -514,6 +566,9 @@ export const updateInterviewResult = async (
 
   let applicationUpdateMessage = "";
   if (result === "NO_SHOW") {
+    if (extractManagedDailyRoomName(interview.location)) {
+      void deleteDailyInterviewRoomBestEffort(interview.location);
+    }
     if (interview.application?.userId) {
       const profile = await prisma.applicantProfile.findUnique({
         where: { userId: interview.application.userId },

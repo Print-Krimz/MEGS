@@ -98,8 +98,8 @@ export const bulkEndDeploymentsHandler = async (req: Request, res: Response): Pr
 // POST /api/ta/bulk/interviews/schedule - Schedule interviews for many applications
 export const bulkScheduleInterviewsHandler = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { items, type, location } = req.body;
-    respond(res, await bulkScheduleInterviews(items, { type, location }, req.user!));
+    const { items, type, location, meetingMode } = req.body;
+    respond(res, await bulkScheduleInterviews(items, { type, location, meetingMode }, req.user!));
   } catch (error: any) {
     sendError(res, error.message, 500, error);
   }

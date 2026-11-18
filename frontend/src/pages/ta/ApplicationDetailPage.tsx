@@ -57,6 +57,7 @@ import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
 import { addManilaCalendarDays, getManilaToday } from "../../lib/field-limits";
 import { formatWorkSchedule } from "../../lib/mrf-schedule";
 import { buildClientEndorsementDraft } from "../../lib/endorsement-draft";
+import { useGlobalConfig } from "../../lib/config";
 
 type DialogState =
   | null
@@ -174,6 +175,7 @@ export const ApplicationDetailPage: React.FC = () => {
 
   // Queries
   const connected = useLiveStreamConnected();
+  const { data: globalConfig } = useGlobalConfig();
   const applicationQuery = useQuery(taApplicationDetailQuery(applicationId, connected));
   const decisionsQuery = useQuery(taApplicationDecisionsQuery(applicationId));
   const parseProfileId = applicationQuery.data?.user?.applicantProfile?.id;
@@ -847,12 +849,18 @@ export const ApplicationDetailPage: React.FC = () => {
         initialLocation={dlg?.kind === "schedule" ? dlg.initialLocation : ""}
         clientAddress={(linkedClient as any)?.address ?? null}
         jobLocation={app.jobPosting?.location ?? null}
+        autoOnlineMeetingEnabled={Boolean(globalConfig?.onlineMeetingAutoEnabled)}
         isSubmitting={m.scheduleInterview.isPending || m.scheduleContractSigning.isPending || m.approveReschedule.isPending}
         onSubmit={(values) => {
           if (dlg?.kind !== "schedule") return;
           if (dlg.requestId) {
             m.approveReschedule.mutate(
-              { requestId: dlg.requestId, scheduledAt: values.scheduledAt, location: values.location },
+              {
+                requestId: dlg.requestId,
+                scheduledAt: values.scheduledAt,
+                location: values.location,
+                meetingMode: values.meetingMode,
+              },
               { onSuccess: closeDialog }
             );
           } else if (values.type === "CONTRACT_SIGNING") {

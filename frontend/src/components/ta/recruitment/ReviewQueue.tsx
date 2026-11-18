@@ -25,6 +25,7 @@ import { SourceChip } from "../walk-in/SourceChip";
 import { summarizeInterview } from "../application/summary";
 import { CandidateSnapshot, HiringProgress, OtherApplications } from "./ReviewPanelDetails";
 import { REFERENCE_QUERY_STALE_TIME_MS } from "../../../lib/query-policies";
+import { useGlobalConfig } from "../../../lib/config";
 
 const initialsOf = (name: string) =>
   name
@@ -107,6 +108,7 @@ interface ReviewPanelProps {
 const ReviewPanel: React.FC<ReviewPanelProps> = ({ row, listSearch, onDone }) => {
   const id = String(row.id);
   const daysInStage = row.daysInStage;
+  const { data: globalConfig } = useGlobalConfig();
   const query = useQuery({
     queryKey: ["ta", "application", id],
     queryFn: () => taApi.getApplication(id),
@@ -313,6 +315,7 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ row, listSearch, onDone }) =>
         candidateMobile={profile?.mobileNumber}
         type={schedule ?? InterviewType.INITIAL_SCREENING}
         isReschedule={false}
+        autoOnlineMeetingEnabled={Boolean(globalConfig?.onlineMeetingAutoEnabled)}
         isSubmitting={m.scheduleInterview.isPending}
         onSubmit={(values) =>
           m.scheduleInterview.mutate(

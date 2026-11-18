@@ -23,6 +23,7 @@ const scheduleDateTime = z
   .datetime({ offset: true })
   .max(35)
   .refine((val) => isWorkingHours(val), OFFICE_HOURS_MESSAGE);
+const interviewMeetingMode = z.enum(["ONSITE", "ONLINE_AUTO"]).optional();
 const bulkIds = z.array(idValue).min(1, "Select at least one record").max(BULK_MAX_IDS, `Select at most ${BULK_MAX_IDS} records at a time`);
 // Dropdown values match case-insensitively and are stored as the listed spelling; blank means no selection.
 const listedChoice = <T extends string>(options: readonly T[], message: string) =>
@@ -333,7 +334,11 @@ export const taSchema = {
         .max(BULK_MAX_IDS, `Select at most ${BULK_MAX_IDS} applications at a time`),
       type: z.enum(["INITIAL_SCREENING", "FINAL_INTERVIEW", "CONTRACT_SIGNING"]),
       location: boundedText(FIELD_LIMITS.address).optional(),
-    }),
+      meetingMode: interviewMeetingMode,
+    }).refine(
+      (data) => data.meetingMode !== "ONLINE_AUTO" || data.type === "INITIAL_SCREENING",
+      { path: ["meetingMode"], message: "Automatic online meeting links are only available for Initial Screening." }
+    ),
   }),
   bulkEndorseApplications: z.object({
     body: z.object({
@@ -361,7 +366,11 @@ export const taSchema = {
       location: boundedText(FIELD_LIMITS.address).optional(),
       // Older clients sent the meeting place as notes; it is stored as the location.
       notes: boundedText(FIELD_LIMITS.notes).optional(),
-    }).strict(),
+      meetingMode: interviewMeetingMode,
+    }).strict().refine(
+      (data) => data.meetingMode !== "ONLINE_AUTO" || data.type === "INITIAL_SCREENING",
+      { path: ["meetingMode"], message: "Automatic online meeting links are only available for Initial Screening." }
+    ),
   }),
   scheduleContractSigning: z.object({
     params: z.object({ id: boundedIdText }),
@@ -375,6 +384,7 @@ export const taSchema = {
     body: z.object({
       scheduledAt: scheduleDateTime,
       location: boundedText(FIELD_LIMITS.address).optional(),
+      meetingMode: interviewMeetingMode,
     }).strict(),
   }),
   rejectRescheduleRequest: z.object({

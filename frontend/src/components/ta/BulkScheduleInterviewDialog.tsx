@@ -11,7 +11,9 @@ import {
 import { COMPANY_ADDRESS, OFFICE_HOURS_MESSAGE, OFFICE_HOURS_SHORT } from "../../lib/business-hours";
 import { FIELD_LIMITS } from "../../lib/field-limits";
 import { getRememberedInterviewLocation, rememberInterviewLocation } from "../../lib/schedule-location";
+import type { InterviewMeetingMode } from "../../lib/types/ta.types";
 import { formatDateTime } from "../../lib/utils";
+import { InterviewFormatPicker, type InterviewFormatMode } from "./InterviewFormatPicker";
 
 export type BulkScheduleInterviewType = "INITIAL_SCREENING" | "FINAL_INTERVIEW" | "CONTRACT_SIGNING";
 export type SlotSpacing = "0" | "15" | "30" | "60";
@@ -27,10 +29,13 @@ export interface BulkScheduleInterviewDialogProps {
   applications: BulkScheduleApplicationItem[];
   defaultType?: BulkScheduleInterviewType;
   loading?: boolean;
+  /** True when the server can auto-provision Daily.co rooms for Initial Screening. */
+  autoOnlineMeetingEnabled?: boolean;
   onSubmit: (values: {
     items: { applicationId: number; scheduledAt: string }[];
     type: BulkScheduleInterviewType;
     location?: string;
+    meetingMode?: InterviewMeetingMode;
   }) => void;
 }
 
@@ -85,6 +90,7 @@ export const BulkScheduleInterviewDialog: React.FC<BulkScheduleInterviewDialogPr
   applications,
   defaultType = "INITIAL_SCREENING",
   loading = false,
+  autoOnlineMeetingEnabled = false,
   onSubmit,
 }) => {
   const [type, setType] = useState<BulkScheduleInterviewType>(defaultType);
@@ -93,6 +99,7 @@ export const BulkScheduleInterviewDialog: React.FC<BulkScheduleInterviewDialogPr
   const [skipLunch, setSkipLunch] = useState(true);
   const [location, setLocation] = useState("");
   const [rememberedLocation, setRememberedLocation] = useState("");
+  const [formatMode, setFormatMode] = useState<InterviewFormatMode>("MANUAL");
 
   useEffect(() => {
     if (!open) return;
@@ -103,7 +110,10 @@ export const BulkScheduleInterviewDialog: React.FC<BulkScheduleInterviewDialogPr
     setSkipLunch(true);
     setRememberedLocation(saved);
     setLocation(defaultType === "CONTRACT_SIGNING" ? COMPANY_ADDRESS : saved);
+    setFormatMode("MANUAL");
   }, [open, defaultType]);
+
+  const isInitial = type === "INITIAL_SCREENING";
 
   const stepMinutes = Number(spacing);
 
@@ -151,6 +161,14 @@ export const BulkScheduleInterviewDialog: React.FC<BulkScheduleInterviewDialogPr
 
   const handleSubmit = () => {
     if (blockReason) return;
+    if (isInitial && formatMode === "ONLINE_AUTO") {
+      onSubmit({
+        items: scheduledSlots.map((s) => ({ applicationId: s.applicationId, scheduledAt: s.iso })),
+        type,
+        meetingMode: "ONLINE_AUTO",
+      });
+      return;
+    }
     const trimmedLocation = location.trim();
     if (trimmedLocation) rememberInterviewLocation(trimmedLocation);
     onSubmit({
@@ -173,7 +191,11 @@ export const BulkScheduleInterviewDialog: React.FC<BulkScheduleInterviewDialogPr
           <Select
             label="Interview round"
             value={type}
-            onChange={(e) => setType(e.target.value as BulkScheduleInterviewType)}
+            onChange={(e) => {
+              const next = e.target.value as BulkScheduleInterviewType;
+              setType(next);
+              if (next !== "INITIAL_SCREENING") setFormatMode("MANUAL");
+            }}
             options={[
               { value: "INITIAL_SCREENING", label: "Initial screening" },
               { value: "FINAL_INTERVIEW", label: "Final interview" },
@@ -215,35 +237,46 @@ export const BulkScheduleInterviewDialog: React.FC<BulkScheduleInterviewDialogPr
           </label>
         )}
 
-        <div className="space-y-2">
-          <Input
-            label="Location or meeting link"
-            placeholder="e.g. Google Meet link or office address"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            maxLength={FIELD_LIMITS.address}
+        {isInitial && (
+          <InterviewFormatPicker
+            mode={formatMode}
+            onChange={setFormatMode}
+            autoOnlineEnabled={autoOnlineMeetingEnabled}
+            autoNote="Each candidate gets a separate private video link and calendar invite."
           />
-          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Quick locations">
-            {locationChips.map((chip) => {
-              const active = location.trim() === chip.value;
-              return (
-                <button
-                  key={chip.label}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => setLocation(chip.value)}
-                  className={`focus-ring min-h-11 rounded border px-2.5 py-1 text-xs font-medium transition-colors md:min-h-8 ${
-                    active
-                      ? "border-navy bg-navy text-white"
-                      : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                  }`}
-                >
-                  {chip.label}
-                </button>
-              );
-            })}
+        )}
+
+        {(!isInitial || formatMode === "MANUAL") && (
+          <div className="space-y-2">
+            <Input
+              label="Location or meeting link"
+              placeholder="e.g. Google Meet link or office address"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              maxLength={FIELD_LIMITS.address}
+            />
+            <div className="flex flex-wrap gap-1.5" role="group" aria-label="Quick locations">
+              {locationChips.map((chip) => {
+                const active = location.trim() === chip.value;
+                return (
+                  <button
+                    key={chip.label}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setLocation(chip.value)}
+                    className={`focus-ring min-h-11 rounded border px-2.5 py-1 text-xs font-medium transition-colors md:min-h-8 ${
+                      active
+                        ? "border-navy bg-navy text-white"
+                        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         {scheduledSlots.length > 0 && (
           <div className="space-y-1.5">

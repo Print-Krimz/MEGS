@@ -3,6 +3,7 @@ import { sendNotification, type NotificationResult } from "../../utils/notificat
 import { formatManilaDateTime } from "../../schemas/field-limits.js";
 import { safeLogError } from "../../security/errors.js";
 import { appointmentReminderKey, type ScheduleActivityName } from "../../services/scheduling/reschedule.service.js";
+import { smsLocationClause } from "../../services/scheduling/daily-meeting.service.js";
 import { DAY_MS, newResult, type ReminderResult } from "./rules.js";
 
 const CLOSED_STATUSES = ["REJECTED", "BACKOUT", "ARCHIVED"] as const;
@@ -39,7 +40,7 @@ const remind = async (
           dedupeKey: appointmentReminderKey(activity, recordId, scheduledAt),
           sms: {
             always: true,
-            text: `Reminder: your ${label} is on ${formatManilaDateTime(scheduledAt)}.${location ? ` Location: ${location}.` : ""} Log in to MEGS for details.`,
+            text: `Reminder: your ${label} is on ${formatManilaDateTime(scheduledAt)}.${smsLocationClause(location)} Log in to MEGS for details.`,
           },
         }
       )

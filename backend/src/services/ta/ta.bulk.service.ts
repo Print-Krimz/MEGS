@@ -8,7 +8,7 @@ import { closeApplication } from "./closure.service.js";
 import { archiveTAApplication, confirmContractSigned, restoreTAApplication, scheduleContractSigning, updateTAApplicationStatus } from "./ta.applications.service.js";
 import { getLatestClientEndorsement, recordClientEndorsement, updateClientEndorsement } from "./ta.endorsement.service.js";
 import { ClientReviewNotRequiredError } from "./pipeline-rules.js";
-import { scheduleNewInterview, updateInterviewResult } from "./ta.interviews.service.js";
+import { scheduleNewInterview, updateInterviewResult, type InterviewMeetingMode } from "./ta.interviews.service.js";
 import { dismissCheckIn } from "./walk-in-check-in.service.js";
 import { WalkInConflictError } from "./walk-in.service.js";
 import { cancelTalentPoolInvitation } from "./talent-pool-invitation.service.js";
@@ -221,7 +221,7 @@ export const bulkEndDeployments = (
 /** Schedules one interview or contract-signing slot/location for many applications, each with its own slot. */
 export const bulkScheduleInterviews = (
   items: { applicationId: number; scheduledAt: string }[],
-  input: { type: "INITIAL_SCREENING" | "FINAL_INTERVIEW" | "CONTRACT_SIGNING"; location?: string },
+  input: { type: "INITIAL_SCREENING" | "FINAL_INTERVIEW" | "CONTRACT_SIGNING"; location?: string; meetingMode?: InterviewMeetingMode },
   actor: Actor
 ) => {
   const scheduledAtOf = new Map(items.map((item) => [item.applicationId, item.scheduledAt]));
@@ -230,6 +230,12 @@ export const bulkScheduleInterviews = (
     const scheduledAt = scheduledAtOf.get(applicationId)!;
     if (input.type === "CONTRACT_SIGNING") {
       await scheduleContractSigning(applicationId, scheduledAt, input.location?.trim() || COMPANY_ADDRESS, actor.id);
+      return;
+    }
+    if (input.meetingMode) {
+      await scheduleNewInterview(applicationId, input.type, scheduledAt, input.location, actor.id, {
+        meetingMode: input.meetingMode,
+      });
       return;
     }
     await scheduleNewInterview(applicationId, input.type, scheduledAt, input.location, actor.id);

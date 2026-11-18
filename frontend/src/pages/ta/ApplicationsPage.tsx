@@ -56,6 +56,8 @@ import {
   SERVER_SEARCH_DEBOUNCE_MS,
 } from "../../lib/query-policies";
 import { useLiveStreamConnected } from "../../lib/live-stream-status";
+import { useGlobalConfig } from "../../lib/config";
+import type { InterviewMeetingMode } from "../../lib/types/ta.types";
 
 // Walk-in dialogs mount only while open, so their code loads on first use.
 const EncodeSeveralWalkInsDialog = lazy(() =>
@@ -428,6 +430,7 @@ export const ApplicationsPage: React.FC = () => {
   }));
 
   // Mutations
+  const { data: globalConfig } = useGlobalConfig();
   const archiveMutation = useMutation({
     mutationFn: ({ id, reason }: { id: number; reason: string }) =>
       taApi.archiveApplication(id, { reason }),
@@ -524,6 +527,7 @@ export const ApplicationsPage: React.FC = () => {
       items: { applicationId: number; scheduledAt: string }[];
       type: BulkScheduleInterviewType;
       location?: string;
+      meetingMode?: InterviewMeetingMode;
     }) => taApi.bulkScheduleInterviews(data),
     onSuccess: (summary, vars) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
@@ -1364,6 +1368,7 @@ export const ApplicationsPage: React.FC = () => {
           candidateName: candidateNameOf(app),
         }))}
         defaultType={defaultScheduleType}
+        autoOnlineMeetingEnabled={Boolean(globalConfig?.onlineMeetingAutoEnabled)}
         loading={bulkScheduleMutation.isPending}
         onSubmit={(data) => bulkScheduleMutation.mutate(data)}
       />

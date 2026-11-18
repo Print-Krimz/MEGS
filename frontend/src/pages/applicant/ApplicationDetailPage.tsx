@@ -10,6 +10,7 @@ import {
   LoadingState,
   ErrorState,
   DocumentPreviewModal,
+  OnlineInterviewActions,
 } from "../../components/common";
 import { Button, Dialog } from "../../components/ui";
 import { BackoutDialog } from "../../components/ta/BackoutDialog";
@@ -44,6 +45,7 @@ import {
   FileText,
   Library,
   Camera,
+  Video,
 } from "lucide-react";
 import { ApplicationStatus } from "../../lib/types/enums";
 import type { ComplianceRequirement, RescheduleActivity } from "../../lib/types/application.types";
@@ -54,6 +56,7 @@ import { isTouchDevice, shrinkImage } from "../../lib/camera-capture";
 import { getApplicationRefetchInterval } from "../../lib/query-policies";
 import { useLiveStreamConnected } from "../../lib/live-stream-status";
 import { addManilaCalendarDays, getManilaToday, toManilaDateInput } from "../../lib/field-limits";
+import { isOnlineMeetingUrl } from "../../lib/schedule-location";
 
 const normalizeDocumentLabel = (value: string) => value.trim().toLowerCase();
 
@@ -468,12 +471,35 @@ export const ApplicationDetailPage: React.FC = () => {
                   <span>{formatDateTime(interview.scheduledAt || interview.createdAt)}</span>
                 </div>
 
-                {interview.location && (
+                {interview.location && isOnlineMeetingUrl(interview.location) ? (
+                  <div className="space-y-2 pt-0.5">
+                    <div className="text-xs text-[#486581] flex items-start gap-2">
+                      <Video className="w-3.5 h-3.5 text-[#0B315D] shrink-0 mt-0.5" aria-hidden="true" />
+                      <a
+                        href={interview.location}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="break-all font-medium text-[#0B315D] underline underline-offset-2 hover:text-[#102A43]"
+                      >
+                        {interview.location}
+                      </a>
+                    </div>
+                    {(!interview.result || interview.result === "PENDING" || interview.result === "SCHEDULED") && (
+                      <OnlineInterviewActions
+                        interviewId={interview.id}
+                        title={`MEGS ${sentenceCase(interview.type)}${job?.title ? ` — ${job.title}` : ""}`}
+                        scheduledAt={interview.scheduledAt}
+                        meetingUrl={interview.location}
+                        joinVariant="primary"
+                      />
+                    )}
+                  </div>
+                ) : interview.location ? (
                   <div className="text-xs text-[#486581] flex items-start gap-2">
                     <MapPin className="w-3.5 h-3.5 text-[#486581] shrink-0" aria-hidden="true" />
                     <span className="break-words">{interview.location}</span>
                   </div>
-                )}
+                ) : null}
 
                 {application.source !== "WALK_IN" &&
                   (!interview.result || interview.result === "PENDING" || interview.result === "SCHEDULED") && (

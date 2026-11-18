@@ -1,10 +1,11 @@
 import React from "react";
 import { CalendarPlus, ClipboardCheck, Handshake } from "lucide-react";
 import { Button } from "../../ui";
-import { Timeline, type TimelineItem } from "../../common";
+import { Timeline, OnlineInterviewActions, type TimelineItem } from "../../common";
 import { formatDateTime, cn } from "../../../lib/utils";
 import { plural } from "../../../lib/plural";
 import { interviewTypeLabel } from "../../../lib/labels";
+import { isOnlineMeetingUrl } from "../../../lib/schedule-location";
 import { TA_COPY, TA_STATUS_TONE_CLASSES, type TAStatusTone } from "../../../lib/ta-copy";
 import type { Application } from "../../../lib/types";
 import { interviewState, isOpenInterview, orderInterviews, type InterviewState } from "./summary";
@@ -44,7 +45,25 @@ const statusFor = (interview: Interview, now: number) => {
 
 const factsFor = (interview: Interview): TimelineItem["meta"] => [
   { label: "Scheduled", value: <span className="tabular-nums">{formatDateTime(interview.scheduledAt || interview.createdAt)}</span> },
-  ...(interview.location ? [{ label: "Location", value: <span className="break-words">{interview.location}</span> }] : []),
+  ...(interview.location
+    ? [
+        isOnlineMeetingUrl(interview.location)
+          ? {
+              label: "Meeting link",
+              value: (
+                <a
+                  href={interview.location}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="break-all font-medium text-navy underline underline-offset-2 hover:text-navy-hover"
+                >
+                  {interview.location}
+                </a>
+              ),
+            }
+          : { label: "Location", value: <span className="break-words">{interview.location}</span> },
+      ]
+    : []),
   ...(interview.conductedAt ? [{ label: "Conducted", value: <span className="tabular-nums">{formatDateTime(interview.conductedAt)}</span> }] : []),
 ];
 
@@ -88,7 +107,20 @@ export const InterviewsTab: React.FC<InterviewsTabProps> = ({ interviews, now, s
         status,
         meta: factsFor(interview),
         body: notesBlock(interview),
-        action: isOpenInterview(interview) ? actionsFor(interview) : undefined,
+        action: isOpenInterview(interview) ? (
+          <>
+            {isOnlineMeetingUrl(interview.location) && interview.location && (
+              <OnlineInterviewActions
+                interviewId={interview.id}
+                title={`MEGS ${interviewTypeLabel(interview.type)}`}
+                scheduledAt={interview.scheduledAt}
+                meetingUrl={interview.location}
+                joinVariant="outline"
+              />
+            )}
+            {actionsFor(interview)}
+          </>
+        ) : undefined,
       };
     });
 
@@ -133,6 +165,17 @@ export const InterviewsTab: React.FC<InterviewsTabProps> = ({ interviews, now, s
             ))}
           </dl>
           {hero.notes && <div className="mt-3 text-sm">{notesBlock(hero)}</div>}
+          {isOnlineMeetingUrl(hero.location) && hero.location && (
+            <div className="mt-3">
+              <OnlineInterviewActions
+                interviewId={hero.id}
+                title={`MEGS ${interviewTypeLabel(hero.type)}`}
+                scheduledAt={hero.scheduledAt}
+                meetingUrl={hero.location}
+                joinVariant="outline"
+              />
+            </div>
+          )}
           {heroActionsInBar ? (
             <p className="mt-3 text-sm text-slate-600">Record the outcome or reschedule from the bar above.</p>
           ) : (

@@ -3,6 +3,9 @@ import { notifyJobOwner, sendNotification } from "../../utils/notification.js";
 import { logAudit } from "../../utils/audit.js";
 import { formatManilaDateTime, manilaDateString } from "../../schemas/field-limits.js";
 import { JOB_OWNER_SELECT } from "../ta/ownership.js";
+import { smsLocationClause } from "./daily-meeting.service.js";
+import { buildInitialInterviewAttachments } from "../../utils/ics.js";
+import type { InterviewMeetingMode } from "../ta/ta.interviews.service.js";
 
 // Reschedule requests for the three scheduled activities: Initial Screening, Final Interview and Contract Signing.
 
@@ -215,14 +218,17 @@ export const approveRescheduleRequest = async (
   applicationId: number,
   requestId: number,
   actorId: string,
-  body: { scheduledAt: string; location?: string }
+  body: { scheduledAt: string; location?: string; meetingMode?: InterviewMeetingMode }
 ) => {
   const request = await loadOpenRequest(applicationId, requestId);
   const activity = request.activity as ScheduleActivityName;
+  if (body.meetingMode === "ONLINE_AUTO" && activity !== "INITIAL_SCREENING") {
+    throw new SchedulingError("Automatic online meeting links are only available for Initial Screening.", 400);
+  }
 
   const application = await prisma.application.findUnique({
     where: { id: applicationId },
-    select: { userId: true },
+    select: { userId: true, jobPosting: { select: { title: true } } },
   });
   if (!application) throw new SchedulingError("Application not found", 404);
 
@@ -254,13 +260,24 @@ export const approveRescheduleRequest = async (
   });
   if (claim.count === 0) throw new SchedulingError("This request was already answered.", 409);
 
+  let scheduledInterview: Awaited<ReturnType<typeof import("../ta/ta.interviews.service.js")["scheduleNewInterview"]>> | undefined;
   try {
     if (activity === "CONTRACT_SIGNING") {
       const { scheduleContractSigning } = await import("../ta/ta.applications.service.js");
       await scheduleContractSigning(applicationId, body.scheduledAt, body.location, actorId, { skipApplicantNotice: true });
     } else {
       const { scheduleNewInterview } = await import("../ta/ta.interviews.service.js");
-      await scheduleNewInterview(applicationId, activity, body.scheduledAt, body.location, actorId, { skipApplicantNotice: true });
+      scheduledInterview = await scheduleNewInterview(
+        applicationId,
+        activity,
+        body.scheduledAt,
+        body.location,
+        actorId,
+        {
+          skipApplicantNotice: true,
+          ...(body.meetingMode ? { meetingMode: body.meetingMode } : {}),
+        }
+      );
     }
   } catch (error) {
     await prisma.rescheduleRequest
@@ -272,6 +289,8 @@ export const approveRescheduleRequest = async (
     throw error;
   }
 
+  const resolvedLocation = activity === "CONTRACT_SIGNING" ? body.location : (scheduledInterview?.location ?? body.location);
+
   await prisma.rescheduleRequest.updateMany({
     where: { id: requestId },
     data: { newScheduledAt: new Date(body.scheduledAt) },
@@ -282,20 +301,33 @@ export const approveRescheduleRequest = async (
     newScheduledAt: body.scheduledAt,
   });
 
+  const attachments =
+    activity === "INITIAL_SCREENING" && scheduledInterview?.id
+      ? buildInitialInterviewAttachments({
+          interviewId: scheduledInterview.id,
+          jobTitle: application.jobPosting?.title,
+          scheduledAt: new Date(body.scheduledAt),
+          location: resolvedLocation,
+          isReschedule: true,
+          createdAt: scheduledInterview.createdAt,
+        })
+      : undefined;
+
   void sendNotification(
     application.userId,
     "Reschedule Approved",
     `Your ${ACTIVITY_LABEL[activity]} was moved to ${formatManilaDateTime(new Date(body.scheduledAt))}.` +
-      (body.location ? ` Location: ${body.location}.` : ""),
+      (resolvedLocation ? ` Location: ${resolvedLocation}.` : ""),
     "SUCCESS",
     `/app/applications/${applicationId}`,
     {
       sendEmail: true,
       ctaText: "View Details",
       dedupeKey: `reschedule-approved:${requestId}:${application.userId}`,
+      ...(attachments ? { attachments } : {}),
       sms: {
         always: true,
-        text: `Your ${ACTIVITY_LABEL[activity]} was moved to ${formatManilaDateTime(new Date(body.scheduledAt))}.${body.location ? ` Location: ${body.location}.` : ""} Log in to MEGS for details.`,
+        text: `Your ${ACTIVITY_LABEL[activity]} was moved to ${formatManilaDateTime(new Date(body.scheduledAt))}.${smsLocationClause(resolvedLocation)} Log in to MEGS for details.`,
       },
     }
   );
