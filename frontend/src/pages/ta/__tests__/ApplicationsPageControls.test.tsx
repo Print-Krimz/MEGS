@@ -49,6 +49,7 @@ vi.mock("@tanstack/react-router", async () => {
     </a>
   ),
   useNavigate: () => navigateMock,
+  useBlocker: () => ({ status: "idle" }),
   };
 });
 

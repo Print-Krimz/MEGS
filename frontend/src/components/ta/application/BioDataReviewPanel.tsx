@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from "rea
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { Button } from "../../ui";
+import { useModalBehavior } from "../../ui/Dialog";
 import { ConfirmDialog, LoadingState } from "../../common";
 import { ResumeReviewDialog } from "../../applicant/ResumeReviewDialog";
 import type { ProfileEditFormHandle, ProfileFormValues } from "./ProfileEditForm";
@@ -109,6 +110,7 @@ export const BioDataReviewPanel: React.FC<BioDataReviewPanelProps> = ({
   const queryClient = useQueryClient();
   const formRef = useRef<ProfileEditFormHandle>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
   const profileId: number = profile.id;
 
   // Bumped after suggestions are applied so every editor restarts from the saved profile.
@@ -211,14 +213,7 @@ export const BioDataReviewPanel: React.FC<BioDataReviewPanelProps> = ({
     else onClose();
   };
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || suggestionsOpen || confirmClose) return;
-      requestClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  });
+  useModalBehavior(true, requestClose, dialogRef);
 
   const save = () => {
     const personalDto = formRef.current?.collect();
@@ -256,14 +251,14 @@ export const BioDataReviewPanel: React.FC<BioDataReviewPanelProps> = ({
   );
 
   return (
-    <div role="dialog" aria-modal="true" aria-labelledby="bio-review-title" className="fixed inset-0 z-40 flex flex-col bg-white">
+    <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="bio-review-title" className="fixed inset-0 z-50 flex flex-col bg-white focus:outline-none">
       <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-300 px-4 py-3">
         <div className="min-w-0">
           <h2 id="bio-review-title" ref={headingRef} tabIndex={-1} className="truncate text-base font-semibold text-slate-900 focus:outline-none">
             Verify details: {candidateName}
           </h2>
         </div>
-        <button type="button" onClick={requestClose} aria-label="Close" className="focus-ring inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-700 hover:bg-slate-100">
+        <button type="button" onClick={requestClose} aria-label="Close" className="focus-ring inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-slate-700 hover:bg-slate-100">
           <X className="h-4 w-4" aria-hidden="true" />
         </button>
       </header>

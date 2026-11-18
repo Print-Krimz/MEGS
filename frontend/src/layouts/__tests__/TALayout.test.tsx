@@ -62,6 +62,21 @@ describe("TALayout Navigation & Account Menu", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     identity.unnamed = false;
+    try {
+      window.localStorage.removeItem("megs_sidebar_collapsed");
+    } catch {
+      // Ignore storage errors.
+    }
+  });
+
+  it("persists sidebar collapse state and updates --portal-sidebar-w", () => {
+    const { container } = renderWithClient(<TALayout />);
+    const root = container.querySelector(".ta-portal") as HTMLElement;
+    expect(root.style.getPropertyValue("--portal-sidebar-w")).toBe("16rem");
+
+    fireEvent.click(screen.getByRole("button", { name: /Collapse navigation/i }));
+    expect(root.style.getPropertyValue("--portal-sidebar-w")).toBe("4rem");
+    expect(window.localStorage.getItem("megs_sidebar_collapsed")).toBe("true");
   });
 
   it("renders only core operational recruitment navigation items and does not render My Profile in primary navigation", () => {

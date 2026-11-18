@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { adminApi } from "../../lib/api/admin.api";
 import {
@@ -11,21 +12,45 @@ import { Button, Dialog, Input } from "../../components/ui";
 import { formatDate, formatDateTime } from "../../lib/utils";
 import { AlertTriangle, History, RotateCcw, Save } from "lucide-react";
 import { AnalyticsPanel } from "../../components/analytics";
-import { FeedbackBanner } from "./admin-ui";
-import { DEFAULT_SCORING_WEIGHTS, maxFor, normalizeScoringWeights, remainingWeight, setScoringWeight, type ScoringDimension } from "../../lib/scoring-weights";
+import { FeedbackBanner, ToneBadge } from "./admin-ui";
+import { DEFAULT_SCORING_WEIGHTS, normalizeScoringWeights, remainingWeight, type ScoringDimension } from "../../lib/scoring-weights";
 import { formatErrorMessage, notify } from "../../lib/feedback";
 import { ApiError } from "../../lib/api/client";
+import { useDirtyGuard } from "../../hooks/useDirtyGuard";
 
 const clampInt = (value: number, min: number, max: number) => Math.round(Math.max(min, Math.min(max, value)));
 const blockNonDigits = (e: React.KeyboardEvent<HTMLInputElement>) => { if (["-", ".", "e", "E", "+", ","].includes(e.key)) e.preventDefault(); };
 
-const METRICS: { key: ScoringDimension; id: string; label: string; description: string }[] = [
-  { key: "SKILLS", id: "skills", label: "Skills", description: "How closely a candidate's skills match the job." },
-  { key: "EXPERIENCE", id: "experience", label: "Relevant experience", description: "Similar roles, seniority, and industry experience." },
-  { key: "LOCATION", id: "location", label: "Location", description: "How close the candidate is to the work location." },
-  { key: "COMPLIANCE", id: "compliance", label: "Requirements", description: "Readiness to provide required documents." },
-  { key: "EDUCATION_CERTIFICATIONS", id: "education", label: "Education and certifications", description: "Education, training, and required certifications." },
+const METRICS: { key: ScoringDimension; id: string; label: string; description: string; barColor: string }[] = [
+  { key: "SKILLS", id: "skills", label: "Skills", description: "How closely a candidate's skills match the job.", barColor: "bg-[#0B315D]" },
+  { key: "EXPERIENCE", id: "experience", label: "Relevant experience", description: "Similar roles, seniority, and industry experience.", barColor: "bg-[#2563EB]" },
+  { key: "LOCATION", id: "location", label: "Location", description: "How close the candidate is to the work location.", barColor: "bg-[#047857]" },
+  { key: "COMPLIANCE", id: "compliance", label: "Requirements", description: "Readiness to provide required documents.", barColor: "bg-[#B45309]" },
+  { key: "EDUCATION_CERTIFICATIONS", id: "education", label: "Education and certifications", description: "Education, training, and required certifications.", barColor: "bg-[#475569]" },
 ];
+
+const readRevisionWeights = (raw: unknown): Record<ScoringDimension, number> => {
+  if (Array.isArray(raw)) {
+    const map: Partial<Record<ScoringDimension, number>> = {};
+    for (const item of raw) {
+      if (item && typeof item === "object" && "dimension" in item && "weight" in item) {
+        map[item.dimension as ScoringDimension] = Number(item.weight) || 0;
+      }
+    }
+    return { ...DEFAULT_SCORING_WEIGHTS, ...map };
+  }
+  if (raw && typeof raw === "object") {
+    const obj = raw as Record<string, number>;
+    return {
+      SKILLS: Number(obj.SKILLS ?? 0),
+      EXPERIENCE: Number(obj.EXPERIENCE ?? 0),
+      LOCATION: Number(obj.LOCATION ?? 0),
+      COMPLIANCE: Number(obj.COMPLIANCE ?? 0),
+      EDUCATION_CERTIFICATIONS: Number(obj.EDUCATION_CERTIFICATIONS ?? 0),
+    };
+  }
+  return DEFAULT_SCORING_WEIGHTS;
+};
 
 export const ScoringConfigPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -36,7 +61,8 @@ export const ScoringConfigPage: React.FC = () => {
   // Raw text while a number box is being edited, so clearing it does not snap to 0 mid-typing.
   const [drafts, setDrafts] = useState<Partial<Record<ScoringDimension, string>>>({});
   const updateWeight = (dimension: ScoringDimension, value: number) => {
-    setWeights((current) => setScoringWeight(current, dimension, value));
+    if (!Number.isFinite(value)) return;
+    setWeights((current) => ({ ...current, [dimension]: clampInt(value, 0, 100) }));
   };
 
   const [matchThreshold, setMatchThreshold] = useState<number>(60);
@@ -142,15 +168,22 @@ export const ScoringConfigPage: React.FC = () => {
     )
   );
 
-  useEffect(() => {
-    if (!hasUnsavedChanges) return;
-    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [hasUnsavedChanges]);
+  const dirtyGuard = useDirtyGuard({
+    isDirty: hasUnsavedChanges,
+    message: "Your matching settings have not been saved.",
+  });
+
+  const handleDiscard = () => {
+    if (!config) return;
+    const w = (config.weights as Record<string, number>) || {};
+    setWeights(normalizeScoringWeights(w));
+    setDrafts({});
+    setMatchThreshold(config.matchThreshold ?? 60);
+    setDefaultK(config.knnSettings?.defaultK ?? 10);
+    setMaximumK(config.knnSettings?.maximumK ?? 50);
+    setMinSimilarity(config.knnSettings?.minimumSimilarity ?? 0.5);
+    setFeedback(null);
+  };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,10 +226,15 @@ export const ScoringConfigPage: React.FC = () => {
     });
   };
 
+  const breadcrumbs = [
+    { label: "Administration", href: "/admin" },
+    { label: "Matching settings" },
+  ];
+
   if (configQuery.isLoading) {
     return (
       <div className="space-y-5">
-        <PageHeader title="Matching settings" flush />
+        <PageHeader title="Matching settings" flush breadcrumbs={breadcrumbs} />
         <LoadingState variant="detail" />
       </div>
     );
@@ -205,7 +243,7 @@ export const ScoringConfigPage: React.FC = () => {
   if (configQuery.isError || !config) {
     return (
       <div className="space-y-5">
-        <PageHeader title="Matching settings" flush />
+        <PageHeader title="Matching settings" flush breadcrumbs={breadcrumbs} />
         <ErrorState error={configQuery.error} onRetry={() => configQuery.refetch()} />
       </div>
     );
@@ -219,12 +257,12 @@ export const ScoringConfigPage: React.FC = () => {
         title="Matching settings"
         flush
         description={`Choose how candidate match scores are calculated. Last updated ${formatDate(config.activatedAt)}.`}
-        breadcrumbs={[
-          { label: "Administration", href: "/admin" },
-          { label: "Matching settings" },
-        ]}
+        breadcrumbs={breadcrumbs}
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link to="/admin/scoring/quality">View match results</Link>
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -252,10 +290,56 @@ export const ScoringConfigPage: React.FC = () => {
         {/* 5 Dimension Sliders */}
         <AnalyticsPanel
           title="Scoring priorities"
-          aside={<span role="status" className={`font-semibold tabular-nums ${isWeightValid ? "text-emerald-800" : "text-rose-700"}`}>{allocationText}</span>}
+          aside={
+            <div className="flex flex-wrap items-center gap-2">
+              {totalWeight !== 100 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setDrafts({});
+                    setWeights((current) => normalizeScoringWeights(current));
+                  }}
+                >
+                  Balance to 100%
+                </Button>
+              )}
+              <span role="status" className={`font-semibold tabular-nums ${isWeightValid ? "text-emerald-800" : "text-rose-700"}`}>
+                {allocationText}
+              </span>
+            </div>
+          }
         >
           <div className="p-3.5 space-y-4">
             <p id="scoring-weight-help" className="sr-only">Set each priority. The total must equal 100%.</p>
+            <div className="space-y-2">
+              <div
+                className="flex h-2.5 w-full overflow-hidden rounded-full bg-slate-200"
+                role="img"
+                aria-label={METRICS.map((m) => `${m.label}: ${weights[m.key]}%`).join(", ")}
+              >
+                {METRICS.map((metric) => {
+                  const pct = totalWeight > 100 ? (weights[metric.key] / totalWeight) * 100 : weights[metric.key];
+                  return (
+                    <div
+                      key={metric.key}
+                      className={`${metric.barColor} transition-all duration-150`}
+                      style={{ width: `${Math.max(0, pct)}%` }}
+                      title={`${metric.label}: ${weights[metric.key]}%`}
+                    />
+                  );
+                })}
+              </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+                {METRICS.map((metric) => (
+                  <span key={metric.key} className="inline-flex items-center gap-1.5 tabular-nums">
+                    <span className={`h-2 w-2 rounded-full ${metric.barColor}`} aria-hidden="true" />
+                    {metric.label} {weights[metric.key]}%
+                  </span>
+                ))}
+              </div>
+            </div>
             {METRICS.map((metric, index) => (
               <div key={metric.key} className={`space-y-1.5 ${index > 0 ? "pt-3 border-t border-slate-200" : ""}`}>
                 <div className="flex items-center justify-between gap-3 text-sm">
@@ -301,7 +385,7 @@ export const ScoringConfigPage: React.FC = () => {
                   className="w-full h-11 accent-navy cursor-pointer"
                 />
                 <p className="text-xs text-slate-600">
-                  {metric.description} Up to {maxFor(weights, metric.key)}%.
+                  {metric.description}
                 </p>
               </div>
             ))}
@@ -362,16 +446,28 @@ export const ScoringConfigPage: React.FC = () => {
             )}
           </div>
 
-          <Button
-            variant="primary"
-            size="md"
-            type="submit"
-            disabled={!isWeightValid || !isKnnValid || !Number.isInteger(matchThreshold) || matchThreshold < 0 || matchThreshold > 100}
-            loading={updateConfigMutation.isPending}
-            leftIcon={<Save className="w-4 h-4" />}
-          >
-            Save matching settings
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {hasUnsavedChanges && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="md"
+                onClick={handleDiscard}
+              >
+                Discard changes
+              </Button>
+            )}
+            <Button
+              variant="primary"
+              size="md"
+              type="submit"
+              disabled={!hasUnsavedChanges || !isWeightValid || !isKnnValid || !Number.isInteger(matchThreshold) || matchThreshold < 0 || matchThreshold > 100}
+              loading={updateConfigMutation.isPending}
+              leftIcon={<Save className="w-4 h-4" />}
+            >
+              Save matching settings
+            </Button>
+          </div>
         </div>
       </form>
 
@@ -388,24 +484,34 @@ export const ScoringConfigPage: React.FC = () => {
           ) : historyQuery.isError ? (
             <ErrorState error={historyQuery.error} onRetry={() => historyQuery.refetch()} />
           ) : historyItems.length === 0 ? (
-            <p className="text-sm text-slate-500 py-4 text-center">No earlier settings have been saved.</p>
+            <p className="text-sm text-slate-600 py-4 text-center">No earlier settings have been saved.</p>
           ) : (
             <div className="divide-y divide-slate-100">
-              {historyItems.map((h) => (
-                <div key={h.id} className="py-3 text-sm space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-900">
-                       Saved settings {h.revision} ({h.status})
-                    </span>
-                    <span className="text-xs text-slate-600 tabular-nums">
-                      {formatDateTime(h.activatedAt)}
-                    </span>
+              {historyItems.map((h) => {
+                const w = readRevisionWeights(h.weights);
+                return (
+                  <div key={h.id} className="py-3 text-sm space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-slate-900">Revision {h.revision}</span>
+                        <ToneBadge tone={h.status === "ACTIVE" ? "success" : "neutral"}>
+                          {h.status === "ACTIVE" ? "Active" : "Previous"}
+                        </ToneBadge>
+                      </div>
+                      <span className="text-xs text-slate-600 tabular-nums">
+                        {formatDateTime(h.activatedAt)}
+                      </span>
+                    </div>
+                    <div className="text-xs text-slate-600 tabular-nums">
+                      Skills {w.SKILLS}% · Experience {w.EXPERIENCE}% · Location {w.LOCATION}% · Requirements {w.COMPLIANCE}% · Education {w.EDUCATION_CERTIFICATIONS}%
+                      {h.matchThreshold !== undefined ? ` · Threshold ${h.matchThreshold}/100` : ""}
+                    </div>
+                    <div className="text-xs text-slate-600">
+                      Saved by: {h.activatedBy?.email || "Administrator"}
+                    </div>
                   </div>
-                  <div className="text-xs text-slate-600">
-                     Saved by: {h.activatedBy?.email || "Administrator"}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
           <div className="flex justify-end pt-3 border-t border-slate-100">
@@ -431,6 +537,7 @@ export const ScoringConfigPage: React.FC = () => {
         variant="warning"
         loading={restoreDefaultsMutation.isPending}
       />
+      {dirtyGuard.discardDialog}
     </div>
   );
 };

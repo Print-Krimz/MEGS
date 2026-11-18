@@ -39,17 +39,23 @@ const isHeadingLine = (line: string) =>
   line.endsWith(":") ||
   (line.length <= 40 && line.split(/\s+/).length <= 5 && !/[.!?]$/.test(line));
 
+const stripInlineMarkdown = (line: string): string =>
+  line
+    .replace(/(\*\*|__)(.*?)\1/g, "$2")
+    .replace(/`([^`]+)`/g, "$1")
+    .trim();
+
 /** The opening paragraph of a posting, without its section heading, bullets or "Label: value" lines. */
 export const firstParagraph = (description?: string | null): string => {
   const lines = (description ?? "").split(/\r?\n/);
   // A one-line description is the whole summary, even if it looks like a heading.
   const nonEmpty = lines.map((line) => line.trim()).filter(Boolean);
-  if (nonEmpty.length === 1) return nonEmpty[0];
+  if (nonEmpty.length === 1) return stripInlineMarkdown(nonEmpty[0]);
   const paragraph: string[] = [];
   for (const raw of lines) {
     const line = raw.trim();
     const isProse = line !== "" && !BULLET.test(line) && !LABEL_VALUE.test(line) && !isHeadingLine(line);
-    if (isProse) paragraph.push(line);
+    if (isProse) paragraph.push(stripInlineMarkdown(line));
     else if (paragraph.length > 0) break;
   }
   return paragraph.join(" ");
@@ -64,19 +70,19 @@ export const JobCard: React.FC<JobCardProps> = ({ job, saved, saveDisabled = fal
     job.mrf?.workArrangement ? formatWorkArrangement(job.mrf.workArrangement) : null,
     job.mrf?.workShift ? WORK_SHIFT_LABELS[job.mrf.workShift as WorkShift] ?? null : null,
     job.mrf?.department || null,
-  ].filter(Boolean);
+  ].filter((term): term is string => Boolean(term));
 
   return (
-    <article className="flex h-full flex-col rounded-lg border border-slate-300 bg-white p-5 transition-colors hover:border-navy/50">
+    <article className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-5 transition-colors hover:border-slate-300">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-start gap-3">
           {job.imageUrl && <JobImage src={job.imageUrl} title={job.title} alt={job.title} size="md" />}
           <div className="min-w-0 space-y-1">
-            <h3 className="text-lg font-bold leading-snug tracking-tight text-navy">
+            <h3 className="text-base sm:text-lg font-semibold leading-snug tracking-tight text-[#0B315D]">
               <Link
                 to="/app/jobs/$jobId"
                 params={{ jobId: String(job.id) }}
-                className="rounded-sm applicant-touch:inline-flex applicant-touch:min-h-11 applicant-touch:items-center hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+                className="flex min-h-11 items-center rounded-sm sm:inline sm:min-h-0 applicant-touch:inline-flex applicant-touch:min-h-11 applicant-touch:items-center hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
               >
                 {job.title}
               </Link>
@@ -105,36 +111,40 @@ export const JobCard: React.FC<JobCardProps> = ({ job, saved, saveDisabled = fal
               ? "border-navy/40 bg-navy-soft text-navy hover:bg-navy-line"
               : saveDisabled
                 ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
-                : "border-slate-300 bg-white text-slate-600 hover:bg-navy-soft hover:text-navy",
+                : "border-slate-200 bg-white text-slate-600 hover:bg-navy-soft hover:text-navy",
           )}
         >
           <Bookmark className={cn("size-4", saved && "fill-navy")} aria-hidden="true" />
         </button>
       </div>
 
-      <dl className="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-        <div>
-          <dt className="text-xs font-medium uppercase tracking-wide text-slate-600">Worksite</dt>
-          <dd className="mt-0.5 flex items-start gap-1.5 text-slate-900">
-            <MapPin className="mt-0.5 size-4 shrink-0 text-slate-600" aria-hidden="true" />
-            <span className="min-w-0 break-words">{worksite ?? "To be confirmed"}</span>
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs font-medium uppercase tracking-wide text-slate-600">Salary</dt>
-          <dd className="mt-0.5">
-            {hasSalary(job) ? (
-              <span className="font-semibold text-slate-900">
-                {formatSalaryRange(job.mrf?.salaryRangeMin, job.mrf?.salaryRangeMax)}
-              </span>
-            ) : (
-              <span className="text-slate-600">Not stated</span>
-            )}
-          </dd>
-        </div>
-      </dl>
+      <div className="mt-3.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm">
+        <span className="inline-flex items-center gap-1.5 text-slate-700 min-w-0">
+          <MapPin className="size-4 shrink-0 text-slate-500" aria-hidden="true" />
+          <span className="min-w-0 break-words">{worksite ?? "To be confirmed"}</span>
+        </span>
+        <span className="text-slate-300" aria-hidden="true">·</span>
+        {hasSalary(job) ? (
+          <span className="font-semibold tabular-nums text-slate-900">
+            {formatSalaryRange(job.mrf?.salaryRangeMin, job.mrf?.salaryRangeMax)}
+          </span>
+        ) : (
+          <span className="text-slate-500">Not stated</span>
+        )}
+      </div>
 
-      {terms.length > 0 && <p className="mt-3 text-sm text-slate-600">{terms.join(" · ")}</p>}
+      {terms.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Job terms">
+          {terms.map((term) => (
+            <span
+              key={term}
+              className="inline-flex items-center rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700"
+            >
+              {term}
+            </span>
+          ))}
+        </div>
+      )}
 
       {reasons && reasons.length > 0 && <p className="mt-3 text-sm font-medium text-navy">{reasons.join(" · ")}</p>}
 
@@ -143,7 +153,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, saved, saveDisabled = fal
       <div className="mt-auto pt-5">
         <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-4">
           <div className="flex flex-col items-start">
-            <span className="text-xs text-slate-600">Posted {formatDate(job.createdAt)}</span>
+            <span className="text-xs text-slate-500">Posted {formatDate(job.createdAt)}</span>
             {onDismiss && (
               <button
                 type="button"
@@ -158,10 +168,10 @@ export const JobCard: React.FC<JobCardProps> = ({ job, saved, saveDisabled = fal
           <Link
             to="/app/jobs/$jobId"
             params={{ jobId: String(job.id) }}
-            aria-label={`View details for ${job.title}`}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-md bg-navy px-4 text-sm font-medium text-white transition-colors hover:bg-navy-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
+            aria-label={`View & Apply for ${job.title}`}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-[#0B315D] transition-colors hover:border-[#0B315D] hover:bg-[#0B315D] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2"
           >
-            <span>View details</span>
+            <span>View &amp; Apply</span>
             <ArrowRight className="size-4" aria-hidden="true" />
           </Link>
         </div>

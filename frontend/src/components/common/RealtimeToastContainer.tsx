@@ -1,18 +1,25 @@
-import React from "react";
+import React, { useContext } from "react";
 import { Bell, X, ArrowUpRight } from "lucide-react";
 import type { RealtimeToast } from "../../hooks/useRealtimeNotifications";
+import { AuthContext } from "../../context/AuthContext";
+import { resolveNotificationLink } from "../../lib/utils";
 
 export interface RealtimeToastContainerProps {
   toasts: RealtimeToast[];
   onDismiss: (id: number) => void;
   onToastClick?: (toast: RealtimeToast) => void;
+  userRole?: string;
 }
 
 export const RealtimeToastContainer: React.FC<RealtimeToastContainerProps> = ({
   toasts,
   onDismiss,
   onToastClick,
+  userRole,
 }) => {
+  const auth = useContext(AuthContext);
+  const role = userRole ?? auth?.user?.role;
+
   if (toasts.length === 0) return null;
 
   return (
@@ -24,6 +31,7 @@ export const RealtimeToastContainer: React.FC<RealtimeToastContainerProps> = ({
       aria-atomic="true"
     >
       {toasts.map((toast) => {
+        const resolvedLink = resolveNotificationLink(toast.link, role);
         const isClickable = Boolean(onToastClick);
         const content = (
           <>
@@ -35,7 +43,7 @@ export const RealtimeToastContainer: React.FC<RealtimeToastContainerProps> = ({
                 <span className="text-sm font-semibold text-slate-900 truncate">
                   {toast.title}
                 </span>
-                {toast.link && <ArrowUpRight className="w-3 h-3 text-navy shrink-0" aria-hidden="true" />}
+                {resolvedLink && <ArrowUpRight className="w-3 h-3 text-navy shrink-0" aria-hidden="true" />}
               </span>
               <span className="block text-sm text-slate-600 leading-normal font-sans line-clamp-3">
                 {toast.message}
@@ -60,7 +68,7 @@ export const RealtimeToastContainer: React.FC<RealtimeToastContainerProps> = ({
               <button
                 type="button"
                 onClick={() => onToastClick?.(toast)}
-                title={toast.link ? "Click to view notification details" : undefined}
+                title={resolvedLink ? "Click to view notification details" : undefined}
                 className="flex items-start gap-2.5 min-w-0 flex-1 p-3.5 pr-0 text-left cursor-pointer rounded-l-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-navy"
               >
                 {content}

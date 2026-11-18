@@ -172,46 +172,49 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
                 No recent notifications
               </li>
             ) : (
-              notifications.slice(0, 5).map((n) => (
-                <li
-                  key={n.id}
-                  className={`flex items-start justify-between gap-2 p-1.5 ${!n.isRead ? "bg-navy-soft/40" : ""}`}
-                >
-                  <button
-                    type="button"
-                    onClick={() => handleItemClick(n)}
-                    className="min-h-11 flex-1 p-2 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
+              notifications.slice(0, 5).map((n) => {
+                const resolvedLink = resolveNotificationLink(n.link, user?.role);
+                return (
+                  <li
+                    key={n.id}
+                    className={`flex items-start justify-between gap-2 p-1.5 ${!n.isRead ? "bg-navy-soft/40" : ""}`}
                   >
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-medium text-slate-900 truncate">
-                         {formatNotificationTitle(n.title, user?.role)}
-                      </span>
-                      {n.link && <ArrowUpRight className="w-3 h-3 text-navy shrink-0" />}
-                    </div>
-                    <div className="text-sm text-slate-600 line-clamp-2 leading-relaxed">
-                      {formatNotificationMessage(n.message, user?.role)}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {formatRelativeTime(n.createdAt)}
-                    </div>
-                  </button>
-
-                  {!n.isRead && onMarkAsRead && (
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onMarkAsRead(n.id);
-                      }}
-                      className="min-h-11 min-w-11 p-2 text-navy hover:text-navy-hover rounded-md hover:bg-navy-soft transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
-                      aria-label={`Mark ${n.title} as read`}
-                      title="Mark as read"
+                      onClick={() => handleItemClick(n)}
+                      className="min-h-11 flex-1 p-2 text-left transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
                     >
-                      <CheckCheck className="w-4 h-4" />
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-medium text-slate-900 truncate">
+                          {formatNotificationTitle(n.title, user?.role)}
+                        </span>
+                        {resolvedLink && <ArrowUpRight className="w-3 h-3 text-navy shrink-0" aria-hidden="true" />}
+                      </div>
+                      <div className="text-sm text-slate-600 line-clamp-2 leading-relaxed">
+                        {formatNotificationMessage(n.message, user?.role)}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        {formatRelativeTime(n.createdAt)}
+                      </div>
                     </button>
-                  )}
-                </li>
-              ))
+
+                    {!n.isRead && onMarkAsRead && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onMarkAsRead(n.id);
+                        }}
+                        className="min-h-11 min-w-11 p-2 text-navy hover:text-navy-hover rounded-md hover:bg-navy-soft transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                        aria-label={`Mark ${n.title} as read`}
+                        title="Mark as read"
+                      >
+                        <CheckCheck className="w-4 h-4" />
+                      </button>
+                    )}
+                  </li>
+                );
+              })
             )}
           </ul>
         </div>

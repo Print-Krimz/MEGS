@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Link, Outlet } from "@tanstack/react-router";
+import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import {
-  ShieldAlert,
+  LayoutDashboard,
   Users2,
   Sliders,
   Activity,
@@ -18,7 +18,9 @@ import {
   Building2,
   ClipboardList,
   Briefcase,
+  type LucideIcon,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../hooks/useAuth";
 import { useRealtimeNotifications } from "../hooks/useRealtimeNotifications";
 import { useIdleSignOut } from "../hooks/useIdleSignOut";
@@ -28,57 +30,115 @@ import {
   RealtimeToastContainer,
   SignOutDialog,
 } from "../components/common";
+import { adminApi } from "../lib/api/admin.api";
 import { TA_COPY } from "../lib/ta-copy";
 import { getInitials } from "../lib/utils";
 import { resolveUserName } from "../lib/user-name";
+import { AdminGlobalSearch } from "./AdminGlobalSearch";
 import "./admin.css";
+
+interface NavItem {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  badge?: { count: number; label: string; tone?: "action" | "info" };
+}
 
 interface NavSection {
   label: string;
-  items: {
-    to: string;
-    label: string;
-    icon: React.ComponentType<{ className?: string }>;
-  }[];
+  items: NavItem[];
 }
 
-const adminNavSections: NavSection[] = [
-  {
-    label: "Overview",
-    items: [
-      { to: "/admin", label: "Overview", icon: ShieldAlert },
-      { to: "/admin/analytics", label: "Reports", icon: BarChart3 },
-    ],
-  },
-  {
-    label: "Clients and requests",
-    items: [
-      { to: "/admin/clients", label: TA_COPY.navigation.clients, icon: Building2 },
-      { to: "/admin/mrfs", label: TA_COPY.navigation.manpowerRequests, icon: ClipboardList },
-      { to: "/admin/jobs", label: TA_COPY.navigation.openings, icon: Briefcase },
-    ],
-  },
-  {
-    label: "People & access",
-    items: [
-      { to: "/admin/users", label: "Users", icon: Users2 },
-    ],
-  },
-  {
-    label: "Candidate matching",
-    items: [
-      { to: "/admin/scoring", label: "Matching settings", icon: Sliders },
-      { to: "/admin/scoring/quality", label: "Match results", icon: Activity },
-    ],
-  },
-  {
-    label: "Records & recovery",
-    items: [
-      { to: "/admin/audit", label: "Activity history", icon: History },
-      { to: "/admin/maintenance", label: "Backups and recovery", icon: Database },
-    ],
-  },
-];
+const SIDEBAR_STORAGE_KEY = "megs_sidebar_collapsed";
+
+const SEARCH_HINT =
+  typeof navigator !== "undefined" && /mac|iphone|ipad/i.test(navigator.platform ?? "") ? "\u2318 K" : "Ctrl K";
+
+function readSidebarCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function isAdminNavItemActive(pathname: string, to: string): boolean {
+  if (to === "/admin") return pathname === "/admin";
+  if (to === "/admin/scoring") return pathname === "/admin/scoring";
+  if (to === "/admin/analytics") {
+    return pathname.startsWith("/admin/analytics") || pathname.startsWith("/admin/applications/");
+  }
+  return pathname === to || pathname.startsWith(`${to}/`);
+}
+
+const BrandLockup: React.FC<{ compact?: boolean }> = ({ compact = false }) =>
+  compact ? null : (
+    <div className="flex min-w-0 items-center">
+      <span className="truncate text-sm font-semibold leading-tight text-white">Administration</span>
+    </div>
+  );
+
+const AdminNavList: React.FC<{
+  sections: NavSection[];
+  isActive: (to: string) => boolean;
+  size: "md" | "lg";
+  collapsed?: boolean;
+  onNavigate?: () => void;
+}> = ({ sections, isActive, size, collapsed = false, onNavigate }) => (
+  <nav
+    aria-label="Admin portal"
+    className={`flex-1 overflow-y-auto py-3 space-y-5 ${size === "lg" ? "px-3" : "px-2"}`}
+  >
+    {sections.map((section) => (
+      <div key={section.label} className="space-y-1">
+        {!collapsed && (
+          <div className="px-3 text-[11px] font-medium uppercase tracking-wide text-white/70">
+            {section.label}
+          </div>
+        )}
+        <div className="space-y-0.5">
+          {section.items.map((item) => {
+            const Icon = item.icon;
+            const active = isActive(item.to);
+            const count = item.badge?.count ?? 0;
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={onNavigate}
+                aria-current={active ? "page" : undefined}
+                title={collapsed ? item.label : undefined}
+                className={`focus-ring-dark relative flex items-center gap-2.5 border-l-[3px] px-3 py-2 text-sm transition-colors ${
+                  size === "lg" ? "min-h-11" : "min-h-10"
+                } ${
+                  active
+                    ? "border-megs-red bg-white/5 font-medium text-white"
+                    : "border-transparent text-white/75 hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
+                {collapsed ? <span className="sr-only">{item.label}</span> : <span className="truncate">{item.label}</span>}
+                {count > 0 && (
+                  <>
+                    <span
+                      aria-hidden="true"
+                      className={`rounded-full px-1.5 text-xs font-semibold leading-5 tabular-nums ${
+                        item.badge?.tone === "info" ? "bg-white/15 text-white" : "bg-white text-megs-red"
+                      } ${collapsed ? "absolute right-0.5 top-0.5 min-w-5 text-center text-[10px] leading-4" : "ml-auto"}`}
+                    >
+                      {count > 99 ? "99+" : count}
+                    </span>
+                    <span className="sr-only">{item.badge?.label}</span>
+                  </>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    ))}
+  </nav>
+);
 
 export const AdminLayout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -86,7 +146,8 @@ export const AdminLayout: React.FC = () => {
   useEffect(() => {
     if (idle.expired) void logout({ reason: "idle" });
   }, [idle.expired, logout]);
-  const [collapsed, setCollapsed] = useState(false);
+  const location = useLocation();
+  const [collapsed, setCollapsed] = useState(readSidebarCollapsed);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -108,11 +169,100 @@ export const AdminLayout: React.FC = () => {
     handleToastClick,
   } = useRealtimeNotifications({ recentEnabled: bellOpen });
 
+  const userSummary = useQuery({
+    queryKey: ["admin", "users", "summary"],
+    queryFn: ({ signal }) => adminApi.getUserSummary({ signal }),
+    staleTime: 60_000,
+  }).data;
+  const expiredInvitations = userSummary?.expiredInvitations ?? 0;
+  const failedJobs = userSummary?.failedJobs ?? 0;
+
+  const adminNavSections: NavSection[] = [
+    {
+      label: "Overview",
+      items: [
+        { to: "/admin", label: "Overview", icon: LayoutDashboard },
+        { to: "/admin/analytics", label: "Reports", icon: BarChart3 },
+      ],
+    },
+    {
+      label: "Clients and requests",
+      items: [
+        { to: "/admin/clients", label: TA_COPY.navigation.clients, icon: Building2 },
+        { to: "/admin/mrfs", label: TA_COPY.navigation.manpowerRequests, icon: ClipboardList },
+        { to: "/admin/jobs", label: TA_COPY.navigation.openings, icon: Briefcase },
+      ],
+    },
+    {
+      label: "People & access",
+      items: [
+        {
+          to: "/admin/users",
+          label: "Users",
+          icon: Users2,
+          badge: {
+            count: expiredInvitations,
+            label: `${expiredInvitations} expired ${expiredInvitations === 1 ? "invitation" : "invitations"}`,
+          },
+        },
+      ],
+    },
+    {
+      label: "Candidate matching",
+      items: [
+        { to: "/admin/scoring", label: "Matching settings", icon: Sliders },
+        {
+          to: "/admin/scoring/quality",
+          label: "Match results",
+          icon: Activity,
+          badge: {
+            count: failedJobs,
+            label: `${failedJobs} failed scoring ${failedJobs === 1 ? "job" : "jobs"}`,
+          },
+        },
+      ],
+    },
+    {
+      label: "Records & recovery",
+      items: [
+        { to: "/admin/audit", label: "Activity history", icon: History },
+        { to: "/admin/maintenance", label: "Backups and recovery", icon: Database },
+      ],
+    },
+  ];
+
+  const isNavItemActive = (to: string) => isAdminNavItemActive(location.pathname, to);
+
+  const currentSectionLabel =
+    adminNavSections.flatMap((section) => section.items).find((item) => isNavItemActive(item.to))?.label ??
+    (location.pathname.startsWith("/admin/notifications")
+      ? "Notifications"
+      : location.pathname.startsWith("/admin/settings")
+        ? "Settings"
+        : "Administration");
+
   const actualName = resolveUserName(user ? { ...user, email: null } : user, "");
   const hasActualName = Boolean(actualName);
   const fullName = actualName || user?.email || "Administrator";
   const [firstName, ...lastNames] = actualName.split(/\s+/);
   const initials = hasActualName ? getInitials(firstName, lastNames.join(" ")) : "AD";
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+      } catch {
+        // Ignore storage restrictions.
+      }
+      return next;
+    });
+  };
+
+  const closeAccountMenu = () => {
+    setAccountMenuOpen(false);
+    accountButtonRef.current?.focus();
+  };
 
   // Close account menu on click outside
   useEffect(() => {
@@ -139,6 +289,7 @@ export const AdminLayout: React.FC = () => {
       return;
     }
     mobileMenuWasOpen.current = true;
+    document.body.style.overflow = "hidden";
 
     const drawer = mobileMenuRef.current;
     const getFocusable = () =>
@@ -172,7 +323,10 @@ export const AdminLayout: React.FC = () => {
     };
 
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = "";
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [mobileMenuOpen]);
 
   // Keyboard navigation for account menu
@@ -182,24 +336,29 @@ export const AdminLayout: React.FC = () => {
 
       if (e.key === "Escape") {
         e.preventDefault();
-        setAccountMenuOpen(false);
-        accountButtonRef.current?.focus();
+        closeAccountMenu();
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
-        const activeIdx = menuItemsRef.current.findIndex((el) => el === document.activeElement);
-        const nextIdx = activeIdx < menuItemsRef.current.length - 1 ? activeIdx + 1 : 0;
-        menuItemsRef.current[nextIdx]?.focus();
+        const items = menuItemsRef.current.filter(Boolean) as (HTMLAnchorElement | HTMLButtonElement)[];
+        if (items.length === 0) return;
+        const activeIdx = items.findIndex((el) => el === document.activeElement);
+        const nextIdx = activeIdx < items.length - 1 ? activeIdx + 1 : 0;
+        items[nextIdx]?.focus();
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        const activeIdx = menuItemsRef.current.findIndex((el) => el === document.activeElement);
-        const prevIdx = activeIdx > 0 ? activeIdx - 1 : menuItemsRef.current.length - 1;
-        menuItemsRef.current[prevIdx]?.focus();
+        const items = menuItemsRef.current.filter(Boolean) as (HTMLAnchorElement | HTMLButtonElement)[];
+        if (items.length === 0) return;
+        const activeIdx = items.findIndex((el) => el === document.activeElement);
+        const prevIdx = activeIdx > 0 ? activeIdx - 1 : items.length - 1;
+        items[prevIdx]?.focus();
       } else if (e.key === "Home") {
         e.preventDefault();
-        menuItemsRef.current[0]?.focus();
+        const items = menuItemsRef.current.filter(Boolean) as (HTMLAnchorElement | HTMLButtonElement)[];
+        items[0]?.focus();
       } else if (e.key === "End") {
         e.preventDefault();
-        menuItemsRef.current[menuItemsRef.current.length - 1]?.focus();
+        const items = menuItemsRef.current.filter(Boolean) as (HTMLAnchorElement | HTMLButtonElement)[];
+        items[items.length - 1]?.focus();
       }
     };
 
@@ -209,11 +368,28 @@ export const AdminLayout: React.FC = () => {
     };
   }, [accountMenuOpen]);
 
+  // Ctrl/Cmd+K jumps to the global search.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "k") return;
+      const input = document.querySelector<HTMLInputElement>('header input[role="combobox"]');
+      if (!input || input.offsetParent === null) return;
+      e.preventDefault();
+      input.focus();
+      input.select();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   // Past the idle limit: show no data while the sign-out request completes.
   if (idle.expired) return null;
 
   return (
-    <div className="admin-portal min-h-screen bg-ta-page flex flex-col lg:flex-row">
+    <div
+      className="admin-portal min-h-screen bg-ta-page flex flex-col lg:flex-row overflow-x-clip"
+      style={{ "--portal-sidebar-w": collapsed ? "4rem" : "16rem" } as React.CSSProperties}
+    >
       <title>MEGS Admin</title>
       <meta name="robots" content="noindex" />
       <a href="#admin-main-content" className="admin-skip-link">Skip to content</a>
@@ -237,9 +413,7 @@ export const AdminLayout: React.FC = () => {
           >
             {/* Drawer Header */}
             <div className="h-14 flex items-center justify-between px-4 border-b border-white/10">
-              <div className="leading-tight">
-                <div className="text-sm font-semibold text-white">Administration</div>
-              </div>
+              <BrandLockup />
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
@@ -251,36 +425,12 @@ export const AdminLayout: React.FC = () => {
             </div>
 
             {/* Mobile Navigation List */}
-            <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
-              {adminNavSections.map((section, idx) => (
-                <div key={idx} className="space-y-1">
-                  <div className="px-3 text-[11px] font-medium uppercase tracking-wide text-white/55">
-                    {section.label}
-                  </div>
-                  <div className="space-y-0.5">
-                    {section.items.map((item) => {
-                      const Icon = item.icon;
-                      return (
-                        <Link
-                          key={item.to}
-                          to={item.to}
-                          aria-label={item.label}
-                          onClick={() => setMobileMenuOpen(false)}
-                          activeOptions={{ exact: true }}
-                          activeProps={{
-                            className: "border-megs-red bg-white/5 font-medium text-white",
-                          }}
-                          className="admin-nav-link focus-ring-dark flex min-h-11 items-center gap-2.5 border-l-[3px] border-transparent px-3 py-2 text-sm text-white/75 hover:text-white hover:bg-white/5 transition-colors"
-                        >
-                          <Icon className="w-4 h-4 shrink-0" />
-                          <span className="truncate">{item.label}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </nav>
+            <AdminNavList
+              sections={adminNavSections}
+              isActive={isNavItemActive}
+              size="lg"
+              onNavigate={() => setMobileMenuOpen(false)}
+            />
           </aside>
         </div>
       )}
@@ -293,21 +443,11 @@ export const AdminLayout: React.FC = () => {
       >
         {/* Brand Header */}
         <div className={`flex shrink-0 items-center border-b border-white/10 ${collapsed ? "flex-col justify-center gap-1.5 py-2" : "h-14 justify-between px-4"}`}>
-          {!collapsed && (
-            <div className="leading-tight">
-              <div className="text-sm font-semibold text-white">Administration</div>
-            </div>
-          )}
-
-          {collapsed && (
-            <div className="w-full flex justify-center">
-              <span className="font-semibold text-sm text-white">M</span>
-            </div>
-          )}
+          <BrandLockup compact={collapsed} />
 
           <button
             type="button"
-            onClick={() => setCollapsed(!collapsed)}
+            onClick={toggleCollapsed}
             className="focus-ring-dark min-h-9 min-w-9 inline-flex items-center justify-center rounded-md text-white/75 hover:text-white hover:bg-white/5 transition-colors"
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
@@ -317,38 +457,12 @@ export const AdminLayout: React.FC = () => {
         </div>
 
         {/* Navigation Items */}
-        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
-          {adminNavSections.map((section, idx) => (
-            <div key={idx} className="space-y-1">
-              {!collapsed && (
-                <div className="px-3 text-[11px] font-medium uppercase tracking-wide text-white/55">
-                  {section.label}
-                </div>
-              )}
-              <div className="space-y-0.5">
-                {section.items.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.to}
-                      to={item.to}
-                      aria-label={item.label}
-                      activeOptions={{ exact: true }}
-                      activeProps={{
-                        className: "border-megs-red bg-white/5 font-medium text-white",
-                      }}
-                      className="admin-nav-link focus-ring-dark flex min-h-9 items-center gap-2.5 border-l-[3px] border-transparent px-3 py-2 text-sm text-white/75 hover:text-white hover:bg-white/5 transition-colors"
-                      title={collapsed ? item.label : undefined}
-                    >
-                      <Icon className="w-4 h-4 shrink-0" />
-                      {!collapsed && <span className="truncate">{item.label}</span>}
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </nav>
+        <AdminNavList
+          sections={adminNavSections}
+          isActive={isNavItemActive}
+          size="md"
+          collapsed={collapsed}
+        />
       </aside>
 
       {/* Sign Out Warning Dialog */}
@@ -375,6 +489,19 @@ export const AdminLayout: React.FC = () => {
             >
               <Menu className="w-4 h-4" />
             </button>
+            <h2 className="lg:hidden text-sm font-semibold text-slate-900 truncate">{currentSectionLabel}</h2>
+          </div>
+
+          <div className="flex flex-1 items-center justify-end gap-2 md:justify-start min-w-0 px-2 md:px-4">
+            <div className="group flex w-full min-w-0 items-center gap-2 md:max-w-[480px]">
+              <AdminGlobalSearch />
+              <kbd
+                aria-hidden="true"
+                className="hidden shrink-0 select-none rounded border border-slate-300 bg-slate-50 font-sans px-1.5 py-0.5 text-[11px] font-medium text-slate-600 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 xl:inline-block"
+              >
+                {SEARCH_HINT}
+              </kbd>
+            </div>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
@@ -400,7 +527,7 @@ export const AdminLayout: React.FC = () => {
                 aria-expanded={accountMenuOpen}
                 aria-controls="admin-account-menu"
               >
-                <div aria-hidden="true" className="w-7 h-7 bg-navy text-white rounded-md text-xs font-bold flex items-center justify-center shrink-0">
+                <div aria-hidden="true" className="w-8 h-8 bg-navy text-white rounded-md text-xs font-semibold flex items-center justify-center shrink-0">
                   {initials}
                 </div>
                 <span className="sr-only sm:hidden">{fullName}</span>
@@ -408,13 +535,13 @@ export const AdminLayout: React.FC = () => {
                   <div className="text-xs font-bold text-slate-900 truncate max-w-[140px]">
                     {fullName}
                   </div>
-                  <div className="text-xs text-slate-500 font-medium truncate max-w-[140px]">
+                  <div className="text-xs text-slate-600 font-medium truncate max-w-[140px]">
                     Administrator
                   </div>
                 </div>
                 <span className="sr-only">, account menu</span>
                 <ChevronDown
-                  className={`w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-transform duration-150 shrink-0 ${
+                  className={`w-3.5 h-3.5 text-slate-600 group-hover:text-slate-900 transition-transform duration-150 shrink-0 ${
                     accountMenuOpen ? "rotate-180" : ""
                   }`}
                   aria-hidden="true"
@@ -426,18 +553,21 @@ export const AdminLayout: React.FC = () => {
                   id="admin-account-menu"
                   role="menu"
                   aria-labelledby="admin-account-button"
+                  onKeyDown={(e) => {
+                    if (e.key === "Tab") closeAccountMenu();
+                  }}
                   className="absolute right-0 mt-1.5 w-64 rounded-md bg-white shadow-modal border border-slate-300 z-50 overflow-hidden animate-in fade-in-50 zoom-in-95 duration-100"
                 >
                   {/* User Identity Context Card */}
                   <div className="p-3 bg-slate-50 border-b border-slate-200">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 bg-navy text-white rounded-md text-xs font-bold flex items-center justify-center shrink-0">
+                      <div className="w-9 h-9 bg-navy text-white rounded-md text-xs font-semibold flex items-center justify-center shrink-0">
                         {initials}
                       </div>
                       <div className="overflow-hidden min-w-0">
                         <div className="text-xs font-bold text-slate-900 truncate">{fullName}</div>
                         {hasActualName && user?.email && (
-                          <div className="text-[11px] text-slate-500 truncate">{user.email}</div>
+                          <div className="text-[11px] text-slate-600 truncate">{user.email}</div>
                         )}
                       </div>
                     </div>
@@ -455,13 +585,10 @@ export const AdminLayout: React.FC = () => {
                       role="menuitem"
                       tabIndex={0}
                       ref={(el) => { menuItemsRef.current[0] = el; }}
-                      onClick={() => {
-                        accountButtonRef.current?.focus();
-                        setAccountMenuOpen(false);
-                      }}
+                      onClick={closeAccountMenu}
                       className="min-h-11 flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-slate-700 hover:bg-slate-100 hover:text-slate-950 transition-colors focus-visible:outline-none focus-visible:bg-slate-100 focus-visible:text-slate-950 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
                     >
-                      <Settings className="w-4 h-4 text-slate-500 shrink-0" aria-hidden="true" />
+                      <Settings className="w-4 h-4 text-slate-600 shrink-0" aria-hidden="true" />
                       <span className="text-slate-900 font-medium">Settings</span>
                     </Link>
                   </div>
@@ -474,7 +601,7 @@ export const AdminLayout: React.FC = () => {
                       tabIndex={0}
                       ref={(el) => { menuItemsRef.current[1] = el; }}
                       onClick={() => {
-                        setAccountMenuOpen(false);
+                        closeAccountMenu();
                         setShowSignOutConfirm(true);
                       }}
                       className="min-h-11 w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 hover:text-rose-900 transition-colors focus-visible:outline-none focus-visible:bg-rose-50 focus-visible:text-rose-900 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus text-left cursor-pointer"

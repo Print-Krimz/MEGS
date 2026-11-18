@@ -5,6 +5,7 @@ import { PhilippineAddressFields } from "../../../common/PhilippineAddressFields
 import { employeesApi } from "../../../../lib/api/employees.api";
 import type { UpdateEmployeeDetailsDto } from "../../../../lib/types/employee.types";
 import { notify } from "../../../../lib/feedback";
+import { useDirtyGuard } from "../../../../hooks/useDirtyGuard";
 import {
   formatSSSNumber,
   formatPhilHealthNumber,
@@ -67,12 +68,13 @@ export const EditEmployeeDialog: React.FC<EditEmployeeDialogProps> = ({
   const queryClient = useQueryClient();
   const [editFormErrors, setEditFormErrors] = useState<Record<string, string>>({});
   const [editForm, setEditForm] = useState(EMPTY_FORM);
+  const [initialForm, setInitialForm] = useState(EMPTY_FORM);
 
   // Each time the dialog opens it starts from the saved record.
   useEffect(() => {
     if (!open) return;
     setEditFormErrors({});
-    setEditForm({
+    const initial = {
       firstName: cand.firstName || "",
       middleName: cand.middleName || "",
       lastName: cand.lastName || "",
@@ -92,10 +94,23 @@ export const EditEmployeeDialog: React.FC<EditEmployeeDialogProps> = ({
       emergencyContactAddress: cand.emergencyContactAddress || "",
       position: position || "",
       department: department || "",
-    });
+    };
+    setEditForm(initial);
+    setInitialForm(initial);
     // Only reopening resets the form: a background refetch must not wipe what the user is typing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  const isDirty = open && (Object.keys(EMPTY_FORM) as Array<keyof typeof EMPTY_FORM>).some((k) => editForm[k] !== initialForm[k]);
+  const { confirmDiscard, discardDialog } = useDirtyGuard({
+    isDirty,
+    message: "Your edits to this employee record have not been saved yet.",
+  });
+
+  const handleClose = async () => {
+    if (!(await confirmDiscard())) return;
+    onClose();
+  };
 
   const updateDetailsMutation = useMutation({
     mutationFn: (form: UpdateEmployeeDetailsDto) => employeesApi.updateEmployeeDetails(employeeId, form),
@@ -214,14 +229,15 @@ export const EditEmployeeDialog: React.FC<EditEmployeeDialogProps> = ({
   };
 
   return (
+      <>
       <Dialog
         open={open}
-        onClose={onClose}
+        onClose={() => void handleClose()}
         title="Edit employee details"
         description={`Update legal name, contact, statutory IDs, and job details for ${empName}`}
         size="xl"
       >
-        <form onSubmit={handleSaveEdit} className="space-y-6">
+        <form noValidate onSubmit={handleSaveEdit} className="space-y-6">
           {/* Section 1: Legal Name */}
           <div className="space-y-3">
             <h4 className="text-sm font-semibold text-slate-900 border-b border-slate-100 pb-1.5">
@@ -436,7 +452,7 @@ export const EditEmployeeDialog: React.FC<EditEmployeeDialogProps> = ({
               type="button"
               variant="outline"
               size="sm"
-              onClick={onClose}
+              onClick={() => void handleClose()}
               disabled={updateDetailsMutation.isPending}
             >
               Cancel
@@ -452,5 +468,7 @@ export const EditEmployeeDialog: React.FC<EditEmployeeDialogProps> = ({
           </div>
         </form>
       </Dialog>
+      {discardDialog}
+      </>
   );
 };

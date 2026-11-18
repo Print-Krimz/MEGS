@@ -809,7 +809,7 @@ export const ProfilePage: React.FC = () => {
       title="Candidate Profile"
       description="Keep your profile ready for the next opportunity"
       breadcrumbs={[
-        { label: "Applicant Portal", href: "/app" },
+        { label: "My career", href: "/app" },
         { label: "Profile" },
       ]}
     />
@@ -1084,7 +1084,7 @@ export const ProfilePage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       {pageHeader}
 
       <ProfileSectionNav activeSection={activeSection} onChange={handleSectionChange} />
@@ -1094,7 +1094,7 @@ export const ProfilePage: React.FC = () => {
         role="tabpanel"
         aria-labelledby={`profile-tab-${activeSection}`}
         tabIndex={0}
-        className="focus-ring bg-white border border-[#D9E2EC] p-4 sm:p-6 shadow-2xs"
+        className="focus-ring min-w-0 rounded-xl bg-white border border-slate-200 p-4 sm:p-6"
       >
           {activeSection === "overview" && (
             <ProfileOverview
@@ -1142,9 +1142,9 @@ export const ProfilePage: React.FC = () => {
           {/* TAB 1: PERSONAL INFO */}
           {activeSection === "personal" && (
             <div className="space-y-6">
-              <div className="border-b border-slate-100 pb-3">
-                <h3 className="text-base font-bold text-slate-900">Personal Information</h3>
-                <p className="text-xs text-slate-500">
+              <div className="border-b border-[#D9E2EC] pb-3">
+                <h2 className="text-base font-bold text-[#0B315D]">Personal Information</h2>
+                <p className="text-xs text-[#486581]">
                   Ensure contact details and full legal name match your government-issued identification.
                 </p>
               </div>
@@ -1173,25 +1173,25 @@ export const ProfilePage: React.FC = () => {
                 }}
                 className="space-y-6"
               >
-                <div className="space-y-1.5" role="group" aria-label="Profile completion">
+                <div className="space-y-1.5" role="group" aria-label="Personal details completion">
                   <div className="flex flex-wrap items-center justify-between gap-x-3 text-sm">
-                    <span className="font-semibold text-slate-900">Profile {profileProgress.percent}% complete</span>
-                    <span className="text-xs text-slate-600">
-                      {profileProgress.filled} of {profileProgress.total} key fields filled
+                    <span className="font-semibold text-[#102A43]">Personal details {profileProgress.percent}% complete</span>
+                    <span className="text-xs text-[#486581]">
+                      {profileProgress.filled} of {profileProgress.total} required personal fields filled
                     </span>
                   </div>
                   <div
-                    className="h-2 overflow-hidden rounded-full bg-slate-200"
+                    className="h-1.5 overflow-hidden rounded-full bg-slate-100"
                     role="progressbar"
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-valuenow={profileProgress.percent}
-                    aria-label="Profile completion"
+                    aria-label="Personal details completion"
                   >
-                    <div className="h-full rounded-full bg-navy transition-all" style={{ width: `${profileProgress.percent}%` }} />
+                    <div className="h-full rounded-full bg-[#0B315D] transition-all" style={{ width: `${profileProgress.percent}%` }} />
                   </div>
-                  <p className="text-xs text-slate-600">
-                    Fields marked <span className="text-rose-600">*</span> are required. Use Next and Previous to move between sections; nothing is lost.
+                  <p className="text-xs text-[#486581]">
+                    Fields marked <span className="text-[#C8102E]">*</span> are required. Use Next and Previous to move between sections; nothing is lost.
                   </p>
                 </div>
                 <ProfileDisclosure
@@ -1603,7 +1603,7 @@ export const ProfilePage: React.FC = () => {
                   {...stepProps("references")}
                 >
                 <div className="space-y-5">
-                  <div className="flex items-center justify-between gap-3 border-b border-[#D9E2EC] pb-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#D9E2EC] pb-3">
                     <p className="text-xs text-[#486581]">People who can speak to your work, such as a former supervisor.</p>
                     <Button
                       variant="primary"
@@ -1698,7 +1698,7 @@ export const ProfilePage: React.FC = () => {
                 </div>
                 </ProfileDisclosure>
 
-                <div className="flex flex-col-reverse gap-3 pt-4 border-t border-slate-200 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col-reverse gap-3 pt-4 border-t border-[#D9E2EC] sm:flex-row sm:items-center sm:justify-between">
                   <Button
                     type="button"
                     variant="outline"
@@ -1726,6 +1726,8 @@ export const ProfilePage: React.FC = () => {
 
           {/* TAB 3: WORK EXPERIENCE */}
           {activeSection === "qualifications" && (
+            <>
+              <h2 className="sr-only">Experience and education</h2>
             <ProfileDisclosure
               id="profile-qualification-experience"
               title="Work experience"
@@ -1807,6 +1809,7 @@ export const ProfilePage: React.FC = () => {
               )}
               </div>
             </ProfileDisclosure>
+            </>
           )}
 
           {/* TAB 4: EDUCATION */}

@@ -195,19 +195,96 @@ export const TeamTable = React.memo(function TeamTable({
       {pageRows.length === 0 ? (
         <p className="p-6 text-center text-xs text-slate-600 font-sans">{rows.length === 0 ? "No recruiters in this view." : "No match."}</p>
       ) : (
-        <div className="relative max-h-[32rem] overflow-auto">
-          <table className="w-full min-w-[50rem] text-sm">
-            <thead className="sticky top-0 z-10 bg-slate-100/95 shadow-[inset_0_-1px_0_var(--color-ta-line)]">
-              <tr>
-                {COLUMNS.map((col) => {
-                  const active = shown.key === col.key;
-                  return (
-                    <th
-                      key={col.key}
-                      scope="col"
-                      aria-sort={active ? (shown.dir === "asc" ? "ascending" : "descending") : undefined}
-                      className={`px-3 py-1 text-xs font-semibold text-slate-700 whitespace-nowrap ${col.key === "name" ? "text-left min-w-48" : "text-right"}`}
+        <>
+          <ul className="divide-y divide-slate-200 md:hidden">
+            {pageRows.map((row) => {
+              const selected = row.recruiterId === selectedRecruiterId;
+              const { label, email } = formatRecruiterName(row.name);
+              const late = row.overdue + row.overdueEstimated;
+              const flag = flagsFor(row, bench);
+              const toggle = () => onSelectRecruiter(selected ? undefined : row.recruiterId);
+              return (
+                <li
+                  key={row.recruiterId}
+                  className={`space-y-3 p-4 ${selected ? "bg-navy-soft outline outline-1 -outline-offset-1 outline-navy" : ""}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-slate-950">{label}</p>
+                      {email && <p className="truncate text-xs text-slate-600">{email}</p>}
+                    </div>
+                    <button
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={toggle}
+                      className="min-h-11 shrink-0 rounded-md border border-navy-line bg-white px-3 text-xs font-semibold text-navy hover:bg-navy-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
                     >
+                      {selected ? "Showing only" : "Filter"}
+                    </button>
+                  </div>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+                    <div>
+                      <dt className="text-slate-600">Active</dt>
+                      <dd className="font-semibold text-slate-950 tabular-nums">
+                        {row.active} <FlagText flag={flag.load} />
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-600">Overdue</dt>
+                      <dd className="tabular-nums">
+                        {late === 0 ? (
+                          <span className="text-slate-600">0</span>
+                        ) : onViewOverdue ? (
+                          <button
+                            type="button"
+                            onClick={() => onViewOverdue(row.recruiterId)}
+                            className={`min-h-11 font-bold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus ${TEXT_LOSS}`}
+                          >
+                            {row.overdue} overdue{row.overdueEstimated > 0 ? ` (+${row.overdueEstimated} proj.)` : ""}
+                          </button>
+                        ) : (
+                          <span className={`font-bold ${TEXT_LOSS}`}>{row.overdue} overdue</span>
+                        )}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-600">Open requests</dt>
+                      <dd className="text-slate-800 tabular-nums">{row.openRequisitions}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-600">Seats filled</dt>
+                      <dd className="text-slate-800 tabular-nums">
+                        {row.requestedSeats === 0 ? "—" : `${row.filledSeats} / ${row.requestedSeats} (${row.fillRate ?? 0}%)`}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-600">Starts</dt>
+                      <dd className="text-slate-800 tabular-nums">{row.placed}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-600">Days to fill</dt>
+                      <dd className="text-slate-800 tabular-nums">
+                        {row.medianDaysToFill === null ? "—" : `${row.medianDaysToFill} ${row.medianDaysToFill === 1 ? "day" : "days"}`}
+                      </dd>
+                    </div>
+                  </dl>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="hidden md:block relative max-h-[32rem] overflow-auto">
+            <table className="w-full min-w-[50rem] text-sm">
+              <thead className="sticky top-0 z-10 bg-slate-100/95 shadow-[inset_0_-1px_0_var(--color-ta-line)]">
+                <tr>
+                  {COLUMNS.map((col) => {
+                    const active = shown.key === col.key;
+                    return (
+                      <th
+                        key={col.key}
+                        scope="col"
+                        aria-sort={active ? (shown.dir === "asc" ? "ascending" : "descending") : "none"}
+                        className={`px-3 py-1 text-xs font-semibold text-slate-700 whitespace-nowrap ${col.key === "name" ? "text-left min-w-48" : "text-right"}`}
+                      >
                       <button
                         type="button"
                         onClick={() => sortBy(col.key)}
@@ -334,6 +411,7 @@ export const TeamTable = React.memo(function TeamTable({
             </tbody>
           </table>
         </div>
+        </>
       )}
       {hasUnassigned && unassigned && (
         <div className="border-t border-slate-200 bg-slate-50/70 px-3.5 py-2 text-xs font-sans text-slate-700 tabular-nums">

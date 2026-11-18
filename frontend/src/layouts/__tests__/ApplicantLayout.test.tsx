@@ -29,10 +29,11 @@ vi.mock("../../hooks/useRealtimeNotifications", () => ({
 }));
 
 vi.mock("@tanstack/react-router", () => ({
-  Link: ({ children, to, activeOptions, activeProps: _activeProps, onClick, ...props }: any) => (
+  Link: ({ children, to, activeOptions, activeProps, inactiveProps: _inactiveProps, onClick, ...props }: any) => (
     <a
       href={to}
       data-exact={activeOptions?.exact ? "true" : "false"}
+      data-active-class={activeProps?.className}
       onClick={onClick}
       {...props}
     >
@@ -178,5 +179,38 @@ describe("ApplicantLayout Navigation & Account Menu", () => {
 
     expect(screen.queryByRole("menu")).toBeNull();
     expect(accountButton.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("renders My Documents nav link, typographic MEGS brand lockup without logo image, and Company Home footer link", () => {
+    renderWithClient(<ApplicantLayout />);
+
+    const docsLink = screen.getByRole("link", { name: /My Documents/i });
+    expect(docsLink.getAttribute("href")).toBe("/app/documents");
+
+    const companyHomeLink = screen.getByRole("link", { name: /Company Home/i });
+    expect(companyHomeLink.getAttribute("href")).toBe("/");
+    expect(companyHomeLink.className).toContain("min-h-11");
+
+    const portalHomeLink = screen.getByRole("link", { name: /MEGS Candidate Portal Home/i });
+    expect(portalHomeLink.getAttribute("href")).toBe("/app");
+    expect(portalHomeLink.querySelector("svg")).toBeNull();
+    expect(portalHomeLink.querySelector("img")).toBeNull();
+    expect(portalHomeLink.textContent).toContain("MEGS");
+  });
+
+  it("opens mobile drawer with 44px minimum tap targets", () => {
+    const { container } = renderWithClient(<ApplicantLayout />);
+
+    const toggleBtn = screen.getByRole("button", { name: /Open menu/i });
+    expect(toggleBtn.className).toContain("min-h-11");
+    fireEvent.click(toggleBtn);
+
+    const mobileMenu = container.querySelector("#applicant-mobile-menu");
+    expect(mobileMenu).not.toBeNull();
+    const drawerLinks = mobileMenu!.querySelectorAll("a");
+    expect(drawerLinks.length).toBe(5);
+    drawerLinks.forEach((link) => {
+      expect(link.className).toContain("min-h-11");
+    });
   });
 });

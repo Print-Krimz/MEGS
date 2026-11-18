@@ -1,7 +1,10 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import * as TanStackRouter from "@tanstack/react-router";
 import { Link, useParams, useNavigate } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { applicantJobsApi } from "../../lib/api/applicant-jobs.api";
+import { computeProfileHealth } from "../../lib/profile-health";
+import type { ApplicantProfile } from "../../lib/types/applicant.types";
 import {
   PageHeader,
   LoadingState,
@@ -27,7 +30,7 @@ import {
   FileImage,
   Bookmark,
 } from "lucide-react";
-import { MAX_SAVED_JOBS } from "../../lib/saved-jobs";
+import { useSavedJobs } from "./hooks/useSavedJobs";
 import { formatWorkSchedule } from "../../lib/mrf-schedule";
 import { notify, formatErrorMessage } from "../../lib/feedback";
 
@@ -58,10 +61,33 @@ function getResumeFileIcon(fileName: string) {
   return <FileText className="w-5 h-5 text-[#0B315D]" />;
 }
 
+function readRouterApply(): boolean {
+  try {
+    if (!Object.keys(TanStackRouter).includes("useSearch")) return false;
+    const maybeUseSearch = (TanStackRouter as Record<string, unknown>).useSearch as
+      | ((opts: { strict: false }) => { apply?: unknown } | undefined)
+      | undefined;
+    const search = typeof maybeUseSearch === "function" ? maybeUseSearch({ strict: false }) : undefined;
+    const val = search?.apply;
+    return val === "1" || val === 1 || val === true || val === "true";
+  } catch {
+    return false;
+  }
+}
+
+function useApplyDeepLink(): boolean {
+  const routerApply = readRouterApply();
+  const windowApply =
+    typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("apply") : null;
+  return routerApply || windowApply === "1" || windowApply === "true";
+}
+
 export const JobDetailPage: React.FC = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { jobId } = useParams({ strict: false }) as { jobId: string };
+  const wantsApply = useApplyDeepLink();
+  const hasAutoOpenedRef = useRef(false);
 
   const [applyModalOpen, setApplyModalOpen] = useState(false);
   const [customResume, setCustomResume] = useState<File | null>(null);
@@ -74,63 +100,28 @@ export const JobDetailPage: React.FC = () => {
     enabled: Boolean(jobId),
   });
 
-  const savedJobIdsQuery = useQuery({
-    queryKey: ["applicant", "saved-jobs", "ids"],
-    queryFn: applicantJobsApi.getSavedJobIds,
-  });
+  useEffect(() => {
+    hasAutoOpenedRef.current = false;
+  }, [jobId]);
 
-  const isSaved = (savedJobIdsQuery.data || []).includes(Number(jobId));
-  const atSaveLimit = (savedJobIdsQuery.data || []).length >= MAX_SAVED_JOBS;
-
-  // Flip the id in the cache at once so the bookmark fills without waiting for the server.
-  const savedIdsKey = ["applicant", "saved-jobs", "ids"];
-  const optimisticallySetSaved = async (saved: boolean) => {
-    await queryClient.cancelQueries({ queryKey: savedIdsKey });
-    const previous = queryClient.getQueryData<number[]>(savedIdsKey);
-    queryClient.setQueryData<number[]>(savedIdsKey, (ids = []) =>
-      saved ? [...new Set([...ids, Number(jobId)])] : ids.filter((id) => id !== Number(jobId)),
-    );
-    return { previous };
-  };
-  const rollbackSaved = (context?: { previous?: number[] }) => {
-    if (context?.previous) queryClient.setQueryData(savedIdsKey, context.previous);
-  };
-  const refreshSaved = () => queryClient.invalidateQueries({ queryKey: ["applicant", "saved-jobs"] });
-
-  const saveMutation = useMutation({
-    mutationFn: () => applicantJobsApi.saveJob(Number(jobId)),
-    onMutate: () => optimisticallySetSaved(true),
-    onSuccess: () => notify.success("Job Saved", "Position added to your saved jobs."),
-    onError: (err: any, _vars, context) => {
-      rollbackSaved(context);
-      notify.error("Save Failed", err);
-    },
-    onSettled: refreshSaved,
-  });
-
-  const unsaveMutation = useMutation({
-    mutationFn: () => applicantJobsApi.unsaveJob(Number(jobId)),
-    onMutate: () => optimisticallySetSaved(false),
-    onSuccess: () => notify.success("Job Removed", "Position removed from your saved jobs."),
-    onError: (err: any, _vars, context) => {
-      rollbackSaved(context);
-      notify.error("Action Failed", err);
-    },
-    onSettled: refreshSaved,
-  });
-
-  const handleToggleSave = () => {
-    if (saveMutation.isPending || unsaveMutation.isPending) return;
-    if (!isSaved && atSaveLimit) {
-      notify.error("Saved Jobs Limit", `You can save up to ${MAX_SAVED_JOBS} jobs. Remove one to save another.`);
+  useEffect(() => {
+    if (!wantsApply) {
+      hasAutoOpenedRef.current = false;
       return;
     }
-    if (isSaved) {
-      unsaveMutation.mutate();
-    } else {
-      saveMutation.mutate();
+    if (hasAutoOpenedRef.current || !jobQuery.data) return;
+    const job = jobQuery.data;
+    const locked = Boolean(job.activeDeployment?.isCurrentlyDeployed && !job.alreadyApplied);
+    if (!job.alreadyApplied && !locked) {
+      hasAutoOpenedRef.current = true;
+      setApplyModalOpen(true);
     }
-  };
+  }, [wantsApply, jobQuery.data]);
+
+  const { savedJobIds, atSaveLimit, toggleBookmark } = useSavedJobs();
+  const numericJobId = Number(jobId);
+  const isSaved = savedJobIds.has(numericJobId);
+  const handleToggleSave = () => toggleBookmark(numericJobId);
 
   // The apply dialog shows the result itself (success panel or inline error), so no toast repeats it.
   const applyMutation = useMutation({
@@ -250,6 +241,8 @@ export const JobDetailPage: React.FC = () => {
   const workArrangementDisplay = formatWorkArrangement(job.mrf?.workArrangement);
   const department = job.mrf?.department || job.department;
   const workSchedule = job.mrf ? formatWorkSchedule(job.mrf) : null;
+  const cachedProfile = queryClient.getQueryData<ApplicantProfile>(["applicant", "profile"]);
+  const profileHealth = cachedProfile ? computeProfileHealth(cachedProfile) : null;
 
   return (
     <div className="space-y-6">
@@ -286,36 +279,30 @@ export const JobDetailPage: React.FC = () => {
             </Button>
 
             {job.alreadyApplied ? (
-              <div className="lg:hidden">
-                <Button asChild variant="outline" size="md">
-                  <Link to="/app/applications">
-                    <CheckCircle2 className="w-4 h-4 text-[#047857]" aria-hidden="true" />
-                    Application submitted (View in Tracker)
-                  </Link>
-                </Button>
-              </div>
+              <Button asChild variant="outline" size="md">
+                <Link to="/app/applications">
+                  <CheckCircle2 className="w-4 h-4 text-[#047857]" aria-hidden="true" />
+                  Application submitted (View in Tracker)
+                </Link>
+              </Button>
             ) : isDeploymentLocked ? (
-              <div className="lg:hidden">
-                <Button
-                  variant="outline"
-                  size="md"
-                  className="opacity-60 cursor-not-allowed bg-gray-50 text-gray-500 border-gray-300"
-                  disabled
-                >
-                  Application Locked
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                size="md"
+                className="opacity-60 cursor-not-allowed bg-gray-50 text-gray-500 border-gray-300"
+                disabled
+              >
+                Application Locked
+              </Button>
             ) : (
-              <div className="lg:hidden">
-                <Button
-                  variant="primary"
-                  size="md"
-                  leftIcon={<Send className="w-4 h-4" />}
-                  onClick={() => setApplyModalOpen(true)}
-                >
-                  Apply for this job
-                </Button>
-              </div>
+              <Button
+                variant="primary"
+                size="md"
+                leftIcon={<Send className="w-4 h-4" />}
+                onClick={() => setApplyModalOpen(true)}
+              >
+                Apply for this job
+              </Button>
             )}
           </div>
         }
@@ -323,11 +310,11 @@ export const JobDetailPage: React.FC = () => {
 
       {/* Active Deployment in Progress Banner */}
       {isDeploymentLocked && (
-        <div className="rounded-lg border border-[#BCCCDC] bg-[#F0F4F8] p-4 text-[#102A43] shadow-xs">
+        <div className="rounded-xl border border-slate-200 bg-[#F0F4F8] p-4 text-[#102A43]">
           <div className="space-y-1">
-            <h4 className="text-sm font-semibold text-[#102A43]">
+            <h2 className="text-sm font-semibold text-[#102A43]">
               Active Deployment in Progress
-            </h4>
+            </h2>
             <p className="text-sm text-[#486581] leading-relaxed">
               You are currently deployed with{" "}
               <strong className="text-[#102A43]">
@@ -343,33 +330,33 @@ export const JobDetailPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {/* Main Description */}
-          <div className="bg-white border border-[#D9E2EC] rounded-lg p-6 shadow-xs space-y-4">
-            <h3 className="text-sm font-semibold text-[#102A43] border-b border-[#D9E2EC] pb-3">
+          <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+            <h2 className="text-sm font-semibold text-[#102A43] border-b border-slate-200 pb-3">
               Position Overview
-            </h3>
-            <JobContentRenderer content={job.description} variant="applicant" />
+            </h2>
+            <JobContentRenderer content={job.description} variant="applicant" omitRedundantHeading="overview" />
           </div>
 
           {/* Requirements & Criteria */}
           {job.requirements && (
-            <div className="bg-white border border-[#D9E2EC] rounded-lg p-6 shadow-xs space-y-4">
-              <h3 className="text-sm font-semibold text-[#102A43] border-b border-[#D9E2EC] pb-3">
+            <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+              <h2 className="text-sm font-semibold text-[#102A43] border-b border-slate-200 pb-3">
                 What you need for this role
-              </h3>
-              <JobContentRenderer content={job.requirements} variant="applicant" />
+              </h2>
+              <JobContentRenderer content={job.requirements} variant="applicant" omitRedundantHeading="requirements" />
             </div>
           )}
         </div>
 
         {/* Sidebar Metadata Card */}
         <div className="space-y-4">
-          <div className="bg-white border border-[#D9E2EC] rounded-lg p-5 shadow-xs space-y-5 sticky top-20">
-            <div className="flex items-center gap-3 border-b border-[#D9E2EC] pb-4">
+          <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-5 sticky top-20">
+            <div className="flex items-center gap-3 border-b border-slate-200 pb-4">
               <JobImage src={job.imageUrl} title={job.title} alt={job.title} size="md" />
               <div>
-                <h3 className="text-sm font-semibold text-[#102A43]">
+                <h2 className="text-sm font-semibold text-[#102A43]">
                   Role Summary
-                </h3>
+                </h2>
                 {department && (
                   <div className="text-xs text-[#486581]">{department}</div>
                 )}
@@ -420,7 +407,7 @@ export const JobDetailPage: React.FC = () => {
             </div>
 
             {/* Below lg the same action sits in the page header. */}
-            <div className="pt-3 border-t border-[#D9E2EC] max-lg:hidden">
+            <div className="pt-3 border-t border-slate-200 max-lg:hidden">
               {job.alreadyApplied ? (
                 <Button asChild variant="outline" size="md" className="w-full">
                   <Link to="/app/applications">
@@ -476,7 +463,7 @@ export const JobDetailPage: React.FC = () => {
               <CheckCircle2 className="w-6 h-6" />
             </div>
             <div className="space-y-1">
-              <h4 className="text-base font-bold text-[#102A43]">Application Submitted</h4>
+              <h3 className="text-base font-bold text-[#102A43]">Application Submitted</h3>
               <p className="text-sm text-[#486581] leading-relaxed max-w-sm mx-auto">
                 Your application has been received and is now being reviewed by our recruitment team.
               </p>
@@ -508,6 +495,23 @@ export const JobDetailPage: React.FC = () => {
                 Your saved education, work experience, and character references will automatically be attached to this job application.
               </p>
             </div>
+
+            {profileHealth && profileHealth.score < 100 && (
+              <div className="p-3 bg-[#FFFBEB] border border-[#F59E0B]/30 rounded-lg text-xs text-[#102A43] flex items-start justify-between gap-3">
+                <div className="space-y-0.5 min-w-0">
+                  <div className="font-semibold text-[#102A43]">
+                    Profile readiness: {profileHealth.score}% ({profileHealth.tier})
+                  </div>
+                  <p className="text-[#486581]">{profileHealth.nextActionTip}</p>
+                </div>
+                <Link
+                  to="/app/profile"
+                  className="shrink-0 font-semibold text-[#0B315D] hover:underline whitespace-nowrap"
+                >
+                  Update profile
+                </Link>
+              </div>
+            )}
 
             <div className="space-y-2">
               <p id="custom-resume-label" className="block text-sm font-semibold text-[#102A43]">
@@ -687,6 +691,54 @@ export const JobDetailPage: React.FC = () => {
           </form>
         )}
       </Dialog>
+
+      {/* Bottom spacer so content is not obscured by sticky mobile Apply bar */}
+      <div className="h-20 lg:hidden" aria-hidden="true" />
+
+      {/* Sticky mobile bottom Apply bar */}
+      <div className="lg:hidden fixed bottom-0 inset-x-0 z-30 border-t border-[#D9E2EC] bg-white/95 backdrop-blur-xs px-4 py-3 shadow-dropdown">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-semibold text-[#102A43] truncate">
+              {companyName || department || "Verified Opening"}
+            </div>
+            <div className="text-xs text-[#486581] truncate">
+              {job.alreadyApplied
+                ? "Application submitted"
+                : isDeploymentLocked
+                  ? "Active assignment on file"
+                  : "Direct candidate application"}
+            </div>
+          </div>
+          {job.alreadyApplied ? (
+            <Button asChild variant="outline" size="md" className="min-h-11 shrink-0">
+              <Link to="/app/applications">
+                <CheckCircle2 className="w-4 h-4 text-[#047857]" aria-hidden="true" />
+                View in Tracker
+              </Link>
+            </Button>
+          ) : isDeploymentLocked ? (
+            <Button
+              variant="outline"
+              size="md"
+              className="min-h-11 shrink-0 opacity-60 cursor-not-allowed bg-gray-50 text-gray-500 border-gray-300"
+              disabled
+            >
+              Application Locked
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              size="md"
+              className="min-h-11 shrink-0"
+              leftIcon={<Send className="w-4 h-4" />}
+              onClick={() => setApplyModalOpen(true)}
+            >
+              Apply for this job
+            </Button>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

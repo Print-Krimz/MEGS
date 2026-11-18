@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import React, { useCallback, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Maximize2, Minimize2, Minus, PanelRightClose, Plus } from "lucide-react";
 import { InlineResumeViewer, ZOOM_STEPS, stepZoom, toolButton } from "../InlineResumeViewer";
 import { PrintableResume, StandardAtsResume, type AtsRequirement } from "./StandardAtsResume";
+import { useModalBehavior } from "../../ui/Dialog";
 import { cn } from "../../../lib/utils";
 
 /** What the MEGS resume is built from. Nothing is stored; it is drawn from the profile each time. */
@@ -47,6 +48,7 @@ const MegsResumeViewer: React.FC<MegsViewerProps> = ({ source, onCollapse, class
   const [printRun, setPrintRun] = useState(0);
   const [paneWidth, setPaneWidth] = useState(0);
   const pane = useRef<HTMLDivElement>(null);
+  const fullscreenDialogRef = useRef<HTMLDivElement>(null);
   const checkId = useId();
 
   // Fit width: the sheet is scaled to the width of the pane.
@@ -66,17 +68,7 @@ const MegsResumeViewer: React.FC<MegsViewerProps> = ({ source, onCollapse, class
   const zoomIn = useCallback(() => setZoom(stepZoom(percent, 1)), [percent]);
   const zoomOut = useCallback(() => setZoom(stepZoom(percent, -1)), [percent]);
 
-  useEffect(() => {
-    if (!fullscreen) return;
-    // Capture phase, so Escape leaves full screen without also closing a screen underneath.
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.stopPropagation();
-      setFullscreen(false);
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, [fullscreen]);
+  useModalBehavior(fullscreen, () => setFullscreen(false), fullscreenDialogRef);
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.ctrlKey || event.metaKey || event.altKey || (event.target as HTMLElement).tagName === "INPUT") return;
@@ -146,7 +138,7 @@ const MegsResumeViewer: React.FC<MegsViewerProps> = ({ source, onCollapse, class
     <>
       {fullscreen
         ? createPortal(
-            <div role="dialog" aria-modal="true" aria-label="MEGS resume" className="fixed inset-0 z-[100] bg-white p-3">
+            <div ref={fullscreenDialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="MEGS resume" className="fixed inset-0 z-[100] bg-white p-3 focus:outline-none">
               {viewer}
             </div>,
             document.body,

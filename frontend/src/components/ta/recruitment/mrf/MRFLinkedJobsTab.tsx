@@ -2,7 +2,6 @@ import React from "react";
 import { Link } from "@tanstack/react-router";
 import { Button } from "../../../ui";
 import { StatusBadge } from "../../../common";
-import { formatTaStatus } from "../../../../lib/ta-copy";
 import { plural } from "../../../../lib/plural";
 import { useRecordBase } from "../../../../hooks/useRecordBase";
 
@@ -40,7 +39,7 @@ export const MRFLinkedJobsTab: React.FC<MRFLinkedJobsTabProps> = ({ jobs, readOn
             <div className="min-w-0 space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-semibold text-slate-950">{job.title}</span>
-                <StatusBadge status={formatTaStatus(job.status)} type="raw" size="sm" />
+                <StatusBadge status={job.status} type="raw" size="sm" />
                 {job.isEvergreen && <span className="text-xs text-slate-600">Stays open after positions are filled</span>}
               </div>
               <p className="text-sm text-slate-600">

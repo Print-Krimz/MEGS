@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Building2 } from "lucide-react";
 import { Button, ComboBox, Dialog, Select, Textarea } from "../../ui";
+import { useDirtyGuard } from "../../../hooks/useDirtyGuard";
 
 type ClientOption = { id: number; name: string; industry?: string | null; address?: string | null };
 
@@ -58,11 +59,18 @@ export const SendToClientDialog: React.FC<SendToClientDialogProps> = ({
 
   const targetClientId = linkedClientId || manualClientId;
   const isSend = mode === "send";
+  const isNotesDirty = open && (isSend ? Boolean(notes.trim()) && notes.trim() !== initialDraftNotes.trim() : Boolean(notes.trim()));
+  const guard = useDirtyGuard({ isDirty: isNotesDirty });
+  const requestClose = async () => {
+    if (isSubmitting) return;
+    if (await guard.confirmDiscard()) onClose();
+  };
 
   return (
+    <>
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={requestClose}
       title={isSend ? "Send candidate to client" : "Record client decision"}
       description={isSend ? `Share ${candidateName} with the client for review.` : `Save the client's decision on ${candidateName}.`}
       overflowVisible
@@ -135,7 +143,7 @@ export const SendToClientDialog: React.FC<SendToClientDialogProps> = ({
           )}
         </div>
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
-          <Button variant="outline" size="sm" onClick={onClose}>
+          <Button variant="outline" size="sm" onClick={requestClose}>
             Cancel
           </Button>
           <Button
@@ -157,6 +165,8 @@ export const SendToClientDialog: React.FC<SendToClientDialogProps> = ({
         </div>
       </div>
     </Dialog>
+    {guard.discardDialog}
+    </>
   );
 };
 
@@ -189,6 +199,11 @@ export const ClientDecisionDialog: React.FC<ClientDecisionDialogProps> = ({
   const [outcome, setOutcome] = useState(initialOutcome);
   const [notes, setNotes] = useState(initialNotes);
   const [showNotesError, setShowNotesError] = useState(false);
+  const guard = useDirtyGuard({ isDirty: open && notes.trim() !== initialNotes.trim() });
+  const requestClose = async () => {
+    if (isSubmitting) return;
+    if (await guard.confirmDiscard()) onClose();
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -200,7 +215,8 @@ export const ClientDecisionDialog: React.FC<ClientDecisionDialogProps> = ({
   }, [open]);
 
   return (
-    <Dialog open={open} onClose={onClose} title="Record client decision" description={`Save the decision from ${clientName}.`}>
+    <>
+    <Dialog open={open} onClose={requestClose} title="Record client decision" description={`Save the decision from ${clientName}.`}>
       <div className="space-y-4">
         <div className="space-y-1.5 rounded border border-slate-200 bg-slate-50 p-3 text-sm">
           <span className="block text-xs text-slate-600">Client and job opening</span>
@@ -241,7 +257,7 @@ export const ClientDecisionDialog: React.FC<ClientDecisionDialogProps> = ({
           rows={3}
         />
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
-          <Button variant="outline" size="sm" onClick={onClose}>
+          <Button variant="outline" size="sm" onClick={requestClose}>
             Cancel
           </Button>
           <Button
@@ -263,5 +279,7 @@ export const ClientDecisionDialog: React.FC<ClientDecisionDialogProps> = ({
         </div>
       </div>
     </Dialog>
+    {guard.discardDialog}
+    </>
   );
 };

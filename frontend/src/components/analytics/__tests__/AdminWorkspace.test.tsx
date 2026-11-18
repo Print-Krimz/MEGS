@@ -160,7 +160,7 @@ describe("StagePipeline", () => {
     const { container } = render(<StagePipeline rows={rows} />);
     const details = container.querySelector("details") as HTMLDetailsElement;
     expect(details.open).toBe(false);
-    expect(details.querySelector("summary")?.textContent).toBe("View as table");
+    expect(details.querySelector("summary")?.textContent).toContain("View as table");
     const table = within(details).getByRole("table", { hidden: true });
     expect(within(table).getAllByRole("columnheader", { hidden: true }).map((h) => h.textContent)).toEqual([
       "Stage", "Entered", "In stage", "Overdue", "Typical wait", "Days allowed", "Backed out",
@@ -286,13 +286,13 @@ describe("admin lists", () => {
     render(<TeamTable rows={rows} onSelectRecruiter={vi.fn()} />);
     const header = (name: string) => screen.getByRole("columnheader", { name });
     expect(header("Overdue").getAttribute("aria-sort")).toBe("descending");
-    expect(header("Active").hasAttribute("aria-sort")).toBe(false);
+    expect(header("Active").getAttribute("aria-sort")).toBe("none");
     const order = () => screen.getAllByRole("row").slice(1).map((r) => within(r).getAllByRole("rowheader")[0].textContent);
     expect(order()).toEqual(["Alice", "Cy", "Bea"]);
 
     fireEvent.click(within(header("Active")).getByRole("button"));
     expect(header("Active").getAttribute("aria-sort")).toBe("descending");
-    expect(header("Overdue").hasAttribute("aria-sort")).toBe(false);
+    expect(header("Overdue").getAttribute("aria-sort")).toBe("none");
     expect(order()).toEqual(["Bea", "Cy", "Alice"]);
     fireEvent.click(within(header("Active")).getByRole("button"));
     expect(header("Active").getAttribute("aria-sort")).toBe("ascending");

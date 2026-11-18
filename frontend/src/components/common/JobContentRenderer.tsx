@@ -5,6 +5,7 @@ export interface JobContentRendererProps {
   content?: string | null;
   variant?: "ta" | "applicant";
   skillsOnly?: boolean;
+  omitRedundantHeading?: "overview" | "requirements";
   className?: string;
 }
 
@@ -375,10 +376,16 @@ function parseJobContent(content: string): ContentBlock[] {
   return blocks;
 }
 
+const REDUNDANT_OVERVIEW_HEADING =
+  /^(about\s+the\s+role|position\s+overview|job\s+overview|role\s+overview|overview|summary|job\s+summary)$/i;
+const REDUNDANT_REQUIREMENTS_HEADING =
+  /^(requirements|qualifications|what\s+you\s+need(\s+for\s+this\s+role)?|minimum\s+qualifications)$/i;
+
 export const JobContentRenderer: React.FC<JobContentRendererProps> = ({
   content,
   variant = "ta",
   skillsOnly = false,
+  omitRedundantHeading,
   className,
 }) => {
   if (!content || !content.trim()) {
@@ -407,7 +414,13 @@ export const JobContentRenderer: React.FC<JobContentRendererProps> = ({
     );
   }
 
-  const blocks = parseJobContent(content);
+  const parsedBlocks = parseJobContent(content);
+  const firstBlock = parsedBlocks[0];
+  const shouldOmitFirstHeading =
+    firstBlock?.type === "heading" &&
+    ((omitRedundantHeading === "overview" && REDUNDANT_OVERVIEW_HEADING.test(firstBlock.text)) ||
+      (omitRedundantHeading === "requirements" && REDUNDANT_REQUIREMENTS_HEADING.test(firstBlock.text)));
+  const blocks = shouldOmitFirstHeading ? parsedBlocks.slice(1) : parsedBlocks;
 
   if (blocks.length === 0) {
     return null;

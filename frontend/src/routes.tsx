@@ -316,6 +316,12 @@ export const applicantRecommendedRoute = createRoute({
 export const applicantJobDetailRoute = createRoute({
   getParentRoute: () => applicantLayoutRoute,
   path: "/app/jobs/$jobId",
+  validateSearch: (search: Record<string, unknown>): { apply?: string } => ({
+    apply:
+      search.apply === "1" || search.apply === 1 || search.apply === true || search.apply === "true"
+        ? "1"
+        : undefined,
+  }),
   component: JobDetailPage,
 });
 
@@ -419,6 +425,15 @@ const parseBoolean = (value: unknown): boolean | undefined => {
   if (value === false || value === "false" || value === "0") return false;
   return undefined;
 };
+
+const parseNonEmptyString = (value: unknown): string | undefined =>
+  typeof value === "string" && value.trim() ? value.trim() : undefined;
+
+const parseSortDir = (value: unknown): "asc" | "desc" | undefined =>
+  value === "asc" || value === "desc" ? value : undefined;
+
+const compactSearch = <T extends object>(obj: T): T =>
+  Object.fromEntries(Object.entries(obj).filter(([, value]) => value !== undefined)) as T;
 
 const parseTAApplicationSearch = (
   search: Record<string, unknown>,
@@ -527,9 +542,33 @@ export const taMrfDetailRoute = createRoute({
 //   component: TalentPoolPage,
 // });
 
+export interface TAInterviewsSearch {
+  view?: "agenda" | "table";
+  q?: string;
+  status?: string;
+  stage?: string;
+  position?: string;
+  client?: string;
+  sort?: string;
+  dir?: "asc" | "desc";
+  page?: number;
+}
+
 export const taInterviewsRoute = createRoute({
   getParentRoute: () => taLayoutRoute,
   path: "/ta/interviews",
+  validateSearch: (search: Record<string, unknown>): TAInterviewsSearch =>
+    compactSearch<TAInterviewsSearch>({
+      view: search.view === "agenda" ? "agenda" : search.view === "table" ? "table" : undefined,
+      q: parseNonEmptyString(search.q),
+      status: parseNonEmptyString(search.status),
+      stage: parseNonEmptyString(search.stage),
+      position: parseNonEmptyString(search.position),
+      client: parseNonEmptyString(search.client),
+      sort: parseNonEmptyString(search.sort),
+      dir: parseSortDir(search.dir),
+      page: parsePositiveNumber(search.page),
+    }),
   component: InterviewsPage,
 });
 
@@ -552,10 +591,30 @@ export interface WorkforceSearch {
   q?: string;
 }
 
+export interface TARequirementsSearch {
+  q?: string;
+  status?: string;
+  job?: string;
+  client?: string;
+  sort?: string;
+  dir?: "asc" | "desc";
+  page?: number;
+}
+
 // Pre-employment requirements live in the Recruitment group; /ta/compliance was its old address.
 export const taRequirementsRoute = createRoute({
   getParentRoute: () => taLayoutRoute,
   path: "/ta/requirements",
+  validateSearch: (search: Record<string, unknown>): TARequirementsSearch =>
+    compactSearch({
+      q: parseNonEmptyString(search.q),
+      status: parseNonEmptyString(search.status),
+      job: parseNonEmptyString(search.job),
+      client: parseNonEmptyString(search.client),
+      sort: parseNonEmptyString(search.sort),
+      dir: parseSortDir(search.dir),
+      page: parsePositiveNumber(search.page),
+    }),
   component: CompliancePage,
 });
 
@@ -652,6 +711,7 @@ export const adminLayoutRoute = createRoute({
     }
   },
   component: AdminLayout,
+  notFoundComponent: NotFoundPage,
 });
 
 export const adminDashboardRoute = createRoute({
@@ -677,16 +737,41 @@ export interface AdminUsersSearch {
   status?: "active" | "inactive" | "invited";
   role?: Role;
   lastLogin?: "7d" | "30d" | "never";
+  q?: string;
+  page?: number;
+  pageSize?: number;
+  sort?: string;
+  dir?: "asc" | "desc";
 }
 
 export const adminUsersRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/admin/users",
-  validateSearch: (search: Record<string, unknown>): AdminUsersSearch => ({
-    status: search.status === "active" || search.status === "inactive" || search.status === "invited" ? search.status : undefined,
-    role: Object.values(Role).includes(search.role as Role) ? (search.role as Role) : undefined,
-    lastLogin: search.lastLogin === "7d" || search.lastLogin === "30d" || search.lastLogin === "never" ? search.lastLogin : undefined,
-  }),
+  validateSearch: (search: Record<string, unknown>): AdminUsersSearch =>
+    compactSearch<AdminUsersSearch>({
+      status:
+        search.status === "active"
+          ? "active"
+          : search.status === "inactive"
+            ? "inactive"
+            : search.status === "invited"
+              ? "invited"
+              : undefined,
+      role: Object.values(Role).includes(search.role as Role) ? (search.role as Role) : undefined,
+      lastLogin:
+        search.lastLogin === "7d"
+          ? "7d"
+          : search.lastLogin === "30d"
+            ? "30d"
+            : search.lastLogin === "never"
+              ? "never"
+              : undefined,
+      q: parseNonEmptyString(search.q),
+      page: parsePositiveNumber(search.page),
+      pageSize: parsePositiveNumber(search.pageSize),
+      sort: parseNonEmptyString(search.sort),
+      dir: parseSortDir(search.dir),
+    }),
   component: UsersPage,
 });
 
@@ -702,15 +787,63 @@ export const adminScoringQualityRoute = createRoute({
   component: ScoringQualityPage,
 });
 
+export interface AdminMaintenanceSearch {
+  q?: string;
+  status?: string;
+  range?: string;
+  startDate?: string;
+  endDate?: string;
+  sort?: string;
+  dir?: "asc" | "desc";
+  page?: number;
+}
+
 export const adminMaintenanceRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/admin/maintenance",
+  validateSearch: (search: Record<string, unknown>): AdminMaintenanceSearch =>
+    compactSearch({
+      q: parseNonEmptyString(search.q),
+      status: parseNonEmptyString(search.status),
+      range: parseNonEmptyString(search.range),
+      startDate: parseNonEmptyString(search.startDate),
+      endDate: parseNonEmptyString(search.endDate),
+      sort: parseNonEmptyString(search.sort),
+      dir: parseSortDir(search.dir),
+      page: parsePositiveNumber(search.page),
+    }),
   component: DatabaseMaintenancePage,
 });
+
+export interface AdminAuditSearch {
+  q?: string;
+  category?: string;
+  action?: string;
+  severity?: string;
+  range?: string;
+  startDate?: string;
+  endDate?: string;
+  sort?: string;
+  dir?: "asc" | "desc";
+  page?: number;
+}
 
 export const adminAuditRoute = createRoute({
   getParentRoute: () => adminLayoutRoute,
   path: "/admin/audit",
+  validateSearch: (search: Record<string, unknown>): AdminAuditSearch =>
+    compactSearch({
+      q: parseNonEmptyString(search.q),
+      category: parseNonEmptyString(search.category),
+      action: parseNonEmptyString(search.action),
+      severity: parseNonEmptyString(search.severity),
+      range: parseNonEmptyString(search.range),
+      startDate: parseNonEmptyString(search.startDate),
+      endDate: parseNonEmptyString(search.endDate),
+      sort: parseNonEmptyString(search.sort),
+      dir: parseSortDir(search.dir),
+      page: parsePositiveNumber(search.page),
+    }),
   component: AuditLogsPage,
 });
 

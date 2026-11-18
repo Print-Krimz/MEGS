@@ -91,14 +91,14 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
   };
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       <h2 className="sr-only">Overview</h2>
-      <section className="flex flex-col gap-5 border-b border-[#D9E2EC] pb-5 sm:flex-row sm:items-start sm:justify-between">
+      <section className="flex flex-col gap-5 border-b border-slate-200 pb-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 items-center gap-4">
           {profile?.photoUrl && !imgError ? (
-            <img src={profile.photoUrl} alt="Candidate identity" className="h-20 w-20 shrink-0 rounded border border-[#D9E2EC] object-cover" onError={onImageError} />
+            <img src={profile.photoUrl} alt="Candidate identity" className="h-16 w-16 sm:h-20 sm:w-20 shrink-0 rounded-full border border-slate-200 object-cover" onError={onImageError} />
           ) : (
-            <div aria-hidden="true" className="flex h-20 w-20 shrink-0 items-center justify-center rounded bg-[#EAF0F7] text-xl font-semibold text-[#0B315D] ring-1 ring-inset ring-[#0B315D]/20">
+            <div aria-hidden="true" className="flex h-16 w-16 sm:h-20 sm:w-20 shrink-0 items-center justify-center rounded-full bg-[#EAF0F7] text-xl font-semibold text-[#0B315D] ring-1 ring-inset ring-[#0B315D]/20">
               {candidateInitials}
             </div>
           )}
@@ -107,18 +107,18 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
               {fullName}
             </h2>
             <p className="mt-1 text-sm text-[#486581] [overflow-wrap:anywhere]">{user?.email || "Applicant account"}</p>
-            <p className="mt-1 text-sm text-[#486581]">{profile?.mobileNumber || "Add a contact number"}{profile?.city ? ` · ${profile.city}` : ""}</p>
+            <p className="mt-1 text-sm text-[#486581] [overflow-wrap:anywhere]">{profile?.mobileNumber || "Add a contact number"}{profile?.city ? ` · ${profile.city}` : ""}</p>
           </div>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          <div className="w-full text-right text-xs text-[#486581] sm:w-auto sm:text-left">
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          <div className="w-full text-left text-xs text-[#486581] sm:w-auto">
             <span className="block font-semibold text-[#102A43]">Candidate photo</span>
             <span>PNG or JPG up to 5 MB</span>
           </div>
           {profile?.photoUrl && !imgError && (
             <Button type="button" variant="outline" size="sm" onClick={onViewPhoto}>View photo</Button>
           )}
-          <label className="inline-flex min-h-11 applicant-touch:min-h-11 md:min-h-9 cursor-pointer items-center rounded-md border border-[#D9E2EC] bg-white px-3 text-xs sm:text-sm font-medium text-[#0B315D] hover:bg-[#EAF0F7] hover:text-[#082747] transition-colors focus-within:ring-2 focus-within:ring-[#0B315D] focus-within:ring-offset-2">
+          <label className="inline-flex min-h-11 applicant-touch:min-h-11 md:min-h-9 cursor-pointer items-center rounded-md border border-slate-200 bg-white px-3 text-xs sm:text-sm font-medium text-[#0B315D] hover:bg-slate-50 hover:text-[#082747] transition-colors focus-within:ring-2 focus-within:ring-[#0B315D] focus-within:ring-offset-2">
             <input
               data-testid="photo-upload-input"
               type="file"
@@ -141,39 +141,31 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
       <section
         id="overview-resume-panel"
         tabIndex={-1}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        className={`border rounded-lg p-5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] transition-colors ${
-          isDragging
-            ? "border-[#0B315D] bg-[#D8E6F5] ring-2 ring-[#0B315D]/30"
-            : "border-[#D9E2EC] bg-[#EAF0F7]/60"
-        }`}
+        className="border-t border-slate-200 pt-6 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] [overflow-wrap:anywhere]"
         aria-labelledby="overview-resume-heading"
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[#0B315D]">Resume to profile</p>
-            <h2 id="overview-resume-heading" className="mt-1 text-base font-semibold text-[#102A43]">Save time on profile setup</h2>
+            <h2 id="overview-resume-heading" className="text-base font-semibold text-[#0B315D]">Save time on profile setup</h2>
             <p className="mt-1 max-w-2xl text-sm leading-relaxed text-[#102A43]">Upload your resume (PDF, Word document, or image) and MEGS fills supported contact details, experience, education, and skills for you. Review and correct anything before you continue.</p>
           </div>
           {profile?.resumeUrl && <Button type="button" variant="outline" size="sm" onClick={onViewPdf}>View resume</Button>}
         </div>
-        <div className="mt-4 border-t border-[#D9E2EC] pt-4">
-          <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-[#0B315D]">
+        <div className="mt-4 border-t border-slate-200 pt-4">
+          <p className="flex items-center gap-1.5 text-xs font-semibold text-[#0B315D]">
             <Lock className="h-3.5 w-3.5" aria-hidden="true" />
             Data privacy
           </p>
           {privacyConsented ? (
             <p className="mt-2 flex items-start gap-2 text-sm leading-relaxed text-[#102A43]">
               <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#0B315D]" aria-hidden="true" />
-              <span>
+              <span className="min-w-0">
                 You agreed to the{" "}
                 <button
                     type="button"
                     onClick={() => setPrivacyNoticeOpen(true)}
                     aria-haspopup="dialog"
-                    className="rounded font-semibold text-[#0B315D] underline underline-offset-2 hover:text-[#082747] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+                    className="inline-flex min-h-11 items-center rounded font-semibold text-[#0B315D] underline underline-offset-2 hover:text-[#082747] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] md:min-h-0 applicant-touch:min-h-11"
                   >
                     Data Privacy Notice
                   </button>{" "}
@@ -189,13 +181,13 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
                 onCheckedChange={(checked) => { if (checked === true) setConsentConfirmOpen(true); }}
                 className="mt-0.5"
               />
-              <label htmlFor="resume-privacy-consent" className="text-sm leading-relaxed text-[#102A43]">
+              <label htmlFor="resume-privacy-consent" className="min-w-0 flex-1 text-sm leading-relaxed text-[#102A43] [overflow-wrap:anywhere]">
                 I have read and understood the{" "}
                 <button
                   type="button"
                   onClick={() => setPrivacyNoticeOpen(true)}
                   aria-haspopup="dialog"
-                  className="rounded font-semibold text-[#0B315D] underline underline-offset-2 hover:text-[#082747] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+                  className="inline-flex min-h-11 items-center rounded font-semibold text-[#0B315D] underline underline-offset-2 hover:text-[#082747] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] md:min-h-0 applicant-touch:min-h-11"
                 >
                   Data Privacy Notice
                 </button>{" "}
@@ -205,19 +197,19 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
             </div>
           )}
         </div>
-        <div className="mt-4 flex flex-col gap-3 border-t border-[#D9E2EC] pt-4 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`mt-4 flex flex-col gap-3 rounded-xl border p-4 transition-colors sm:flex-row sm:items-center sm:justify-between ${
+            isDragging
+              ? "border-[#0B315D] bg-slate-100 ring-2 ring-[#0B315D]/20"
+              : "border-slate-200 bg-slate-50/70"
+          }`}
+        >
           <div className="min-w-0 text-sm text-[#102A43]">
             <p className="font-semibold">
               {profile?.resumeUrl ? "Resume on file" : "No resume uploaded yet"}
-              {profile?.resumeUrl && (
-                <button
-                  type="button"
-                  onClick={onViewPdf}
-                  className="ml-2 rounded font-semibold text-[#0B315D] underline underline-offset-2 hover:text-[#082747] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
-                >
-                  View
-                </button>
-              )}
             </p>
             <p className="mt-1 text-xs text-[#486581]">PDF, DOCX, or Image (PNG, JPG, WEBP) up to 5 MB. Existing profile details stay unchanged when MEGS fills empty fields.</p>
           </div>
@@ -260,15 +252,15 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
           )}
         </div>
         {resumeUploadPending && (
-          <div role="status" aria-live="polite" className="mt-4 border-t border-[#D9E2EC] pt-4">
+          <div role="status" aria-live="polite" className="mt-4 border-t border-slate-200 pt-4">
             <p className="text-sm font-semibold text-[#102A43]">Reading your resume. This can take a minute. Keep this page open.</p>
-            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#D9E2EC]">
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
               <div className="h-full w-1/3 animate-pulse rounded-full bg-[#0B315D] motion-reduce:animate-none" />
             </div>
           </div>
         )}
       {pendingResumeCount > 0 && (
-        <div role="status" aria-live="polite" className="mt-4 border-t border-[#D9E2EC] pt-4">
+        <div role="status" aria-live="polite" className="mt-4 border-t border-slate-200 pt-4">
           <p className="text-sm font-semibold text-[#102A43]">
             {pendingResumeCount === 1
               ? "1 detail from your resume is ready to review."
@@ -281,20 +273,20 @@ export const ProfileOverview: React.FC<ProfileOverviewProps> = ({
       )}
     </section>
 
-    <section aria-labelledby="overview-qualifications-heading">
-      <div className="flex items-center justify-between gap-3 border-b border-[#D9E2EC] pb-3">
-        <div>
-          <h2 id="overview-qualifications-heading" className="text-base font-semibold text-[#102A43]">Profile highlights</h2>
+    <section aria-labelledby="overview-qualifications-heading" className="border-t border-slate-200 pt-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+        <div className="min-w-0">
+          <h2 id="overview-qualifications-heading" className="text-base font-semibold text-[#0B315D]">Profile highlights</h2>
           <p className="mt-1 text-sm text-[#486581]">The details recruiters use first when reviewing your profile.</p>
         </div>
         <Button type="button" variant="ghost" size="sm" onClick={() => onNavigate("qualifications")}>Manage details</Button>
       </div>
-      <dl className="grid grid-cols-1 divide-y divide-[#D9E2EC] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-        <div className="py-3 sm:pr-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#486581]">Current experience</dt><dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">{profile?.workExperiences?.find((item) => item.isCurrent)?.roleTitle || profile?.workExperiences?.[0]?.roleTitle || "Add your work history"}</dd></div>
-        <div className="py-3 sm:pl-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#486581]">Education</dt><dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">{profile?.educations?.[0]?.degree || profile?.educations?.[0]?.school || "Add your education"}</dd></div>
-        <div className="border-t border-[#D9E2EC] py-3 sm:pr-5"><dt className="text-xs font-semibold uppercase tracking-wide text-[#486581]">Skills</dt><dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">{skills.length ? `${skills.slice(0, 6).join(", ")}${skills.length > 6 ? ` +${skills.length - 6} more` : ""}` : "Add skills"}</dd></div>
-        <div className="border-t border-[#D9E2EC] py-3 sm:pl-5">
-          <dt className="text-xs font-semibold uppercase tracking-wide text-[#486581]">Supporting details</dt>
+      <dl className="grid grid-cols-1 divide-y divide-slate-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+        <div className="min-w-0 py-3 sm:pr-5"><dt className="text-xs font-semibold text-[#486581]">Current experience</dt><dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">{profile?.workExperiences?.find((item) => item.isCurrent)?.roleTitle || profile?.workExperiences?.[0]?.roleTitle || "Add your work history"}</dd></div>
+        <div className="min-w-0 py-3 sm:pl-5"><dt className="text-xs font-semibold text-[#486581]">Education</dt><dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">{profile?.educations?.[0]?.degree || profile?.educations?.[0]?.school || "Add your education"}</dd></div>
+        <div className="min-w-0 border-t border-slate-200 py-3 sm:pr-5"><dt className="text-xs font-semibold text-[#486581]">Skills</dt><dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">{skills.length ? `${skills.slice(0, 6).join(", ")}${skills.length > 6 ? ` +${skills.length - 6} more` : ""}` : "Add skills"}</dd></div>
+        <div className="min-w-0 border-t border-slate-200 py-3 sm:pl-5">
+          <dt className="text-xs font-semibold text-[#486581]">Supporting details</dt>
           <dd className="mt-1 text-sm text-[#102A43] [overflow-wrap:anywhere]">
             {(() => {
               const trainCount = profile?.trainings?.length || 0;

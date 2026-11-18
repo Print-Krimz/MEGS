@@ -21,6 +21,7 @@ import { REFERENCE_QUERY_STALE_TIME_MS, SERVER_SEARCH_DEBOUNCE_MS, normalizeServ
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { plural } from "../../lib/plural";
 import { useRecordBase, recordRootLabel } from "../../hooks/useRecordBase";
+import { resolveUserName } from "../../lib/user-name";
 
 const AddMRFsFromFilesDialog = lazy(() =>
   import("../../components/ta/mrf/AddMRFsFromFilesDialog").then((m) => ({ default: m.AddMRFsFromFilesDialog })));
@@ -67,6 +68,7 @@ const FilledCell: React.FC<{ mrf: MrfRow }> = ({ mrf }) => {
 
 export const MRFListPage: React.FC = () => {
   const base = useRecordBase();
+  const isAdmin = base === "/admin";
   const [filesOpen, setFilesOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
@@ -136,6 +138,16 @@ export const MRFListPage: React.FC = () => {
       cell: (mrf) => <StatusBadge status={mrf.priority} type="priority" size="sm" appearance="text" />,
     },
     { key: "filled", header: "Filled", cell: (mrf) => <FilledCell mrf={mrf} /> },
+    ...(isAdmin
+      ? [
+          {
+            key: "recruiter",
+            header: "Recruiter",
+            cell: (mrf: MrfRow) =>
+              mrf.assignedTa ? resolveUserName(mrf.assignedTa) : <span className="text-slate-600">Unassigned</span>,
+          },
+        ]
+      : []),
     { key: "target", header: "Target date", cell: (mrf) => <TargetDate mrf={mrf} /> },
     { key: "jobs", header: "Job openings", align: "right", cell: (mrf) => mrf._count?.jobPostings || 0 },
   ];
@@ -200,6 +212,27 @@ export const MRFListPage: React.FC = () => {
           filterValues={filterValues}
           onFilterChange={handleFilterChange}
           onReset={handleReset}
+          trailing={
+            <div className="flex items-center gap-2 text-sm text-slate-600">
+              <label htmlFor="mrf-sort-select" className="shrink-0 font-medium">
+                Sort by
+              </label>
+              <select
+                id="mrf-sort-select"
+                value={sortBy}
+                onChange={(e) => {
+                  setSortBy(e.target.value);
+                  setPage(1);
+                }}
+                className="min-h-11 cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus-ring md:min-h-9"
+              >
+                <option value="priority">Priority (urgent and high first)</option>
+                <option value="created_desc">Newest created</option>
+                <option value="created_asc">Oldest created</option>
+                <option value="target_date">Target date (soonest)</option>
+              </select>
+            </div>
+          }
           filters={[
             {
               key: "status",
@@ -239,27 +272,8 @@ export const MRFListPage: React.FC = () => {
         />
 
         {!mrfsQuery.isLoading && !mrfsQuery.isError && totalItems > 0 && (
-          <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
+          <div className="text-sm text-slate-600">
             <span>{plural(totalItems, "request")}</span>
-            <div className="flex items-center gap-2">
-              <label htmlFor="mrf-sort-select" className="shrink-0 font-medium">
-                Sort by
-              </label>
-              <select
-                id="mrf-sort-select"
-                value={sortBy}
-                onChange={(e) => {
-                  setSortBy(e.target.value);
-                  setPage(1);
-                }}
-                className="min-h-11 cursor-pointer rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus-ring md:min-h-9"
-              >
-                <option value="priority">Priority (urgent and high first)</option>
-                <option value="created_desc">Newest created</option>
-                <option value="created_asc">Oldest created</option>
-                <option value="target_date">Target date (soonest)</option>
-              </select>
-            </div>
           </div>
         )}
       </div>
@@ -276,7 +290,7 @@ export const MRFListPage: React.FC = () => {
           rows={paginatedMrfs}
           getRowId={(mrf) => String(mrf.id)}
           renderCard={renderCard}
-          cardsBelow="lg"
+          cardsBelow="md"
           rowHref={(mrf) => `${base}/mrfs/${mrf.id}`}
           isFetching={mrfsQuery.isFetching}
           empty={

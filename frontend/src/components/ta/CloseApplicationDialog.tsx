@@ -11,6 +11,7 @@ import {
   type ClosureOutcome,
 } from "../../lib/backout";
 import { CLOSE_BACKOUT_PRESETS, getRejectionNotePresets } from "../../lib/ta-note-presets";
+import { useDirtyGuard } from "../../hooks/useDirtyGuard";
 import { QuickNoteChips } from "./QuickNoteChips";
 
 export interface CloseSubmission {
@@ -73,6 +74,11 @@ export const CloseApplicationDialog: React.FC<CloseApplicationDialogProps> = ({
   const [disposition, setDisposition] = useState<ClosureDisposition>(defaultDisposition);
   const [occurredOn, setOccurredOn] = useState(today);
   const [notes, setNotes] = useState("");
+  const guard = useDirtyGuard({ isDirty: open && Boolean(notes.trim()) });
+  const requestClose = async () => {
+    if (loading) return;
+    if (await guard.confirmDiscard()) onClose();
+  };
 
   const isBackout = outcome === "BACKED_OUT";
   const reasonOptions = isBackout
@@ -102,7 +108,8 @@ export const CloseApplicationDialog: React.FC<CloseApplicationDialogProps> = ({
   }, [open, outcome]);
 
   return (
-    <Dialog open={open} onClose={onClose} title={copy.title} description={copy.description(candidateName ?? "This candidate")}>
+    <>
+    <Dialog open={open} onClose={requestClose} title={copy.title} description={copy.description(candidateName ?? "This candidate")}>
       <div className="space-y-4">
         <Select
           label="Reason"
@@ -152,7 +159,7 @@ export const CloseApplicationDialog: React.FC<CloseApplicationDialogProps> = ({
           rows={3}
         />
         <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-          <Button variant="outline" size="sm" onClick={onClose} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={requestClose} disabled={loading}>
             Cancel
           </Button>
           <Button
@@ -175,5 +182,7 @@ export const CloseApplicationDialog: React.FC<CloseApplicationDialogProps> = ({
         </div>
       </div>
     </Dialog>
+    {guard.discardDialog}
+    </>
   );
 };

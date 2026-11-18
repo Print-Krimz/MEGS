@@ -11,7 +11,7 @@ import { stageColor } from "../../lib/chart-palette";
 import { ComingUp } from "../../components/ta/overview/ComingUp";
 import { ApplicationStatus, DeploymentStatus } from "../../lib/types/enums";
 import { plural } from "../../lib/plural";
-import { STAFF_STAGE_LABELS } from "../../lib/ta-copy";
+import { STAFF_STAGE_LABELS, TA_COPY } from "../../lib/ta-copy";
 import type { TAPendingActionItem } from "../../lib/types/analytics.types";
 import { ChevronRight, Plus } from "lucide-react";
 
@@ -203,10 +203,18 @@ export const TADashboard: React.FC = () => {
     ...PAGE_QUERY,
   });
 
+  const complianceQuery = useQuery({
+    queryKey: ["ta", "analytics", "compliance", "COMPLIANCE"],
+    queryFn: () => taApi.getComplianceOverview({ stage: "COMPLIANCE" }),
+    staleTime: 60_000,
+    ...PAGE_QUERY,
+  });
+
   const slaSummary = interviewSlaQuery.data?.summary;
   const slaBreached = slaSummary?.breached ?? 0;
   const slaWarning = slaSummary?.warning ?? 0;
   const needsPlacement = needsPlacementQuery.data?.stages?.NEEDS_PLACEMENT ?? 0;
+  const awaitingComplianceReview = complianceQuery.data?.statusBreakdown?.SUBMITTED ?? 0;
   const tasks = tasksQuery.data?.pendingActions ?? [];
   const tasksTotal = tasksQuery.data?.pendingActionsTotal ?? tasks.length;
   const shownTasks = tasks.slice(0, WORKLIST_TASK_LIMIT);
@@ -220,9 +228,9 @@ export const TADashboard: React.FC = () => {
 
   const overdueCount = slaBreached + overdueTasks.length;
   const todayCount = slaWarning + todayTasks.length;
-  const todoCount = needsPlacement + todoTasks.length;
+  const todoCount = needsPlacement + (awaitingComplianceReview > 0 ? 1 : 0) + todoTasks.length;
 
-  const worklistQueries = [interviewSlaQuery, needsPlacementQuery, tasksQuery];
+  const worklistQueries = [interviewSlaQuery, needsPlacementQuery, tasksQuery, complianceQuery];
   const worklistLoading = worklistQueries.some((q) => q.isPending && !q.isError);
   const failedQueries = worklistQueries.filter((q) => q.isError && !q.isFetching);
   const hasWork = overdueCount + todayCount + todoCount > 0;
@@ -246,7 +254,7 @@ export const TADashboard: React.FC = () => {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Overview"
+        title={TA_COPY.pageTitles.overview}
         description={asOf}
         flush
         actions={
@@ -304,13 +312,13 @@ export const TADashboard: React.FC = () => {
                 <>
                   <WorkGroup label="Overdue" count={overdueCount}>
                     {slaBreached > 0 && (
-                      <WorkRow to="/ta/interviews" tone="danger" title={`${plural(slaBreached, "interview")} overdue`} detail="Results are due 7 days after the interview is scheduled." />
+                      <WorkRow to="/ta/interviews" search={{ status: "BREACHED" }} tone="danger" title={`${plural(slaBreached, "interview")} overdue`} detail="Results are due 7 days after the interview is scheduled." />
                     )}
                     {overdueTasks.map(taskRow)}
                   </WorkGroup>
                   <WorkGroup label="Due soon" count={todayCount}>
                     {slaWarning > 0 && (
-                      <WorkRow to="/ta/interviews" tone="warning" title={`${plural(slaWarning, "interview")} due within 48 hours`} />
+                      <WorkRow to="/ta/interviews" search={{ status: "WARNING" }} tone="warning" title={`${plural(slaWarning, "interview")} due within 48 hours`} />
                     )}
                     {todayTasks.map(taskRow)}
                   </WorkGroup>
@@ -321,6 +329,13 @@ export const TADashboard: React.FC = () => {
                         search={{ tab: "redeployment" }}
                         title={`${plural(needsPlacement, "worker")} ${needsPlacement === 1 ? "needs" : "need"} placement`}
                         detail="Ended assignments waiting for a new job."
+                      />
+                    )}
+                    {awaitingComplianceReview > 0 && (
+                      <WorkRow
+                        to="/ta/requirements"
+                        search={{ status: "SUBMITTED" }}
+                        title={`${awaitingComplianceReview} pre-employment ${awaitingComplianceReview === 1 ? "document" : "documents"} awaiting review`}
                       />
                     )}
                     {todoTasks.map(taskRow)}

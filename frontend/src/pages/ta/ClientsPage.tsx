@@ -30,6 +30,8 @@ import { notify, fieldErrorsFrom } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
 import { REFERENCE_QUERY_STALE_TIME_MS } from "../../lib/query-policies";
 import { useRecordBase, recordRootLabel } from "../../hooks/useRecordBase";
+import { useDirtyGuard } from "../../hooks/useDirtyGuard";
+import { resolveUserName } from "../../lib/user-name";
 import { RecruiterSelect, assignAfterCreate } from "../../components/ta/RecruiterSelect";
 
 const EMPTY_LIST: any[] = [];
@@ -39,6 +41,7 @@ const AddClientsFromFilesDialog = lazy(() =>
 
 export const ClientsPage: React.FC = () => {
   const base = useRecordBase();
+  const isAdmin = base === "/admin";
   const queryClient = useQueryClient();
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
@@ -52,6 +55,22 @@ export const ClientsPage: React.FC = () => {
   const [recruiterId, setRecruiterId] = useState("");
   const nameInputRef = React.useRef<HTMLInputElement>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const isCreateDirty =
+    createModalOpen &&
+    (recruiterId !== "" || Object.values(draft).some((v) => v !== ""));
+  const { confirmDiscard, discardDialog } = useDirtyGuard({
+    isDirty: isCreateDirty,
+    message: "The new client details have not been saved yet.",
+  });
+
+  const closeCreateModal = async () => {
+    if (!(await confirmDiscard())) return;
+    setCreateModalOpen(false);
+    setDraft(emptyClientDraft);
+    setRecruiterId("");
+    setErrors({});
+  };
 
   const clientsQuery = useQuery({
     queryKey: ["ta", "clients"],
@@ -98,11 +117,25 @@ export const ClientsPage: React.FC = () => {
     return Array.from(indSet).sort();
   }, [clients]);
 
+  const availableRecruiters = React.useMemo(() => {
+    const map = new Map<string, string>();
+    clients.forEach((c) => {
+      if (c.assignedTa?.id) {
+        map.set(c.assignedTa.id, resolveUserName(c.assignedTa));
+      }
+    });
+    return Array.from(map.entries())
+      .map(([id, name]) => ({ value: id, label: name }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [clients]);
+
   const filteredClients = React.useMemo(() => {
     return clients.filter((c) => {
       if (filterValues.status === "ACTIVE" && !c.isActive) return false;
       if (filterValues.status === "INACTIVE" && c.isActive) return false;
       if (filterValues.industry && c.industry !== filterValues.industry) return false;
+      if (filterValues.recruiter === "UNASSIGNED" && c.assignedTa?.id) return false;
+      if (filterValues.recruiter && filterValues.recruiter !== "UNASSIGNED" && c.assignedTa?.id !== filterValues.recruiter) return false;
 
       if (search.trim()) {
         const q = search.toLowerCase().trim();
@@ -170,7 +203,13 @@ export const ClientsPage: React.FC = () => {
       cell: (c) => [c.city, c.province].filter(Boolean).join(", ") || c.address || "Not set",
     },
     { key: "requests", header: "Requests", align: "right", cell: (c) => c._count?.manpowerRequests || 0 },
-    { key: "deployed", header: "Deployed", align: "right", cell: (c) => c._count?.deployments || 0 },
+    isAdmin
+      ? {
+          key: "recruiter",
+          header: "Recruiter",
+          cell: (c) => (c.assignedTa ? resolveUserName(c.assignedTa) : <span className="text-slate-600">Unassigned</span>),
+        }
+      : { key: "deployed", header: "Deployed", align: "right", cell: (c) => c._count?.deployments || 0 },
     {
       key: "status",
       header: "Status",
@@ -200,7 +239,8 @@ export const ClientsPage: React.FC = () => {
         </p>
       )}
       <p className="text-sm text-slate-700">
-        {plural(c._count?.manpowerRequests || 0, "request")} · {c._count?.deployments || 0} deployed
+        {plural(c._count?.manpowerRequests || 0, "request")} ·{" "}
+        {isAdmin ? (c.assignedTa ? resolveUserName(c.assignedTa) : "Unassigned") : `${c._count?.deployments || 0} deployed`}
       </p>
     </div>
   );
@@ -261,6 +301,17 @@ export const ClientsPage: React.FC = () => {
               label: ind,
             })),
           },
+          ...(isAdmin
+            ? [
+                {
+                  key: "recruiter",
+                  label: "Recruiter",
+                  placeholder: "All recruiters",
+                  searchable: true,
+                  options: [{ value: "UNASSIGNED", label: "Unassigned" }, ...availableRecruiters],
+                },
+              ]
+            : []),
         ]}
       />
 
@@ -329,10 +380,7 @@ export const ClientsPage: React.FC = () => {
       {/* Add Client Modal */}
       <Dialog
         open={createModalOpen}
-        onClose={() => {
-          setCreateModalOpen(false);
-          setErrors({});
-        }}
+        onClose={() => void closeCreateModal()}
         title="Add client"
         description="Register the company and its main contact details."
         size="xl"
@@ -344,13 +392,9 @@ export const ClientsPage: React.FC = () => {
             const found = validateClientDraft(draft);
             const first = Object.entries(found)[0];
             if (first) {
-              // Only the company name and the email show inline here; every other problem is a toast.
+              setErrors(found);
               if (!draft.name.trim()) {
-                setErrors({ name: first[1] });
                 nameInputRef.current?.focus();
-              } else if (first[0] === "contactEmail") {
-                setErrors({ contactEmail: first[1] });
-                return;
               }
               notify.error("Check the highlighted fields", first[1]);
               return;
@@ -373,7 +417,7 @@ export const ClientsPage: React.FC = () => {
           <RecruiterSelect id="add-client-recruiter" value={recruiterId} onChange={setRecruiterId} />
 
           <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
-            <Button variant="outline" onClick={() => setCreateModalOpen(false)}>
+            <Button variant="outline" onClick={() => void closeCreateModal()}>
               Cancel
             </Button>
             <Button variant="primary" type="submit" loading={createClientMutation.isPending}>
@@ -382,6 +426,8 @@ export const ClientsPage: React.FC = () => {
           </div>
         </form>
       </Dialog>
+
+      {discardDialog}
 
       <Suspense fallback={null}>{filesOpen && <AddClientsFromFilesDialog open onClose={() => setFilesOpen(false)} />}</Suspense>
     </div>

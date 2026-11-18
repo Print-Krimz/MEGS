@@ -13,7 +13,7 @@ import {
 } from "../../components/common";
 import { Button } from "../../components/ui";
 import { cn } from "../../lib/utils";
-import { Briefcase, Bookmark, SearchX, Sparkles, Trash2 } from "lucide-react";
+import { Briefcase, Bookmark, Compass, SearchX, Trash2 } from "lucide-react";
 import { JobCard } from "./components/JobCard";
 import { useSavedJobs } from "./hooks/useSavedJobs";
 import { JobFilters, type JobFilterValues } from "./components/JobFilters";
@@ -128,16 +128,21 @@ export const JobsPage: React.FC = () => {
   const isServerPaginated = Boolean(jobData && !Array.isArray(jobData));
   const rawJobs = Array.isArray(jobData) ? jobData : jobData?.items ?? [];
 
+  const rawPaginatedItems = isServerPaginated ? (jobData?.items ?? []) : rawJobs;
+  const scopedItems =
+    scope === "saved" && !savedIdsLoading
+      ? rawPaginatedItems.filter((job) => savedJobIds.has(job.id))
+      : rawPaginatedItems;
+
   const paginatedJobs = isServerPaginated
-    ? (jobData?.items ?? [])
-    : (scope === "saved" ? rawJobs.filter((job) => savedJobIds.has(job.id)) : rawJobs).slice(
-        (page - 1) * pageSize,
-        page * pageSize,
-      );
+    ? scopedItems
+    : scopedItems.slice((page - 1) * pageSize, page * pageSize);
 
   const totalItems = isServerPaginated
-    ? (jobData?.total ?? 0)
-    : (scope === "saved" ? rawJobs.filter((job) => savedJobIds.has(job.id)).length : rawJobs.length);
+    ? scope === "saved" && !savedIdsLoading
+      ? Math.min(jobData?.total ?? scopedItems.length, savedCount)
+      : (jobData?.total ?? 0)
+    : scopedItems.length;
 
   const totalPages = isServerPaginated
     ? Math.max(1, jobData?.totalPages ?? 1)
@@ -184,7 +189,7 @@ export const JobsPage: React.FC = () => {
     .join(" · ");
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 min-w-0">
       <PageHeader
         title={scope === "all" ? "Browse jobs" : "Saved jobs"}
         description={
@@ -197,7 +202,7 @@ export const JobsPage: React.FC = () => {
           { label: scope === "all" ? "Browse jobs" : "Saved jobs" },
         ]}
         actions={
-          <div className="flex items-center rounded-lg border border-slate-300 bg-white p-1 text-sm">
+          <div className="inline-flex flex-wrap max-w-full items-center gap-1 rounded-lg border border-slate-200 bg-slate-100/80 p-1 text-sm">
             <button
               type="button"
               onClick={() => {
@@ -206,11 +211,13 @@ export const JobsPage: React.FC = () => {
               }}
               aria-pressed={scope === "all"}
               className={cn(
-                "flex min-h-11 items-center gap-2 rounded-md px-3.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1",
-                scope === "all" ? "bg-navy text-white" : "text-slate-700 hover:bg-navy-soft hover:text-navy",
+                "flex min-h-11 items-center gap-2 whitespace-nowrap rounded-md px-2.5 sm:px-3.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1",
+                scope === "all"
+                  ? "bg-white text-[#0B315D] font-semibold shadow-2xs"
+                  : "font-medium text-slate-600 hover:text-slate-900",
               )}
             >
-              <Briefcase className="size-4" aria-hidden="true" />
+              <Briefcase className="size-4 shrink-0" aria-hidden="true" />
               <span>{jobsQuery.isLoading || jobsQuery.isError || waitingForNetwork ? "All Openings" : `All Openings (${allOpeningsCount || totalItems})`}</span>
             </button>
             <button
@@ -221,18 +228,20 @@ export const JobsPage: React.FC = () => {
               }}
               aria-pressed={scope === "saved"}
               className={cn(
-                "flex min-h-11 items-center gap-2 rounded-md px-3.5 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1",
-                scope === "saved" ? "bg-navy text-white" : "text-slate-700 hover:bg-navy-soft hover:text-navy",
+                "flex min-h-11 items-center gap-2 whitespace-nowrap rounded-md px-2.5 sm:px-3.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1",
+                scope === "saved"
+                  ? "bg-white text-[#0B315D] font-semibold shadow-2xs"
+                  : "font-medium text-slate-600 hover:text-slate-900",
               )}
             >
-              <Bookmark className="size-4" aria-hidden="true" />
+              <Bookmark className="size-4 shrink-0" aria-hidden="true" />
               <span>{savedIdsLoading ? "Saved Jobs" : `Saved Jobs (${savedCount}/${MAX_SAVED_JOBS})`}</span>
             </button>
             <Link
               to="/app/recommended"
-              className="flex min-h-11 items-center gap-2 rounded-md px-3.5 font-medium text-slate-700 transition-colors hover:bg-navy-soft hover:text-navy focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1"
+              className="flex min-h-11 items-center gap-2 whitespace-nowrap rounded-md px-2.5 sm:px-3.5 font-medium text-slate-600 transition-colors hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-1"
             >
-              <Sparkles className="size-4" aria-hidden="true" />
+              <Compass className="size-4 shrink-0" aria-hidden="true" />
               <span>Recommended</span>
             </Link>
           </div>
@@ -240,7 +249,7 @@ export const JobsPage: React.FC = () => {
       />
 
       {isDeployed && (
-        <div className="rounded-lg border border-navy-line bg-navy-soft p-4">
+        <div className="rounded-xl border border-navy-line bg-navy-soft p-4">
           <p className="text-sm text-slate-700">
             <strong className="text-slate-950">Notice:</strong> You are currently on an active assignment{deploymentQuery.data?.clientName ? ` with ${deploymentQuery.data.clientName}` : ""}. You can browse and bookmark positions for your records, but applications remain locked until your contract reaches redeployment.
           </p>
@@ -248,7 +257,7 @@ export const JobsPage: React.FC = () => {
       )}
 
       {scope === "saved" && savedCount > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2" role="status">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2" role="status">
           {atSaveLimit && (
             <p className="text-sm font-medium text-[#B45309]">Limit reached. Remove one to save another.</p>
           )}
@@ -280,7 +289,7 @@ export const JobsPage: React.FC = () => {
       ) : waitingForNetwork ? (
         <ErrorState subject="jobs" onRetry={() => jobsQuery.refetch()} />
       ) : displayedJobs.length === 0 ? (
-        <div className="rounded-lg border border-slate-300 bg-white p-8">
+        <div className="rounded-xl border border-slate-200 bg-white p-8">
           {hasActiveFilters ? (
             <EmptyState
               bare
@@ -340,7 +349,7 @@ export const JobsPage: React.FC = () => {
             ))}
           </div>
 
-          <div className="rounded-lg border border-slate-300 bg-white p-2">
+          <div className="rounded-xl border border-slate-200 bg-white p-2">
             <Pagination
               currentPage={page}
               totalPages={totalPages}

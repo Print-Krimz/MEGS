@@ -193,7 +193,7 @@ export const LandingBranches: React.FC = () => {
 
         <div className="mt-6 grid grid-cols-1 gap-8 lg:h-[41rem] lg:grid-cols-12 lg:gap-12 xl:h-[37.5rem]">
           {/* Map: fills the column so it ends level with the list */}
-          <div className="lg:col-span-7 lg:min-h-0">
+          <div className="min-w-0 lg:col-span-7 lg:min-h-0">
             <m.div
               {...onView({ opacity: 0, y: 20 }, { opacity: 1, y: 0 }, { duration: 0.5, ease: EASE_OUT })}
               className="flex h-full flex-col"
@@ -231,7 +231,7 @@ export const LandingBranches: React.FC = () => {
                   <Button
                     type="button"
                     variant="link"
-                    className="h-9 px-0 pointer-coarse:h-11"
+                    className="inline-flex min-h-11 items-center px-1 md:min-h-9"
                     onClick={() => {
                       setRegionFilter("ALL");
                       setSelectedBranchId("valenzuela");
@@ -245,7 +245,7 @@ export const LandingBranches: React.FC = () => {
           </div>
 
           {/* Selected branch + list */}
-          <div className="flex min-h-0 flex-col lg:col-span-5">
+          <div className="flex min-h-0 min-w-0 flex-col lg:col-span-5">
             <AnimatePresence mode="wait" initial={false}>
               <m.div
                 key={selectedBranch.id}
@@ -274,7 +274,7 @@ export const LandingBranches: React.FC = () => {
                     size="sm"
                     onClick={() => handleCopyAddress(selectedBranch.id, selectedBranch.address)}
                     className={cn(
-                      "active:scale-[0.97] pointer-coarse:min-h-11 motion-reduce:active:scale-100",
+                      "min-h-11 active:scale-[0.97] md:min-h-10 motion-reduce:active:scale-100",
                       isHQ && "text-white hover:bg-white/10 hover:text-white focus-visible:ring-white/60"
                     )}
                   >
@@ -287,14 +287,14 @@ export const LandingBranches: React.FC = () => {
                   </Button>
                 </div>
 
-                <h3 className={cn("mt-2 text-xl font-bold tracking-tight", isHQ ? "text-white" : "text-secondary")}>
+                <h3 className={cn("mt-2 break-words text-xl font-bold tracking-tight", isHQ ? "text-white" : "text-secondary")}>
                   {selectedBranch.name}
                 </h3>
-                <p className={cn("mt-2 text-base leading-relaxed", isHQ ? "text-white/90" : "text-foreground")}>
+                <p className={cn("mt-2 break-words text-base leading-relaxed", isHQ ? "text-white/90" : "text-foreground")}>
                   {selectedBranch.address}
                 </p>
                 {selectedBranch.landmark && (
-                  <p className={cn("mt-1 text-sm", isHQ ? "text-white/75" : "text-muted-foreground")}>
+                  <p className={cn("mt-1 break-words text-sm", isHQ ? "text-white/75" : "text-muted-foreground")}>
                     {selectedBranch.landmark}
                   </p>
                 )}
@@ -307,7 +307,7 @@ export const LandingBranches: React.FC = () => {
                 >
                   <div className="flex items-start gap-2 text-base tabular-nums">
                     <Phone
-                      className={cn("mt-1 size-4 shrink-0", isHQ ? "text-white/75" : "text-muted-foreground")}
+                      className={cn("mt-3 size-4 shrink-0", isHQ ? "text-white/75" : "text-muted-foreground")}
                       aria-hidden="true"
                     />
                     <div className="flex flex-col">
@@ -316,7 +316,7 @@ export const LandingBranches: React.FC = () => {
                           key={line.tel}
                           href={`tel:${line.tel}`}
                           className={cn(
-                            "rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 pointer-coarse:py-2.5",
+                            "inline-flex min-h-11 items-center rounded-sm underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2",
                             isHQ ? "text-white focus-visible:ring-white/60" : "text-foreground focus-visible:ring-ring"
                           )}
                         >

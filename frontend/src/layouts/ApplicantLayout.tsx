@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Briefcase,
   FileText,
+  FolderOpen,
   User,
   Settings,
   LogOut,
@@ -65,7 +66,7 @@ export const ApplicantLayout: React.FC = () => {
     { to: "/app", label: "Dashboard", icon: Layers },
     { to: "/app/jobs", label: "Browse Jobs", icon: Briefcase },
     { to: "/app/applications", label: "My Applications", icon: FileText },
-    { to: "/app/documents", label: "My Documents", icon: FileText },
+    { to: "/app/documents", label: "My Documents", icon: FolderOpen },
     { to: "/app/profile", label: "My Profile", icon: User },
   ];
 
@@ -135,7 +136,7 @@ export const ApplicantLayout: React.FC = () => {
   }, [accountMenuOpen]);
 
   return (
-    <div className="applicant-portal min-h-screen bg-ta-page text-slate-900 flex flex-col font-sans selection:bg-slate-900 selection:text-white">
+    <div className="applicant-portal min-h-screen bg-ta-page text-slate-900 flex flex-col font-sans selection:bg-[#0B315D] selection:text-white">
       <title>MEGS Applicant Portal</title>
       <meta name="robots" content="noindex" />
       <a
@@ -144,14 +145,14 @@ export const ApplicantLayout: React.FC = () => {
           e.preventDefault();
           mainRef.current?.focus();
         }}
-        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:inline-flex focus:min-h-11 focus:items-center focus:rounded-md focus:border focus:border-slate-900 focus:bg-white focus:px-4 focus:text-sm focus:font-semibold focus:text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-900 focus:ring-offset-2"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:inline-flex focus:min-h-11 focus:items-center focus:rounded-md focus:border focus:border-[#0B315D] focus:bg-white focus:px-4 focus:text-sm focus:font-semibold focus:text-[#0B315D] focus:outline-none focus:ring-2 focus:ring-[#0B315D] focus:ring-offset-2"
       >
         Skip to main content
       </a>
       <RealtimeToastContainer toasts={activeToasts} onDismiss={dismissToast} onToastClick={handleToastClick} />
 
       {/* Top Navigation Header */}
-      <header className="top-0 z-30 bg-white [@media(min-height:500px)]:sticky border-b border-slate-200 shadow-2xs">
+      <header className="top-0 z-30 bg-white [@media(min-height:500px)]:sticky border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             {/* Logo & Mobile Menu Button */}
@@ -160,7 +161,7 @@ export const ApplicantLayout: React.FC = () => {
                 ref={menuToggleRef}
                 type="button"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="xl:hidden min-h-11 min-w-11 inline-flex items-center justify-center text-slate-500 hover:text-slate-900 border border-slate-200 hover:bg-slate-100 transition-colors shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                className="xl:hidden min-h-11 min-w-11 inline-flex items-center justify-center text-slate-600 hover:text-[#0B315D] border border-slate-200 hover:bg-[#EAF0F7] transition-colors shrink-0 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
                 aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
                 aria-expanded={mobileMenuOpen}
                 aria-controls="applicant-mobile-menu"
@@ -170,19 +171,20 @@ export const ApplicantLayout: React.FC = () => {
 
               <Link
                 to="/app"
-                className="flex flex-col focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 rounded-sm py-1 group shrink-0"
+                className="flex items-center gap-2.5 min-h-11 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] rounded-md py-1 pr-2 group shrink-0"
                 aria-label="MEGS Candidate Portal Home"
               >
-                <span className="font-display text-xl text-megs-red leading-none">
+                <span className="font-display text-xl tracking-tight leading-none text-megs-red">
                   MEGS
                 </span>
-                <span className="text-xs font-semibold text-slate-600 mt-0.5">
+                <span aria-hidden="true" className="h-4 w-px bg-slate-300" />
+                <span className="text-xs font-semibold leading-none text-slate-600">
                   Candidate Portal
                 </span>
               </Link>
 
               {/* Primary Desktop Navigation Links */}
-              <nav className="hidden xl:flex items-center gap-1.5 ml-4" aria-label="Main Applicant Navigation">
+              <nav className="hidden xl:flex items-center gap-1 ml-4" aria-label="Main Applicant Navigation">
                 {navLinks.map((item) => {
                   const Icon = item.icon;
                   return (
@@ -191,11 +193,16 @@ export const ApplicantLayout: React.FC = () => {
                       to={item.to}
                       activeOptions={{ exact: item.to === "/app" }}
                       activeProps={{
-                        className: "text-slate-900 bg-slate-100 font-bold border border-slate-200",
+                        className:
+                          "bg-[#EAF0F7] text-[#0B315D] font-semibold ring-1 ring-inset ring-[#0B315D]/15",
                       }}
-                      className="flex items-center gap-2 whitespace-nowrap px-3.5 py-2 applicant-touch:min-h-11 text-sm font-semibold text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                      inactiveProps={{
+                        className:
+                          "text-slate-600 font-medium hover:text-[#0B315D] hover:bg-slate-100/80",
+                      }}
+                      className="inline-flex h-9 items-center gap-2 whitespace-nowrap px-3 rounded-lg text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-1"
                     >
-                      <Icon className="w-4 h-4" />
+                      <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
                       <span>{item.label}</span>
                     </Link>
                   );
@@ -222,23 +229,23 @@ export const ApplicantLayout: React.FC = () => {
                   id="applicant-account-button"
                   type="button"
                   onClick={() => setAccountMenuOpen((prev) => !prev)}
-                  className="group min-h-11 flex items-center gap-2 sm:gap-2.5 p-1 sm:px-2.5 sm:py-1.5 rounded-lg text-slate-900 hover:bg-slate-100 hover:text-slate-900 border border-transparent hover:border-slate-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-1 cursor-pointer"
+                  className="group min-h-11 min-w-11 flex items-center gap-2 sm:gap-2.5 p-1 sm:px-2.5 sm:py-1.5 rounded-lg text-[#102A43] hover:bg-[#EAF0F7]/70 hover:text-[#0B315D] border border-transparent hover:border-[#D9E2EC] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-1 cursor-pointer"
                   aria-label={`Account menu for ${fullName}`}
                   aria-haspopup="menu"
                   aria-expanded={accountMenuOpen}
                   aria-controls="applicant-account-menu"
                 >
-                  <div className="w-8 h-8 bg-slate-900 text-white rounded-lg text-xs font-bold flex items-center justify-center shrink-0 shadow-2xs">
+                  <div className="w-8 h-8 bg-[#0B315D] text-white rounded-full text-xs font-bold flex items-center justify-center shrink-0">
                     {initials}
                   </div>
                   <div className="hidden lg:block text-left leading-tight">
-                    <div className="text-xs font-bold text-slate-900 truncate max-w-[140px]">
+                    <div className="text-xs font-bold text-[#102A43] truncate max-w-[140px]">
                       {fullName}
                     </div>
-                    <div className="text-xs text-slate-500 font-medium">Candidate</div>
+                    <div className="text-xs text-slate-600 font-medium">Candidate</div>
                   </div>
                   <ChevronDown
-                    className={`w-4 h-4 text-slate-500 group-hover:text-slate-900 transition-transform duration-150 shrink-0 ${
+                    className={`w-4 h-4 text-slate-600 group-hover:text-[#0B315D] transition-transform duration-150 shrink-0 ${
                       accountMenuOpen ? "rotate-180" : ""
                     }`}
                     aria-hidden="true"
@@ -253,16 +260,16 @@ export const ApplicantLayout: React.FC = () => {
                     className="absolute right-0 mt-2 w-64 bg-white shadow-lg rounded-xl border border-slate-200 z-50 overflow-hidden"
                   >
                     {/* User Identity Context Card */}
-                    <div className="p-3.5 bg-slate-50 border-b border-slate-200">
+                    <div className="p-3.5 bg-[#F7F9FC] border-b border-slate-200">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 bg-slate-900 text-white rounded-lg text-xs font-bold flex items-center justify-center shrink-0">
+                        <div className="w-8 h-8 bg-[#0B315D] text-white rounded-full text-xs font-bold flex items-center justify-center shrink-0">
                           {initials}
                         </div>
                         <div className="overflow-hidden min-w-0">
-                          <div className="text-xs font-bold text-slate-900 truncate">
+                          <div className="text-xs font-bold text-[#102A43] truncate">
                             {fullName}
                           </div>
-                          <div className="text-xs text-slate-500 truncate">
+                          <div className="text-xs text-slate-600 truncate">
                             {user?.email}
                           </div>
                         </div>
@@ -277,12 +284,12 @@ export const ApplicantLayout: React.FC = () => {
                         tabIndex={0}
                         ref={(el) => { menuItemsRef.current[0] = el; }}
                         onClick={() => setAccountMenuOpen(false)}
-                        className="min-h-11 flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-900 hover:bg-slate-100 hover:text-slate-900 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                        className="min-h-11 flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-[#102A43] hover:bg-[#EAF0F7] hover:text-[#0B315D] rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
                       >
-                        <User className="w-4 h-4 text-slate-500 shrink-0" />
+                        <User className="w-4 h-4 text-slate-600 shrink-0" aria-hidden="true" />
                         <div className="flex flex-col text-left">
-                          <span className="font-semibold text-slate-900">Profile & Resume</span>
-                          <span className="text-xs text-slate-500 font-normal">Qualifications & clearances</span>
+                          <span className="font-semibold text-[#102A43]">Profile &amp; Resume</span>
+                          <span className="text-xs text-slate-600 font-normal">Qualifications &amp; clearances</span>
                         </div>
                       </Link>
 
@@ -295,12 +302,12 @@ export const ApplicantLayout: React.FC = () => {
                           accountButtonRef.current?.focus();
                           setAccountMenuOpen(false);
                         }}
-                        className="min-h-11 flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-900 hover:bg-slate-100 hover:text-slate-900 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                        className="min-h-11 flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-[#102A43] hover:bg-[#EAF0F7] hover:text-[#0B315D] rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
                       >
-                        <Settings className="w-4 h-4 text-slate-500 shrink-0" aria-hidden="true" />
+                        <Settings className="w-4 h-4 text-slate-600 shrink-0" aria-hidden="true" />
                         <div className="flex flex-col text-left">
-                          <span className="font-semibold text-slate-900">Settings</span>
-                          <span className="text-xs text-slate-500 font-normal">Account and security</span>
+                          <span className="font-semibold text-[#102A43]">Settings</span>
+                          <span className="text-xs text-slate-600 font-normal">Account and security</span>
                         </div>
                       </Link>
                     </div>
@@ -319,10 +326,10 @@ export const ApplicantLayout: React.FC = () => {
                         }}
                         className="min-h-11 w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-rose-700 hover:bg-rose-50 hover:text-rose-900 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600 cursor-pointer"
                       >
-                        <LogOut className="w-4 h-4 text-rose-600 shrink-0" />
+                        <LogOut className="w-4 h-4 text-rose-600 shrink-0" aria-hidden="true" />
                         <div className="flex flex-col text-left">
                           <span className="font-semibold text-rose-900">Sign Out</span>
-                          <span className="text-xs text-rose-700/70 font-normal">End your current session</span>
+                          <span className="text-xs text-rose-700/80 font-normal">End your current session</span>
                         </div>
                       </button>
                     </div>
@@ -344,10 +351,11 @@ export const ApplicantLayout: React.FC = () => {
                   to={item.to}
                   onClick={() => setMobileMenuOpen(false)}
                   activeOptions={{ exact: item.to === "/app" }}
-                  activeProps={{ className: "bg-slate-900 text-white font-bold" }}
-                  className="flex min-h-11 items-center gap-3 px-3.5 py-2.5 text-sm font-medium text-slate-900 hover:bg-slate-100 hover:text-slate-900 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900"
+                  activeProps={{ className: "bg-[#0B315D] text-white hover:bg-[#082747] hover:text-white font-bold" }}
+                  inactiveProps={{ className: "font-medium text-[#102A43] hover:bg-[#EAF0F7] hover:text-[#0B315D]" }}
+                  className="flex min-h-11 items-center gap-3 px-3.5 py-2.5 text-sm rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
                 >
-                  <Icon className="w-4 h-4 shrink-0" />
+                  <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
                   <span>{item.label}</span>
                 </Link>
               );
@@ -368,10 +376,18 @@ export const ApplicantLayout: React.FC = () => {
       />
 
       {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 py-6 px-4 text-center text-xs text-slate-500">
+      <footer className="bg-white border-t border-slate-200 py-5 px-4 text-center sm:text-left text-xs text-slate-600">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>© {new Date().getFullYear()} MAR Employment for Good Services Inc. All rights reserved.</span>
-          <span className="text-xs text-slate-500">DOLE Licensed Private Employment Agency • Valenzuela City</span>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+            <span className="text-xs text-slate-600">DOLE Licensed Private Employment Agency • Valenzuela City</span>
+            <Link
+              to="/"
+              className="inline-flex min-h-11 items-center px-1.5 font-semibold text-[#0B315D] hover:underline rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
+            >
+              Company Home
+            </Link>
+          </div>
         </div>
       </footer>
     </div>

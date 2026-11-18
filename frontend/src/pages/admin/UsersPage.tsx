@@ -1,5 +1,5 @@
 import { resolveUserName } from "../../lib/user-name";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { adminApi } from "../../lib/api/admin.api";
@@ -17,10 +17,12 @@ import {
   ActionMenu,
   BulkActionBar,
   BulkResultDialog,
-  SelectBox,
+  DataTable,
+  type DataTableColumn,
+  type DataTableSort,
 } from "../../components/common";
 import { Button, Dialog, Input, Select } from "../../components/ui";
-import { formatDate, formatDateTime } from "../../lib/utils";
+import { displayEmail, formatDate, formatDateTime } from "../../lib/utils";
 import { Role } from "../../lib/types/enums";
 import {
   Users,
@@ -31,7 +33,7 @@ import {
 } from "lucide-react";
 import { notify, fieldErrorsFrom, formatErrorMessage } from "../../lib/feedback";
 import { formatAdminRole } from "../../lib/admin-copy";
-import { FeedbackBanner, ToneBadge } from "./admin-ui";
+import { ToneBadge } from "./admin-ui";
 import { validatePersonName } from "../../lib/statutory-validation";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useRowSelection } from "../../hooks/useRowSelection";
@@ -65,23 +67,55 @@ const BULK_USER_ACTIONS: Record<BulkUserAction, { label: string; title: string; 
 const ROLE_OPTIONS = [
   { value: Role.ADMINISTRATOR, label: "Administrator" },
   { value: Role.TALENT_ACQUISITION, label: "Recruiter" },
-  { value: Role.APPLICANT, label: "Applicant" },
 ];
+
+type UserSortKey = "account" | "role" | "status" | "lastLogin" | "created";
+const USER_SORT_KEYS: readonly UserSortKey[] = ["account", "role", "status", "lastLogin", "created"];
 
 export const UsersPage: React.FC = () => {
   const queryClient = useQueryClient();
   const { user: currentAdmin } = useAuth();
 
-  const [search, setSearch] = useState("");
-  // Role and status live in the URL so overview tiles can link to a filtered list.
+  // Search, filters, pagination and sort live in the URL so overview tiles and browser history work.
   const navigate = useNavigate();
-  const urlSearch = useSearch({ strict: false }) as { role?: Role; status?: AdminUserStatus; lastLogin?: AdminUserLastLogin };
+  const urlSearch = useSearch({ strict: false }) as {
+    q?: string;
+    role?: Role;
+    status?: AdminUserStatus;
+    lastLogin?: AdminUserLastLogin;
+    page?: number;
+    pageSize?: number;
+    sort?: string;
+    dir?: "asc" | "desc";
+  };
+  const [search, setSearch] = useState(urlSearch.q ?? "");
+  useEffect(() => {
+    setSearch(urlSearch.q ?? "");
+  }, [urlSearch.q]);
+
   const roleFilter = urlSearch.role ?? "";
   const statusFilter = urlSearch.status ?? "";
   const lastLoginFilter = urlSearch.lastLogin ?? "";
-  const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const page = urlSearch.page && urlSearch.page > 0 ? urlSearch.page : 1;
+  const pageSize: 10 | 25 | 50 = urlSearch.pageSize === 25 || urlSearch.pageSize === 50 ? urlSearch.pageSize : 10;
+  const sortKey = USER_SORT_KEYS.includes(urlSearch.sort as UserSortKey) ? (urlSearch.sort as UserSortKey) : undefined;
+  const sortDir: "asc" | "desc" = urlSearch.dir === "desc" ? "desc" : "asc";
+  const sort: DataTableSort | null = sortKey ? { key: sortKey, direction: sortDir } : null;
   const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
+
+  useEffect(() => {
+    const currentUrlQ = urlSearch.q ?? "";
+    if (debouncedSearch === currentUrlQ) return;
+    void navigate({
+      to: "/admin/users",
+      search: (prev: Record<string, unknown>) => ({
+        ...prev,
+        q: debouncedSearch || undefined,
+        page: undefined,
+      }),
+      replace: true,
+    } as never);
+  }, [debouncedSearch, urlSearch.q, navigate]);
 
   // Modals state
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
@@ -96,22 +130,11 @@ export const UsersPage: React.FC = () => {
   // A departing TA's requests, clients and openings can be handed to another TA as the account is deactivated.
   const [handoverTo, setHandoverTo] = useState("");
   const [handingOver, setHandingOver] = useState(false);
+  const [handoverModalUser, setHandoverModalUser] = useState<{ id: string; email: string; name: string } | null>(null);
+  const [standaloneHandoverTo, setStandaloneHandoverTo] = useState("");
   const [mfaModalUser, setMfaModalUser] = useState<{ id: string; email: string } | null>(null);
   const [resendModalUser, setResendModalUser] = useState<{ id: string; email: string } | null>(null);
   const [cancelModalUser, setCancelModalUser] = useState<{ id: string; email: string } | null>(null);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [selectedUserSnapshot, setSelectedUserSnapshot] = useState<AdminUserListItem | null>(null);
-
-  const clearSelectedUser = () => {
-    setSelectedUserId(null);
-    setSelectedUserSnapshot(null);
-  };
-
-  const updateSelectedUserSnapshot = (user: AdminUserListItem) => {
-    if (selectedUserId === user.id) setSelectedUserSnapshot(user);
-  };
-
-  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const usersQuery = useQuery({
     queryKey: ["admin", "users", { page, pageSize, search: debouncedSearch, role: roleFilter, status: statusFilter, lastLogin: lastLoginFilter }],
@@ -138,27 +161,17 @@ export const UsersPage: React.FC = () => {
 
   const inviteMutation = useMutation({
     mutationFn: adminApi.inviteTA,
-    onSuccess: (user) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
-      updateSelectedUserSnapshot(user);
       setInviteModalOpen(false);
       setInviteEmail("");
       setInviteFirstName("");
       setInviteLastName("");
       setInviteFieldErrors({});
-       const msg = "A secure account setup link was emailed to the recruiter.";
-      setFeedback({
-        type: "success",
-        message: msg,
-      });
-      notify.success("Invitation Sent", msg);
+      notify.success("Invitation Sent", "A secure account setup link was emailed to the recruiter.");
     },
     onError: (err: any) => {
-      setFeedback({
-        type: "error",
-         message: "We couldn't send the invitation. Please check the email address and try again.",
-      });
       const fieldErrors = fieldErrorsFrom(err);
       if (Object.keys(fieldErrors).length > 0) {
         setInviteFieldErrors(fieldErrors);
@@ -171,13 +184,11 @@ export const UsersPage: React.FC = () => {
 
   const resendInviteMutation = useMutation({
     mutationFn: (userId: string) => adminApi.resendTAInvitation(userId),
-    onSuccess: (user) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
-       updateSelectedUserSnapshot(user);
-       setResendModalUser(null);
-       clearSelectedUser();
-       notify.success("Invitation sent", "A new account setup link was emailed.");
+      setResendModalUser(null);
+      notify.success("Invitation sent", "A new account setup link was emailed.");
     },
     onError: (err: any) => {
       notify.error("Resend Failed", err);
@@ -186,12 +197,11 @@ export const UsersPage: React.FC = () => {
 
   const cancelInviteMutation = useMutation({
     mutationFn: (userId: string) => adminApi.cancelTAInvitation(userId),
-    onSuccess: (_, userId) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
-       if (selectedUserId === userId) clearSelectedUser();
-       setCancelModalUser(null);
-       notify.success("Invitation cancelled", "The pending invitation can no longer be used.");
+      setCancelModalUser(null);
+      notify.success("Invitation cancelled", "The pending invitation can no longer be used.");
     },
     onError: (err: any) => {
       notify.error("Cancellation Failed", err);
@@ -201,13 +211,11 @@ export const UsersPage: React.FC = () => {
   const updateRoleMutation = useMutation({
     mutationFn: ({ id, role }: { id: string; role: Role }) =>
       adminApi.updateUserRole(id, role),
-    onSuccess: (user, vars) => {
+    onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
-       updateSelectedUserSnapshot(user);
-       setRoleModalUser(null);
-       clearSelectedUser();
-       notify.success("Access updated", `This user's access is now ${formatAdminRole(vars.role)}.`);
+      setRoleModalUser(null);
+      notify.success("Access updated", `This user's access is now ${formatAdminRole(vars.role)}.`);
     },
     onError: (err: any) => {
       notify.error("Role Update Failed", err);
@@ -222,12 +230,10 @@ export const UsersPage: React.FC = () => {
     onSettled: () => {
       statusRequestBusy.current = false;
     },
-    onSuccess: (user, vars) => {
+    onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
-       updateSelectedUserSnapshot(user);
-       setStatusModalUser(null);
-       clearSelectedUser();
+      setStatusModalUser(null);
       notify.success(
         "Account status updated",
         `The user can ${vars.isActive ? "now" : "no longer"} sign in.`,
@@ -239,18 +245,36 @@ export const UsersPage: React.FC = () => {
     },
   });
 
+  const handoverExcludeId = statusModalUser?.id ?? handoverModalUser?.id;
   const handoverOptionsQuery = useQuery({
     queryKey: ["admin", "analytics", "filters"],
     queryFn: () => adminApi.getFilterOptions(),
-    enabled: Boolean(statusModalUser?.isActive && statusModalUser.role === "TALENT_ACQUISITION"),
+    enabled: Boolean((statusModalUser?.isActive && statusModalUser.role === "TALENT_ACQUISITION") || handoverModalUser),
     staleTime: 5 * 60 * 1000,
   });
-  const handoverCandidates = (handoverOptionsQuery.data?.recruiters ?? []).filter((r) => r.id !== statusModalUser?.id);
+  const handoverCandidates = (handoverOptionsQuery.data?.recruiters ?? []).filter((r) => r.id !== handoverExcludeId);
+
+  const standaloneHandoverMutation = useMutation({
+    mutationFn: ({ fromTaId, toTaId }: { fromTaId: string; toTaId: string }) =>
+      adminApi.reassignTaRecords(fromTaId, toTaId),
+    onSuccess: (moved) => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "analytics"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
+      setHandoverModalUser(null);
+      setStandaloneHandoverTo("");
+      notify.success(
+        "Records handed over",
+        `${moved.manpowerRequests} requests, ${moved.clients} clients and ${moved.standaloneJobs} standalone openings moved.`,
+      );
+    },
+    onError: (err: any) => {
+      notify.error("Could not hand over records", err);
+    },
+  });
 
   const closeStatusModal = () => {
     setStatusModalUser(null);
     setHandoverTo("");
-    clearSelectedUser();
   };
 
   const confirmStatusChange = async () => {
@@ -282,71 +306,95 @@ export const UsersPage: React.FC = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
       queryClient.invalidateQueries({ queryKey: ["admin", "audit"] });
-       setMfaModalUser(null);
-       clearSelectedUser();
+      setMfaModalUser(null);
       notify.success(
         "Two-step verification reset",
         "The user will set up two-step verification again at their next sign-in."
       );
     },
     onError: (err: any) => {
-       notify.error("Couldn't reset two-step verification", err);
+      notify.error("Couldn't reset two-step verification", err);
     },
   });
 
   const userData = usersQuery.data;
   const users = userData?.items ?? EMPTY_USERS;
-  const selectedUserInCurrentPage = selectedUserId ? users.find((user) => user.id === selectedUserId) : null;
-  const selectedUser = selectedUserInCurrentPage ??
-    (selectedUserSnapshot?.id === selectedUserId ? selectedUserSnapshot : null);
 
-  React.useEffect(() => {
-    if (!selectedUserId) {
-      setSelectedUserSnapshot(null);
-      return;
-    }
-    const currentUser = users.find((user) => user.id === selectedUserId);
-    if (currentUser) setSelectedUserSnapshot(currentUser);
-  }, [users, selectedUserId]);
+  const sortedUsers = useMemo(() => {
+    if (!sortKey) return users;
+    const statusOrder: Record<AdminUserStatus, number> = { active: 0, invited: 1, inactive: 2 };
+    return [...users].sort((a, b) => {
+      let cmp = 0;
+      switch (sortKey) {
+        case "account":
+          cmp = resolveUserName(a).localeCompare(resolveUserName(b));
+          break;
+        case "role":
+          cmp = formatAdminRole(a.role).localeCompare(formatAdminRole(b.role));
+          break;
+        case "status":
+          cmp = statusOrder[accountState(a)] - statusOrder[accountState(b)];
+          break;
+        case "lastLogin": {
+          const ta = a.lastLoginAt ? new Date(a.lastLoginAt).getTime() : -1;
+          const tb = b.lastLoginAt ? new Date(b.lastLoginAt).getTime() : -1;
+          cmp = ta - tb;
+          break;
+        }
+        case "created":
+          cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          break;
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [users, sortKey, sortDir]);
 
   const totalItems = userData?.total ?? users.length;
   const totalPages = userData?.totalPages ?? 1;
-  const paginatedUsers = users;
 
-  const handleSearchChange = (val: string) => {
-    setSearch(val);
-    setPage(1);
-  };
-
-  const setUrlFilters = (next: { role?: string; status?: string; lastLogin?: string }) => {
-    setPage(1);
+  const updateUrlSearch = (patch: Record<string, unknown>) => {
     void navigate({
       to: "/admin/users",
-      search: (prev: Record<string, unknown>) => ({ ...prev, ...next }),
+      search: (prev: Record<string, unknown>) => ({ ...prev, ...patch }),
       replace: true,
     } as never);
   };
 
-  const handleFilterChange = (key: string, val: string) => setUrlFilters({ [key]: val || undefined });
+  const setPage = (nextPage: number) => updateUrlSearch({ page: nextPage > 1 ? nextPage : undefined });
+
+  const handlePageSizeChange = (nextSize: number) => {
+    const valid = nextSize === 25 || nextSize === 50 ? nextSize : 10;
+    updateUrlSearch({ pageSize: valid === 10 ? undefined : valid, page: undefined });
+  };
+
+  const handleSortChange = (next: DataTableSort) => {
+    updateUrlSearch({ sort: next.key, dir: next.direction, page: undefined });
+  };
+
+  const handleSearchChange = (val: string) => {
+    setSearch(val);
+  };
+
+  const handleFilterChange = (key: string, val: string) => {
+    updateUrlSearch({ [key]: val || undefined, page: undefined });
+  };
 
   const handleReset = () => {
     setSearch("");
-    setUrlFilters({ role: undefined, status: undefined, lastLogin: undefined });
+    updateUrlSearch({
+      q: undefined,
+      role: undefined,
+      status: undefined,
+      lastLogin: undefined,
+      page: undefined,
+      sort: undefined,
+      dir: undefined,
+    });
   };
 
   // Bulk actions. Selection is dropped whenever the visible list changes (filters, search, page).
-  const selection = useRowSelection(JSON.stringify([page, debouncedSearch, roleFilter, statusFilter, lastLoginFilter]));
+  const selection = useRowSelection(JSON.stringify([page, pageSize, debouncedSearch, roleFilter, statusFilter, lastLoginFilter]));
   const selectedRows = users.filter((u) => selection.selectedIds.has(u.id));
-  const selectableRows = users.filter((u) => u.id !== currentAdmin?.id);
-  const allOnPageSelected = selectableRows.length > 0 && selectableRows.every((u) => selection.selectedIds.has(u.id));
-  const toggleAllOnPage = () =>
-    selection.setSelectedIds(allOnPageSelected ? new Set() : new Set(selectableRows.map((u) => u.id)));
-  const toggleRow = (id: string) =>
-    selection.setSelectedIds((current) => {
-      const next = new Set(current);
-      if (!next.delete(id)) next.add(id);
-      return next;
-    });
   const bulkActionsFit = (Object.keys(BULK_USER_ACTIONS) as BulkUserAction[]).filter((action) =>
     selectedRows.every(BULK_USER_ACTIONS[action].fits),
   );
@@ -416,6 +464,144 @@ export const UsersPage: React.FC = () => {
     );
   };
 
+  const userActionItems = (u: AdminUserListItem) => {
+    const isSelf = currentAdmin?.id === u.id;
+    const fullName = resolveUserName(u);
+    if (u.accountStatus === "PENDING" || u.accountStatus === "INVITED") {
+      return [
+        { label: "Resend invitation", onSelect: () => setResendModalUser({ id: u.id, email: u.email }) },
+        { label: "Cancel invitation", tone: "danger" as const, onSelect: () => setCancelModalUser({ id: u.id, email: u.email }) },
+      ];
+    }
+    return [
+      {
+        label: "Change role",
+        disabled: isSelf || u.role === Role.APPLICANT,
+        onSelect: () => {
+          setRoleModalUser({ id: u.id, email: u.email, currentRole: u.role });
+          setTargetRole(u.role);
+        },
+      },
+      ...(u.role === Role.TALENT_ACQUISITION
+        ? [
+            {
+              label: "Hand over records",
+              onSelect: () => {
+                setHandoverModalUser({ id: u.id, email: u.email, name: fullName });
+                setStandaloneHandoverTo("");
+              },
+            },
+          ]
+        : []),
+      ...(u.role !== Role.APPLICANT
+        ? [
+            {
+              label: "Reset two-step verification",
+              disabled: isSelf,
+              onSelect: () => setMfaModalUser({ id: u.id, email: u.email }),
+            },
+          ]
+        : []),
+      {
+        label: statusActionLabel(u),
+        tone: (u.isActive ? "danger" : "default") as "danger" | "default",
+        disabled: isSelf || Boolean(u.statusLockedUntil),
+        onSelect: () => setStatusModalUser({ id: u.id, email: u.email, isActive: u.isActive, role: u.role }),
+      },
+    ];
+  };
+
+  const columns: DataTableColumn<AdminUserListItem>[] = [
+    {
+      key: "account",
+      header: "Account",
+      sortable: true,
+      primary: true,
+      cell: (u) => {
+        const isSelf = currentAdmin?.id === u.id;
+        const fullName = resolveUserName(u);
+        const shownEmail = displayEmail(u.email);
+        return (
+          <div>
+            <div className="font-medium text-slate-950 break-all">
+              {fullName}
+              {isSelf && <span className="ml-1.5 font-normal text-slate-600">(you)</span>}
+            </div>
+            {shownEmail && fullName !== shownEmail && <div className="text-sm text-slate-600">{shownEmail}</div>}
+          </div>
+        );
+      },
+    },
+    {
+      key: "role",
+      header: "Role",
+      sortable: true,
+      cell: (u) => renderRole(u),
+    },
+    {
+      key: "status",
+      header: "Status",
+      sortable: true,
+      cell: (u) => <AccountStatus user={u} />,
+    },
+    {
+      key: "lastLogin",
+      header: "Last sign-in",
+      sortable: true,
+      cell: (u) => <span className="text-slate-600 tabular-nums">{renderLastSignIn(u)}</span>,
+    },
+    {
+      key: "created",
+      header: "Created",
+      sortable: true,
+      cell: (u) => <span className="text-slate-600 tabular-nums">{formatDate(u.createdAt)}</span>,
+    },
+    {
+      key: "actions",
+      header: "Actions",
+      align: "right",
+      cell: (u) => <ActionMenu label={`Actions for ${u.email}`} items={userActionItems(u)} />,
+    },
+  ];
+
+  const renderCard = (u: AdminUserListItem) => {
+    const isSelf = currentAdmin?.id === u.id;
+    const fullName = resolveUserName(u);
+    const shownEmail = displayEmail(u.email);
+    return (
+      <div className="p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold text-sm text-slate-950 break-words">
+              {fullName || shownEmail || "User"}
+              {isSelf && <span className="ml-1.5 font-normal text-slate-600">(you)</span>}
+            </div>
+            {shownEmail && fullName !== shownEmail && <div className="text-sm text-slate-600 break-all">{shownEmail}</div>}
+          </div>
+          <ActionMenu label={`Actions for ${u.email}`} items={userActionItems(u)} />
+        </div>
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+          <div>
+            <dt className="text-sm text-slate-600">Role</dt>
+            <dd className="font-medium text-slate-800">{renderRole(u)}</dd>
+          </div>
+          <div>
+            <dt className="text-sm text-slate-600">Status</dt>
+            <dd className="mt-0.5"><AccountStatus user={u} /></dd>
+          </div>
+          <div>
+            <dt className="text-sm text-slate-600">Last sign-in</dt>
+            <dd className="text-slate-700">{renderLastSignIn(u)}</dd>
+          </div>
+          <div>
+            <dt className="text-sm text-slate-600">Created</dt>
+            <dd className="text-slate-700">{formatDate(u.createdAt)}</dd>
+          </div>
+        </dl>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -437,8 +623,6 @@ export const UsersPage: React.FC = () => {
           </Button>
         }
       />
-
-      {feedback && <FeedbackBanner type={feedback.type} message={feedback.message} onDismiss={() => setFeedback(null)} />}
 
       {/* Filters */}
       <SearchFilters
@@ -498,233 +682,51 @@ export const UsersPage: React.FC = () => {
         <LoadingState variant="table" rows={6} />
       ) : usersQuery.isError ? (
         <ErrorState error={usersQuery.error} onRetry={() => usersQuery.refetch()} />
-      ) : users.length === 0 ? (
-        <div className="rounded-md border border-slate-300 bg-white p-6">
-          <EmptyState
-            icon={<Users className="w-5 h-5" />}
-             title="No users found"
-             description="No accounts match your search or filters."
-            action={
-              <Button variant="outline" size="sm" onClick={handleReset}>
-                Clear filters
-              </Button>
-            }
-          />
-        </div>
       ) : (
-        <div className="overflow-hidden rounded-md border border-slate-300 bg-white">
-          {selectedUser && (
-            <div className="px-3.5 py-2.5 bg-navy-soft border-b border-navy-line text-sm text-slate-900" role="status" aria-live="polite">
-              Selected account: <strong>{resolveUserName(selectedUser)}</strong>
-            </div>
-          )}
-          <div className="md:hidden divide-y divide-slate-200">
-            {paginatedUsers.map((u) => {
-              const isSelf = currentAdmin?.id === u.id;
-              const fullName = resolveUserName(u);
-              return (
-                <div
-                  key={u.id}
-                  aria-selected={selectedUserId === u.id}
-                  className={`p-4 space-y-3 transition-colors ${selectedUserId === u.id ? "bg-navy-soft" : ""}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <SelectBox
-                      checked={selection.selectedIds.has(u.id)}
-                      disabled={isSelf}
-                      label={`Select ${userLabel(u)}`}
-                      onChange={() => toggleRow(u.id)}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="font-semibold text-sm text-slate-950 break-words">
-                        {fullName || u.email}
-                        {isSelf && <span className="ml-1.5 font-normal text-slate-600">(you)</span>}
-                      </div>
-                      {fullName !== u.email && <div className="text-sm text-slate-600 break-all">{u.email}</div>}
-                    </div>
-                    <ActionMenu
-                      label={`Actions for ${u.email}`}
-                      onOpenChange={(open) => {
-                        setSelectedUserId(open ? u.id : null);
-                        setSelectedUserSnapshot(open ? u : null);
-                      }}
-                      items={
-                        u.accountStatus === "PENDING" || u.accountStatus === "INVITED"
-                          ? [
-                              { label: "Resend invitation", onSelect: () => setResendModalUser({ id: u.id, email: u.email }) },
-                              { label: "Cancel invitation", tone: "danger", onSelect: () => setCancelModalUser({ id: u.id, email: u.email }) },
-                            ]
-                          : [
-                              {
-                                label: "Change role",
-                                disabled: isSelf || u.role === Role.APPLICANT,
-                                onSelect: () => {
-                                  setRoleModalUser({ id: u.id, email: u.email, currentRole: u.role });
-                                  setTargetRole(u.role);
-                                },
-                              },
-                              ...(u.role !== Role.APPLICANT
-                                ? [{ label: "Reset two-step verification", disabled: isSelf, onSelect: () => setMfaModalUser({ id: u.id, email: u.email }) }]
-                                : []),
-                              {
-                                label: statusActionLabel(u),
-                                tone: u.isActive ? "danger" : "default",
-                                disabled: isSelf || Boolean(u.statusLockedUntil),
-                                onSelect: () => setStatusModalUser({ id: u.id, email: u.email, isActive: u.isActive, role: u.role }),
-                              },
-                            ]
-                      }
-                    />
-                  </div>
-                  <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                    <div>
-                      <dt className="text-sm text-slate-600">Role</dt>
-                      <dd className="font-medium text-slate-800">{renderRole(u)}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-sm text-slate-600">Status</dt>
-                      <dd className="mt-0.5"><AccountStatus user={u} /></dd>
-                    </div>
-                    <div>
-                      <dt className="text-sm text-slate-600">Last sign-in</dt>
-                      <dd className="text-slate-700">{renderLastSignIn(u)}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-sm text-slate-600">Created</dt>
-                      <dd className="text-slate-700">{formatDate(u.createdAt)}</dd>
-                    </div>
-                  </dl>
-                </div>
-              );
-            })}
-          </div>
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left text-sm border-collapse">
-              <thead className="bg-slate-50 text-xs text-slate-600 border-b border-slate-300">
-                <tr>
-                  <th scope="col" className="w-10 px-3 py-1">
-                    <SelectBox
-                      checked={allOnPageSelected}
-                      indeterminate={selectedRows.length > 0 && !allOnPageSelected}
-                      disabled={selectableRows.length === 0}
-                      label="Select all accounts on this page"
-                      onChange={toggleAllOnPage}
-                    />
-                  </th>
-                  <th scope="col" className="px-3 py-2.5 font-medium">Account</th>
-                  <th scope="col" className="px-3 py-2.5 font-medium">Role</th>
-                  <th scope="col" className="px-3 py-2.5 font-medium">Status</th>
-                  <th scope="col" className="px-3 py-2.5 font-medium">Last sign-in</th>
-                  <th scope="col" className="px-3 py-2.5 font-medium">Created</th>
-                  <th scope="col" className="px-3 py-2.5 font-medium text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {paginatedUsers.map((u) => {
-                  const isSelf = currentAdmin?.id === u.id;
-                  const fullName = resolveUserName(u);
-
-                  return (
-                    <tr
-                      key={u.id}
-                      aria-selected={selectedUserId === u.id}
-                      className={`transition-colors ${selectedUserId === u.id || selection.selectedIds.has(u.id) ? "bg-navy-soft" : "hover:bg-slate-50"}`}
-                    >
-                      <td className="w-10 px-3 align-middle">
-                        <SelectBox
-                          checked={selection.selectedIds.has(u.id)}
-                          disabled={isSelf}
-                          label={`Select ${userLabel(u)}`}
-                          onChange={() => toggleRow(u.id)}
-                        />
-                      </td>
-                      <td className="px-3 py-3">
-                        <div className="font-medium text-slate-950 break-all">
-                          {fullName}
-                          {isSelf && <span className="ml-1.5 font-normal text-slate-600">(you)</span>}
-                        </div>
-                        {fullName !== u.email && <div className="text-sm text-slate-600">{u.email}</div>}
-                      </td>
-                      <td className="px-3 py-3">
-                        {renderRole(u)}
-                      </td>
-                      <td className="px-3 py-3">
-                        <AccountStatus user={u} />
-                      </td>
-                      <td className="px-3 py-3 text-slate-600 tabular-nums">
-                        {renderLastSignIn(u)}
-                      </td>
-                      <td className="px-3 py-3 text-slate-600 tabular-nums">
-                        {formatDate(u.createdAt)}
-                      </td>
-                       <td className="px-3 py-1.5 text-right">
-                         <ActionMenu
-                           label={`Actions for ${u.email}`}
-                           onOpenChange={(open) => {
-                             setSelectedUserId(open ? u.id : null);
-                             setSelectedUserSnapshot(open ? u : null);
-                           }}
-                           items={
-                             u.accountStatus === "PENDING" || u.accountStatus === "INVITED"
-                               ? [
-                                   {
-                                     label: "Resend invitation",
-                                     onSelect: () => setResendModalUser({ id: u.id, email: u.email }),
-                                   },
-                                   {
-                                     label: "Cancel invitation",
-                                     tone: "danger",
-                                     onSelect: () => setCancelModalUser({ id: u.id, email: u.email }),
-                                   },
-                                 ]
-                               : [
-                                   {
-                                     label: "Change role",
-                                     disabled: isSelf || u.role === Role.APPLICANT,
-                                     onSelect: () => {
-                                       setRoleModalUser({ id: u.id, email: u.email, currentRole: u.role });
-                                       setTargetRole(u.role);
-                                     },
-                                   },
-                                   ...(u.role !== Role.APPLICANT
-                                     ? [
-                                         {
-                                           label: "Reset two-step verification",
-                                           disabled: isSelf,
-                                           onSelect: () => setMfaModalUser({ id: u.id, email: u.email }),
-                                         } as const,
-                                       ]
-                                     : []),
-                                   {
-                                     label: statusActionLabel(u),
-                                     tone: u.isActive ? "danger" : "default",
-                                     disabled: isSelf || Boolean(u.statusLockedUntil),
-                                     onSelect: () =>
-                                       setStatusModalUser({ id: u.id, email: u.email, isActive: u.isActive, role: u.role }),
-                                   },
-                                 ]
-                           }
-                         />
-                       </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          <div className="px-3 py-2 border-t border-slate-300">
-            <Pagination
-              currentPage={page}
-              totalPages={totalPages}
-              totalItems={totalItems}
-              pageSize={pageSize}
-              onPageChange={setPage}
-              itemLabel="users"
+        <DataTable
+          caption="Users"
+          columns={columns}
+          rows={sortedUsers}
+          getRowId={(u) => u.id}
+          renderCard={renderCard}
+          cardsBelow="md"
+          sort={sort}
+          onSortChange={handleSortChange}
+          isFetching={usersQuery.isFetching}
+          selection={{
+            selectedIds: selection.selectedIds,
+            onChange: selection.setSelectedIds,
+            rowLabel: (u) => `Select ${userLabel(u)}`,
+            isRowSelectable: (u) => u.id !== currentAdmin?.id,
+          }}
+          empty={
+            <EmptyState
+              bare
+              icon={<Users className="w-5 h-5" />}
+              title="No users found"
+              description="No accounts match your search or filters."
+              action={
+                <Button variant="outline" size="sm" onClick={handleReset}>
+                  Clear filters
+                </Button>
+              }
             />
-          </div>
-        </div>
+          }
+          footer={
+            <div className="px-3 py-2">
+              <Pagination
+                currentPage={page}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={handlePageSizeChange}
+                variant="inset"
+                itemLabel="users"
+              />
+            </div>
+          }
+        />
       )}
 
       {/* Bulk action confirm */}
@@ -791,27 +793,23 @@ export const UsersPage: React.FC = () => {
           noValidate
           onSubmit={(e) => {
             e.preventDefault();
+            const nextErrors: Record<string, string> = {};
             if (!inviteEmail.trim()) {
-              setInviteFieldErrors((prev) => ({ ...prev, email: "Email is required." }));
-              return;
-            }
-            if (!inviteEmailSchema.safeParse(inviteEmail).success) {
-              setInviteFieldErrors((prev) => ({ ...prev, email: "Enter a valid email address." }));
-              return;
+              nextErrors.email = "Email is required.";
+            } else if (!inviteEmailSchema.safeParse(inviteEmail).success) {
+              nextErrors.email = "Enter a valid email address.";
             }
             if (inviteFirstName.trim()) {
               const fnErr = validatePersonName(inviteFirstName, "First name");
-              if (fnErr) {
-                notify.error("Check the highlighted fields", fnErr);
-                return;
-              }
+              if (fnErr) nextErrors.firstName = fnErr;
             }
             if (inviteLastName.trim()) {
               const lnErr = validatePersonName(inviteLastName, "Last name");
-              if (lnErr) {
-                notify.error("Check the highlighted fields", lnErr);
-                return;
-              }
+              if (lnErr) nextErrors.lastName = lnErr;
+            }
+            if (Object.keys(nextErrors).length > 0) {
+              setInviteFieldErrors(nextErrors);
+              return;
             }
             inviteMutation.mutate({
               email: inviteEmail,
@@ -878,7 +876,7 @@ export const UsersPage: React.FC = () => {
       {/* Change Role Modal */}
       <Dialog
         open={Boolean(roleModalUser)}
-        onClose={() => { setRoleModalUser(null); clearSelectedUser(); }}
+        onClose={() => setRoleModalUser(null)}
         title="Change role"
         description={`Choose what ${roleModalUser?.email} can access.`}
       >
@@ -893,8 +891,16 @@ export const UsersPage: React.FC = () => {
                { value: Role.APPLICANT, label: "Applicant — candidate portal" },
             ]}
           />
+          {targetRole === Role.APPLICANT && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-md flex items-start gap-2.5 text-sm text-amber-900">
+              <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" aria-hidden="true" />
+              <p className="leading-relaxed">
+                Applicant accounts cannot be switched back to Recruiter or Administrator later.
+              </p>
+            </div>
+          )}
           <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => { setRoleModalUser(null); clearSelectedUser(); }} className="w-full sm:w-auto">
+            <Button variant="outline" size="sm" onClick={() => setRoleModalUser(null)} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button
@@ -954,10 +960,61 @@ export const UsersPage: React.FC = () => {
         </div>
       </Dialog>
 
+      {/* Standalone Hand Over Records Modal */}
+      <Dialog
+        open={Boolean(handoverModalUser)}
+        onClose={() => {
+          setHandoverModalUser(null);
+          setStandaloneHandoverTo("");
+        }}
+        title="Hand over records"
+        description={`Move ${handoverModalUser?.name}'s requests, clients and standalone openings to another recruiter.`}
+      >
+        <div className="space-y-4">
+          <Select
+            label="Hand over records to"
+            value={standaloneHandoverTo}
+            onChange={(e) => setStandaloneHandoverTo(e.target.value)}
+            options={[
+              { value: "", label: "Select a recruiter" },
+              ...handoverCandidates.map((r) => ({ value: r.id, label: r.name === r.email ? r.name : `${r.name} (${r.email})` })),
+            ]}
+            disabled={handoverOptionsQuery.isLoading}
+          />
+          <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setHandoverModalUser(null);
+                setStandaloneHandoverTo("");
+              }}
+              className="w-full sm:w-auto"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={!standaloneHandoverTo}
+              loading={standaloneHandoverMutation.isPending}
+              className="w-full sm:w-auto"
+              onClick={() => {
+                if (handoverModalUser && standaloneHandoverTo) {
+                  standaloneHandoverMutation.mutate({ fromTaId: handoverModalUser.id, toTaId: standaloneHandoverTo });
+                }
+              }}
+            >
+              Hand over records
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
       {/* Reset MFA Modal */}
       <Dialog
         open={Boolean(mfaModalUser)}
-        onClose={() => { setMfaModalUser(null); clearSelectedUser(); }}
+        onClose={() => setMfaModalUser(null)}
         title="Reset two-step verification"
         description={`Reset sign-in verification for ${mfaModalUser?.email}`}
       >
@@ -969,7 +1026,7 @@ export const UsersPage: React.FC = () => {
             </p>
           </div>
           <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => { setMfaModalUser(null); clearSelectedUser(); }} className="w-full sm:w-auto">
+            <Button variant="outline" size="sm" onClick={() => setMfaModalUser(null)} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button
@@ -993,7 +1050,7 @@ export const UsersPage: React.FC = () => {
       {/* Resend Invitation Modal */}
       <Dialog
         open={Boolean(resendModalUser)}
-        onClose={() => { setResendModalUser(null); clearSelectedUser(); }}
+        onClose={() => setResendModalUser(null)}
         title="Resend invitation"
         description={`Send a new account setup link to ${resendModalUser?.email}`}
       >
@@ -1002,7 +1059,7 @@ export const UsersPage: React.FC = () => {
              The previous link will stop working and a new link will be valid for 48 hours.
           </p>
           <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => { setResendModalUser(null); clearSelectedUser(); }} className="w-full sm:w-auto">
+            <Button variant="outline" size="sm" onClick={() => setResendModalUser(null)} className="w-full sm:w-auto">
               Cancel
             </Button>
             <Button
@@ -1026,7 +1083,7 @@ export const UsersPage: React.FC = () => {
       {/* Cancel Invitation Modal */}
       <Dialog
         open={Boolean(cancelModalUser)}
-        onClose={() => { setCancelModalUser(null); clearSelectedUser(); }}
+        onClose={() => setCancelModalUser(null)}
         title="Cancel invitation"
         description={`Stop the pending invitation for ${cancelModalUser?.email}`}
       >
@@ -1035,7 +1092,7 @@ export const UsersPage: React.FC = () => {
              The setup link will stop working and the pending account will be removed.
           </p>
           <div className="flex flex-wrap justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => { setCancelModalUser(null); clearSelectedUser(); }} className="w-full sm:w-auto">
+            <Button variant="outline" size="sm" onClick={() => setCancelModalUser(null)} className="w-full sm:w-auto">
               Keep Invitation
             </Button>
             <Button

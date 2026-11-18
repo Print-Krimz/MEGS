@@ -15,7 +15,16 @@ import { Button, Dialog } from "../../components/ui";
 import { BackoutDialog } from "../../components/ta/BackoutDialog";
 import { canApplicantWithdraw } from "../../lib/backout";
 import { getPipelineStageIndex } from "../../lib/pipeline-stages";
-import { formatDate, formatDateTime, getApplicationStatusPresentation } from "../../lib/utils";
+import {
+  formatDate,
+  formatDateTime,
+  formatEmploymentType,
+  formatSalaryRange,
+  formatWorkArrangement,
+  getApplicationStatusPresentation,
+} from "../../lib/utils";
+import { formatWorkSchedule } from "../../lib/mrf-schedule";
+import { firstParagraph } from "./components/JobCard";
 import { APPLICANT_NEXT_STEP } from "../../lib/labels";
 import { requirementSubmission } from "../../lib/requirementSubmission";
 import {
@@ -54,6 +63,13 @@ const sentenceCase = (value: string) => {
   const text = value.replace(/_/g, " ").trim().toLowerCase();
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
+
+const stripInlineMarkdown = (value: string) =>
+  value
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/(^|\s)[*_]([^*_]+)[*_](?=\s|$|[.,!?;:])/g, "$1$2");
 
 // Interview result chip: same shape and colours as the other applicant badges.
 const RESULT_CHIP = "inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2 py-0.5 text-xs font-medium";
@@ -250,7 +266,15 @@ export const ApplicationDetailPage: React.FC = () => {
   if (applicationQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Application details" description="Loading your application…" />
+        <PageHeader
+          title="Application details"
+          description="Loading your application…"
+          breadcrumbs={[
+            { label: "My career", href: "/app" },
+            { label: "My Applications", href: "/app/applications" },
+            { label: "Application Details" },
+          ]}
+        />
         <LoadingState variant="detail" />
       </div>
     );
@@ -266,6 +290,11 @@ export const ApplicationDetailPage: React.FC = () => {
         <PageHeader
           title="Application details"
           description="Application progress"
+          breadcrumbs={[
+            { label: "My career", href: "/app" },
+            { label: "My Applications", href: "/app/applications" },
+            { label: "Application Details" },
+          ]}
         />
         {applicationQuery.isError && !notFound ? (
           <ErrorState
@@ -276,7 +305,7 @@ export const ApplicationDetailPage: React.FC = () => {
         ) : offline ? (
           <ErrorState subject="application" onRetry={() => applicationQuery.refetch()} />
         ) : (
-          <div className="bg-white rounded-lg border border-[#D9E2EC] p-8 text-center space-y-4 shadow-xs">
+          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center space-y-4">
             <p className="text-sm text-[#486581]">
               This application does not exist or you do not have permission to view it.
             </p>
@@ -392,12 +421,12 @@ export const ApplicationDetailPage: React.FC = () => {
   };
 
   const interviewsCard = hideInterviews ? null : (
-    <div className="bg-white border border-[#D9E2EC] rounded-lg overflow-hidden">
-      <div className="p-3.5 border-b border-[#D9E2EC] flex items-center gap-2 bg-[#F7F9FC]">
-        <Calendar className="w-4 h-4 text-[#0B315D]" />
-        <h3 className="text-sm font-semibold text-[#102A43]">
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <div className="p-3.5 border-b border-slate-200 flex items-center gap-2 bg-slate-50/70">
+        <Calendar className="w-4 h-4 text-[#0B315D]" aria-hidden="true" />
+        <h2 className="text-sm font-semibold text-[#102A43]">
           Interviews and assessments
-        </h3>
+        </h2>
       </div>
 
       {interviews.length === 0 ? (
@@ -405,7 +434,7 @@ export const ApplicationDetailPage: React.FC = () => {
           No interviews scheduled yet. Once our recruitment team reviews your application, interview details will appear here.
         </div>
       ) : (
-        <div className="divide-y divide-[#D9E2EC] p-4 space-y-3">
+        <div className="divide-y divide-slate-200 p-4 space-y-3">
           {interviews.map((interview) => {
             const isPassed = interview.result === "PASS" || interview.result === "PASSED";
             const isFailed = interview.result === "FAIL" || interview.result === "FAILED";
@@ -458,12 +487,12 @@ export const ApplicationDetailPage: React.FC = () => {
                 )}
 
                 {interview.notes && (
-                  <div className="mt-2.5 p-3 bg-slate-50 border border-slate-200/90 rounded-md space-y-1">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
-                      <FileText className="w-3.5 h-3.5 text-slate-500" aria-hidden="true" />
+                  <div className="mt-2.5 p-3 bg-slate-50 border border-slate-200/80 rounded-lg space-y-1">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-[#0B315D]">
+                      <FileText className="w-3.5 h-3.5 text-[#0B315D]" aria-hidden="true" />
                       <span>Evaluation &amp; Interview Notes</span>
                     </div>
-                    <p className="text-sm text-slate-900 font-medium leading-relaxed pl-2.5 border-l-2 border-slate-400">
+                    <p className="text-sm text-[#102A43] font-medium leading-relaxed pl-2.5 border-l-2 border-[#0B315D]">
                       {interview.notes}
                     </p>
                   </div>
@@ -479,13 +508,13 @@ export const ApplicationDetailPage: React.FC = () => {
   const requirementsCard = isDeployed ? (
     <div className="space-y-6">
       {compliance.length === 0 && (
-        <div className="bg-white border border-[#D9E2EC] rounded-lg shadow-xs overflow-hidden">
-          <div className="p-3.5 border-b border-[#D9E2EC] flex items-center justify-between bg-[#F7F9FC]">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="p-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
             <div className="flex items-center gap-2">
-              <FileCheck2 className="w-4 h-4 text-[#0B315D]" />
-              <h3 className="text-sm font-semibold text-[#102A43]">
+              <FileCheck2 className="w-4 h-4 text-[#0B315D]" aria-hidden="true" />
+              <h2 className="text-sm font-semibold text-[#102A43]">
                 Requirements
-              </h3>
+              </h2>
             </div>
           </div>
           <div className="p-6 text-center text-sm text-[#486581]">
@@ -496,50 +525,50 @@ export const ApplicationDetailPage: React.FC = () => {
 
       {/* Requirements to follow up (Action needed) */}
       {pendingFollowUps.length > 0 && (
-        <div className="bg-white border border-[#D9E2EC] rounded-lg shadow-xs overflow-hidden">
-          <div className="p-3.5 border-b border-[#D9E2EC] flex items-center justify-between bg-[#FFFBEB]">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="p-3.5 border-b border-[#FDE68A] flex items-center justify-between bg-[#FFFBEB]">
             <div className="flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-[#D97706]" />
-              <h3 className="text-sm font-semibold text-[#92400E]">
+              <AlertCircle className="w-4 h-4 text-[#D97706]" aria-hidden="true" />
+              <h2 className="text-sm font-semibold text-[#92400E]">
                 Requirements to follow up (Action needed)
-              </h3>
+              </h2>
             </div>
             <span className="text-xs font-medium text-[#B45309]">
               {pendingFollowUps.length} pending
             </span>
           </div>
 
-          <div className="divide-y divide-[#D9E2EC]">{pendingFollowUps.map(renderRequirementRow)}</div>
+          <div className="divide-y divide-slate-200">{pendingFollowUps.map(renderRequirementRow)}</div>
         </div>
       )}
 
       {/* Verified 201 clearances */}
       {approvedClearances.length > 0 && (
-        <div className="bg-white border border-[#D9E2EC] rounded-lg shadow-xs overflow-hidden">
-          <div className="p-3.5 border-b border-[#D9E2EC] flex items-center justify-between bg-[#F7F9FC]">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="p-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-[#047857]" />
-              <h3 className="text-sm font-semibold text-[#102A43]">
+              <CheckCircle2 className="w-4 h-4 text-[#047857]" aria-hidden="true" />
+              <h2 className="text-sm font-semibold text-[#102A43]">
                 Verified 201 clearances
-              </h3>
+              </h2>
             </div>
             <span className="text-xs font-medium text-[#047857]">
               {approvedClearances.length} verified
             </span>
           </div>
 
-          <div className="divide-y divide-[#D9E2EC]">{approvedClearances.map(renderRequirementRow)}</div>
+          <div className="divide-y divide-slate-200">{approvedClearances.map(renderRequirementRow)}</div>
         </div>
       )}
     </div>
   ) : (
-    <div className="bg-white border border-[#D9E2EC] rounded-lg shadow-xs overflow-hidden">
-      <div className="p-3.5 border-b border-[#D9E2EC] flex items-center justify-between bg-[#F7F9FC]">
+    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+      <div className="p-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50/70">
         <div className="flex items-center gap-2">
-          <FileCheck2 className="w-4 h-4 text-[#0B315D]" />
-          <h3 className="text-sm font-semibold text-[#102A43]">
+          <FileCheck2 className="w-4 h-4 text-[#0B315D]" aria-hidden="true" />
+          <h2 className="text-sm font-semibold text-[#102A43]">
             Requirements
-          </h3>
+          </h2>
         </div>
         <span className="text-xs text-[#486581]">
           {approvedClearances.length} / {compliance.length} Approved
@@ -553,14 +582,26 @@ export const ApplicationDetailPage: React.FC = () => {
             : "No active document requirements are assigned yet. We’ll show them here when they are ready."}
         </div>
       ) : (
-        <div className="divide-y divide-[#D9E2EC]">{compliance.map(renderRequirementRow)}</div>
+        <div className="divide-y divide-slate-200">{compliance.map(renderRequirementRow)}</div>
       )}
     </div>
   );
 
+  const worksite = job?.location?.trim() || job?.mrf?.location?.trim() || null;
+  const employmentTerms = [
+    job?.mrf?.employmentType ? formatEmploymentType(job.mrf.employmentType) : null,
+    job?.mrf?.workArrangement ? formatWorkArrangement(job.mrf.workArrangement) : null,
+    job?.mrf?.department || null,
+  ].filter(Boolean) as string[];
+  const workSchedule = job?.mrf ? formatWorkSchedule(job.mrf) : null;
+  const hasSalary = Boolean((job?.mrf?.salaryRangeMin ?? 0) > 0 || (job?.mrf?.salaryRangeMax ?? 0) > 0);
+  const salaryDisplay = hasSalary ? formatSalaryRange(job?.mrf?.salaryRangeMin, job?.mrf?.salaryRangeMax) : null;
+  const rawParagraph = firstParagraph(job?.description);
+  const roleSummary = rawParagraph ? stripInlineMarkdown(rawParagraph) : "";
+
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       {/* Hidden file input for document uploading */}
       <input
         ref={fileInputRef}
@@ -584,7 +625,8 @@ export const ApplicationDetailPage: React.FC = () => {
         description="Follow your application progress and upcoming steps."
         breadcrumbs={[
           { label: "My career", href: "/app" },
-          { label: "Applications", href: "/app/applications" },
+          { label: "My Applications", href: "/app/applications" },
+          { label: job?.title || "Application Details" },
         ]}
         actions={
           <Button asChild variant="outline">
@@ -594,8 +636,8 @@ export const ApplicationDetailPage: React.FC = () => {
       />
 
       {/* Progress Card */}
-      <div className="bg-white border border-[#D9E2EC] rounded-lg p-5 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#D9E2EC] pb-3">
+      <div className="min-w-0 bg-white border border-slate-200 rounded-xl p-5 space-y-4 [overflow-wrap:anywhere]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2.5">
               <span className="text-sm font-medium text-[#486581]">
@@ -618,12 +660,12 @@ export const ApplicationDetailPage: React.FC = () => {
 
         {/* Supporting message for Future Opportunities */}
         {application.status === ApplicationStatus.TALENT_POOL && (
-          <div className="p-4 bg-[#F7F9FC] border border-[#D9E2EC] rounded-lg space-y-1">
+          <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-lg space-y-1">
             <div className="flex items-center gap-2">
-              <Bookmark className="w-4 h-4 text-[#0B315D] shrink-0" />
-              <h4 className="text-sm font-semibold text-[#102A43]">
+              <Bookmark className="w-4 h-4 text-[#0B315D] shrink-0" aria-hidden="true" />
+              <h2 className="text-sm font-semibold text-[#102A43]">
                 Future opportunities
-              </h4>
+              </h2>
             </div>
             <p className="text-sm text-[#486581] leading-relaxed">
               You were not selected for this position, but your profile may be considered for future job opportunities that match your qualifications.
@@ -632,8 +674,8 @@ export const ApplicationDetailPage: React.FC = () => {
         )}
 
         {(application.status === ApplicationStatus.CONTRACT_SIGNING || application.status === ApplicationStatus.ONBOARDING) && (
-          <div className="p-4 bg-[#EAF0F7] border border-[#D9E2EC] rounded-lg space-y-1">
-            <h4 className="text-sm font-semibold text-[#102A43]">Pre-employment documents approved</h4>
+          <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-lg space-y-1">
+            <h2 className="text-sm font-semibold text-[#102A43]">Pre-employment documents approved</h2>
             {application.contractSigningAt ? (
               <>
                 <p className="text-sm text-[#102A43] leading-relaxed">
@@ -661,8 +703,8 @@ export const ApplicationDetailPage: React.FC = () => {
         )}
 
         {assignmentEnded && (
-          <div className="p-4 bg-[#F7F9FC] border border-[#D9E2EC] rounded-lg space-y-1">
-            <h4 className="text-sm font-semibold text-[#102A43]">Assignment ended</h4>
+          <div className="p-4 bg-slate-50 border border-slate-200/80 rounded-lg space-y-1">
+            <h2 className="text-sm font-semibold text-[#102A43]">Assignment ended</h2>
             <p className="text-sm text-[#486581] leading-relaxed">
               {latestDeployment?.actualEnd ? `Your assignment ended on ${formatDate(latestDeployment.actualEnd)}. ` : "Your assignment has ended. "}
               Your TA will contact you about your next opportunity.
@@ -672,13 +714,13 @@ export const ApplicationDetailPage: React.FC = () => {
 
         {isDeployed && !assignmentEnded && (
           pendingFollowUps.length > 0 ? (
-            <div className="p-4 bg-[#FFF7ED] border border-[#FED7AA] rounded-lg space-y-2">
+            <div className="p-4 bg-[#FFFBEB] border border-[#FDE68A] rounded-lg space-y-2">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-[#D97706] shrink-0" />
-                  <h4 className="text-sm font-semibold text-[#92400E]">
+                  <AlertCircle className="w-4 h-4 text-[#D97706] shrink-0" aria-hidden="true" />
+                  <h2 className="text-sm font-semibold text-[#92400E]">
                     Deployed to work site - Follow-up requirements pending
-                  </h4>
+                  </h2>
                 </div>
                 <span className="inline-flex items-center rounded-md border border-[#FED7AA] bg-white px-2 py-0.5 text-xs font-medium text-[#B45309] self-start sm:self-auto">
                   {pendingFollowUps.length} requirement(s) pending follow-up
@@ -691,10 +733,10 @@ export const ApplicationDetailPage: React.FC = () => {
           ) : (
             <div className="p-4 bg-[#ECFDF5] border border-[#A7F3D0] rounded-lg space-y-1">
               <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-[#047857] shrink-0" />
-                <h4 className="text-sm font-semibold text-[#047857]">
+                <CheckCircle2 className="w-4 h-4 text-[#047857] shrink-0" aria-hidden="true" />
+                <h2 className="text-sm font-semibold text-[#047857]">
                   Deployed to work site - 100% Compliant
-                </h4>
+                </h2>
               </div>
               <p className="text-sm text-[#102A43] leading-relaxed">
                 All pre-employment and post-deployment requirements are verified. Your 201 file is complete.
@@ -726,7 +768,7 @@ export const ApplicationDetailPage: React.FC = () => {
         </div>
 
         {!application.isArchived && canApplicantWithdraw(application.status) && (
-          <div className="border-t border-[#D9E2EC] pt-3">
+          <div className="border-t border-slate-200 pt-3">
             <Button
               variant="ghost"
               size="sm"
@@ -741,55 +783,85 @@ export const ApplicationDetailPage: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Scheduled Interviews & Compliance Requirements */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="min-w-0 lg:col-span-2 space-y-6">
           {requirementsFirst ? requirementsCard : interviewsCard}
           {requirementsFirst ? interviewsCard : requirementsCard}
         </div>
 
-        {/* Right Column: Requisition Information */}
-        <div className="space-y-4">
-          <div className="bg-white border border-[#D9E2EC] rounded-lg p-5 space-y-4 shadow-xs sticky top-24">
-            <h3 className="text-sm font-semibold text-[#102A43] border-b border-[#D9E2EC] pb-3 flex items-center gap-2">
-              <Briefcase className="w-4 h-4 text-[#0B315D]" />
+        {/* Right Column: Position Details */}
+        <div className="min-w-0 space-y-4">
+          <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-4 lg:sticky lg:top-24 [overflow-wrap:anywhere]">
+            <h2 className="text-sm font-semibold text-[#0B315D] border-b border-slate-200 pb-3 flex items-center gap-2">
+              <Briefcase className="w-4 h-4 text-[#0B315D]" aria-hidden="true" />
               <span>Position Details</span>
-            </h3>
+            </h2>
 
-            <div className="space-y-3 text-sm">
+            <dl className="space-y-3 text-sm">
               <div className="flex items-start gap-2.5">
-                <Briefcase className="w-4 h-4 text-[#486581] shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-xs font-medium text-[#486581]">Position Title</div>
-                  <div className="text-[#102A43] font-semibold text-sm mt-0.5">{job?.title || "N/A"}</div>
+                <Briefcase className="w-4 h-4 text-[#486581] shrink-0 mt-0.5" aria-hidden="true" />
+                <div className="min-w-0">
+                  <dt className="text-xs font-medium text-[#486581]">Position Title</dt>
+                  <dd className="text-[#102A43] font-semibold text-sm mt-0.5 break-words">{job?.title || "N/A"}</dd>
                 </div>
               </div>
 
               {job?.mrf?.client?.name && (
                 <div className="flex items-start gap-2.5">
-                  <Building2 className="w-4 h-4 text-[#486581] shrink-0 mt-0.5" />
-                  <div>
-                    <div className="text-xs font-medium text-[#486581]">Company</div>
-                    <div className="text-[#102A43] font-medium text-sm mt-0.5">{job.mrf.client.name}</div>
+                  <Building2 className="w-4 h-4 text-[#486581] shrink-0 mt-0.5" aria-hidden="true" />
+                  <div className="min-w-0">
+                    <dt className="text-xs font-medium text-[#486581]">Company</dt>
+                    <dd className="text-[#102A43] font-medium text-sm mt-0.5 break-words">
+                      {job.mrf.client.name}
+                      {job.mrf.client.industry ? ` · ${job.mrf.client.industry}` : ""}
+                    </dd>
                   </div>
                 </div>
               )}
 
               <div className="flex items-start gap-2.5">
-                <MapPin className="w-4 h-4 text-[#486581] shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-xs font-medium text-[#486581]">Deployment Location</div>
-                  <div className="text-[#102A43] font-medium text-sm mt-0.5">{job?.location || "Philippines"}</div>
+                <MapPin className="w-4 h-4 text-[#486581] shrink-0 mt-0.5" aria-hidden="true" />
+                <div className="min-w-0">
+                  <dt className="text-xs font-medium text-[#486581]">Deployment Location</dt>
+                  <dd className="text-[#102A43] font-medium text-sm mt-0.5 break-words">{worksite || "Philippines"}</dd>
                 </div>
               </div>
-            </div>
 
-            {job?.description && (
-              <div className="pt-3 border-t border-[#D9E2EC]">
+              {(employmentTerms.length > 0 || workSchedule || salaryDisplay) && (
+                <div className="flex items-start gap-2.5">
+                  <Clock className="w-4 h-4 text-[#486581] shrink-0 mt-0.5" aria-hidden="true" />
+                  <div className="min-w-0 space-y-1">
+                    <dt className="text-xs font-medium text-[#486581]">Employment Details</dt>
+                    <dd className="text-[#102A43] text-sm mt-0.5 space-y-0.5 break-words">
+                      {employmentTerms.length > 0 && <p className="font-medium">{employmentTerms.join(" · ")}</p>}
+                      {workSchedule && <p className="text-xs text-[#486581]">{workSchedule}</p>}
+                      {salaryDisplay && <p className="font-semibold text-[#0B315D]">{salaryDisplay}</p>}
+                    </dd>
+                  </div>
+                </div>
+              )}
+            </dl>
+
+            {roleSummary && (
+              <div className="pt-3 border-t border-slate-200">
                 <span className="text-xs font-medium text-[#486581]">
-                  Role Description:
+                  Role Summary
                 </span>
-                <p className="text-sm text-[#486581] line-clamp-4 mt-1 leading-relaxed">
-                  {job.description}
+                <p className="text-sm text-[#486581] line-clamp-4 mt-1 leading-relaxed break-words">
+                  {roleSummary}
                 </p>
+              </div>
+            )}
+
+            {(job?.id || application.jobPostingId) && (
+              <div className="pt-3 border-t border-slate-200">
+                <Link
+                  to="/app/jobs/$jobId"
+                  params={{ jobId: String(job?.id ?? application.jobPostingId) }}
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-3.5 text-sm font-medium text-[#0B315D] hover:bg-slate-50 hover:text-[#082747] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 transition-colors md:min-h-9 applicant-touch:min-h-11"
+                >
+                  <span>View job posting</span>
+                  <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+                </Link>
               </div>
             )}
           </div>
@@ -827,7 +899,7 @@ export const ApplicationDetailPage: React.FC = () => {
             <p className="text-sm font-semibold text-[#102A43]">For {reuseTarget.documentLabel}</p>
           )}
           <p className="text-sm text-[#486581]">Your recruiter will still review this document for this application.</p>
-          <ul className="divide-y divide-[#D9E2EC] rounded-md border border-[#D9E2EC]">
+          <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200">
             {(reuseTarget ? libraryMatchesFor(reuseTarget) : []).map((entry) => (
               <li key={entry.documentId} className="flex flex-wrap items-center justify-between gap-3 p-3">
                 <div className="min-w-0 space-y-0.5">

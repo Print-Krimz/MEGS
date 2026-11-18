@@ -122,7 +122,7 @@ export const NotificationsPage: React.FC = () => {
       case "COMPLIANCE_REQUIRED":
         return <ShieldCheck className="w-4 h-4 text-amber-700" />;
       default:
-        return <Bell className={cn("w-4 h-4", staff ? "text-slate-500" : "text-slate-600")} />;
+        return <Bell className="w-4 h-4 text-slate-600" />;
     }
   };
 
@@ -175,6 +175,7 @@ export const NotificationsPage: React.FC = () => {
       <div className="space-y-5">
         <PageHeader
           title={headerConfig.title}
+          description={headerConfig.description}
           breadcrumbs={headerConfig.breadcrumbs}
           actions={unreadCount > 0 ? markAllButton : undefined}
           flush
@@ -219,7 +220,7 @@ export const NotificationsPage: React.FC = () => {
                       key={n.id}
                       className={cn("flex items-start gap-3 p-4", !n.isRead ? "bg-navy-soft/60" : "hover:bg-slate-50")}
                     >
-                      <div className="mt-0.5 shrink-0 border border-slate-300 bg-slate-100 p-2">{getIconForType(n.type)}</div>
+                      <div className="mt-0.5 shrink-0 rounded-md border border-slate-300 bg-slate-100 p-2">{getIconForType(n.type)}</div>
                       <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex items-center gap-2">
                           {link ? (
@@ -229,7 +230,7 @@ export const NotificationsPage: React.FC = () => {
                               className="focus-ring inline-flex min-h-11 items-center gap-1.5 text-left text-sm font-semibold text-slate-950 underline-offset-2 hover:underline md:min-h-0"
                             >
                               {title}
-                              <ExternalLink className="h-3 w-3 shrink-0 text-slate-500" aria-hidden="true" />
+                              <ExternalLink className="h-3 w-3 shrink-0 text-slate-600" aria-hidden="true" />
                             </button>
                           ) : (
                             <span className="text-sm font-semibold text-slate-950">{title}</span>

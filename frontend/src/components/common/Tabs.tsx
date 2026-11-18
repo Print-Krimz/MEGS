@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { cn } from "../../lib/utils";
 
 export interface TabItem {
@@ -57,6 +57,7 @@ interface TabsProps {
  * Selected = navy underline + semibold text; focus = a separate inset ring.
  */
 export const Tabs: React.FC<TabsProps> = ({ items, value, onChange, ariaLabel, className }) => {
+  const baseId = useId();
   const listRef = useRef<HTMLDivElement>(null);
   const fadeStyle = useScrollFade(listRef, [items.length]);
 
@@ -103,11 +104,12 @@ export const Tabs: React.FC<TabsProps> = ({ items, value, onChange, ariaLabel, c
       {items.map((item) => {
         const Icon = item.icon;
         const selected = value === item.id;
+        const tabId = item.tabId ?? `${baseId}-tab-${item.id}`;
         return (
           <button
             key={item.id}
             type="button"
-            id={item.tabId}
+            id={tabId}
             role="tab"
             aria-selected={selected}
             aria-controls={item.panelId}

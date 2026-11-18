@@ -1,5 +1,6 @@
 import { resolveUserName } from "../../lib/user-name";
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { adminApi } from "../../lib/api/admin.api";
 import { notify } from "../../lib/feedback";
@@ -12,6 +13,7 @@ import {
   Pagination,
   DataTable,
   type DataTableColumn,
+  type DataTableSort,
 } from "../../components/common";
 import { Button, Dialog } from "../../components/ui";
 import { formatDateTime } from "../../lib/utils";
@@ -62,18 +64,85 @@ const DATE_PRESET_OPTIONS = [
 const dateInputClass =
   "focus-ring min-h-11 rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-900 md:min-h-10";
 
+const resolveEntityHref = (log: AuditLog): string | null => {
+  if (!log.entityId) return null;
+  const id = String(log.entityId);
+  switch (log.entity) {
+    case "ManpowerRequest":
+      return `/admin/mrfs/${id}`;
+    case "JobPosting":
+      return `/admin/jobs/${id}`;
+    case "Client":
+      return `/admin/clients/${id}`;
+    case "Application":
+      return `/admin/applications/${id}`;
+    case "User":
+      return "/admin/users";
+    default:
+      return null;
+  }
+};
+
 export const AuditLogsPage: React.FC = () => {
-  const [search, setSearch] = useState("");
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
-  const [severityFilter, setSeverityFilter] = useState<string>("ALL");
-  const [datePreset, setDatePreset] = useState<string>("ALL");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
-  const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const navigate = useNavigate();
+  const urlSearch = useSearch({ strict: false }) as {
+    q?: string;
+    category?: string;
+    action?: string;
+    severity?: string;
+    range?: string;
+    startDate?: string;
+    endDate?: string;
+    sort?: string;
+    dir?: "asc" | "desc";
+    page?: number;
+  };
+
+  const [search, setSearch] = useState(urlSearch.q ?? "");
+  useEffect(() => {
+    setSearch(urlSearch.q ?? "");
+  }, [urlSearch.q]);
+
+  const filterValues = useMemo(
+    () => ({
+      category: urlSearch.category ?? "",
+      action: urlSearch.action ?? "",
+    }),
+    [urlSearch.category, urlSearch.action],
+  );
+  const severityFilter = urlSearch.severity || "ALL";
+  const datePreset = urlSearch.range || "ALL";
+  const startDate = urlSearch.startDate ?? "";
+  const endDate = urlSearch.endDate ?? "";
+  const page = urlSearch.page && urlSearch.page > 0 ? urlSearch.page : 1;
+  const [pageSize, setPageSize] = useState<10 | 25 | 50>(10);
+  const sort: DataTableSort = {
+    key: urlSearch.sort === "when" ? "when" : "when",
+    direction: urlSearch.dir === "asc" ? "asc" : "desc",
+  };
+
   const [selectedLog, setSelectedLog] = useState<AuditLog | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [isExportingXlsx, setIsExportingXlsx] = useState(false);
+
+  const updateUrlSearch = (patch: Record<string, unknown>) => {
+    void navigate({
+      to: "/admin/audit",
+      search: (prev: Record<string, unknown>) => ({ ...prev, ...patch }),
+      replace: true,
+    } as never);
+  };
+
+  useEffect(() => {
+    const trimmed = search.trim();
+    const current = urlSearch.q ?? "";
+    if (trimmed === current) return;
+    const timer = setTimeout(() => {
+      updateUrlSearch({ q: trimmed || undefined, page: undefined });
+    }, 250);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, urlSearch.q]);
 
   // Compute effective start and end dates based on preset or custom pickers
   const effectiveDates = useMemo(() => {
@@ -114,9 +183,9 @@ export const AuditLogsPage: React.FC = () => {
 
   const allLogs: AuditLog[] = useMemo(() => auditLogsQuery.data || [], [auditLogsQuery.data]);
 
-  // Client-side quick filter for fast text search & severity filter
+  // Client-side quick filter for fast text search, severity filter & sort
   const filteredLogs = useMemo(() => {
-    return allLogs.filter((log) => {
+    const kept = allLogs.filter((log) => {
       // 1. Severity filter
       if (severityFilter !== "ALL") {
         const sev = getAuditSeverity(log);
@@ -143,49 +212,64 @@ export const AuditLogsPage: React.FC = () => {
         detailsStr.includes(q)
       );
     });
-  }, [allLogs, search, severityFilter]);
+    return [...kept].sort((a, b) => {
+      const diff = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return sort.direction === "asc" ? diff : -diff;
+    });
+  }, [allLogs, search, severityFilter, sort.direction]);
 
   const totalPages = Math.ceil(filteredLogs.length / pageSize) || 1;
+  const currentPage = Math.min(page, totalPages);
   const paginatedLogs = useMemo(() => {
-    const start = (page - 1) * pageSize;
+    const start = (currentPage - 1) * pageSize;
     return filteredLogs.slice(start, start + pageSize);
-  }, [filteredLogs, page, pageSize]);
+  }, [filteredLogs, currentPage, pageSize]);
+
+  const setPage = (nextPage: number) => updateUrlSearch({ page: nextPage > 1 ? nextPage : undefined });
+
+  const handlePageSizeChange = (nextSize: number) => {
+    const valid = nextSize === 25 || nextSize === 50 ? nextSize : 10;
+    setPageSize(valid);
+    updateUrlSearch({ page: undefined });
+  };
+
+  const handleSortChange = (next: DataTableSort) => {
+    updateUrlSearch({ sort: next.key, dir: next.direction, page: undefined });
+  };
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
-    setPage(1);
   };
 
   const handleDatePresetChange = (preset: string) => {
-    setDatePreset(preset);
-    if (preset !== "CUSTOM") {
-      setStartDate("");
-      setEndDate("");
-    }
-    setPage(1);
+    updateUrlSearch({
+      range: preset && preset !== "ALL" ? preset : undefined,
+      ...(preset !== "CUSTOM" ? { startDate: undefined, endDate: undefined } : {}),
+      page: undefined,
+    });
   };
 
   // Importance and date range sit in the same filter row as the server filters.
   const handleFilterChange = (k: string, v: string) => {
-    if (k === "severity") {
-      setSeverityFilter(v || "ALL");
-    } else if (k === "range") {
+    if (k === "range") {
       handleDatePresetChange(v || "ALL");
       return;
-    } else {
-      setFilterValues((prev) => ({ ...prev, [k]: v }));
     }
-    setPage(1);
+    updateUrlSearch({ [k]: v || undefined, page: undefined });
   };
 
   const handleReset = () => {
     setSearch("");
-    setFilterValues({});
-    setSeverityFilter("ALL");
-    setDatePreset("ALL");
-    setStartDate("");
-    setEndDate("");
-    setPage(1);
+    updateUrlSearch({
+      q: undefined,
+      category: undefined,
+      action: undefined,
+      severity: undefined,
+      range: undefined,
+      startDate: undefined,
+      endDate: undefined,
+      page: undefined,
+    });
   };
 
   const handleExportPDF = async () => {
@@ -307,8 +391,8 @@ export const AuditLogsPage: React.FC = () => {
             <span className="truncate font-medium text-slate-900" title={actor.name}>
               {actor.name}
             </span>
-            {actor.email && actor.email !== actor.name && <span className="truncate text-xs text-slate-500" title={actor.email}>{actor.email}</span>}
-            {actor.role && <span className="text-xs text-slate-500">{actor.role}</span>}
+            {actor.email && actor.email !== actor.name && <span className="truncate text-xs text-slate-600" title={actor.email}>{actor.email}</span>}
+            {actor.role && <span className="text-xs text-slate-600">{actor.role}</span>}
           </div>
         );
       },
@@ -318,13 +402,24 @@ export const AuditLogsPage: React.FC = () => {
       header: "Affected record",
       cell: (log) => {
         const target = formatTargetEntity(log);
+        const href = resolveEntityHref(log);
         return (
           <div className="flex max-w-[14rem] flex-col">
-            <span className="truncate font-medium text-slate-900" title={target.label}>
-              {target.label}
-            </span>
+            {href ? (
+              <Link
+                to={href as any}
+                className="focus-ring truncate rounded-sm font-medium text-navy underline-offset-2 hover:underline"
+                title={target.label}
+              >
+                {target.label}
+              </Link>
+            ) : (
+              <span className="truncate font-medium text-slate-900" title={target.label}>
+                {target.label}
+              </span>
+            )}
             {target.secondary && (
-              <span className="truncate text-xs text-slate-500" title={target.secondary}>
+              <span className="truncate text-xs text-slate-600" title={target.secondary}>
                 {target.secondary}
               </span>
             )}
@@ -335,6 +430,7 @@ export const AuditLogsPage: React.FC = () => {
     {
       key: "when",
       header: "When",
+      sortable: true,
       align: "right",
       cell: (log) => <span className="whitespace-nowrap text-slate-600">{formatDateTime(log.createdAt)}</span>,
     },
@@ -344,6 +440,7 @@ export const AuditLogsPage: React.FC = () => {
     const severity = getAuditSeverity(log);
     const target = formatTargetEntity(log);
     const actor = formatActor(log);
+    const href = resolveEntityHref(log);
     return (
       <div className="space-y-1.5 p-4">
         <div className="flex items-start justify-between gap-3">
@@ -356,8 +453,14 @@ export const AuditLogsPage: React.FC = () => {
           {getActionCategory(log.action)} · {formatDateTime(log.createdAt)}
         </div>
         <div className="text-sm text-slate-800">
-          <span className="font-medium">{target.label}</span>
-          {target.secondary && <span className="text-slate-500"> · {target.secondary}</span>}
+          {href ? (
+            <Link to={href as any} className="focus-ring rounded-sm font-medium text-navy underline-offset-2 hover:underline">
+              {target.label}
+            </Link>
+          ) : (
+            <span className="font-medium">{target.label}</span>
+          )}
+          {target.secondary && <span className="text-slate-600"> · {target.secondary}</span>}
         </div>
         <div className="truncate text-sm text-slate-600" title={actor.name}>
           By {actor.name}
@@ -369,7 +472,7 @@ export const AuditLogsPage: React.FC = () => {
   const framed = "rounded-md border border-slate-300 bg-white";
 
   return (
-    <div className="space-y-5 max-w-7xl mx-auto">
+    <div className="space-y-5">
       <PageHeader
         flush
         title="Activity history"
@@ -390,7 +493,7 @@ export const AuditLogsPage: React.FC = () => {
               {isExportingXlsx ? "Preparing..." : "Download Excel"}
             </Button>
             <Button
-              variant="primary"
+              variant="outline"
               size="sm"
               leftIcon={<FileText className="w-3.5 h-3.5" />}
               onClick={handleExportPDF}
@@ -414,9 +517,10 @@ export const AuditLogsPage: React.FC = () => {
         }}
         onFilterChange={handleFilterChange}
         onReset={handleReset}
+        hasActiveExternalFilters={datePreset === "CUSTOM" && Boolean(startDate || endDate)}
         filters={[
           { key: "category", label: "Area", placeholder: "All areas", options: categoryFilterOptions },
-          { key: "action", label: "Change type", placeholder: "All change types", options: actionFilterOptions },
+          { key: "action", label: "Change type", placeholder: "All change types", options: actionFilterOptions, searchable: true },
           { key: "severity", label: "Importance", placeholder: "All importance", options: SEVERITY_OPTIONS },
           { key: "range", label: "Date range", placeholder: "All time", options: DATE_PRESET_OPTIONS },
         ]}
@@ -428,23 +532,17 @@ export const AuditLogsPage: React.FC = () => {
                 min="1900-01-01"
                 max={endDate || "2100-12-31"}
                 value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                  setPage(1);
-                }}
+                onChange={(e) => updateUrlSearch({ startDate: e.target.value || undefined, page: undefined })}
                 className={dateInputClass}
                 aria-label="Start date"
               />
-              <span className="text-sm text-slate-500">to</span>
+              <span className="text-sm text-slate-600">to</span>
               <input
                 type="date"
                 min={startDate || "1900-01-01"}
                 max="2100-12-31"
                 value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                  setPage(1);
-                }}
+                onChange={(e) => updateUrlSearch({ endDate: e.target.value || undefined, page: undefined })}
                 className={dateInputClass}
                 aria-label="End date"
               />
@@ -473,6 +571,8 @@ export const AuditLogsPage: React.FC = () => {
             getRowId={(log) => String(log.id)}
             renderCard={renderCard}
             cardsBelow="lg"
+            sort={sort}
+            onSortChange={handleSortChange}
             empty={
               <EmptyState
                 bare
@@ -486,14 +586,16 @@ export const AuditLogsPage: React.FC = () => {
               />
             }
             footer={
-              filteredLogs.length > pageSize ? (
+              filteredLogs.length > 0 ? (
                 <div className="p-3">
                   <Pagination
-                    currentPage={page}
+                    currentPage={currentPage}
                     totalPages={totalPages}
                     totalItems={filteredLogs.length}
                     pageSize={pageSize}
                     onPageChange={setPage}
+                    onPageSizeChange={handlePageSizeChange}
+                    variant="inset"
                     itemLabel="events"
                   />
                 </div>
@@ -540,11 +642,24 @@ export const AuditLogsPage: React.FC = () => {
                 {/* Subject & Candidate */}
                 {targetEntity.label && (
                   <div className="py-2 first:pt-0 flex items-start justify-between gap-3">
-                    <span className="text-slate-500 font-medium shrink-0">Affected record</span>
+                    <span className="text-slate-600 font-medium shrink-0">Affected record</span>
                     <div className="text-right">
-                      <span className="font-semibold text-slate-900">{targetEntity.label}</span>
+                      {(() => {
+                        const href = resolveEntityHref(selectedLog);
+                        return href ? (
+                          <Link
+                            to={href as any}
+                            onClick={() => setSelectedLog(null)}
+                            className="focus-ring rounded-sm font-semibold text-navy underline-offset-2 hover:underline"
+                          >
+                            {targetEntity.label}
+                          </Link>
+                        ) : (
+                          <span className="font-semibold text-slate-900">{targetEntity.label}</span>
+                        );
+                      })()}
                       {targetEntity.secondary && (
-                        <span className="block text-slate-500">{targetEntity.secondary}</span>
+                        <span className="block text-slate-600">{targetEntity.secondary}</span>
                       )}
                     </div>
                   </div>
@@ -553,7 +668,7 @@ export const AuditLogsPage: React.FC = () => {
                 {/* Key Changes / State (e.g. Stage, Role, Note) */}
                 {displayItems.map((item, idx) => (
                   <div key={idx} className="py-2 flex items-start justify-between gap-3">
-                    <span className="text-slate-500 font-medium shrink-0">{item.label}</span>
+                    <span className="text-slate-600 font-medium shrink-0">{item.label}</span>
                     <span className="font-semibold text-slate-900 text-right max-w-[260px] break-words">
                       {item.value}
                     </span>
@@ -562,19 +677,26 @@ export const AuditLogsPage: React.FC = () => {
 
                 {/* Performed By */}
                 <div className="py-2 last:pb-0 flex items-start justify-between gap-3">
-                  <span className="text-slate-500 font-medium shrink-0">Performed by</span>
+                  <span className="text-slate-600 font-medium shrink-0">Performed by</span>
                   <div className="text-right">
                     <span className="font-semibold text-slate-900 block break-all">
                       {actor.name}
                     </span>
                     {actor.role && (
-                      <span className="block text-slate-500">
+                      <span className="block text-slate-600">
                         {actor.role}
                       </span>
                     )}
                   </div>
                 </div>
               </div>
+
+              {explanation.recommendedAction && (
+                <div className="rounded-md border border-slate-200 bg-white p-3">
+                  <span className="text-xs font-semibold text-slate-600">Recommended action</span>
+                  <p className="mt-0.5 text-slate-800">{explanation.recommendedAction}</p>
+                </div>
+              )}
 
               {/* Advanced details (hidden by default) */}
               <details className="text-slate-600">

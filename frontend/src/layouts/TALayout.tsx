@@ -46,6 +46,16 @@ interface NavSection {
   items: NavItem[];
 }
 
+const SIDEBAR_STORAGE_KEY = "megs_sidebar_collapsed";
+
+function readSidebarCollapsed(): boolean {
+  try {
+    return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
 const SEARCH_HINT =
   typeof navigator !== "undefined" && /mac|iphone|ipad/i.test(navigator.platform ?? "") ? "\u2318 K" : "Ctrl K";
 
@@ -71,7 +81,7 @@ const NavList: React.FC<{
   >
     {sections.map((section) => (
       <div key={section.label} className="space-y-1">
-        {!collapsed && <div className="px-3 text-[11px] font-medium uppercase tracking-wide text-white/55">{section.label}</div>}
+        {!collapsed && <div className="px-3 text-[11px] font-medium uppercase tracking-wide text-white/70">{section.label}</div>}
         <div className="space-y-0.5">
           {section.items.map((item) => {
             const Icon = item.icon;
@@ -123,7 +133,19 @@ export const TALayout: React.FC = () => {
     if (idle.expired) void logout({ reason: "idle" });
   }, [idle.expired, logout]);
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(readSidebarCollapsed);
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
+      } catch {
+        // Ignore storage restrictions.
+      }
+      return next;
+    });
+  };
 
   const isNavItemActive = (itemTo: string) => {
     const pathname = location.pathname;
@@ -361,7 +383,10 @@ export const TALayout: React.FC = () => {
   if (idle.expired) return null;
 
   return (
-    <div className="ta-portal min-h-screen bg-ta-page flex flex-col lg:flex-row overflow-x-clip">
+    <div
+      className="ta-portal min-h-screen bg-ta-page flex flex-col lg:flex-row overflow-x-clip"
+      style={{ "--portal-sidebar-w": collapsed ? "4rem" : "16rem" } as React.CSSProperties}
+    >
       <title>MEGS Talent Acquisition</title>
       <meta name="robots" content="noindex" />
       <RealtimeToastContainer toasts={activeToasts} onDismiss={dismissToast} onToastClick={handleToastClick} />
@@ -420,7 +445,7 @@ export const TALayout: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setCollapsed(!collapsed)}
+            onClick={toggleCollapsed}
             className="focus-ring-dark min-h-9 min-w-9 inline-flex items-center justify-center rounded-md text-white/75 hover:text-white hover:bg-white/5 transition-colors"
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}

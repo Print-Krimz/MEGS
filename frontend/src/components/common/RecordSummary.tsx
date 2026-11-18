@@ -136,7 +136,12 @@ export const RecordSummary: React.FC<RecordSummaryProps> = ({
       </div>
 
       {facts.length > 0 && (
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 border-t border-slate-200 px-4 py-4 sm:px-5 md:grid-cols-3 xl:grid-cols-6">
+        <dl
+          className={cn(
+            "grid grid-cols-2 gap-x-6 gap-y-4 border-t border-slate-200 px-4 py-4 sm:px-5 md:grid-cols-3",
+            facts.length > 6 ? "xl:grid-cols-4" : "xl:grid-cols-6",
+          )}
+        >
           {facts.map((fact) => (
             <div key={fact.label} className="min-w-0 space-y-0.5">
               <dt className="text-xs font-medium text-slate-600">{fact.label}</dt>

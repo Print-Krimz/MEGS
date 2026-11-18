@@ -1,5 +1,6 @@
 import { resolveUserName } from "../../lib/user-name";
 import { useRecordBase, recordRootLabel } from "../../hooks/useRecordBase";
+import { useDirtyGuard } from "../../hooks/useDirtyGuard";
 import React, { useState } from "react";
 import { Link, useLocation, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -14,6 +15,8 @@ import {
   StatusBadge,
   Tabs,
   RecordSummary,
+  DateField,
+  SelectBox,
 } from "../../components/common";
 import { RecordBreadcrumb } from "../../components/ta/recruitment/RecordBreadcrumb";
 import { MRFOverviewTab } from "../../components/ta/recruitment/mrf/MRFOverviewTab";
@@ -47,7 +50,7 @@ import {
 } from "../../lib/hr-constants";
 import { ArrowLeft, Briefcase, CheckCircle2, X } from "lucide-react";
 import { notify, fieldErrorsFrom } from "../../lib/feedback";
-import { TA_COPY, formatTaStatus } from "../../lib/ta-copy";
+import { TA_COPY } from "../../lib/ta-copy";
 import { RequirementClarityNotice } from "../../components/ta/RequirementClarityNotice";
 import { FieldWarning } from "../../components/ta/FieldWarning";
 import { plural } from "../../lib/plural";
@@ -318,12 +321,14 @@ export const MRFDetailPage: React.FC = () => {
 
   const handleSaveDetails = () => {
     if (!editTitle.trim()) {
+      setServerFieldErrors((prev) => ({ ...prev, title: "Request title is required." }));
       notify.error("Check the highlighted fields", "Request title is required.");
       return;
     }
 
     const titleErr = validateStandardText(editTitle, "Request title", { maxLength: 200 });
     if (titleErr) {
+      setServerFieldErrors((prev) => ({ ...prev, title: titleErr }));
       notify.error("Check the highlighted fields", titleErr);
       return;
     }
@@ -331,6 +336,7 @@ export const MRFDetailPage: React.FC = () => {
     if (editLocation.trim()) {
       const locErr = validateStandardText(editLocation, "Location", { maxLength: 200 });
       if (locErr) {
+        setServerFieldErrors((prev) => ({ ...prev, location: locErr }));
         notify.error("Check the highlighted fields", locErr);
         return;
       }
@@ -339,6 +345,7 @@ export const MRFDetailPage: React.FC = () => {
     if (editSkills.trim()) {
       const skillsErr = validateProseText(editSkills, "Required skills", { maxLength: 2000 });
       if (skillsErr) {
+        setServerFieldErrors((prev) => ({ ...prev, requiredSkills: skillsErr }));
         notify.error("Check the highlighted fields", skillsErr);
         return;
       }
@@ -371,6 +378,7 @@ export const MRFDetailPage: React.FC = () => {
     if (editCertifications.trim()) {
       const certErr = validateProseText(editCertifications, "Required certifications", { maxLength: 2000 });
       if (certErr) {
+        setServerFieldErrors((prev) => ({ ...prev, requiredCertifications: certErr }));
         notify.error("Check the highlighted fields", certErr);
         return;
       }
@@ -384,6 +392,7 @@ export const MRFDetailPage: React.FC = () => {
       parsedHeadcount < 1 ||
       parsedHeadcount > 1000
     ) {
+      setServerFieldErrors((prev) => ({ ...prev, headcount: "Headcount must be an integer between 1 and 1,000." }));
       notify.error("Check the highlighted fields", "Headcount must be an integer between 1 and 1,000.");
       return;
     }
@@ -406,6 +415,7 @@ export const MRFDetailPage: React.FC = () => {
     if (editAgeMin !== "" && editAgeMin != null) {
       const min = String(editAgeMin);
       if (!/^\d+$/.test(min) || Number(min) < 18 || Number(min) > 65) {
+        setServerFieldErrors((prev) => ({ ...prev, ageMin: "Minimum age must be an integer between 18 and 65." }));
         notify.error("Check the highlighted fields", "Minimum age must be an integer between 18 and 65.");
         return;
       }
@@ -414,6 +424,7 @@ export const MRFDetailPage: React.FC = () => {
     if (editAgeMax !== "" && editAgeMax != null) {
       const max = String(editAgeMax);
       if (!/^\d+$/.test(max) || Number(max) < 18 || Number(max) > 65) {
+        setServerFieldErrors((prev) => ({ ...prev, ageMax: "Maximum age must be an integer between 18 and 65." }));
         notify.error("Check the highlighted fields", "Maximum age must be an integer between 18 and 65.");
         return;
       }
@@ -426,6 +437,7 @@ export const MRFDetailPage: React.FC = () => {
       editAgeMax != null
     ) {
       if (parseInt(String(editAgeMin), 10) > parseInt(String(editAgeMax), 10)) {
+        setServerFieldErrors((prev) => ({ ...prev, ageMax: "Minimum age cannot exceed maximum age." }));
         notify.error("Check the highlighted fields", "Minimum age cannot exceed maximum age.");
         return;
       }
@@ -459,6 +471,79 @@ export const MRFDetailPage: React.FC = () => {
       requestReason: editRequestReason || null,
       requestReasonNote: editRequestReasonNote.trim() || null,
     });
+  };
+
+  const isEditDetailsDirty = React.useMemo(() => {
+    const m = mrfQuery.data;
+    if (!editDetailsModalOpen || !m) return false;
+    return (
+      editTitle !== (m.title || "") ||
+      String(editHeadcount) !== String(m.headcount || 1) ||
+      editPriority !== (m.priority || "NORMAL") ||
+      editTargetFillDate !== toManilaDateInput(m.targetFillDate) ||
+      editLocation !== (m.location || "") ||
+      editEmploymentType !== (m.employmentType || "Contractual") ||
+      editWorkArrangement !== (m.workArrangement || "On-site") ||
+      String(editSalaryMin ?? "") !== String(m.salaryRangeMin ?? "") ||
+      String(editSalaryMax ?? "") !== String(m.salaryRangeMax ?? "") ||
+      String(editAgeMin ?? "") !== String(m.ageMin ?? "") ||
+      String(editAgeMax ?? "") !== String(m.ageMax ?? "") ||
+      editGenderPreference !== (m.genderPreference || "ANY") ||
+      editTattooPolicy !== (m.tattooPolicy || "ALLOWED") ||
+      editRequiresClientReview !== (m.requiresClientReview !== false) ||
+      editDescription !== (m.description || "") ||
+      editSkills !== (m.requiredSkills || "") ||
+      editExperience !== (m.requiredExperience || "") ||
+      editEducation !== (m.requiredEducation || "") ||
+      editCertifications !== (m.requiredCertifications || "") ||
+      editDepartment !== (m.department || "") ||
+      editWorkShift !== (m.workShift || "") ||
+      editWorkDays !== (m.workDays || "") ||
+      editWorkHours !== (m.workHoursPerDay != null ? String(m.workHoursPerDay) : "") ||
+      editWorkTime !== (m.workTime || "") ||
+      editRequestReason !== (m.requestReason || "") ||
+      editRequestReasonNote !== (m.requestReasonNote || "")
+    );
+  }, [
+    editDetailsModalOpen,
+    mrfQuery.data,
+    editTitle,
+    editHeadcount,
+    editPriority,
+    editTargetFillDate,
+    editLocation,
+    editEmploymentType,
+    editWorkArrangement,
+    editSalaryMin,
+    editSalaryMax,
+    editAgeMin,
+    editAgeMax,
+    editGenderPreference,
+    editTattooPolicy,
+    editRequiresClientReview,
+    editDescription,
+    editSkills,
+    editExperience,
+    editEducation,
+    editCertifications,
+    editDepartment,
+    editWorkShift,
+    editWorkDays,
+    editWorkHours,
+    editWorkTime,
+    editRequestReason,
+    editRequestReasonNote,
+  ]);
+
+  const { confirmDiscard, discardDialog } = useDirtyGuard({
+    isDirty: isEditDetailsDirty,
+    message: "Your edits to this manpower request have not been saved yet.",
+  });
+
+  const closeEditDetailsModal = async () => {
+    if (!(await confirmDiscard())) return;
+    setEditDetailsModalOpen(false);
+    setServerFieldErrors({});
   };
 
   if (mrfQuery.isLoading) {
@@ -534,6 +619,7 @@ export const MRFDetailPage: React.FC = () => {
           ]}
         />
         <ErrorState
+          subject="this manpower request"
           error={mrfQuery.error || new Error("Unable to load this manpower request")}
           onRetry={() => mrfQuery.refetch()}
         />
@@ -588,7 +674,6 @@ export const MRFDetailPage: React.FC = () => {
   );
 
   const cancelled = mrf.status === "CANCELLED";
-  const statusLabel = formatTaStatus(mrf.status);
 
   return (
     <div className="space-y-6">
@@ -604,10 +689,23 @@ export const MRFDetailPage: React.FC = () => {
         titleAs="h1"
         title={mrf.title}
         subtitle={`Request #${mrf.id}`}
-        chips={<StatusBadge status={statusLabel} type="raw" />}
+        chips={<StatusBadge status={mrf.status} type="raw" />}
         progress={{ value: deployedCount, max: mrf.headcount, label: "Positions filled" }}
         facts={[
-          { label: "Client", value: <span className="font-medium">{mrf.client?.name || "Client"}</span> },
+          {
+            label: "Client",
+            value: mrf.client?.id ? (
+              <Link
+                to={`${base}/clients/$clientId` as never}
+                params={{ clientId: String(mrf.client.id) } as never}
+                className="font-medium text-navy underline-offset-2 hover:underline focus-ring"
+              >
+                {mrf.client.name || "Client"}
+              </Link>
+            ) : (
+              <span className="font-medium">{mrf.client?.name || "Client"}</span>
+            ),
+          },
           {
             label: "Target fill date",
             value: (
@@ -830,12 +928,12 @@ export const MRFDetailPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={toggleGroupSelect}
-                            className="text-xs font-medium text-teal-700 hover:text-teal-900 transition-colors focus:outline-none focus-visible:underline"
+                            className="inline-flex min-h-11 items-center text-xs font-medium text-navy hover:text-navy-hover transition-colors focus:outline-none focus-visible:underline"
                           >
                             {isAllGroupSelected ? "Deselect all" : "Select all"}
                           </button>
                         ) : (
-                          <span className="text-xs text-slate-400">All added</span>
+                          <span className="text-xs text-slate-600">All added</span>
                         )}
                       </div>
 
@@ -843,50 +941,53 @@ export const MRFDetailPage: React.FC = () => {
                         {group.items.map((item) => {
                           const alreadyAdded = isAlreadyAdded(item.label);
                           const isSelected = selectedReqs.includes(item.label);
+                          const toggleItem = () => {
+                            if (alreadyAdded) return;
+                            if (isSelected) {
+                              setSelectedReqs((prev) => prev.filter((l) => l !== item.label));
+                            } else {
+                              setSelectedReqs((prev) => [...prev, item.label]);
+                            }
+                          };
 
                           return (
-                            <label
+                            <div
                               key={item.label}
-                              className={`flex items-start gap-3 p-2.5 rounded-lg border transition-colors ${
+                              onClick={toggleItem}
+                              className={`flex items-start gap-2.5 p-2.5 rounded-lg border transition-colors ${
                                 alreadyAdded
                                   ? "bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed"
                                   : isSelected
-                                  ? "bg-teal-50/50 border-teal-300 cursor-pointer"
+                                  ? "bg-navy-soft border-navy/40 cursor-pointer"
                                   : "bg-white border-slate-200 hover:bg-slate-50 cursor-pointer"
                               }`}
                             >
-                              <input
-                                type="checkbox"
-                                checked={alreadyAdded || isSelected}
-                                disabled={alreadyAdded}
-                                onChange={(e) => {
-                                  if (alreadyAdded) return;
-                                  if (e.target.checked) {
-                                    setSelectedReqs((prev) => [...prev, item.label]);
-                                  } else {
-                                    setSelectedReqs((prev) => prev.filter((l) => l !== item.label));
-                                  }
-                                }}
-                                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-2 focus:ring-teal-700 focus:ring-offset-1 shrink-0 disabled:opacity-50"
-                              />
-                              <div className="min-w-0 flex-1">
+                              <div onClick={(e) => e.stopPropagation()}>
+                                <SelectBox
+                                  checked={alreadyAdded || isSelected}
+                                  disabled={alreadyAdded}
+                                  onChange={toggleItem}
+                                  label={item.label}
+                                />
+                              </div>
+                              <div className="min-w-0 flex-1 pt-1">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <span className="font-medium text-slate-900 leading-tight">
                                     {item.label}
                                   </span>
                                   {alreadyAdded && (
-                                    <span className="text-xs text-slate-500 font-normal">
+                                    <span className="text-xs text-slate-600 font-normal">
                                       (Already added)
                                     </span>
                                   )}
                                 </div>
                                 {item.description && (
-                                  <p className="text-xs text-slate-500 leading-normal mt-0.5">
+                                  <p className="text-xs text-slate-600 leading-normal mt-0.5">
                                     {item.description}
                                   </p>
                                 )}
                               </div>
-                            </label>
+                            </div>
                           );
                         })}
                       </div>
@@ -900,7 +1001,7 @@ export const MRFDetailPage: React.FC = () => {
                     <span className="text-sm font-semibold text-slate-900">
                       Custom requirement
                     </span>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-xs text-slate-600 mt-0.5">
                       Specify any role-specific certificate or document not listed above.
                     </p>
                   </div>
@@ -944,7 +1045,7 @@ export const MRFDetailPage: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => handleRemoveSelectedReq(label)}
-                              className="text-slate-500 hover:text-slate-900 focus:outline-none"
+                              className="text-slate-600 hover:text-slate-900 focus:outline-none"
                               aria-label={`Remove ${label}`}
                             >
                               <X className="w-3.5 h-3.5" />
@@ -959,7 +1060,7 @@ export const MRFDetailPage: React.FC = () => {
 
               {/* Dialog Footer */}
               <div className="flex items-center justify-between pt-4 border-t border-slate-200 mt-auto">
-                <div className="text-xs text-slate-500">
+                <div className="text-xs text-slate-600">
                   {selectedReqs.length > 0 ? (
                     <span>
                       {selectedReqs.length} requirement{selectedReqs.length === 1 ? "" : "s"} selected
@@ -1006,13 +1107,14 @@ export const MRFDetailPage: React.FC = () => {
           {/* Edit Manpower Request Details Modal */}
           <Dialog
             open={editDetailsModalOpen}
-            onClose={() => setEditDetailsModalOpen(false)}
+            onClose={() => void closeEditDetailsModal()}
             title="Edit manpower request"
             description="Update request order specifications, compensation, and qualifications."
             size="xl"
             overflowVisible
           >
             <form
+              noValidate
               onSubmit={(e) => {
                 e.preventDefault();
                 handleSaveDetails();
@@ -1170,9 +1272,8 @@ export const MRFDetailPage: React.FC = () => {
                 />
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <Input
+                  <DateField
                     label="Target fill date"
-                    type="date"
                     min={editTargetFillDate && editTargetFillDate < getManilaToday() ? editTargetFillDate : getManilaToday()}
                     value={editTargetFillDate}
                     error={serverFieldErrors.targetFillDate}
@@ -1265,6 +1366,7 @@ export const MRFDetailPage: React.FC = () => {
                       clearServerFieldError("requiredEducation");
                     }}
                     options={MRF_EDUCATION_OPTIONS.map((ed) => ({ value: ed, label: ed }))}
+                    allowCustom
                   />
                   <Input
                     label="Required certifications & licenses"
@@ -1338,20 +1440,21 @@ export const MRFDetailPage: React.FC = () => {
                       { value: "NONE", label: "No tattoos permitted" },
                     ]}
                   />
-                  <div className="flex items-start gap-3 sm:col-span-2">
-                    <input
-                      id="mrf-edit-requires-client-review"
-                      type="checkbox"
+                  <div className="flex items-start gap-2 sm:col-span-2">
+                    <SelectBox
                       checked={editRequiresClientReview}
-                      onChange={(e) => setEditRequiresClientReview(e.target.checked)}
-                      className="mt-0.5 h-5 w-5 rounded border-slate-400 text-navy focus-ring"
+                      onChange={() => setEditRequiresClientReview((prev) => !prev)}
+                      label="Requires client review"
                     />
-                    <label htmlFor="mrf-edit-requires-client-review" className="min-w-0 text-sm text-slate-900">
+                    <div
+                      onClick={() => setEditRequiresClientReview((prev) => !prev)}
+                      className="min-w-0 cursor-pointer pt-1 text-sm text-slate-900"
+                    >
                       <span className="font-medium">Requires client review</span>
                       <span className="block text-xs text-slate-600">
                         Turn this off when the client does not review candidates. Candidates go from screening straight to the final interview.
                       </span>
-                    </label>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1361,7 +1464,7 @@ export const MRFDetailPage: React.FC = () => {
                   variant="outline"
                   size="sm"
                   type="button"
-                  onClick={() => setEditDetailsModalOpen(false)}
+                  onClick={() => void closeEditDetailsModal()}
                 >
                   Cancel
                 </Button>
@@ -1429,6 +1532,7 @@ export const MRFDetailPage: React.FC = () => {
             description={`Remove '${deleteTemplateTarget?.label || "this requirement"}' from this manpower request?`}
             confirmLabel="Remove requirement"
           />
+          {discardDialog}
         </>
     </div>
   );

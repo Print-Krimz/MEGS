@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useId } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -80,6 +80,9 @@ export function DataTable<T>({
   const tableShow = cardsBelow === "lg" ? "hidden lg:block" : "hidden md:block";
   const cardsShow = cardsBelow === "lg" ? "lg:hidden" : "md:hidden";
   const primaryKey = columns.find((c) => c.primary)?.key ?? columns[0]?.key;
+  const sortSelectId = useId();
+  const sortableColumns = columns.filter((col) => col.sortable);
+  const activeSortColumn = sort && sortableColumns.some((col) => col.key === sort.key) ? sort : null;
 
   const selectableIds = selection
     ? rows.filter((row) => selection.isRowSelectable?.(row) ?? true).map(getRowId)
@@ -166,7 +169,7 @@ export function DataTable<T>({
                             type="button"
                             onClick={() => toggleSort(col)}
                             className={cn(
-                              "inline-flex min-h-8 items-center gap-1 font-semibold hover:text-slate-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy",
+                              "inline-flex min-h-8 pointer-coarse:min-h-11 items-center gap-1 font-semibold hover:text-slate-950 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy",
                               col.align === "right" && "flex-row-reverse"
                             )}
                           >
@@ -237,6 +240,56 @@ export function DataTable<T>({
               </tbody>
             </table>
           </div>
+
+          {onSortChange && sortableColumns.length > 0 && (
+            <div className={cn("flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2", cardsShow)}>
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <label htmlFor={sortSelectId} className="shrink-0 text-xs font-medium text-slate-600">
+                  Sort
+                </label>
+                <select
+                  id={sortSelectId}
+                  value={activeSortColumn?.key ?? ""}
+                  onChange={(e) => {
+                    const key = e.target.value;
+                    if (!key) return;
+                    onSortChange({ key, direction: activeSortColumn?.direction ?? "asc" });
+                  }}
+                  className="min-h-11 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy"
+                >
+                  {!activeSortColumn && <option value="">Default</option>}
+                  {sortableColumns.map((col) => (
+                    <option key={col.key} value={col.key}>
+                      {col.header}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetKey = activeSortColumn?.key ?? sortableColumns[0].key;
+                  const nextDir: SortDirection =
+                    activeSortColumn?.key === targetKey && activeSortColumn.direction === "asc" ? "desc" : "asc";
+                  onSortChange({ key: targetKey, direction: nextDir });
+                }}
+                aria-label={activeSortColumn?.direction === "asc" ? "Sort descending" : "Sort ascending"}
+                className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 text-xs font-medium text-slate-700 hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-navy"
+              >
+                {activeSortColumn?.direction === "asc" ? (
+                  <>
+                    <ArrowUp className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Asc</span>
+                  </>
+                ) : (
+                  <>
+                    <ArrowDown className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Desc</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
 
           <ul className={cn("divide-y divide-slate-200", cardsShow)}>
             {rows.map((row) => {

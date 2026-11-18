@@ -20,6 +20,7 @@ import {
 import { Button } from "../../components/ui";
 import { InterviewAgenda, interviewStageLabel } from "../../components/ta/recruitment/InterviewAgenda";
 import { cn, formatDate } from "../../lib/utils";
+import { ApplicationStatus } from "../../lib/types/enums";
 import { formatInterviewDeadlineStatus, TA_COPY } from "../../lib/ta-copy";
 import { notify } from "../../lib/feedback";
 import { SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
@@ -69,28 +70,68 @@ const AGENDA_PAGE_SIZE = 100;
 export const InterviewsPage: React.FC = () => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const viewParam = (useSearch({ strict: false }) as Record<string, unknown>).view;
-  const view: InterviewView = viewParam === "table" ? "table" : "agenda";
-  const setView = (next: InterviewView) => {
-    setPage(1);
+  const searchParams = useSearch({ strict: false }) as Record<string, unknown>;
+  const view: InterviewView = searchParams.view === "table" ? "table" : "agenda";
+
+  const syncUrl = (patch: Record<string, unknown>) => {
     void navigate({
       to: "/ta/interviews",
-      search: ((prev: Record<string, unknown>) => ({ ...prev, view: next === "agenda" ? undefined : next })) as never,
+      search: ((prev: Record<string, unknown>) => ({ ...prev, ...patch })) as never,
       replace: true,
     });
   };
 
-  const [search, setSearch] = useState("");
-  const [stageFilter, setStageFilter] = useState("");
-  const [positionFilter, setPositionFilter] = useState("");
-  const [clientFilter, setClientFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const setView = (next: InterviewView) => {
+    setPage(1);
+    syncUrl({ view: next === "agenda" ? undefined : next, page: undefined });
+  };
+
+  const [search, setSearch] = useState(() => (typeof searchParams.q === "string" ? searchParams.q : ""));
+  const [stageFilter, setStageFilter] = useState(() =>
+    searchParams.stage === "INITIAL_SCREENING" || searchParams.stage === "FINAL_INTERVIEW" ? searchParams.stage : ""
+  );
+  const [positionFilter, setPositionFilter] = useState(() =>
+    typeof searchParams.position === "string" ? searchParams.position : ""
+  );
+  const [clientFilter, setClientFilter] = useState(() =>
+    typeof searchParams.clientId === "string"
+      ? searchParams.clientId
+      : typeof searchParams.client === "string"
+      ? searchParams.client
+      : ""
+  );
+  const [statusFilter, setStatusFilter] = useState<string>(() =>
+    searchParams.status === "BREACHED" || searchParams.status === "WARNING" || searchParams.status === "HEALTHY"
+      ? searchParams.status
+      : "ALL"
+  );
   // The server orders by deadline. That puts Overdue first, then Due soon, then On track.
-  const [sortField, setSortField] = useState<SortField>("deadline");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
-  const [page, setPage] = useState(1);
-  const pageSize = view === "agenda" ? AGENDA_PAGE_SIZE : 8;
+  const [sortField, setSortField] = useState<SortField>(() =>
+    searchParams.sort === "candidate" ||
+    searchParams.sort === "position" ||
+    searchParams.sort === "scheduledAt" ||
+    searchParams.sort === "deadline"
+      ? searchParams.sort
+      : "deadline"
+  );
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">(() =>
+    searchParams.dir === "desc" ? "desc" : "asc"
+  );
+  const [page, setPage] = useState(() => {
+    const parsed = Number(searchParams.page);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+  });
+  const [tablePageSize, setTablePageSize] = useState<number>(() => {
+    const parsed = Number(searchParams.pageSize);
+    return parsed === 10 || parsed === 25 || parsed === 50 ? parsed : 8;
+  });
+  const pageSize = view === "agenda" ? AGENDA_PAGE_SIZE : tablePageSize;
   const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
+
+  useEffect(() => {
+    syncUrl({ q: debouncedSearch || undefined });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
 
   const [targetInterview, setTargetInterview] = useState<InterviewRow | null>(null);
 
@@ -113,23 +154,33 @@ export const InterviewsPage: React.FC = () => {
   });
 
   const updateResultMutation = useMutation({
-    mutationFn: ({
+    mutationFn: async ({
       applicationId,
       interviewId,
       result,
       notes,
+      isFinalInterview,
+      autoAdvance,
     }: {
       applicationId: number;
       interviewId: number;
       result: InterviewOutcomeResult;
       notes?: string;
       isFinalInterview: boolean;
-    }) =>
-      taApi.updateInterviewStatus(applicationId, interviewId, {
+      autoAdvance?: boolean;
+    }) => {
+      await taApi.updateInterviewStatus(applicationId, interviewId, {
         result,
         conductedAt: new Date().toISOString(),
         notes,
-      }),
+      });
+      if (result === "PASS" && isFinalInterview && autoAdvance) {
+        await taApi.updateApplicationStatus(applicationId, {
+          status: ApplicationStatus.COMPLIANCE,
+          reason: "Final interview passed.",
+        });
+      }
+    },
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["ta", "compliance", "interviews"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "application", String(vars.applicationId)] });
@@ -139,7 +190,9 @@ export const InterviewsPage: React.FC = () => {
       setTargetInterview(null);
       notify.success(
         "Interview outcome saved",
-        `The interview was marked as ${interviewOutcomeWord(vars.result)}. ${interviewOutcomeNextStep(vars.result, vars.isFinalInterview)}`,
+        vars.result === "PASS" && vars.isFinalInterview && vars.autoAdvance
+          ? "The interview was marked as passed and the candidate moved to requirements."
+          : `The interview was marked as ${interviewOutcomeWord(vars.result)}. ${interviewOutcomeNextStep(vars.result, vars.isFinalInterview)}`,
       );
     },
     onError: (err: any) => {
@@ -203,15 +256,19 @@ export const InterviewsPage: React.FC = () => {
   const handleSearchChange = (val: string) => {
     setSearch(val);
     setPage(1);
+    syncUrl({ q: val.trim() || undefined, page: undefined });
   };
 
   const handleFilterChange = (key: string, value: string) => {
     if (key === "stage") {
       setStageFilter(value);
+      syncUrl({ stage: value || undefined, page: undefined });
     } else if (key === "position") {
       setPositionFilter(value);
+      syncUrl({ position: value || undefined, page: undefined });
     } else if (key === "client") {
       setClientFilter(value);
+      syncUrl({ clientId: value || undefined, page: undefined });
     }
     setPage(1);
   };
@@ -223,16 +280,26 @@ export const InterviewsPage: React.FC = () => {
     setClientFilter("");
     setStatusFilter("ALL");
     setPage(1);
+    syncUrl({
+      q: undefined,
+      stage: undefined,
+      position: undefined,
+      clientId: undefined,
+      status: undefined,
+      page: undefined,
+    });
   };
 
   const selectStatus = (status: string) => {
     setStatusFilter(status);
     setPage(1);
+    syncUrl({ status: status === "ALL" ? undefined : status, page: undefined });
   };
 
   const handleSort = ({ key, direction }: DataTableSort) => {
     setSortField(key as SortField);
     setSortDirection(direction);
+    syncUrl({ sort: key === "deadline" ? undefined : key, dir: direction === "asc" ? undefined : direction });
   };
 
   const description =
@@ -243,24 +310,6 @@ export const InterviewsPage: React.FC = () => {
       : statusFilter === "HEALTHY"
       ? "On track: within the 7-day deadline."
       : "Record each outcome before the 7-day deadline. Overdue interviews come first.";
-
-  if (slaQuery.isLoading) {
-    return (
-      <div className="space-y-6">
-        <PageHeader title={TA_COPY.pageTitles.interviews} description="Loading interview deadlines..." />
-        <LoadingState variant="table" rows={6} />
-      </div>
-    );
-  }
-
-  if (slaQuery.isError) {
-    return (
-      <div className="space-y-6">
-        <PageHeader title={TA_COPY.pageTitles.interviews} description="Interview deadlines" />
-        <ErrorState subject="interviews" error={slaQuery.error} onRetry={() => slaQuery.refetch()} />
-      </div>
-    );
-  }
 
   const emptyState = (
     summary.total === 0 ? (
@@ -442,23 +491,79 @@ export const InterviewsPage: React.FC = () => {
           )}
         </BulkActionBar>
 
-        {agenda ? (
+        {slaQuery.isLoading ? (
+          <LoadingState variant="table" rows={6} />
+        ) : slaQuery.isError ? (
+          <ErrorState subject="interviews" error={slaQuery.error} onRetry={() => slaQuery.refetch()} />
+        ) : agenda ? (
           paginatedItems.length === 0 ? (
             <div className="rounded-md border border-slate-300 bg-white">{emptyState}</div>
           ) : (
             <>
-              <PoolSelectAll
-                total={recordable.length}
-                selected={selectedRows.length}
-                noun="interviews"
-                onToggle={() =>
-                  selection.setSelectedIds(
-                    selectedRows.length === recordable.length
-                      ? new Set()
-                      : new Set(recordable.map((row) => String(row.applicationId)))
-                  )
+              {(() => {
+                const screeningRows = recordable.filter((row) => row.currentStage === "INITIAL_SCREENING");
+                const finalRows = recordable.filter((row) => row.currentStage === "FINAL_INTERVIEW");
+                const hasMixedStages = screeningRows.length > 0 && finalRows.length > 0;
+                if (hasMixedStages) {
+                  const allScreeningSelected =
+                    screeningRows.length > 0 &&
+                    screeningRows.every((row) => selection.selectedIds.has(String(row.applicationId))) &&
+                    selectedRows.length === screeningRows.length;
+                  const allFinalSelected =
+                    finalRows.length > 0 &&
+                    finalRows.every((row) => selection.selectedIds.has(String(row.applicationId))) &&
+                    selectedRows.length === finalRows.length;
+                  return (
+                    <div className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                      <span className="text-xs font-medium text-slate-600">Select by stage:</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={allScreeningSelected ? "primary" : "outline"}
+                        aria-pressed={allScreeningSelected}
+                        onClick={() =>
+                          selection.setSelectedIds(
+                            allScreeningSelected
+                              ? new Set()
+                              : new Set(screeningRows.map((row) => String(row.applicationId)))
+                          )
+                        }
+                      >
+                        Select screening ({screeningRows.length})
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={allFinalSelected ? "primary" : "outline"}
+                        aria-pressed={allFinalSelected}
+                        onClick={() =>
+                          selection.setSelectedIds(
+                            allFinalSelected
+                              ? new Set()
+                              : new Set(finalRows.map((row) => String(row.applicationId)))
+                          )
+                        }
+                      >
+                        Select final ({finalRows.length})
+                      </Button>
+                    </div>
+                  );
                 }
-              />
+                return (
+                  <PoolSelectAll
+                    total={recordable.length}
+                    selected={selectedRows.length}
+                    noun="interviews"
+                    onToggle={() =>
+                      selection.setSelectedIds(
+                        selectedRows.length === recordable.length
+                          ? new Set()
+                          : new Set(recordable.map((row) => String(row.applicationId)))
+                      )
+                    }
+                  />
+                );
+              })()}
               <InterviewAgenda
                 rows={paginatedItems}
                 onRecord={setTargetInterview}
@@ -520,7 +625,15 @@ export const InterviewsPage: React.FC = () => {
                 totalPages={totalPages}
                 totalItems={totalItems}
                 pageSize={pageSize}
-                onPageChange={setPage}
+                onPageSizeChange={(size) => {
+                  setTablePageSize(size);
+                  setPage(1);
+                  syncUrl({ pageSize: size, page: undefined });
+                }}
+                onPageChange={(nextPage) => {
+                  setPage(nextPage);
+                  syncUrl({ page: nextPage > 1 ? nextPage : undefined });
+                }}
                 itemLabel="interviews"
               />
             }
@@ -551,8 +664,10 @@ export const InterviewsPage: React.FC = () => {
         jobTitle={targetInterview?.jobTitle}
         isFinalInterview={targetInterview?.currentStage === "FINAL_INTERVIEW"}
         scheduledAt={targetInterview?.scheduledAt}
+        canAutoAdvance={targetInterview?.currentStage === "FINAL_INTERVIEW"}
+        autoAdvanceLabel={`Move to ${TA_COPY.pipeline.requirements.toLowerCase()} after saving`}
         isSubmitting={updateResultMutation.isPending}
-        onSubmit={({ result, notes }) => {
+        onSubmit={({ result, notes }, options) => {
           if (!targetInterview || targetInterview.interviewId == null) return;
           updateResultMutation.mutate({
             applicationId: targetInterview.applicationId,
@@ -560,6 +675,7 @@ export const InterviewsPage: React.FC = () => {
             result,
             notes: notes || undefined,
             isFinalInterview: targetInterview.currentStage === "FINAL_INTERVIEW",
+            autoAdvance: options?.autoAdvance,
           });
         }}
       />

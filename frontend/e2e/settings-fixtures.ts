@@ -171,6 +171,12 @@ export async function installSettingsFixture(
     if (path === "/api/employees/redeployment-queue/summary" && request.method() === "GET") {
       return fulfill({ stages: { NEEDS_PLACEMENT: 0 } });
     }
+    if (path === "/api/admin/users/summary" && request.method() === "GET") {
+      return fulfill({ totalUsers: 3, recruiters: 1, administrators: 1, pendingInvitations: 0, expiredInvitations: 0, inactiveAccounts: 0, failedJobs: 0, pendingRequests: 0 });
+    }
+    if (path === "/api/applicants/job-alerts" && request.method() === "GET") {
+      return fulfill({ enabled: false, categories: [] });
+    }
     if (path === "/api/applicants/profile" && request.method() === "GET") {
       return fulfill({
         id: 1,

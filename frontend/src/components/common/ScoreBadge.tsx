@@ -34,15 +34,20 @@ export const ScoreBadge: React.FC<ScoreBadgeProps> = ({
 }) => {
   const activeThreshold = useMatchThreshold(threshold);
 
-  if (score === undefined || score === null || score === "") {
+  const num =
+    score === undefined || score === null || score === ""
+      ? NaN
+      : typeof score === "string"
+        ? parseFloat(score)
+        : score;
+
+  if (Number.isNaN(num) || !Number.isFinite(num)) {
     return (
-      <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-xs bg-slate-100 text-slate-500 border border-slate-300">
+      <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-xs bg-slate-100 text-slate-600 border border-slate-300">
         N/A
       </span>
     );
   }
-
-  const num = typeof score === "string" ? parseFloat(score) : score;
   const colorStyles = {
     high: "bg-emerald-100 text-emerald-900 border-emerald-500",
     near: "bg-orange-100 text-orange-900 border-orange-500",

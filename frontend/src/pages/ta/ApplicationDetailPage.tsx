@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
+import { readApplicationSearch } from "./ApplicationsPage";
 import { taApplicationDecisionsQuery, taApplicationDetailQuery, taClientsQuery } from "../../lib/api/ta.queries";
 import { useLiveStreamConnected } from "../../lib/live-stream-status";
 import { PageHeader, LoadingState, ErrorState, DocumentPreviewModal, Tabs, ConfirmDialog, DetailLayout } from "../../components/common";
@@ -97,21 +98,7 @@ type DialogState =
 const WalkInSlipDialog = lazy(() =>
   import("../../components/ta/walk-in/WalkInSlipDialog").then((m) => ({ default: m.WalkInSlipDialog })));
 
-const getRouteSearch = (): TAApplicationSearch => {
-  const params = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
-  const number = (value: string | null) => {
-    const parsed = Number(value);
-    return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
-  };
-  return {
-    q: params.get("q") || undefined,
-    stage: (params.get("stage") as TAApplicationSearch["stage"]) || undefined,
-    clientId: number(params.get("clientId")),
-    jobId: number(params.get("jobId")),
-    archived: params.get("archived") === "true" || params.get("archived") === "1" ? true : undefined,
-    page: number(params.get("page")),
-  };
-};
+const getRouteSearch = (): TAApplicationSearch => readApplicationSearch();
 
 export const ApplicationDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
@@ -790,10 +777,12 @@ export const ApplicationDetailPage: React.FC = () => {
         const isFinalOutcome = outcomeType === InterviewType.FINAL_INTERVIEW;
         const canAutoAdvanceOutcome = isFinalOutcome
           ? app.status === ApplicationStatus.FINAL_INTERVIEW
-          : !flags.requiresClientReview && app.status === ApplicationStatus.INITIAL_SCREENING;
+          : app.status === ApplicationStatus.INITIAL_SCREENING;
         const autoAdvanceLabel = isFinalOutcome
-          ? "Advance to Pre-employment Compliance after saving"
-          : "Advance to Final Interview after saving";
+          ? `Move to ${TA_COPY.pipeline.requirements.toLowerCase()} after saving`
+          : flags.requiresClientReview
+            ? "Send to client after saving"
+            : `Move to ${TA_COPY.pipeline.finalInterview.toLowerCase()} after saving`;
         return (
           <InterviewOutcomeDialog
             open={Boolean(outcomeDialog)}
@@ -813,24 +802,29 @@ export const ApplicationDetailPage: React.FC = () => {
                 { interviewId: outcomeDialog.interview?.id, type: targetType, result, notes },
                 {
                   onSuccess: () => {
-                    closeDialog();
                     if (result === "PASS" && options?.autoAdvance) {
                       if (targetType === InterviewType.FINAL_INTERVIEW && app.status === ApplicationStatus.FINAL_INTERVIEW) {
+                        closeDialog();
                         m.updateStatus.mutate({
                           status: ApplicationStatus.COMPLIANCE,
                           reason: "Final interview passed.",
                         });
-                      } else if (
-                        targetType === InterviewType.INITIAL_SCREENING &&
-                        !flags.requiresClientReview &&
-                        app.status === ApplicationStatus.INITIAL_SCREENING
-                      ) {
+                        return;
+                      }
+                      if (targetType === InterviewType.INITIAL_SCREENING && app.status === ApplicationStatus.INITIAL_SCREENING) {
+                        if (flags.requiresClientReview) {
+                          setDialog({ kind: "sendToClient", mode: "send" });
+                          return;
+                        }
+                        closeDialog();
                         m.updateStatus.mutate({
                           status: ApplicationStatus.FINAL_INTERVIEW,
                           reason: "Initial screening passed (client review not required).",
                         });
+                        return;
                       }
                     }
+                    closeDialog();
                   },
                 },
               );
@@ -975,12 +969,19 @@ export const ApplicationDetailPage: React.FC = () => {
             { id: req.id, data: values as ReviewComplianceDto },
             {
               onSuccess: () => {
-                closeDialog();
                 if (options?.advanceToContractSigning && app.status === ApplicationStatus.COMPLIANCE) {
+                  closeDialog();
                   m.updateStatus.mutate({
                     status: ApplicationStatus.CONTRACT_SIGNING,
                     reason: "All mandatory clearances verified and approved.",
                   });
+                  return;
+                }
+                const nextDoc = reviewList.find((r) => r.id !== req.id && r.reviewStatus !== "APPROVED");
+                if (nextDoc) {
+                  setDialog({ kind: "review", requirementId: nextDoc.id });
+                } else {
+                  closeDialog();
                 }
               },
             },

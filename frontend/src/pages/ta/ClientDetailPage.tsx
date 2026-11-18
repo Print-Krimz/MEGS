@@ -1,16 +1,18 @@
 import React, { lazy, Suspense, useState } from "react";
-import { Link, useParams } from "@tanstack/react-router";
+import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
 import {
   PageHeader,
   LoadingState,
   ErrorState,
+  EmptyState,
   StatusBadge,
   Tabs,
   RecordSummary,
 } from "../../components/common";
 import { RecordBreadcrumb } from "../../components/ta/recruitment/RecordBreadcrumb";
+import { AssignmentPanel } from "../../components/ta/AssignmentPanel";
 import { Button, Dialog, Input, PhoneInput, Select } from "../../components/ui";
 import { ComboBox } from "../../components/ui/ComboBox";
 import { cn, formatDate, getInitials } from "../../lib/utils";
@@ -28,6 +30,7 @@ import {
 import { z } from "zod";
 import { FIELD_LIMITS } from "../../lib/field-limits";
 import { useRecordBase, recordRootLabel } from "../../hooks/useRecordBase";
+import { useDirtyGuard } from "../../hooks/useDirtyGuard";
 
 const AddMRFsFromFilesDialog = lazy(() =>
   import("../../components/ta/mrf/AddMRFsFromFilesDialog").then((m) => ({ default: m.AddMRFsFromFilesDialog })));
@@ -59,7 +62,19 @@ export const ClientDetailPage: React.FC = () => {
   const base = useRecordBase();
   // Deployments and workforce are recruiter-only. The team leader sees requests and company details.
   const isAdmin = base === "/admin";
-  const [activeTab, setActiveTab] = useState<ClientTab>("overview");
+  const navigate = useNavigate();
+  const searchParams = useSearch({ strict: false }) as { tab?: string };
+  const validTabs: ClientTab[] = isAdmin ? ["overview", "requests", "settings"] : ["overview", "requests", "deployments", "settings"];
+  const initialTab: ClientTab = validTabs.includes(searchParams?.tab as ClientTab) ? (searchParams.tab as ClientTab) : "overview";
+  const [activeTab, setActiveTabState] = useState<ClientTab>(initialTab);
+  const setActiveTab = (tab: ClientTab) => {
+    setActiveTabState(tab);
+    navigate({
+      search: ((prev: Record<string, unknown>) => ({ ...prev, tab: tab === "overview" ? undefined : tab })) as never,
+      replace: true,
+      resetScroll: false,
+    });
+  };
   const queryClient = useQueryClient();
   const { clientId } = useParams({ strict: false }) as { clientId: string };
 
@@ -134,12 +149,13 @@ export const ClientDetailPage: React.FC = () => {
   const mrfs = mrfsQuery.data || [];
   const deployments = deploymentsQuery.data || [];
 
-  React.useEffect(() => {
-    if (client) {
-      setEditName(client.name || "");
-      setEditTradeName(client.tradeName || "");
-      setEditIndustry(client.industry || "");
-      const nameParts = (client.contactName || "").trim().split(/\s+/);
+  const resetEditForm = React.useCallback(
+    (c: typeof client) => {
+      if (!c) return;
+      setEditName(c.name || "");
+      setEditTradeName(c.tradeName || "");
+      setEditIndustry(c.industry || "");
+      const nameParts = (c.contactName || "").trim().split(/\s+/);
       if (nameParts.length <= 1) {
         setEditContactFirstName(nameParts[0] || "");
         setEditContactLastName("");
@@ -147,18 +163,76 @@ export const ClientDetailPage: React.FC = () => {
         setEditContactFirstName(nameParts.slice(0, -1).join(" "));
         setEditContactLastName(nameParts[nameParts.length - 1]);
       }
-      setEditContactEmail(client.contactEmail || "");
+      setEditContactEmail(c.contactEmail || "");
       setEditEmailError(null);
-      setEditContactPhone(client.contactPhone || "");
-      setEditStreet(client.street || "");
-      setEditProvince(client.province || "");
-      setEditCity(client.city || "");
-      setEditBarangay(client.barangay || "");
-      setEditPostalCode(client.postalCode || "");
-      setEditReviewThresholdDays(String(client.reviewThresholdDays ?? 5));
-      setEditMedicalValidityMonths(client.medicalValidityMonths ?? 6);
-    }
-  }, [client]);
+      setEditContactPhone(c.contactPhone || "");
+      setEditStreet(c.street || "");
+      setEditProvince(c.province || "");
+      setEditCity(c.city || "");
+      setEditBarangay(c.barangay || "");
+      setEditPostalCode(c.postalCode || "");
+      setEditReviewThresholdDays(String(c.reviewThresholdDays ?? 5));
+      setEditMedicalValidityMonths(c.medicalValidityMonths ?? 6);
+    },
+    [],
+  );
+
+  React.useEffect(() => {
+    resetEditForm(client);
+  }, [client, resetEditForm]);
+
+  const isEditDirty = React.useMemo(() => {
+    if (!editModalOpen || !client) return false;
+    const nameParts = (client.contactName || "").trim().split(/\s+/);
+    const initFirst = nameParts.length <= 1 ? nameParts[0] || "" : nameParts.slice(0, -1).join(" ");
+    const initLast = nameParts.length <= 1 ? "" : nameParts[nameParts.length - 1];
+    return (
+      editName !== (client.name || "") ||
+      editTradeName !== (client.tradeName || "") ||
+      editIndustry !== (client.industry || "") ||
+      editContactFirstName !== initFirst ||
+      editContactLastName !== initLast ||
+      editContactEmail !== (client.contactEmail || "") ||
+      editContactPhone !== (client.contactPhone || "") ||
+      editStreet !== (client.street || "") ||
+      editProvince !== (client.province || "") ||
+      editCity !== (client.city || "") ||
+      editBarangay !== (client.barangay || "") ||
+      editPostalCode !== (client.postalCode || "") ||
+      editReviewThresholdDays !== String(client.reviewThresholdDays ?? 5) ||
+      editMedicalValidityMonths !== (client.medicalValidityMonths ?? 6)
+    );
+  }, [
+    editModalOpen,
+    client,
+    editName,
+    editTradeName,
+    editIndustry,
+    editContactFirstName,
+    editContactLastName,
+    editContactEmail,
+    editContactPhone,
+    editStreet,
+    editProvince,
+    editCity,
+    editBarangay,
+    editPostalCode,
+    editReviewThresholdDays,
+    editMedicalValidityMonths,
+  ]);
+
+  const { confirmDiscard, discardDialog } = useDirtyGuard({
+    isDirty: isEditDirty,
+    message: "Your edits to this client have not been saved yet.",
+  });
+
+  const closeEditModal = async () => {
+    if (!(await confirmDiscard())) return;
+    setEditModalOpen(false);
+    setEditEmailError(null);
+    setServerFieldErrors({});
+    resetEditForm(client);
+  };
 
   if (clientQuery.isLoading) {
     return (
@@ -244,27 +318,35 @@ export const ClientDetailPage: React.FC = () => {
   );
 
   const requestsEmpty = (
-    <div className="space-y-3 p-6 text-sm text-slate-600">
-      <p>No manpower requests placed by this client.</p>
-      <Button asChild variant="primary" size="sm">
-        <Link to={`${base}/mrfs/create` as never} search={{ clientId: client.id } as never}>
-          Create the first request
-        </Link>
-      </Button>
-    </div>
+    <EmptyState
+      bare
+      title="No manpower requests yet"
+      description="No manpower requests placed by this client."
+      action={
+        <Button asChild variant="primary" size="sm">
+          <Link to={`${base}/mrfs/create` as never} search={{ clientId: client.id } as never}>
+            Create the first request
+          </Link>
+        </Button>
+      }
+    />
   );
 
   const deploymentsEmpty = (
-    <div className="space-y-3 p-6 text-sm text-slate-600">
-      <p>No deployments recorded for this client yet.</p>
-      {!isAdmin && (
-        <Button asChild variant="outline" size="sm">
-          <Link to="/ta/workforce" search={{ tab: "deployments", q: client.name }}>
-            Open workforce deployments
-          </Link>
-        </Button>
-      )}
-    </div>
+    <EmptyState
+      bare
+      title="No deployments yet"
+      description="No deployments recorded for this client yet."
+      action={
+        !isAdmin ? (
+          <Button asChild variant="outline" size="sm">
+            <Link to="/ta/workforce" search={{ tab: "deployments", q: client.name }}>
+              Open workforce deployments
+            </Link>
+          </Button>
+        ) : undefined
+      }
+    />
   );
 
   const previewHeader = (title: string, total: number, tab: ClientTab) => (
@@ -340,6 +422,14 @@ export const ClientDetailPage: React.FC = () => {
       />
 
       <div id="client-tab-panel" role="tabpanel" className="space-y-5">
+        {isAdmin && (
+          <AssignmentPanel
+            clientOnly
+            clientId={client.id}
+            clientName={client.name}
+            clientOwnerId={client.assignedTaId ?? null}
+          />
+        )}
         {activeTab === "overview" && (
           <>
             <section className={cn(panelClass, "p-4 sm:p-5")}>
@@ -372,7 +462,7 @@ export const ClientDetailPage: React.FC = () => {
               </dl>
             </section>
 
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <div className={cn("grid grid-cols-1 gap-5", !isAdmin && "lg:grid-cols-2")}>
               <section className={cn(panelClass, "overflow-hidden")}>
                 {previewHeader("Manpower requests", mrfs.length, "requests")}
                 {mrfs.length === 0 ? requestsEmpty : <ul className="divide-y divide-slate-200">{mrfs.slice(0, PREVIEW_COUNT).map(requestRow)}</ul>}
@@ -469,11 +559,7 @@ export const ClientDetailPage: React.FC = () => {
       {/* Edit Client Modal */}
       <Dialog
         open={editModalOpen}
-        onClose={() => {
-          setEditModalOpen(false);
-          setEditEmailError(null);
-          setServerFieldErrors({});
-        }}
+        onClose={() => void closeEditModal()}
         title="Edit client"
         description={`Update details for ${client.name}`}
       >
@@ -481,69 +567,57 @@ export const ClientDetailPage: React.FC = () => {
           noValidate
           onSubmit={(e) => {
             e.preventDefault();
+            const nextErrors: Record<string, string> = {};
             if (!editName.trim()) {
-              setServerFieldErrors((prev) => ({ ...prev, name: "Enter the company name." }));
-              notify.error("Check the highlighted fields", "Enter the company name.");
-              editNameInputRef.current?.focus();
-              return;
-            }
-
-            const nameErr = validateStandardText(editName, "Legal company name", { maxLength: 200 });
-            if (nameErr) {
-              notify.error("Check the highlighted fields", nameErr);
-              return;
+              nextErrors.name = "Enter the company name.";
+            } else {
+              const nameErr = validateStandardText(editName, "Legal company name", { maxLength: 200 });
+              if (nameErr) nextErrors.name = nameErr;
             }
 
             if (editTradeName.trim()) {
               const tradeErr = validateStandardText(editTradeName, "Brand name", { maxLength: 200 });
-              if (tradeErr) {
-                notify.error("Check the highlighted fields", tradeErr);
-                return;
-              }
+              if (tradeErr) nextErrors.tradeName = tradeErr;
             }
 
             if (editContactFirstName.trim()) {
               const fnErr = validatePersonName(editContactFirstName, "Contact first name");
-              if (fnErr) {
-                notify.error("Check the highlighted fields", fnErr);
-                return;
-              }
+              if (fnErr) nextErrors.contactFirstName = fnErr;
             }
 
             if (editContactLastName.trim()) {
               const lnErr = validatePersonName(editContactLastName, "Contact last name");
-              if (lnErr) {
-                notify.error("Check the highlighted fields", lnErr);
-                return;
-              }
+              if (lnErr) nextErrors.contactLastName = lnErr;
             }
 
             const contactNameErr = contactNameLengthError(editContactFirstName, editContactLastName);
-            if (contactNameErr) {
-              notify.error("Check the highlighted fields", contactNameErr);
-              return;
-            }
+            if (contactNameErr) nextErrors.contactName = contactNameErr;
 
             if (editContactPhone.trim()) {
               const phoneErr = validatePhilippineContactPhone(editContactPhone, { label: "Contact phone" });
-              if (phoneErr) {
-                notify.error("Check the highlighted fields", phoneErr);
-                return;
-              }
+              if (phoneErr) nextErrors.contactPhone = phoneErr;
             }
 
             if (editContactEmail.trim() && !contactEmailSchema.safeParse(editContactEmail).success) {
+              nextErrors.contactEmail = CONTACT_EMAIL_MESSAGE;
               setEditEmailError(CONTACT_EMAIL_MESSAGE);
-              return;
             }
+
             const hasAddress = [editStreet, editProvince, editCity, editBarangay, editPostalCode].some((value) => value.trim());
             if (hasAddress && (!editProvince.trim() || !editCity.trim() || !editBarangay.trim() || !editPostalCode.trim())) {
-              notify.error("Check the highlighted fields", "Enter the province, city, barangay, and postal code.");
-              return;
+              nextErrors.address = "Enter the province, city, barangay, and postal code.";
             }
+
             const reviewThreshold = Number(editReviewThresholdDays);
             if (!Number.isInteger(reviewThreshold) || reviewThreshold < 1 || reviewThreshold > 30) {
-              notify.error("Check the highlighted fields", "Enter an integer between 1 and 30 days.");
+              nextErrors.reviewThresholdDays = "Enter an integer between 1 and 30 days.";
+            }
+
+            const firstError = Object.values(nextErrors)[0];
+            if (firstError) {
+              setServerFieldErrors(nextErrors);
+              if (nextErrors.name) editNameInputRef.current?.focus();
+              notify.error("Check the highlighted fields", firstError);
               return;
             }
             const combinedName = [editContactFirstName.trim(), editContactLastName.trim()].filter(Boolean).join(" ");
@@ -608,9 +682,10 @@ export const ClientDetailPage: React.FC = () => {
               nameInput
               placeholder="e.g. Roberto"
               value={editContactFirstName}
-              error={serverFieldErrors.contactName}
+              error={serverFieldErrors.contactFirstName ?? serverFieldErrors.contactName}
               onChange={(e) => {
                 setEditContactFirstName(e.target.value);
+                clearServerFieldError("contactFirstName");
                 clearServerFieldError("contactName");
               }}
             />
@@ -619,10 +694,11 @@ export const ClientDetailPage: React.FC = () => {
               maxLength={CONTACT_NAME_PART_MAX}
               nameInput
               placeholder="e.g. Tan"
-              error={contactNameLengthError(editContactFirstName, editContactLastName)}
+              error={serverFieldErrors.contactLastName ?? contactNameLengthError(editContactFirstName, editContactLastName)}
               value={editContactLastName}
               onChange={(e) => {
                 setEditContactLastName(e.target.value);
+                clearServerFieldError("contactLastName");
                 clearServerFieldError("contactName");
               }}
             />
@@ -676,8 +752,14 @@ export const ClientDetailPage: React.FC = () => {
                 if (patch.city !== undefined) setEditCity(patch.city);
                 if (patch.barangay !== undefined) setEditBarangay(patch.barangay);
                 if (patch.postalCode !== undefined) setEditPostalCode(patch.postalCode);
+                clearServerFieldError("address");
               }}
             />
+            {serverFieldErrors.address && (
+              <p role="alert" className="text-xs font-medium text-rose-700">
+                {serverFieldErrors.address}
+              </p>
+            )}
           </div>
 
           <div className="pt-2 border-t border-slate-100 space-y-3">
@@ -717,7 +799,7 @@ export const ClientDetailPage: React.FC = () => {
           </div>
 
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-            <Button variant="outline" size="sm" onClick={() => setEditModalOpen(false)}>
+            <Button variant="outline" size="sm" onClick={() => void closeEditModal()}>
               Cancel
             </Button>
             <Button variant="primary" size="sm" type="submit" loading={updateClientMutation.isPending}>
@@ -726,6 +808,7 @@ export const ClientDetailPage: React.FC = () => {
           </div>
         </form>
       </Dialog>
+      {discardDialog}
       <Suspense fallback={null}>
         {filesOpen && <AddMRFsFromFilesDialog open clientId={client.id} onClose={() => setFilesOpen(false)} />}
       </Suspense>

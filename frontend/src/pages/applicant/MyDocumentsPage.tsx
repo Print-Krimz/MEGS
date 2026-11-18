@@ -15,7 +15,10 @@ const amberBadgeClass =
   "inline-flex items-center whitespace-nowrap rounded-md border border-[#FED7AA] bg-[#FFF7ED] px-2 py-0.5 text-xs font-medium text-[#B45309]";
 
 const linkButtonClass =
-  "inline-flex min-h-11 md:min-h-9 applicant-touch:min-h-11 items-center justify-center rounded-md border border-[#D9E2EC] bg-white px-4 text-sm font-medium text-[#0B315D] hover:bg-[#EAF0F7] hover:text-[#082747] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 transition-colors";
+  "inline-flex min-h-11 md:min-h-9 applicant-touch:min-h-11 items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-sm font-medium text-[#0B315D] hover:bg-slate-50 hover:text-[#082747] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 transition-colors";
+
+const primaryLinkClass =
+  "inline-flex min-h-11 md:min-h-9 applicant-touch:min-h-11 items-center justify-center rounded-md border border-[#0B315D] bg-[#0B315D] px-4 text-sm font-medium text-white hover:bg-[#082747] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 transition-colors";
 
 const isPastDate = (value?: string | null) => (manilaDaysUntil(value) ?? 0) < 0;
 
@@ -50,6 +53,10 @@ export const MyDocumentsPage: React.FC = () => {
     <PageHeader
       title="My document library"
       description="Documents you have already submitted. Reuse them on new applications instead of uploading again."
+      breadcrumbs={[
+        { label: "My career", href: "/app" },
+        { label: "Documents" },
+      ]}
     />
   );
 
@@ -73,47 +80,55 @@ export const MyDocumentsPage: React.FC = () => {
   const library = [...(libraryQuery.data || [])].sort((a, b) => a.label.localeCompare(b.label));
 
   if (actionItems.length === 0 && library.length === 0) {
-    return <div className="space-y-6">
+    return <div className="min-w-0 space-y-6">
       {header}
       <EmptyState
         title="No documents uploaded yet"
         description="Documents you submit for an application will appear here so you can reuse them on new applications."
-        action={<Link to="/app/jobs" className={linkButtonClass}>Browse jobs</Link>}
+        action={<Link to="/app/jobs" className={primaryLinkClass}>Browse jobs</Link>}
       />
     </div>;
   }
 
-  return <div className="space-y-6">
+  return <div className="min-w-0 space-y-8">
     {header}
 
     <section aria-labelledby="action-needed-heading" className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 id="action-needed-heading" className="text-sm font-semibold text-slate-900">Action needed</h2>
-        <span className="text-sm text-[#486581]">{actionItems.length}</span>
+      <div className="flex items-center justify-between gap-2">
+        <h2 id="action-needed-heading" className="text-base font-semibold text-[#0B315D]">Action needed</h2>
+        <span className="inline-flex items-center rounded-md bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-[#0B315D] tabular-nums">
+          {actionItems.length}
+        </span>
       </div>
       {actionItems.length === 0 ? (
-        <p className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">No documents need action right now.</p>
+        <p className="rounded-xl border border-slate-200 bg-white p-4 text-sm text-[#486581]">No documents need action right now.</p>
       ) : (
-        <div className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
+        <div className="space-y-3">
           {actionItems.map((item) => (
-            <article key={item.id} className="space-y-3 p-4">
-              <div className="min-w-0 space-y-2 [overflow-wrap:anywhere]">
-                <div>
-                  <h3 className="font-semibold text-slate-900">{item.documentLabel}</h3>
-                  <p className="text-sm text-[#486581]">{item.clientName || "Client not recorded"} · {item.jobTitle}</p>
+            <article key={item.id} className="min-w-0 space-y-3 rounded-xl border border-slate-200 bg-white p-5 [overflow-wrap:anywhere]">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 space-y-1">
+                  <h3 className="text-base font-semibold text-[#102A43]">{item.documentLabel}</h3>
+                  <p className="text-sm text-[#486581]">
+                    {item.clientName ? `${item.clientName} · ${item.jobTitle}` : item.jobTitle}
+                  </p>
                 </div>
-                <ActionBadge item={item} />
+                <div className="shrink-0">
+                  <ActionBadge item={item} />
+                </div>
               </div>
               {item.updateRequestedAt && !item.updateRequestCompletedAt && (
-                <div className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <div className="rounded-lg border border-[#FDE68A] bg-[#FFFBEB] p-3 text-sm text-[#92400E]">
                   <p>{item.updateRequestReason}</p>
                   <p className="mt-1">Due {item.updateRequestDeadline ? formatDate(item.updateRequestDeadline) : "Date not set"}{isPastDate(item.updateRequestDeadline) && <> · <span className="font-medium text-[#B91C1C]">Overdue</span></>}</p>
                 </div>
               )}
               {item.reviewStatus === "REJECTED" && item.reviewNotes && <p className="text-sm text-[#B91C1C]">{item.reviewNotes}</p>}
-              <Link to="/app/applications/$applicationId" params={{ applicationId: String(item.applicationId) }} className={linkButtonClass}>
-                Open application to upload
-              </Link>
+              <div className="pt-1">
+                <Link to="/app/applications/$applicationId" params={{ applicationId: String(item.applicationId) }} className={linkButtonClass}>
+                  Open application to upload
+                </Link>
+              </div>
             </article>
           ))}
         </div>
@@ -121,9 +136,11 @@ export const MyDocumentsPage: React.FC = () => {
     </section>
 
     <section aria-labelledby="library-heading" className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h2 id="library-heading" className="text-sm font-semibold text-slate-900">Your documents</h2>
-        <span className="text-sm text-[#486581]">{library.length}</span>
+      <div className="flex items-center justify-between gap-2">
+        <h2 id="library-heading" className="text-base font-semibold text-[#0B315D]">Your documents</h2>
+        <span className="inline-flex items-center rounded-md bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-[#0B315D] tabular-nums">
+          {library.length}
+        </span>
       </div>
       {library.length === 0 ? (
         <EmptyState
@@ -131,26 +148,26 @@ export const MyDocumentsPage: React.FC = () => {
           description="Documents you submit for an application will appear here so you can reuse them on new applications."
         />
       ) : (
-        <div className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
+        <div className="space-y-3">
           {library.map((item) => {
             return (
-              <article key={`${item.label}-${item.documentId}`} className="space-y-3 p-4">
-                <div className="min-w-0 space-y-2 [overflow-wrap:anywhere]">
-                  <div>
-                    <h3 className="font-semibold text-slate-900">{item.label}</h3>
-                    <p className="truncate text-sm text-slate-600" title={item.originalName}>{item.originalName}</p>
+              <article key={`${item.label}-${item.documentId}`} className="min-w-0 space-y-3 rounded-xl border border-slate-200 bg-white p-5 [overflow-wrap:anywhere]">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 space-y-1">
+                    <h3 className="text-base font-semibold text-[#102A43]">{item.label}</h3>
+                    <p className="truncate text-sm text-[#486581]" title={item.originalName}>{item.originalName}</p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 shrink-0">
                     <RequirementStatusBadge status={item.reviewStatus} />
                     {item.isExpired && item.reviewStatus !== "EXPIRED" && <RequirementStatusBadge status="EXPIRED" />}
                     {!item.isExpired && item.isExpiringSoon && <span className={amberBadgeClass}>Expiring soon</span>}
                   </div>
                 </div>
-                <div className="space-y-1 text-sm text-slate-600 [overflow-wrap:anywhere]">
+                <div className="space-y-1 text-sm text-[#486581] [overflow-wrap:anywhere]">
                   <p>{item.expiresAt ? `Expires ${formatDate(item.expiresAt)}` : item.validityStatus === "NO_EXPIRY" ? "No expiry" : "Expiry not recorded"}</p>
                   <p>Source: {item.jobTitle} · Uploaded {formatDate(item.uploadedAt)}</p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 pt-1">
                   <Button variant="outline" onClick={() => setPreview({ id: item.documentId, label: item.label })}>View</Button>
                   <Link to="/app/applications/$applicationId" params={{ applicationId: String(item.applicationId) }} className={linkButtonClass}>
                     Open application

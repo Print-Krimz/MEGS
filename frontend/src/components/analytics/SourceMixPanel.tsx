@@ -11,6 +11,7 @@ const TD = "px-3 py-2 text-right tabular-nums text-slate-700";
 export const SourceMixPanel: React.FC<{ rows: SourceMixRow[]; className?: string }> = ({ rows, className }) => (
   <AnalyticsPanel
     id="sources"
+    tone="reports"
     title="Applicants by source"
     subtitle="Applications received in these dates, by where the applicant came from. Hired means the applicant reached Deployed."
     className={className}

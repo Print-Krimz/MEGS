@@ -4,7 +4,8 @@ import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { adminApi } from "../../lib/api/admin.api";
 import { PageHeader, ErrorState, EmptyState } from "../../components/common";
 import { Button } from "../../components/ui";
-import { formatDate, formatDateTime } from "../../lib/utils";
+import { formatDate, formatDateTime, displayEmail } from "../../lib/utils";
+import { resolveUserName } from "../../lib/user-name";
 import { formatSampled } from "../../lib/analytics-format";
 import { formatAdminBackupStatus, formatAdminRole } from "../../lib/admin-copy";
 import { formatAction, formatTargetEntity } from "../../lib/utils/audit-formatter";
@@ -138,14 +139,23 @@ export const AdminDashboard: React.FC = () => {
             ? <EmptyState title="No recent activity" description="Account and system changes will appear here." />
             : <ul className="divide-y divide-slate-200">{logs.map(log => {
               const target = formatTargetEntity(log);
-              const who = log.user?.email || (log.user ? formatAdminRole(log.user.role) : "System");
-              return <li key={log.id} className="flex flex-col gap-0.5 px-3.5 py-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-950">{formatAction(log.action)}</p>
-                  <p className="break-words text-xs text-slate-600">{target.label}{target.secondary ? " · " + target.secondary : ""}</p>
-                  <p className="truncate text-xs text-slate-600" title={who}>By {who}</p>
-                </div>
-                <time dateTime={log.createdAt} className="shrink-0 whitespace-nowrap text-xs text-slate-600 tabular-nums">{formatDateTime(log.createdAt)}</time>
+              const who = log.user
+                ? resolveUserName(log.user, "") || displayEmail(log.user.email) || formatAdminRole(log.user.role)
+                : "System";
+              const actionLabel = formatAction(log.action);
+              return <li key={log.id}>
+                <Link
+                  to="/admin/audit"
+                  search={{ q: actionLabel } as never}
+                  className="focus-ring-inset flex flex-col gap-0.5 px-3.5 py-2.5 transition-colors hover:bg-slate-50 sm:flex-row sm:items-start sm:justify-between sm:gap-4"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-950">{actionLabel}</p>
+                    <p className="break-words text-xs text-slate-600">{target.label}{target.secondary ? " · " + target.secondary : ""}</p>
+                    <p className="truncate text-xs text-slate-600" title={who}>By {who}</p>
+                  </div>
+                  <time dateTime={log.createdAt} className="shrink-0 whitespace-nowrap text-xs text-slate-600 tabular-nums">{formatDateTime(log.createdAt)}</time>
+                </Link>
               </li>;
             })}</ul>}
           </SectionData>
@@ -155,9 +165,13 @@ export const AdminDashboard: React.FC = () => {
           <PanelHeader id="admin-team-workload" title="Team workload"
             action={<Button asChild variant="ghost" size="sm"><Link to="/admin/analytics">View reports</Link></Button>} />
           <SectionData query={teamQuery} subject="team workload">{data => {
-            if (data.team.length === 0) return <EmptyState title="No recruiters yet" description="Recruiters will appear here once they are invited." />;
+            const hasUnassigned = Boolean(
+              data.unassigned && (data.unassigned.requests > 0 || data.unassigned.overdue > 0 || data.unassigned.applicants > 0)
+            );
+            if (data.team.length === 0 && !hasUnassigned) return <EmptyState title="No recruiters yet" description="Recruiters will appear here once they are invited." />;
             const rows = [...data.team].sort((a, b) => b.overdue - a.overdue || b.active - a.active);
-            return <ul className="divide-y divide-slate-200">{rows.map(row => (
+            return <ul className="divide-y divide-slate-200">
+              {rows.map(row => (
               <li key={row.recruiterId}>
                 <Link
                   to="/admin/analytics"
@@ -171,7 +185,27 @@ export const AdminDashboard: React.FC = () => {
                   <span className={`shrink-0 text-xs font-medium tabular-nums ${row.overdue > 0 ? "text-rose-700" : "text-slate-600"}`}>{row.overdue} overdue</span>
                 </Link>
               </li>
-            ))}</ul>;
+            ))}
+              {hasUnassigned && data.unassigned && (
+                <li>
+                  <Link
+                    to="/admin/analytics"
+                    search={{ tab: "requests" } as never}
+                    className="focus-ring-inset flex items-center justify-between gap-3 bg-slate-50/70 px-3.5 py-2.5 text-sm transition-colors hover:bg-slate-100"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-semibold text-slate-950">Unassigned work</p>
+                      <p className="text-xs text-slate-600 tabular-nums">
+                        {data.unassigned.applicants} active · {data.unassigned.requests} open {data.unassigned.requests === 1 ? "request" : "requests"}
+                      </p>
+                    </div>
+                    <span className={`shrink-0 text-xs font-medium tabular-nums ${data.unassigned.overdue + data.unassigned.overdueEstimated > 0 ? "text-rose-700" : "text-slate-600"}`}>
+                      {data.unassigned.overdue + data.unassigned.overdueEstimated} overdue
+                    </span>
+                  </Link>
+                </li>
+              )}
+            </ul>;
           }}</SectionData>
         </section>
       </div>

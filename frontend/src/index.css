@@ -105,6 +105,10 @@
   }
 }
 
+:root {
+  --portal-sidebar-w: 16rem;
+}
+
 /*
  * MEGS public + auth world. Red is the action and identity color, navy is the
  * structural ink, blue carries links and focus. Applied on the landing page and
@@ -157,11 +161,15 @@
   font-weight: 700;
   letter-spacing: -0.02em;
 }
-/* Applicant portal: darker secondary text (6.08:1 on white) and a readable placeholder. */
+/* Staff and applicant portals: darker secondary text (6.08:1 on white) and a readable placeholder. */
+.ta-portal,
+.admin-portal,
 .applicant-portal {
   --color-text-secondary: #486581;
   --color-text-muted: #486581;
 }
+.ta-portal :is(input, textarea)::placeholder,
+.admin-portal :is(input, textarea)::placeholder,
 .applicant-portal :is(input, textarea)::placeholder {
   color: #64748b;
 }
@@ -246,9 +254,11 @@ body {
   .ta-portal input,
   .ta-portal select,
   .ta-portal textarea,
+  .admin-portal :is(input:not([type="range"]):not([type="checkbox"]), select, textarea),
   .applicant-portal input,
   .applicant-portal select,
-  .applicant-portal textarea {
+  .applicant-portal textarea,
+  [role="dialog"] :is(input:not([type="range"]):not([type="checkbox"]), select, textarea) {
     font-size: 16px;
   }
 }

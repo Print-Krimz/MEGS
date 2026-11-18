@@ -183,7 +183,7 @@ export const LandingContact: React.FC = () => {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 items-start gap-14 lg:grid-cols-12 lg:gap-20">
           {/* Executive contact */}
-          <div className="lg:col-span-5">
+          <div className="min-w-0 lg:col-span-5">
             <Reveal>
               <SectionHeader
                 id="contact-heading"
@@ -200,14 +200,14 @@ export const LandingContact: React.FC = () => {
               <h3 className="font-display text-2xl text-white">John Patrick Ramos</h3>
               <p className="mt-1 text-base font-semibold text-white/90">Vice-President for Operations</p>
 
-              <m.ul {...staggerParent(0.08)} className="mt-6 space-y-6 pointer-coarse:space-y-3">
+              <m.ul {...staggerParent(0.08)} className="mt-6 space-y-4">
                 <m.li {...staggerItem} className="flex items-start gap-3">
                   <Phone className="mt-1.5 size-5 shrink-0 text-white/75" aria-hidden="true" />
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm text-white/75">Globe</p>
                     <a
                       href="tel:09176291864"
-                      className={cn(darkLink, "inline-block py-1 text-xl tabular-nums pointer-coarse:py-2.5 sm:text-2xl")}
+                      className={cn(darkLink, "inline-flex min-h-11 items-center py-1 text-xl tabular-nums sm:text-2xl")}
                     >
                       0917-629-1864
                     </a>
@@ -215,11 +215,11 @@ export const LandingContact: React.FC = () => {
                 </m.li>
                 <m.li {...staggerItem} className="flex items-start gap-3">
                   <Phone className="mt-1.5 size-5 shrink-0 text-white/75" aria-hidden="true" />
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm text-white/75">Sun / Smart</p>
                     <a
                       href="tel:09237454050"
-                      className={cn(darkLink, "inline-block py-1 text-xl tabular-nums pointer-coarse:py-2.5 sm:text-2xl")}
+                      className={cn(darkLink, "inline-flex min-h-11 items-center py-1 text-xl tabular-nums sm:text-2xl")}
                     >
                       0923-745-4050
                     </a>
@@ -227,13 +227,13 @@ export const LandingContact: React.FC = () => {
                 </m.li>
                 <m.li {...staggerItem} className="flex items-start gap-3">
                   <Phone className="mt-1.5 size-5 shrink-0 text-white/75" aria-hidden="true" />
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm text-white/75">Valenzuela central office</p>
-                    <div className="flex flex-wrap gap-x-5">
-                      <a href="tel:+63282772959" className={cn(darkLink, "inline-block py-1 text-base tabular-nums pointer-coarse:py-2.5 sm:text-lg")}>
+                    <div className="flex flex-wrap gap-x-5 gap-y-1">
+                      <a href="tel:+63282772959" className={cn(darkLink, "inline-flex min-h-11 items-center py-1 text-base tabular-nums sm:text-lg")}>
                         (02) 8277-2959
                       </a>
-                      <a href="tel:+63282910807" className={cn(darkLink, "inline-block py-1 text-base tabular-nums pointer-coarse:py-2.5 sm:text-lg")}>
+                      <a href="tel:+63282910807" className={cn(darkLink, "inline-flex min-h-11 items-center py-1 text-base tabular-nums sm:text-lg")}>
                         (02) 8291-0807
                       </a>
                     </div>
@@ -241,9 +241,9 @@ export const LandingContact: React.FC = () => {
                 </m.li>
                 <m.li {...staggerItem} className="flex items-start gap-3">
                   <Mail className="mt-1 size-5 shrink-0 text-white/75" aria-hidden="true" />
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm text-white/75">Email</p>
-                    <a href={`mailto:${SALES_EMAIL}`} className={cn(darkLink, "inline-block break-all py-1 text-base pointer-coarse:py-2.5 sm:text-lg")}>
+                    <a href={`mailto:${SALES_EMAIL}`} className={cn(darkLink, "inline-flex min-h-11 items-center break-all py-1 text-base sm:text-lg")}>
                       {SALES_EMAIL}
                     </a>
                   </div>
@@ -253,7 +253,7 @@ export const LandingContact: React.FC = () => {
           </div>
 
           {/* Proposal request form */}
-          <Reveal delay={0.1} className="lg:col-span-7">
+          <Reveal delay={0.1} className="min-w-0 lg:col-span-7">
             <div className="rounded-lg bg-background p-6 text-foreground sm:p-10">
               <AnimatePresence mode="wait" initial={false}>
                 {isSubmitted ? (

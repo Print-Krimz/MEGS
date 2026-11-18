@@ -2,7 +2,7 @@ import React from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { employeesApi } from "../../lib/api/employees.api";
-import { PageHeader, Tabs } from "../../components/common";
+import { PageHeader, Tabs, LoadingState } from "../../components/common";
 import { TA_COPY } from "../../lib/ta-copy";
 
 const DeploymentsPage = React.lazy(() =>
@@ -69,11 +69,7 @@ export const WorkforcePage: React.FC<{ initialTab?: WorkforceTab }> = ({ initial
   const activeTab = currentTab;
 
 
-  const tabFallback = (
-    <div className="flex min-h-32 items-center justify-center text-sm text-slate-600" role="status" aria-live="polite">
-      Loading {TAB_LABELS[activeTab].toLowerCase()}…
-    </div>
-  );
+  const tabFallback = <LoadingState variant="table" rows={5} />;
 
   return (
     <div className="space-y-6">

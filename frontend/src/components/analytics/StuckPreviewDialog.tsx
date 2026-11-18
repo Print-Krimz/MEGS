@@ -13,6 +13,7 @@ import { daysAgoText } from "../../lib/analytics-format";
 import { formatRecruiterName } from "../../lib/recruiter-label";
 import { formatDate } from "../../lib/utils";
 import { Dialog } from "../ui/Dialog";
+import { ScoreBadge } from "../common/ScoreBadge";
 
 interface StuckPreviewDialogProps {
   /** The currently filtered list, so Previous and Next step through what the person sees. */
@@ -29,7 +30,7 @@ interface StuckPreviewDialogProps {
 }
 
 const BUTTON =
-  "inline-flex min-h-11 items-center justify-center border px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9";
+  "inline-flex min-h-11 items-center justify-center rounded-md border px-3 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9";
 
 const Fact: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
   <div className="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 py-1.5 text-sm sm:grid-cols-[9rem_minmax(0,1fr)]">
@@ -69,7 +70,7 @@ const CandidateProfile: React.FC<{ applicationId: number; viewer: "admin" | "ta"
           <Fact label="Email">{email ? <a href={`mailto:${email}`} className={linkCls}>{email}</a> : "Not provided"}</Fact>
           <Fact label="Phone">{phone ? <a href={`tel:${phone}`} className={linkCls}>{phone}</a> : "Not provided"}</Fact>
           <Fact label="Applied">{formatDate(app.createdAt)}</Fact>
-          {score != null && <Fact label="AI match score">{Math.round(score)}</Fact>}
+          {score != null && <Fact label="AI match score"><ScoreBadge score={score} size="sm" /></Fact>}
         </dl>
       )}
     </section>

@@ -11,7 +11,7 @@ import {
 import { Button } from "../../components/ui";
 import { AnalyticsPanel, KpiStrip } from "../../components/analytics";
 import { BarMark } from "../../components/analytics/chart-primitives";
-import { BarChart3, RotateCcw } from "lucide-react";
+import { BarChart3, RotateCcw, AlertTriangle } from "lucide-react";
 
 // Two-sided scale: navy/blue for good matches, neutral grey in the middle, amber for weak
 // matches (red stays reserved for backed out and overdue). Every mark is >= 3:1 on white.
@@ -26,32 +26,43 @@ const BUCKETS = [
 const Kpi: React.FC<{ label: string; value: React.ReactNode; detail?: string }> = ({ label, value, detail }) => (
   <div className="p-3.5">
     <div className="text-xs font-semibold text-slate-700">{label}</div>
-    <div className="mt-0.5 text-2xl font-bold tabular-nums text-slate-950">{value}</div>
+    <div className="mt-0.5 font-display text-2xl font-bold tabular-nums text-slate-950">{value}</div>
     {detail && <div className="mt-0.5 text-xs text-slate-700">{detail}</div>}
   </div>
 );
 
 export const ScoringQualityPage: React.FC = () => {
+  const breadcrumbs = [
+    { label: "Administration", href: "/admin" },
+    { label: "Match results" },
+  ];
+
   const qualityQuery = useQuery({
     queryKey: ["admin", "scoring", "quality"],
     queryFn: adminApi.getQualityMetrics,
   });
 
+  const userSummaryQuery = useQuery({
+    queryKey: ["admin", "users", "summary"],
+    queryFn: ({ signal }) => adminApi.getUserSummary({ signal }),
+  });
+
+  const failedJobs = userSummaryQuery.data?.failedJobs ?? 0;
+
   if (qualityQuery.isLoading) {
     return (
       <div className="space-y-5">
-        <PageHeader title="Match results" flush />
+        <PageHeader title="Match results" flush breadcrumbs={breadcrumbs} />
         <LoadingState variant="cards" />
         <LoadingState variant="table" rows={4} />
       </div>
-
     );
   }
 
   if (qualityQuery.isError || !qualityQuery.data) {
     return (
       <div className="space-y-5">
-        <PageHeader title="Match results" flush />
+        <PageHeader title="Match results" flush breadcrumbs={breadcrumbs} />
         <ErrorState error={qualityQuery.error} onRetry={() => qualityQuery.refetch()} />
       </div>
     );
@@ -91,17 +102,17 @@ export const ScoringQualityPage: React.FC = () => {
       <PageHeader
         title="Match results"
         flush
-        breadcrumbs={[
-          { label: "Administration", href: "/admin" },
-          { label: "Match results" },
-        ]}
+        breadcrumbs={breadcrumbs}
         actions={
           <>
             <Button
               variant="outline"
               size="sm"
               leftIcon={<RotateCcw className={`w-3.5 h-3.5 ${qualityQuery.isFetching ? "motion-safe:animate-spin" : ""}`} />}
-              onClick={() => qualityQuery.refetch()}
+              onClick={() => {
+                void qualityQuery.refetch();
+                void userSummaryQuery.refetch();
+              }}
               disabled={qualityQuery.isFetching}
             >
               Refresh
@@ -112,6 +123,36 @@ export const ScoringQualityPage: React.FC = () => {
           </>
         }
       />
+
+      {failedJobs > 0 && (
+        <div
+          role="status"
+          className="flex flex-col gap-3 rounded-md border border-amber-300 bg-amber-50 p-3.5 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-700" aria-hidden="true" />
+            <div>
+              <p className="font-semibold">
+                {failedJobs} candidate match {failedJobs === 1 ? "calculation" : "calculations"} failed and {failedJobs === 1 ? "is" : "are"} queued for retry.
+              </p>
+              <p className="text-xs text-amber-900">
+                Scores shown below exclude calculations still waiting to complete.
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              void qualityQuery.refetch();
+              void userSummaryQuery.refetch();
+            }}
+            disabled={qualityQuery.isFetching || userSummaryQuery.isFetching}
+          >
+            Refresh
+          </Button>
+        </div>
+      )}
 
       <KpiStrip columns="lg:grid-cols-3">
         <Kpi label="Candidates scored" value={totalCalculated} />

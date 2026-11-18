@@ -87,6 +87,25 @@ const industries: Industry[] = [
 
 const IMAGE_SIZES = "(min-width: 1024px) 400px, (min-width: 640px) 50vw, 80vw";
 
+const ROLE_SEARCH_TERMS: Record<string, string> = {
+  "Production workers": "Production",
+  "Machine operators": "Machine Operator",
+  "QA/QC personnel": "QA",
+  Welders: "Welder",
+  "Delivery drivers": "Delivery Driver",
+  Messengers: "Messenger",
+  "Office staff": "Office",
+  Encoders: "Encoder",
+  "Forklift operators": "Forklift",
+  "Warehouse crew": "Warehouse",
+  "Utility helpers": "Utility",
+  "Sales promo & merchandisers": "Merchandiser",
+  "Brand ambassadors": "Brand Ambassador",
+  "Cashiers & baggers": "Cashier",
+  "Food servers": "Food Server",
+  Cashiers: "Cashier",
+};
+
 const IndustryImage: React.FC<{ industry: Industry; photo: MegsPhoto | null }> = ({ industry, photo }) => {
   const motionClass =
     "size-full object-cover transition-transform duration-500 ease-out group-hover:scale-[1.04] group-focus-within:scale-[1.04] motion-reduce:transition-none";
@@ -122,14 +141,19 @@ const IndustryImage: React.FC<{ industry: Industry; photo: MegsPhoto | null }> =
  * One industry. Photo and no-photo cards share the same media box, name position and body,
  * so a missing photo reads as a deliberate navy tile rather than a gap.
  */
-const IndustryCard: React.FC<{ industry: Industry }> = ({ industry }) => {
+const IndustryCard: React.FC<{
+  industry: Industry;
+  activeSearchQuery?: string;
+  activeCategory?: string;
+  onSelectRole?: (roleQuery: string, industryName: string) => void;
+}> = ({ industry, activeSearchQuery, activeCategory, onSelectRole }) => {
   const photo = megsPhoto(`industry-${industry.id}`);
   const hasImage = Boolean(photo || industry.stock);
 
   return (
     <m.li
       {...staggerItem}
-      className="group flex w-[80%] shrink-0 snap-start flex-col overflow-hidden rounded-lg border border-border bg-background transition-[transform,box-shadow,border-color] duration-300 ease-out hover:-translate-y-0.5 hover:border-secondary/30 hover:shadow-md focus-within:-translate-y-0.5 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 motion-reduce:transition-none motion-reduce:hover:translate-y-0 sm:w-auto"
+      className="group flex w-[80%] shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-border bg-background transition-colors duration-200 hover:border-secondary/40 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 motion-reduce:transition-none sm:w-auto"
     >
       <div className={cn(
           "relative aspect-[3/2] overflow-hidden",
@@ -164,22 +188,43 @@ const IndustryCard: React.FC<{ industry: Industry }> = ({ industry }) => {
       <div className="flex flex-1 flex-col gap-4 p-5">
         <p className="text-base leading-relaxed text-muted-foreground">{industry.description}</p>
         <ul aria-label={`Typical ${industry.name} positions`} className="mt-auto flex flex-wrap gap-2">
-          {industry.roles.map((role) => (
-            <li
-              key={role}
-              className="rounded-full border border-border bg-page px-3 py-1 text-sm text-secondary"
-            >
-              {role}
-            </li>
-          ))}
+          {industry.roles.map((role) => {
+            const searchTerm = ROLE_SEARCH_TERMS[role] ?? role;
+            const isSelected =
+              Boolean(activeSearchQuery) &&
+              activeSearchQuery === searchTerm &&
+              (!activeCategory || activeCategory === industry.name);
+            return (
+              <li key={role}>
+                <button
+                  type="button"
+                  aria-pressed={isSelected}
+                  onClick={() => onSelectRole?.(searchTerm, industry.name)}
+                  className="inline-flex min-h-11 cursor-pointer items-center rounded-md bg-slate-100/80 px-2.5 py-1 text-xs font-medium text-secondary transition-colors hover:bg-secondary/10 active:scale-95 aria-pressed:bg-secondary aria-pressed:text-secondary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none motion-reduce:active:scale-100 sm:text-sm md:min-h-8"
+                >
+                  {role}
+                </button>
+              </li>
+            );
+          })}
         </ul>
       </div>
     </m.li>
   );
 };
 
-export const LandingIndustries: React.FC = () => (
-  <section id="industries" className="scroll-mt-20 bg-page py-16 sm:py-24">
+export interface LandingIndustriesProps {
+  activeSearchQuery?: string;
+  activeCategory?: string;
+  onSelectRole?: (roleQuery: string, industryName: string) => void;
+}
+
+export const LandingIndustries: React.FC<LandingIndustriesProps> = ({
+  activeSearchQuery,
+  activeCategory,
+  onSelectRole,
+}) => (
+  <section id="industries" className="scroll-mt-20 border-b border-border bg-page py-16 sm:py-24">
     <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
       <Reveal>
         <SectionHeader
@@ -201,7 +246,13 @@ export const LandingIndustries: React.FC = () => (
         className="-mx-4 mt-10 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 pt-2 scroll-px-4 [scrollbar-width:none] sm:mx-0 sm:mt-12 sm:grid sm:snap-none sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 sm:pt-0 lg:grid-cols-3 lg:gap-6 [&::-webkit-scrollbar]:hidden"
       >
         {industries.map((industry) => (
-          <IndustryCard key={industry.id} industry={industry} />
+          <IndustryCard
+            key={industry.id}
+            industry={industry}
+            activeSearchQuery={activeSearchQuery}
+            activeCategory={activeCategory}
+            onSelectRole={onSelectRole}
+          />
         ))}
       </m.ul>
     </div>

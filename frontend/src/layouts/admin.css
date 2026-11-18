@@ -17,13 +17,26 @@
   top: 0.75rem;
   left: 0.75rem;
   z-index: 100;
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 1rem;
   border-radius: 0.5rem;
+  border: 1px solid var(--color-border);
   background: var(--color-surface);
+  color: #0f172a;
+  font-size: 0.875rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-modal);
   transform: translateY(-200%);
 }
 
-.admin-skip-link:focus { transform: translateY(0); }
+.admin-skip-link:focus {
+  transform: translateY(0);
+  outline: none;
+}
+
+.admin-skip-link:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-modal), 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-focus);
+}
 
 .admin-portal .admin-nav-link[data-status="active"] { border-left-color: var(--color-megs-red); color: white; background: rgb(255 255 255 / 0.05); }
 

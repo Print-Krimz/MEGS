@@ -53,7 +53,7 @@ export const StageStrip: React.FC<StageStripProps> = ({ items, value, onChange, 
             <span>{item.label}</span>
             {item.count !== undefined && " "}
             {item.count !== undefined && (
-              <span className={cn("text-xs tabular-nums", selected ? "text-navy" : "text-slate-500")}>{item.count}</span>
+              <span className={cn("text-xs tabular-nums", selected ? "text-navy" : "text-slate-600")}>{item.count}</span>
             )}
           </button>
         );

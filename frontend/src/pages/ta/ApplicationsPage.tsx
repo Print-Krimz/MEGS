@@ -41,6 +41,8 @@ import { ALL_SOURCES, isApplicationSource } from "../../lib/application-sources"
 import { CheckInsPanel, useCheckIns } from "../../components/ta/walk-in/CheckInsPanel";
 import { ReviewQueue } from "../../components/ta/recruitment/ReviewQueue";
 import { TA_COPY } from "../../lib/ta-copy";
+import { QuickNoteChips } from "../../components/ta/QuickNoteChips";
+import { ARCHIVE_REASON_PRESETS, RESTORE_REASON_PRESETS } from "../../lib/ta-note-presets";
 import { EndedBadge, EndedNote, getEndedAssignment } from "../../components/ta/recruitment/EndedAssignment";
 import {
   getApplicationListPollInterval,
@@ -190,8 +192,8 @@ const readStringParam = (params: URLSearchParams, key: string): string | null =>
   return raw;
 };
 
-export const readApplicationSearch = (): TAApplicationSearch => {
-  const params = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
+export const readApplicationSearch = (rawSearch?: string): TAApplicationSearch => {
+  const params = new URLSearchParams(rawSearch ?? (typeof window === "undefined" ? "" : window.location.search));
   const stage = params.get("stage");
   const sortParam = params.get("sort");
   const source = readStringParam(params, "source");
@@ -325,8 +327,6 @@ export const ApplicationsPage: React.FC = () => {
   const [archiveModalApp, setArchiveModalApp] = useState<{ id: number; name: string; isArchived: boolean } | null>(null);
   const [archiveReason, setArchiveReason] = useState("");
 
-  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
-
   const applicationsQuery = useQuery({
     queryKey: ["ta", "applications", {
       page,
@@ -415,10 +415,11 @@ export const ApplicationsPage: React.FC = () => {
     () => ["", ...stripStages(stageCountsQuery.data?.byStatus ?? {}, filterValues.status, openOnly)],
     [stageCountsQuery.data?.byStatus, filterValues.status, openOnly],
   );
+  const byStatus = stageCountsQuery.data?.byStatus;
   const stageStripItems: StageStripItem[] = stageStripValues.map((stage) => ({
     value: stage,
     label: stage ? getApplicationStatusMeta(stage).label : "All",
-    count: stageCountsQuery.data ? (stage ? stageCountsQuery.data.byStatus[stage] ?? 0 : stageCountsQuery.data.total) : undefined,
+    count: byStatus ? (stage ? byStatus[stage] ?? 0 : stageCountsQuery.data?.total ?? 0) : undefined,
   }));
 
   // Mutations
@@ -450,12 +451,9 @@ export const ApplicationsPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
       setArchiveModalApp(null);
       setArchiveReason("");
-      const msg = "Application archived successfully.";
-      setFeedback({ type: "success", message: msg });
-      notify.success("Application Archived", msg);
+      notify.success("Application archived", "Application archived successfully.");
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Unable to archive this application. Please try again." });
       notify.error("Unable to archive application", err);
     },
   });
@@ -488,12 +486,9 @@ export const ApplicationsPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ["ta", "analytics"] });
       setArchiveModalApp(null);
       setArchiveReason("");
-      const msg = "Application restored to pipeline.";
-      setFeedback({ type: "success", message: msg });
-      notify.success("Application Restored", msg);
+      notify.success("Application restored", "Application restored to pipeline.");
     },
     onError: (err: any) => {
-      setFeedback({ type: "error", message: "Unable to restore this application. Please try again." });
       notify.error("Unable to restore application", err);
     },
   });
@@ -749,6 +744,7 @@ export const ApplicationsPage: React.FC = () => {
     {
       key: "inStage",
       header: "In stage",
+      sortable: true,
       hideBelow: "md",
       cell: (app) => (
         <span className={`whitespace-nowrap text-sm ${sort === "waiting" ? "font-medium text-slate-950" : "text-slate-700"}`}>
@@ -759,11 +755,13 @@ export const ApplicationsPage: React.FC = () => {
     {
       key: "applied",
       header: "Applied",
+      sortable: true,
       cell: (app) => <span className="whitespace-nowrap text-sm text-slate-700">{formatDate(app.createdAt)}</span>,
     },
     {
       key: "score",
-      header: "AI match score",
+      header: "Match",
+      sortable: true,
       align: "center",
       cell: (app) => {
         const score = app.candidateFitScore ?? app.aiScore;
@@ -911,51 +909,30 @@ export const ApplicationsPage: React.FC = () => {
         {posterOpen && <CheckInPosterDialog open onClose={() => setPosterOpen(false)} />}
       </Suspense>
 
-      {feedback && (
-        <div
-          role={feedback.type === "error" ? "alert" : "status"}
-          aria-live="polite"
-          className={`flex items-center justify-between rounded-md border p-3 text-sm ${
-            feedback.type === "success"
-              ? "border-navy-line bg-navy-soft text-navy"
-              : "border-rose-200 bg-rose-50 text-rose-800"
-          }`}
-        >
-          <span>{feedback.message}</span>
-          <button
-            type="button"
-            onClick={() => setFeedback(null)}
-            aria-label="Dismiss message"
-            className="ml-4 min-h-11 min-w-11 font-bold text-slate-600 hover:text-slate-900 focus-ring md:min-h-8 md:min-w-8"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
       <div className="flex flex-wrap items-center justify-between gap-2">
-      <div role="group" aria-label="Applications view" className="flex gap-2">
+      <div role="group" aria-label="Applications view" className="inline-flex overflow-hidden rounded-md border border-slate-300">
         {(
           [
             { id: "applications", label: "Applications" },
             { id: "check-ins", label: checkInCount > 0 ? `Check-ins (${checkInCount})` : "Check-ins" },
           ] as const
         ).map((tab) => (
-          <Button
+          <button
             key={tab.id}
             type="button"
-            variant={view === tab.id ? "primary" : "outline"}
             aria-pressed={view === tab.id}
-            className="min-h-11 md:min-h-9"
             onClick={() => setView(tab.id)}
+            className={`min-h-11 px-3 text-sm font-medium focus-ring md:min-h-9 ${
+              view === tab.id ? "bg-navy text-white" : "bg-white text-slate-700 hover:bg-slate-50"
+            }`}
           >
             {tab.label}
-          </Button>
+          </button>
         ))}
       </div>
       <div className="flex items-center gap-2">
       {view === "applications" && (
-        <div role="group" aria-label="Layout" className="inline-flex overflow-hidden rounded-md border border-slate-300">
+        <div role="group" aria-label="Layout" className="hidden lg:inline-flex overflow-hidden rounded-md border border-slate-300">
           {(
             [
               { id: "table", label: "Table" },
@@ -1216,6 +1193,26 @@ export const ApplicationsPage: React.FC = () => {
           rows={applications}
           getRowId={(app) => String(app.id)}
           renderCard={renderCard}
+          sort={
+            sort === "newest"
+              ? { key: "applied", direction: "desc" }
+              : sort === "oldest"
+              ? { key: "applied", direction: "asc" }
+              : sort === "waiting"
+              ? { key: "inStage", direction: "desc" }
+              : { key: "score", direction: "desc" }
+          }
+          onSortChange={(next) => {
+            const mapped: ListSort | undefined =
+              next.key === "applied"
+                ? next.direction === "asc"
+                  ? "oldest"
+                  : "newest"
+                : next.key === "inStage"
+                ? "waiting"
+                : undefined;
+            updateListUrl({ sort: mapped, page: undefined });
+          }}
           isFetching={applicationsQuery.isFetching}
           selection={{
             selectedIds: selection.selectedIds,
@@ -1264,10 +1261,15 @@ export const ApplicationsPage: React.FC = () => {
       <Dialog
         open={Boolean(archiveModalApp)}
         onClose={() => setArchiveModalApp(null)}
-        title={archiveModalApp?.isArchived ? "Restore Application" : "Archive Application"}
+        title={archiveModalApp?.isArchived ? "Restore application" : "Archive application"}
         description={`Record administrative reason to ${archiveModalApp?.isArchived ? "restore" : "archive"} ${archiveModalApp?.name}'s application`}
       >
         <div className="space-y-4">
+          <QuickNoteChips
+            presets={archiveModalApp?.isArchived ? RESTORE_REASON_PRESETS : ARCHIVE_REASON_PRESETS}
+            currentValue={archiveReason}
+            onSelect={setArchiveReason}
+          />
           <Textarea
             label="Reason for this change"
             placeholder={
@@ -1299,7 +1301,7 @@ export const ApplicationsPage: React.FC = () => {
                 }
               }}
             >
-              {archiveModalApp?.isArchived ? "Restore Application" : "Archive Application"}
+              {archiveModalApp?.isArchived ? "Restore application" : "Archive application"}
             </Button>
           </div>
         </div>

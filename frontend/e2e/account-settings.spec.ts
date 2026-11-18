@@ -30,12 +30,12 @@ for (const role of roles) for (const size of sizes) {
     await expect(page).toHaveURL(new RegExp(`/${role.prefix}/settings$`));
     await expect(page.getByText(f.initialUser.email, { exact: true })).toBeVisible();
     if (role.role === "APPLICANT") {
-      await expect(page.getByRole("region", { name: "Account information" }).getByText(role.name, { exact: true })).toBeVisible();
+      await expect(page.getByRole("region", { name: "Profile" }).getByText(role.name, { exact: true })).toBeVisible();
       await expect(page.getByRole("textbox", { name: "Full name" })).toHaveCount(0);
-      await expect(page.getByRole("navigation", { name: "Account links" }).getByRole("link", { name: "My Profile" })).toHaveAttribute("href", "/app/profile");
+      await expect(page.getByRole("navigation", { name: "Related pages" }).getByRole("link", { name: "My Profile" })).toHaveAttribute("href", "/app/profile");
     } else await expect(page.getByRole("textbox", { name: "Full name" })).toHaveValue(role.name);
-    if (role.role === "ADMINISTRATOR") for (const [label, href] of [["Users", "/admin/users"], ["Matching settings", "/admin/scoring"], ["Activity history", "/admin/audit"], ["Backups and recovery", "/admin/maintenance"]]) await expect(page.getByRole("navigation", { name: "Account links" }).getByRole("link", { name: label })).toHaveAttribute("href", href);
-    const link = page.getByRole("navigation", { name: "Account links" }).getByRole("link", { name: "Notifications" });
+    if (role.role === "ADMINISTRATOR") for (const [label, href] of [["Users", "/admin/users"], ["Matching settings", "/admin/scoring"], ["Activity history", "/admin/audit"], ["Backups and recovery", "/admin/maintenance"]]) await expect(page.getByRole("navigation", { name: "Related pages" }).getByRole("link", { name: label })).toHaveAttribute("href", href);
+    const link = page.getByRole("navigation", { name: "Related pages" }).getByRole("link", { name: "Notifications" });
     const box = await link.boundingBox(); expect(box!.height).toBeGreaterThanOrEqual(44);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
     if (size.name !== "tablet") await page.screenshot({ path: `../.superpowers/sdd/2026-11-01-account-settings/${role.prefix}-${size.name}.png`, fullPage: true });
@@ -74,8 +74,8 @@ test("settings GET failure can retry", async ({ page }) => {
 });
 test("password modal sends code and current password", async ({ page }) => {
   const f = await installSettingsFixture(page, "TALENT_ACQUISITION"); await open(page); await page.getByRole("button", { name: "Change password" }).click();
-  const d = page.getByRole("dialog", { name: "Update your password" }); await d.getByLabel("Current password").fill("OldPassword1!"); await d.locator('input[autocomplete="new-password"]').first().fill("NewPassword2!"); await d.getByLabel("Confirm new password").fill("NewPassword2!");
-  await d.getByRole("button", { name: "Send code" }).click(); await d.getByLabel("Verification code").fill("123456"); await d.getByRole("button", { name: "Update password" }).click(); await expect(d).toBeHidden();
+  const d = page.getByRole("dialog", { name: "Change password" }); await d.getByLabel("Current password").fill("OldPassword1!"); await d.locator('input[autocomplete="new-password"]').first().fill("NewPassword2!"); await d.getByLabel("Confirm new password").fill("NewPassword2!");
+  await d.getByRole("button", { name: "Continue" }).click(); await d.getByLabel("Verification code").fill("123456"); await d.getByRole("button", { name: "Update password" }).click(); await expect(d).toBeHidden();
   expect(f.calls.find((c) => c.path === "/api/auth/change-password")?.body).toMatchObject({ currentPassword: "OldPassword1!", newPassword: "NewPassword2!", otp: "123456" }); clean(f);
 });
 

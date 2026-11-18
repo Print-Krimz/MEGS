@@ -42,7 +42,7 @@ export const FilterTile: React.FC<FilterTileProps> = ({
       {selected && <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1 bg-navy" />}
       <span className="text-xs font-medium text-slate-600">{label}</span>
       <span className={cn("text-2xl font-semibold leading-none tabular-nums", valueTone[tone])}>{value}</span>
-      {hint && <span className="max-w-full truncate text-xs text-slate-500">{hint}</span>}
+      {hint && <span className="max-w-full truncate text-xs text-slate-600">{hint}</span>}
     </>
   );
 
@@ -54,7 +54,7 @@ export const FilterTile: React.FC<FilterTileProps> = ({
     );
   }
   return (
-    <div className={classes} aria-label={ariaLabel}>
+    <div className={classes}>
       {content}
     </div>
   );

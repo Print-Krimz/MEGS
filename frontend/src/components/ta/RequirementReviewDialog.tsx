@@ -7,6 +7,7 @@ import { requirementStatusLabel } from "../../lib/labels";
 import { addManilaCalendarMonths, defaultValidityForLabel, isMedicalRequirementLabel } from "../../lib/compliance-validity";
 import { COMPLIANCE_NOTE_PRESETS } from "../../lib/ta-note-presets";
 import { formatDate } from "../../lib/utils";
+import { useDirtyGuard } from "../../hooks/useDirtyGuard";
 import { QuickNoteChips } from "./QuickNoteChips";
 
 export type RequirementDecision = "APPROVED" | "REJECTED" | "TO_FOLLOW";
@@ -115,6 +116,13 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
     [requirements, selectedId]
   );
 
+  const initialNotesValue = initialDecision(selected) ? selected?.reviewNotes || "" : "";
+  const guard = useDirtyGuard({ isDirty: open && notes.trim() !== initialNotesValue.trim() });
+  const requestClose = async () => {
+    if (isSubmitting) return;
+    if (await guard.confirmDiscard()) onClose();
+  };
+
   const loadFrom = (req?: ReviewableRequirement | null) => {
     setSelectedId(req?.id ?? null);
     setDecision(initialDecision(req));
@@ -219,7 +227,7 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
             <button
               type="button"
               onClick={() => onOpenDocument(selected)}
-              className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-blue-700 underline hover:text-blue-900 md:min-h-0"
+              className="inline-flex min-h-11 items-center gap-1.5 text-sm font-medium text-navy underline hover:text-navy-hover md:min-h-0"
             >
               <ExternalLink className="h-4 w-4" aria-hidden="true" />
               Open uploaded document
@@ -343,7 +351,7 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
             {blockReason}
           </p>
         )}
-        <Button variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>
+        <Button variant="outline" size="sm" onClick={requestClose} disabled={isSubmitting}>
           Cancel
         </Button>
         <Button
@@ -359,14 +367,15 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
     </div>
   ) : (
     <div className="flex justify-end border-t border-slate-100 pt-3">
-      <Button variant="outline" size="sm" onClick={onClose}>
+      <Button variant="outline" size="sm" onClick={requestClose}>
         Close
       </Button>
     </div>
   );
 
   return (
-    <Dialog open={open} onClose={onClose} title={title} description={subtitle} size={picker ? "xl" : "md"}>
+    <>
+    <Dialog open={open} onClose={requestClose} title={title} description={subtitle} size={picker ? "xl" : "md"}>
       {picker ? (
         <div className="grid gap-5 lg:grid-cols-[20rem_minmax(0,1fr)]">
           <div className="space-y-2">
@@ -402,5 +411,7 @@ export const RequirementReviewDialog: React.FC<RequirementReviewDialogProps> = (
         detail
       )}
     </Dialog>
+    {guard.discardDialog}
+    </>
   );
 };

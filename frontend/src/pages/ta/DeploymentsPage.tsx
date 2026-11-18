@@ -16,8 +16,9 @@ import {
   DataTableColumn,
   BulkActionBar,
   BulkResultDialog,
+  DateField,
 } from "../../components/common";
-import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
+import { Button, Dialog, Select, Textarea } from "../../components/ui";
 import { cn, formatDate, getDeploymentStatusMeta } from "../../lib/utils";
 import { DeploymentStatus, ALLOWED_DEPLOYMENT_TRANSITIONS } from "../../lib/types/enums";
 import { notify } from "../../lib/feedback";
@@ -38,6 +39,11 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
   const [search, setSearch] = useState(initialSearch);
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setSearch(initialSearch);
+    setPage(1);
+  }, [initialSearch]);
   const [pageSize, setPageSize] = useState(10);
   const debouncedSearch = normalizeServerSearch(useDebouncedValue(search, SERVER_SEARCH_DEBOUNCE_MS));
 
@@ -176,7 +182,20 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
     setSearch("");
     setFilterValues({});
     setPage(1);
+    if (initialSearch) {
+      try {
+        navigate({
+          search: ((prev: Record<string, unknown>) => ({ ...prev, q: undefined })) as never,
+          replace: true,
+          resetScroll: false,
+        });
+      } catch {
+        // safe fallback in tests without full router
+      }
+    }
   };
+
+  const hasActiveFilters = Boolean(search.trim() || filterValues.status || filterValues.clientId);
 
   const detailHref = (dep: DeploymentRow) => `/ta/deployments/${dep.id}`;
 
@@ -372,7 +391,7 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
       {deploymentsQuery.isLoading ? (
         <LoadingState variant="table" rows={6} />
       ) : deploymentsQuery.isError ? (
-        <ErrorState error={deploymentsQuery.error} onRetry={() => deploymentsQuery.refetch()} />
+        <ErrorState subject="deployments" error={deploymentsQuery.error} onRetry={() => deploymentsQuery.refetch()} />
       ) : (
         <DataTable
           caption="Deployments"
@@ -394,11 +413,17 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
             <EmptyState
               bare
               title="No deployments found"
-              description="Employees assigned to client sites will appear here after deployment is activated."
+              description={
+                hasActiveFilters
+                  ? "No deployments match your current search or filters."
+                  : "Employees assigned to client sites will appear here after deployment is activated."
+              }
               action={
-                <Button variant="outline" size="sm" onClick={handleReset}>
-                  Reset filters
-                </Button>
+                hasActiveFilters ? (
+                  <Button variant="outline" size="sm" onClick={handleReset}>
+                    Reset filters
+                  </Button>
+                ) : undefined
               }
             />
           }
@@ -470,13 +495,12 @@ export const DeploymentsPage: React.FC<{ hideHeader?: boolean; initialSearch?: s
             </div>
           )}
           {newStatus === DeploymentStatus.ACTIVE ? (
-            <Input
+            <DateField
               label="First working date"
-              type="date"
               value={actualStart}
               min={getManilaToday()}
               onChange={(event) => setActualStart(event.target.value)}
-              helperText={actualStart ? `${formatDate(actualStart)}. Today or a future date; a future date becomes Active on site automatically.` : "Today or a future date."}
+              help={actualStart ? `${formatDate(actualStart)}. Today or a future date; a future date becomes Active on site automatically.` : "Today or a future date."}
               required
             />
           ) : <Select

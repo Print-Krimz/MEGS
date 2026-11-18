@@ -9,6 +9,7 @@ import {
   LoadingState,
   ErrorState,
   RecordSummary,
+  SelectBox,
 } from "../../components/common";
 import { Button, Dialog, Select, Textarea } from "../../components/ui";
 import { DateField } from "../../components/common/DateField";
@@ -16,7 +17,7 @@ import { formatDate, getDeploymentStatusMeta, displayEmail } from "../../lib/uti
 import { DeploymentStatus, ALLOWED_DEPLOYMENT_TRANSITIONS } from "../../lib/types/enums";
 import { notify } from "../../lib/feedback";
 import { TA_COPY } from "../../lib/ta-copy";
-import { getManilaToday } from "../../lib/field-limits";
+import { getManilaToday, toManilaDateInput } from "../../lib/field-limits";
 import { plural } from "../../lib/plural";
 import { EndAssignmentDialog } from "../../components/ta/EndAssignmentDialog";
 import { AgreementVersionsDisclosure, DeploymentActivity } from "../../components/ta/workforce/DeploymentActivity";
@@ -36,10 +37,11 @@ const DAY_MS = 86_400_000;
 
 /** Contract end with the days left, counted in Manila calendar days. */
 const contractEndText = (contractEnd?: string | null): string => {
-  if (!contractEnd) return "No end date";
-  const day = (value: string) => Math.floor(new Date(`${value.slice(0, 10)}T00:00:00Z`).getTime() / DAY_MS);
-  const left = day(contractEnd) - day(getManilaToday());
-  const when = formatDate(contractEnd);
+  const endYmd = toManilaDateInput(contractEnd);
+  if (!endYmd) return "No end date";
+  const day = (value: string) => Math.floor(new Date(`${value}T00:00:00Z`).getTime() / DAY_MS);
+  const left = day(endYmd) - day(getManilaToday());
+  const when = formatDate(contractEnd!);
   if (left < 0) return `${when} · ended ${plural(-left, "day")} ago`;
   if (left === 0) return `${when} · ends today`;
   return `${when} · ${plural(left, "day")} left`;
@@ -102,7 +104,16 @@ export const DeploymentDetailPage: React.FC = () => {
   if (deploymentQuery.isLoading) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Deployment details" description="Loading assignment details..." flush />
+        <PageHeader
+          title="Deployment details"
+          description="Loading assignment details..."
+          breadcrumbs={[
+            { label: TA_COPY.navigation.overview, href: "/ta" },
+            { label: TA_COPY.navigation.workforce, href: "/ta/workforce?tab=deployments" },
+            { label: "Deployment" },
+          ]}
+          flush
+        />
         <LoadingState variant="detail" />
       </div>
     );
@@ -111,8 +122,17 @@ export const DeploymentDetailPage: React.FC = () => {
   if (deploymentQuery.isError || !deploymentQuery.data) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Deployment details" description="Assignment details" flush />
-        <ErrorState error={deploymentQuery.error} onRetry={() => deploymentQuery.refetch()} />
+        <PageHeader
+          title="Deployment details"
+          description="Assignment details"
+          breadcrumbs={[
+            { label: TA_COPY.navigation.overview, href: "/ta" },
+            { label: TA_COPY.navigation.workforce, href: "/ta/workforce?tab=deployments" },
+            { label: "Deployment" },
+          ]}
+          flush
+        />
+        <ErrorState subject="this deployment" error={deploymentQuery.error} onRetry={() => deploymentQuery.refetch()} />
       </div>
     );
   }
@@ -136,19 +156,20 @@ export const DeploymentDetailPage: React.FC = () => {
           size="sm"
           onClick={() => {
             setNewStatus(allowedNext[0]);
-            const defaultStart = dep.contractStart && dep.contractStart.slice(0, 10) >= getManilaToday()
-              ? dep.contractStart.slice(0, 10)
+            const startYmd = toManilaDateInput(dep.contractStart);
+            const defaultStart = startYmd && startYmd >= getManilaToday()
+              ? startYmd
               : getManilaToday();
             setActualStart(defaultStart);
             setStatusModalOpen(true);
           }}
         >
-          Update status
+          {dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT ? "Confirm start" : "Update status"}
         </Button>
       )}
       {(isActive || dep.status === DeploymentStatus.READY_FOR_DEPLOYMENT) && (
         <Button variant="outline" size="sm" onClick={() => {
-          setAgreementEnd(dep.contractEnd?.slice(0, 10) || "");
+          setAgreementEnd(toManilaDateInput(dep.contractEnd));
           setAgreementHasNoEnd(!dep.contractEnd);
           setAgreementTerms("");
           setAgreementModalOpen(true);
@@ -186,10 +207,25 @@ export const DeploymentDetailPage: React.FC = () => {
         actions={actions}
         facts={[
           { label: "Employee record", value: emp?.employeeNumber ? `View ${emp.employeeNumber}` : "View record", href: emp?.id ? `/ta/employees/${emp.id}` : undefined },
-          { label: "Client", value: dep.client?.name || "Not recorded" },
+          {
+            label: "Client",
+            value: dep.client?.name || "Not recorded",
+            href: dep.client?.id ? `/ta/clients/${dep.client.id}` : undefined,
+          },
+          ...(dep.mrfId || dep.mrf?.id
+            ? [{
+                label: "Manpower request",
+                value: dep.mrf?.title ? `${dep.mrf.title} (#${dep.mrfId ?? dep.mrf?.id})` : `Request #${dep.mrfId ?? dep.mrf?.id}`,
+                href: `/ta/mrfs/${dep.mrfId ?? dep.mrf?.id}`,
+              }]
+            : []),
           { label: "Site", value: dep.site || "Client site" },
           { label: "Contract ends", value: contractEndText(dep.contractEnd) },
-          { label: "Employee number", value: <span className="font-mono tabular-nums">{emp?.employeeNumber || "Not recorded"}</span> },
+          {
+            label: "Employee number",
+            value: <span className="font-mono tabular-nums">{emp?.employeeNumber || "Not recorded"}</span>,
+            copyValue: emp?.employeeNumber || undefined,
+          },
         ]}
       />
 
@@ -210,7 +246,6 @@ export const DeploymentDetailPage: React.FC = () => {
                 ? dep.actualStart ? `Starts ${formatDate(dep.actualStart)}` : "Not started"
                 : `${dep.actualStart ? formatDate(dep.actualStart) : "Start date not recorded"} to ${dep.actualEnd ? formatDate(dep.actualEnd) : isActive ? "ongoing" : dep.status === DeploymentStatus.ENDED ? "end date not recorded" : "—"}`}
             </Field>
-            <Field label="Employee number"><span className="font-mono tabular-nums">{emp?.employeeNumber || "Not recorded"}</span></Field>
             <Field label="Phone">{profile?.mobileNumber || "Not recorded"}</Field>
             <Field label="Email">{displayEmail(emp?.user?.email) || "Not recorded"}</Field>
           </dl>
@@ -290,14 +325,31 @@ export const DeploymentDetailPage: React.FC = () => {
           <DateField
             label="Agreement end date (if specified)"
             value={agreementEnd}
-            min={dep.contractStart?.slice(0, 10) || undefined}
+            min={toManilaDateInput(dep.contractStart) || undefined}
             onChange={(event) => setAgreementEnd(event.target.value)}
             disabled={agreementHasNoEnd}
           />
-          <label className="flex min-h-11 items-center gap-2 text-sm text-slate-700 md:min-h-0">
-            <input type="checkbox" checked={agreementHasNoEnd} onChange={(event) => { setAgreementHasNoEnd(event.target.checked); if (event.target.checked) setAgreementEnd(""); }} />
-            This agreement has no fixed end date
-          </label>
+          <div className="flex min-h-11 items-center gap-2 text-sm text-slate-700 md:min-h-0">
+            <SelectBox
+              checked={agreementHasNoEnd}
+              onChange={() => {
+                const next = !agreementHasNoEnd;
+                setAgreementHasNoEnd(next);
+                if (next) setAgreementEnd("");
+              }}
+              label="This agreement has no fixed end date"
+            />
+            <span
+              className="cursor-pointer select-none"
+              onClick={() => {
+                const next = !agreementHasNoEnd;
+                setAgreementHasNoEnd(next);
+                if (next) setAgreementEnd("");
+              }}
+            >
+              This agreement has no fixed end date
+            </span>
+          </div>
           <Textarea label="Agreement update notes" value={agreementTerms} onChange={(event) => setAgreementTerms(event.target.value)} rows={3} placeholder="Record the extension or amendment details." />
           <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
             <Button variant="outline" size="sm" onClick={() => setAgreementModalOpen(false)}>Cancel</Button>

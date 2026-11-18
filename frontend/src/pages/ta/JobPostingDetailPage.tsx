@@ -70,6 +70,7 @@ import { TA_COPY } from "../../lib/ta-copy";
 import { useJobCandidateQueries } from "../../hooks/useJobCandidateQueries";
 import { getInitialJobCandidateView } from "../../lib/job-candidate-query-policy";
 import { useRecordBase, recordRootLabel } from "../../hooks/useRecordBase";
+import { resolveUserName } from "../../lib/user-name";
 
 // Backend fields that have an inline input on this form. Any other field's message goes in the toast.
 
@@ -310,7 +311,19 @@ export const JobPostingDetailPage: React.FC = () => {
       key: "candidate",
       header: "Candidate",
       primary: true,
-      cell: (row) => candidateLabel(row),
+      cell: (row) =>
+        isAdmin ? (
+          <Link
+            to="/admin/applications/$applicationId"
+            params={{ applicationId: String(row.score.applicationId) }}
+            state={{ fromJob: { id: job.id, title: job.title } } as never}
+            className="font-medium text-navy underline-offset-2 hover:underline focus-ring"
+          >
+            {candidateLabel(row)}
+          </Link>
+        ) : (
+          candidateLabel(row)
+        ),
     },
     {
       key: "status",
@@ -347,6 +360,7 @@ export const JobPostingDetailPage: React.FC = () => {
           <Link
             to={isAdmin ? "/admin/applications/$applicationId" : "/ta/applications/$applicationId"}
             params={{ applicationId: String(row.score.applicationId) }}
+            state={isAdmin ? ({ fromJob: { id: job.id, title: job.title } } as never) : undefined}
             className="inline-flex min-h-11 items-center break-words text-sm font-semibold text-navy underline-offset-2 hover:underline focus-ring"
           >
             {row.rank}. {candidateLabel(row)}
@@ -387,6 +401,7 @@ export const JobPostingDetailPage: React.FC = () => {
 
   const hasSalary = Boolean(job.mrf?.salaryRangeMin || job.mrf?.salaryRangeMax);
   const mrfId = job.mrf?.id ?? job.mrfId;
+  const assignedTa = (job.mrf as { assignedTa?: Parameters<typeof resolveUserName>[0] } | undefined)?.assignedTa;
 
   return (
     <div className="space-y-6">
@@ -437,7 +452,17 @@ export const JobPostingDetailPage: React.FC = () => {
           </>
         }
         facts={[
-          { label: "Client", value: <span className="font-medium">{job.mrf?.client?.name || "Unassigned"}</span> },
+          job.mrf?.client?.id
+            ? { label: "Client", value: job.mrf.client.name || "Client", href: `${base}/clients/${job.mrf.client.id}` }
+            : { label: "Client", value: <span className="font-medium">{job.mrf?.client?.name || "Unassigned"}</span> },
+          ...(isAdmin
+            ? [
+                {
+                  label: "Recruiter",
+                  value: <span className="font-medium">{assignedTa ? resolveUserName(assignedTa) : "Unassigned"}</span>,
+                },
+              ]
+            : []),
           { label: "Work site", value: <span className="font-medium">{job.location || "Philippines"}</span> },
           {
             label: "Monthly pay",
@@ -520,6 +545,14 @@ export const JobPostingDetailPage: React.FC = () => {
           <div id="job-applicants" role="tabpanel" tabIndex={0}>
             {rankedCandidatesQuery.isLoading ? (
               <LoadingState variant="table" rows={4} />
+            ) : rankedCandidatesQuery.isError ? (
+              <div className="p-4">
+                <ErrorState
+                  subject="applicant matches"
+                  error={rankedCandidatesQuery.error}
+                  onRetry={() => void rankedCandidatesQuery.refetch()}
+                />
+              </div>
             ) : rankedScores.length === 0 ? (
               <>
               {invitationsButton && (
@@ -609,7 +642,7 @@ export const JobPostingDetailPage: React.FC = () => {
                       getRowId={(row) => String(row.score.id)}
                       renderCard={renderApplicantCard}
                       cardsBelow="lg"
-                      rowHref={(row) => `${isAdmin ? "/admin" : "/ta"}/applications/${row.score.applicationId}`}
+                      rowHref={isAdmin ? undefined : (row) => `/ta/applications/${row.score.applicationId}`}
                       footer={
                         <Pagination
                           variant="inset"

@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { adminApi } from "../../lib/api/admin.api";
 import {
@@ -11,13 +12,14 @@ import {
   ActionMenu,
   DataTable,
   type DataTableColumn,
+  type DataTableSort,
 } from "../../components/common";
 import { Button, Dialog, Input } from "../../components/ui";
 import { formatDateTime } from "../../lib/utils";
-import { RefreshCw, HardDrive, RotateCcw, Upload } from "lucide-react";
+import { Download, RefreshCw, HardDrive, RotateCcw, Upload } from "lucide-react";
 import type { DatabaseBackupRecord, MaintenanceProgress } from "../../lib/types/admin.types";
 import { backupDisplayName, backupDownloadName } from "../../lib/backup-name";
-import { FIELD_LIMITS } from "../../lib/field-limits";
+import { addManilaCalendarDays, FIELD_LIMITS, getManilaToday } from "../../lib/field-limits";
 import { formatAdminBackupStatus } from "../../lib/admin-copy";
 import { formatErrorMessage } from "../../lib/feedback";
 import { FeedbackBanner, ToneBadge } from "./admin-ui";
@@ -57,6 +59,17 @@ const dateInputClass =
 export const DatabaseMaintenancePage: React.FC = () => {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const navigate = useNavigate();
+  const urlSearch = useSearch({ strict: false }) as {
+    q?: string;
+    status?: string;
+    range?: string;
+    startDate?: string;
+    endDate?: string;
+    sort?: string;
+    dir?: "asc" | "desc";
+    page?: number;
+  };
 
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [backupNameInput, setBackupNameInput] = useState("");
@@ -73,17 +86,43 @@ export const DatabaseMaintenancePage: React.FC = () => {
   >(null);
   const [restoreConfirmInput, setRestoreConfirmInput] = useState("");
 
-  // Search & Filter State
-  const [search, setSearch] = useState("");
-  const [filterValues, setFilterValues] = useState<Record<string, string>>({});
-  const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [datePreset, setDatePreset] = useState<string>("ALL");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
+  // Search & Filter State synced with URL
+  const [search, setSearch] = useState(urlSearch.q ?? "");
+  useEffect(() => {
+    setSearch(urlSearch.q ?? "");
+  }, [urlSearch.q]);
 
-  // Pagination State
-  const [page, setPage] = useState(1);
-  const pageSize = 10;
+  const statusFilter = urlSearch.status || "ALL";
+  const datePreset = urlSearch.range || "ALL";
+  const startDate = urlSearch.startDate ?? "";
+  const endDate = urlSearch.endDate ?? "";
+
+  // Pagination & Sort State
+  const page = urlSearch.page && urlSearch.page > 0 ? urlSearch.page : 1;
+  const [pageSize, setPageSize] = useState<10 | 25 | 50>(10);
+  const sort: DataTableSort = {
+    key: urlSearch.sort && ["name", "created", "size"].includes(urlSearch.sort) ? urlSearch.sort : "created",
+    direction: urlSearch.dir === "asc" ? "asc" : "desc",
+  };
+
+  const updateUrlSearch = (patch: Record<string, unknown>) => {
+    void navigate({
+      to: "/admin/maintenance",
+      search: (prev: Record<string, unknown>) => ({ ...prev, ...patch }),
+      replace: true,
+    } as never);
+  };
+
+  useEffect(() => {
+    const trimmed = search.trim();
+    const current = urlSearch.q ?? "";
+    if (trimmed === current) return;
+    const timer = setTimeout(() => {
+      updateUrlSearch({ q: trimmed || undefined, page: undefined });
+    }, 250);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, urlSearch.q]);
 
   const [lastActionResult, setLastActionResult] = useState<{
     type: "SUCCESS" | "FAILED";
@@ -272,47 +311,41 @@ export const DatabaseMaintenancePage: React.FC = () => {
 
   const backups = useMemo(() => backupsQuery.data || [], [backupsQuery.data]);
 
-  // Effective start and end dates based on preset or custom pickers
+  // Effective start and end dates based on Manila calendar days
   const effectiveDates = useMemo(() => {
     if (datePreset === "CUSTOM") {
       return { startDate: startDate || undefined, endDate: endDate || undefined };
     }
-    const now = new Date();
+    const today = getManilaToday();
     if (datePreset === "TODAY") {
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      return { startDate: today.toISOString() };
+      return { startDate: today };
     }
     if (datePreset === "7D") {
-      const d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      return { startDate: d.toISOString() };
+      return { startDate: addManilaCalendarDays(today, -7) };
     }
     if (datePreset === "30D") {
-      const d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      return { startDate: d.toISOString() };
+      return { startDate: addManilaCalendarDays(today, -30) };
     }
     return { startDate: undefined, endDate: undefined };
   }, [datePreset, startDate, endDate]);
 
-  // Client-side filtering logic
+  // Client-side filtering & sorting logic
   const filteredBackups = useMemo(() => {
-    return backups.filter((b) => {
+    const kept = backups.filter((b) => {
       // 1. Status filter
-      const activeStatus = filterValues.status || statusFilter;
-      if (activeStatus !== "ALL" && activeStatus) {
-        if (b.status !== activeStatus) {
-          return false;
-        }
+      if (statusFilter !== "ALL" && statusFilter && b.status !== statusFilter) {
+        return false;
       }
 
-      // 2. Date filter
+      // 2. Date filter (Manila day boundaries)
       if (effectiveDates.startDate) {
         const createdAt = new Date(b.createdAt).getTime();
-        const start = new Date(effectiveDates.startDate).getTime();
+        const start = new Date(`${effectiveDates.startDate}T00:00:00+08:00`).getTime();
         if (createdAt < start) return false;
       }
       if (effectiveDates.endDate) {
         const createdAt = new Date(b.createdAt).getTime();
-        const end = new Date(effectiveDates.endDate).setHours(23, 59, 59, 999);
+        const end = new Date(`${effectiveDates.endDate}T23:59:59.999+08:00`).getTime();
         if (createdAt > end) return false;
       }
 
@@ -332,18 +365,50 @@ export const DatabaseMaintenancePage: React.FC = () => {
 
       return true;
     });
-  }, [backups, statusFilter, filterValues, effectiveDates, search]);
+
+    return [...kept].sort((a, b) => {
+      let cmp = 0;
+      if (sort.key === "name") {
+        cmp = backupDisplayName(a).localeCompare(backupDisplayName(b));
+      } else if (sort.key === "size") {
+        cmp = (a.sizeBytes ?? 0) - (b.sizeBytes ?? 0);
+      } else {
+        cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      }
+      return sort.direction === "asc" ? cmp : -cmp;
+    });
+  }, [backups, statusFilter, effectiveDates, search, sort.key, sort.direction]);
 
   // Pagination calculation
   const totalPages = Math.ceil(filteredBackups.length / pageSize) || 1;
+  const currentPage = Math.min(page, totalPages);
   const paginatedBackups = useMemo(() => {
-    const start = (page - 1) * pageSize;
+    const start = (currentPage - 1) * pageSize;
     return filteredBackups.slice(start, start + pageSize);
-  }, [filteredBackups, page, pageSize]);
+  }, [filteredBackups, currentPage, pageSize]);
+
+  const setPage = (nextPage: number) => updateUrlSearch({ page: nextPage > 1 ? nextPage : undefined });
+
+  const handlePageSizeChange = (nextSize: number) => {
+    const valid = nextSize === 25 || nextSize === 50 ? nextSize : 10;
+    setPageSize(valid);
+    updateUrlSearch({ page: undefined });
+  };
+
+  const handleSortChange = (next: DataTableSort) => {
+    updateUrlSearch({ sort: next.key, dir: next.direction, page: undefined });
+  };
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
-    setPage(1);
+  };
+
+  const handleDatePresetChange = (preset: string) => {
+    updateUrlSearch({
+      range: preset && preset !== "ALL" ? preset : undefined,
+      ...(preset !== "CUSTOM" ? { startDate: undefined, endDate: undefined } : {}),
+      page: undefined,
+    });
   };
 
   const handleFilterChange = (k: string, v: string) => {
@@ -351,30 +416,19 @@ export const DatabaseMaintenancePage: React.FC = () => {
       handleDatePresetChange(v || "ALL");
       return;
     }
-    setFilterValues((prev) => ({ ...prev, [k]: v }));
-    if (k === "status") {
-      setStatusFilter(v || "ALL");
-    }
-    setPage(1);
-  };
-
-  const handleDatePresetChange = (preset: string) => {
-    setDatePreset(preset);
-    if (preset !== "CUSTOM") {
-      setStartDate("");
-      setEndDate("");
-    }
-    setPage(1);
+    updateUrlSearch({ [k]: v || undefined, page: undefined });
   };
 
   const handleReset = () => {
     setSearch("");
-    setFilterValues({});
-    setStatusFilter("ALL");
-    setDatePreset("ALL");
-    setStartDate("");
-    setEndDate("");
-    setPage(1);
+    updateUrlSearch({
+      q: undefined,
+      status: undefined,
+      range: undefined,
+      startDate: undefined,
+      endDate: undefined,
+      page: undefined,
+    });
   };
 
   const framed = "rounded-md border border-slate-300 bg-white";
@@ -397,25 +451,28 @@ export const DatabaseMaintenancePage: React.FC = () => {
     {
       key: "name",
       header: "Backup name",
+      sortable: true,
       primary: true,
       cell: (b) => <span className="font-medium text-slate-900">{backupDisplayName(b)}</span>,
     },
     {
       key: "created",
       header: "Created",
+      sortable: true,
       cell: (b) => <span className="whitespace-nowrap text-slate-600">{formatDateTime(b.createdAt)}</span>,
     },
-    { key: "size", header: "Size", cell: (b) => <span className="text-slate-600">{formatBytes(b.sizeBytes)}</span> },
+    { key: "size", header: "Size", sortable: true, cell: (b) => <span className="text-slate-600">{formatBytes(b.sizeBytes)}</span> },
     {
       key: "status",
       header: "Status",
       cell: (b) => (
         <div>
-          <span title={b.status === "FAILED" && b.errorMessage ? b.errorMessage : undefined}>
-            <ToneBadge tone={statusTone(b.status)}>{formatAdminBackupStatus(b.status)}</ToneBadge>
-          </span>
+          <ToneBadge tone={statusTone(b.status)}>{formatAdminBackupStatus(b.status)}</ToneBadge>
+          {b.status === "FAILED" && b.errorMessage && (
+            <div className="mt-1 max-w-xs text-xs text-rose-700">{b.errorMessage}</div>
+          )}
           {b.status === "IN_PROGRESS" && formatProgress(b.progress) && (
-            <div className="mt-1 text-xs text-slate-500">Reading {formatProgress(b.progress)}</div>
+            <div className="mt-1 text-xs text-slate-600">Reading {formatProgress(b.progress)}</div>
           )}
         </div>
       ),
@@ -433,7 +490,22 @@ export const DatabaseMaintenancePage: React.FC = () => {
       key: "actions",
       header: "Actions",
       align: "right",
-      cell: (b) => <ActionMenu label={`Actions for ${backupDisplayName(b)}`} items={backupMenuItems(b)} />,
+      cell: (b) => (
+        <div className="inline-flex items-center justify-end gap-1.5">
+          {b.status === "SUCCESS" && (
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Download className="h-3.5 w-3.5" aria-hidden="true" />}
+              onClick={() => handleDownload(b)}
+              disabled={downloadingId === b.id}
+            >
+              {downloadingId === b.id ? "Downloading..." : "Download"}
+            </Button>
+          )}
+          <ActionMenu label={`Actions for ${backupDisplayName(b)}`} items={backupMenuItems(b)} />
+        </div>
+      ),
     },
   ];
 
@@ -442,29 +514,42 @@ export const DatabaseMaintenancePage: React.FC = () => {
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="break-words text-sm font-medium text-slate-950">{backupDisplayName(b)}</div>
-          <div className="mt-1 text-sm text-slate-500">{formatDateTime(b.createdAt)}</div>
+          <div className="mt-1 text-sm text-slate-600">{formatDateTime(b.createdAt)}</div>
         </div>
-        <ActionMenu label={`Actions for ${backupDisplayName(b)}`} items={backupMenuItems(b)} />
+        <div className="flex shrink-0 items-center gap-1.5">
+          {b.status === "SUCCESS" && (
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={<Download className="h-3.5 w-3.5" aria-hidden="true" />}
+              onClick={() => handleDownload(b)}
+              disabled={downloadingId === b.id}
+            >
+              {downloadingId === b.id ? "Downloading..." : "Download"}
+            </Button>
+          )}
+          <ActionMenu label={`Actions for ${backupDisplayName(b)}`} items={backupMenuItems(b)} />
+        </div>
       </div>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-        <div><dt className="text-slate-500">Size</dt><dd className="text-slate-700">{formatBytes(b.sizeBytes)}</dd></div>
+        <div><dt className="text-slate-600">Size</dt><dd className="text-slate-700">{formatBytes(b.sizeBytes)}</dd></div>
         <div>
-          <dt className="text-slate-500">Status</dt>
+          <dt className="text-slate-600">Status</dt>
           <dd className="mt-0.5"><ToneBadge tone={statusTone(b.status)}>{formatAdminBackupStatus(b.status)}</ToneBadge></dd>
         </div>
         {b.status === "IN_PROGRESS" && formatProgress(b.progress) && (
-          <div className="col-span-2"><dt className="text-slate-500">Progress</dt><dd className="text-slate-700">Reading {formatProgress(b.progress)}</dd></div>
+          <div className="col-span-2"><dt className="text-slate-600">Progress</dt><dd className="text-slate-700">Reading {formatProgress(b.progress)}</dd></div>
         )}
-        <div><dt className="text-slate-500">Created by</dt><dd className="break-all text-slate-700">{b.initiatedBy?.email || "System"}</dd></div>
+        <div><dt className="text-slate-600">Created by</dt><dd className="break-all text-slate-700">{b.initiatedBy?.email || "System"}</dd></div>
         {b.status === "FAILED" && b.errorMessage && (
-          <div className="col-span-2"><dt className="text-slate-500">Error</dt><dd className="text-rose-700">{b.errorMessage}</dd></div>
+          <div className="col-span-2"><dt className="text-slate-600">Error</dt><dd className="text-rose-700">{b.errorMessage}</dd></div>
         )}
       </dl>
     </div>
   );
 
   return (
-    <div className="space-y-5 max-w-7xl mx-auto">
+    <div className="space-y-5">
       <PageHeader
         flush
         title="Backups and recovery"
@@ -582,11 +667,12 @@ export const DatabaseMaintenancePage: React.FC = () => {
         searchValue={search}
         onSearchChange={handleSearchChange}
         filterValues={{
-          status: filterValues.status || "",
+          status: statusFilter === "ALL" ? "" : statusFilter,
           range: datePreset === "ALL" ? "" : datePreset,
         }}
         onFilterChange={handleFilterChange}
         onReset={handleReset}
+        hasActiveExternalFilters={datePreset === "CUSTOM" && Boolean(startDate || endDate)}
         filters={[
           { key: "status", label: "Status", placeholder: "All statuses", options: STATUS_OPTIONS },
           { key: "range", label: "Date range", placeholder: "All time", options: DATE_PRESET_OPTIONS },
@@ -597,25 +683,19 @@ export const DatabaseMaintenancePage: React.FC = () => {
               <input
                 type="date"
                 min="1900-01-01"
-                max="2100-12-31"
+                max={endDate || "2100-12-31"}
                 value={startDate}
-                onChange={(e) => {
-                  setStartDate(e.target.value);
-                  setPage(1);
-                }}
+                onChange={(e) => updateUrlSearch({ startDate: e.target.value || undefined, page: undefined })}
                 className={dateInputClass}
                 aria-label="Start date"
               />
-              <span className="text-sm text-slate-500">to</span>
+              <span className="text-sm text-slate-600">to</span>
               <input
                 type="date"
-                min="1900-01-01"
+                min={startDate || "1900-01-01"}
                 max="2100-12-31"
                 value={endDate}
-                onChange={(e) => {
-                  setEndDate(e.target.value);
-                  setPage(1);
-                }}
+                onChange={(e) => updateUrlSearch({ endDate: e.target.value || undefined, page: undefined })}
                 className={dateInputClass}
                 aria-label="End date"
               />
@@ -661,6 +741,8 @@ export const DatabaseMaintenancePage: React.FC = () => {
             rows={paginatedBackups}
             getRowId={(b) => b.id}
             renderCard={renderCard}
+            sort={sort}
+            onSortChange={handleSortChange}
             empty={
               <EmptyState
                 bare
@@ -674,14 +756,16 @@ export const DatabaseMaintenancePage: React.FC = () => {
               />
             }
             footer={
-              filteredBackups.length > pageSize ? (
+              filteredBackups.length > 0 ? (
                 <div className="p-2">
                   <Pagination
-                    currentPage={page}
+                    currentPage={currentPage}
                     totalPages={totalPages}
                     onPageChange={setPage}
+                    onPageSizeChange={handlePageSizeChange}
                     totalItems={filteredBackups.length}
                     pageSize={pageSize}
+                    variant="inset"
                     itemLabel="backups"
                   />
                 </div>

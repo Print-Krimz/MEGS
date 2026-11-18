@@ -72,7 +72,7 @@ export const BulkActionBar: React.FC<BulkActionBarProps> = ({ count, onClear, em
         <div
           role="region"
           aria-label="Bulk actions"
-          className="fixed inset-x-3 bottom-4 z-40 mx-auto flex max-w-3xl flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-navy bg-white px-3 py-2 shadow-modal lg:left-[17rem] lg:right-4"
+          className="fixed inset-x-3 bottom-4 z-40 mx-auto flex max-w-3xl flex-wrap items-center gap-x-4 gap-y-2 rounded-md border border-navy bg-white px-3 py-2 shadow-modal lg:left-[calc(var(--portal-sidebar-w,16rem)+1rem)] lg:right-4"
         >
           {bar}
         </div>

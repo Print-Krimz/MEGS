@@ -8,6 +8,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { settingsApi } from "../../lib/api/settings.api";
 import { getSessionGeneration, onSessionGenerationChange } from "../../lib/auth/session-generation";
 import { DISPLAY_NAME_MAX_LENGTH, staffDisplayNameSchema } from "../../lib/user-name";
+import { TA_COPY } from "../../lib/ta-copy";
 import { Role } from "../../lib/types/enums";
 import { JobAlertsSection } from "../../components/applicant/JobAlertsSection";
 import type { AccountSettings } from "../../lib/types/settings.types";
@@ -54,7 +55,7 @@ function SettingsRow({ label, children, action }: { label: string; children: Rea
 
 function AccountRow({ label, value }: { label: string; value: string | null }) {
   return (
-    <SettingsRow label={label}>{value || <span className="text-slate-500">Not provided</span>}</SettingsRow>
+    <SettingsRow label={label}>{value || <span className="text-slate-600">Not provided</span>}</SettingsRow>
   );
 }
 
@@ -62,7 +63,7 @@ function SettingsLink({ to, children }: { to: string; children: React.ReactNode 
   return (
     <Link
       to={to}
-      className="inline-flex min-h-11 items-center text-sm font-medium text-navy underline-offset-4 hover:text-navy-hover hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus md:min-h-9"
+      className="inline-flex min-h-11 items-center text-sm font-medium text-navy underline-offset-4 hover:text-navy-hover hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
     >
       {children}
     </Link>
@@ -76,11 +77,21 @@ export const SettingsPage: React.FC = () => {
   const sessionGeneration = useSyncExternalStore(onSessionGenerationChange, getSessionGeneration, getSessionGeneration);
   const identityRef = useRef({ userId: user?.id, sessionGeneration });
   identityRef.current = { userId: user?.id, sessionGeneration };
-  return <SettingsContent key={`${user?.id ?? ""}:${sessionGeneration}`} userId={user?.id} sessionGeneration={sessionGeneration} identityRef={identityRef} refreshUser={refreshUser} />;
+  return (
+    <SettingsContent
+      key={`${user?.id ?? ""}:${sessionGeneration}`}
+      userId={user?.id}
+      userRole={user?.role}
+      sessionGeneration={sessionGeneration}
+      identityRef={identityRef}
+      refreshUser={refreshUser}
+    />
+  );
 };
 
-function SettingsContent({ userId, sessionGeneration, identityRef, refreshUser }: {
+function SettingsContent({ userId, userRole, sessionGeneration, identityRef, refreshUser }: {
   userId: string | undefined;
+  userRole: Role | undefined;
   sessionGeneration: number;
   identityRef: React.RefObject<{ userId: string | undefined; sessionGeneration: number }>;
   refreshUser: () => Promise<unknown>;
@@ -195,7 +206,22 @@ function SettingsContent({ userId, sessionGeneration, identityRef, refreshUser }
     setSaveMessage(null);
   };
 
-  const pageHeader = <PageHeader title="Settings" description="Your name, sign-in details and password." flush />;
+  const effectiveRole = account?.role ?? userRole;
+  const breadcrumbs =
+    effectiveRole === Role.ADMINISTRATOR
+      ? [{ label: "Administration", href: "/admin" }, { label: "Settings" }]
+      : effectiveRole === Role.TALENT_ACQUISITION
+        ? [{ label: TA_COPY.breadcrumbRoot, href: "/ta" }, { label: "Settings" }]
+        : undefined;
+
+  const pageHeader = (
+    <PageHeader
+      title="Settings"
+      description="Your name, sign-in details and password."
+      breadcrumbs={breadcrumbs}
+      flush
+    />
+  );
 
   if (settingsQuery.isPending && !settingsQuery.data) {
     return <>{pageHeader}<LoadingState variant="detail" message="Loading account settings…" /></>;

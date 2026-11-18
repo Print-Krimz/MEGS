@@ -1,24 +1,29 @@
 import React from "react";
 import { Link, useLocation, useParams } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { ArrowLeft, BellRing } from "lucide-react";
 import { adminApi } from "../../lib/api/admin.api";
-import { PageHeader, LoadingState, ErrorState } from "../../components/common";
+import {
+  PageHeader,
+  LoadingState,
+  ErrorState,
+  RecordSummary,
+  StatusBadge,
+  PipelineIndicator,
+  ScoreBadge,
+  type RecordSummaryFact,
+} from "../../components/common";
 import { Button } from "../../components/ui";
-import { formatDate } from "../../lib/utils";
-import { formatAdminPipelineStage } from "../../lib/admin-copy";
+import { displayEmail, formatDate } from "../../lib/utils";
+import { resolveUserName } from "../../lib/user-name";
+import { notify } from "../../lib/feedback";
 import { AnalyticsPanel } from "../../components/analytics";
 import { readReportReturnState } from "../../lib/admin-report-search";
 
 const titleCase = (value?: string | null) =>
   (value ?? "").replace(/_/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
 
-const Fact: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <div>
-    <dt className="text-xs font-medium text-slate-600">{label}</dt>
-    <dd className="mt-0.5 text-sm text-slate-900">{children}</dd>
-  </div>
-);
+const TERMINAL_STATUSES = new Set(["DEPLOYED", "REJECTED", "BACKOUT", "ARCHIVED", "TALENT_POOL"]);
 
 const Section: React.FC<{ title: string; empty: string; items: React.ReactNode[] }> = ({ title, empty, items }) => (
   <AnalyticsPanel title={title} aside={items.length > 0 ? items.length : undefined}>
@@ -39,9 +44,17 @@ const Section: React.FC<{ title: string; empty: string; items: React.ReactNode[]
 /** Read-only view of one application, opened from the reports. The recruiter makes any changes. */
 export const AdminApplicationPage: React.FC = () => {
   const { applicationId } = useParams({ strict: false }) as { applicationId: string };
+  const locationState = useLocation().state as { fromJob?: { id?: number; title?: string } } | undefined;
+  const fromJob = locationState?.fromJob?.id ? locationState.fromJob : undefined;
 
   // The report search this page was opened from. Anything that is not a valid report search returns to the default report.
-  const reportSearch = readReportReturnState(useLocation().state);
+  const reportSearch = readReportReturnState(locationState);
+  const reportQueryString = new URLSearchParams(
+    Object.entries(reportSearch)
+      .filter(([, v]) => v !== undefined && v !== "")
+      .map(([k, v]) => [k, String(v)]),
+  ).toString();
+  const reportsHref = reportQueryString ? `/admin/analytics?${reportQueryString}` : "/admin/analytics";
 
   const query = useQuery({
     queryKey: ["admin", "application", applicationId],
@@ -49,7 +62,28 @@ export const AdminApplicationPage: React.FC = () => {
     enabled: Boolean(applicationId),
   });
 
-  const back = (
+  const remindMutation = useMutation({
+    mutationFn: () => adminApi.remindRecruiters([Number(applicationId)]),
+    onSuccess: (result) => {
+      if (result.reminded > 0) {
+        notify.success("Recruiter reminded", "A reminder was sent to the assigned recruiter.");
+      } else {
+        notify.error("No one was reminded", "This application has no assigned recruiter.");
+      }
+    },
+    onError: (err) => {
+      notify.error("The reminder was not sent. Try again.", err);
+    },
+  });
+
+  const back = fromJob ? (
+    <Button asChild variant="outline" size="sm">
+      <Link to="/admin/jobs/$jobId" params={{ jobId: String(fromJob.id) }}>
+        <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+        Back to {fromJob.title || "job opening"}
+      </Link>
+    </Button>
+  ) : (
     <Button asChild variant="outline" size="sm">
       <Link to="/admin/analytics" search={reportSearch as never}>
         <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
@@ -58,10 +92,21 @@ export const AdminApplicationPage: React.FC = () => {
     </Button>
   );
 
+  const originBreadcrumbs = fromJob
+    ? [
+        { label: "Administration", href: "/admin" },
+        { label: "Job openings", href: "/admin/jobs" },
+        { label: fromJob.title || `Opening #${fromJob.id}`, href: `/admin/jobs/${fromJob.id}` },
+      ]
+    : [
+        { label: "Administration", href: "/admin" },
+        { label: "Reports", href: reportsHref },
+      ];
+
   if (query.isLoading) {
     return (
       <div className="space-y-5">
-        <PageHeader title="Application" flush actions={back} />
+        <PageHeader title="Application" flush breadcrumbs={[...originBreadcrumbs, { label: "Application" }]} actions={back} />
         <LoadingState variant="table" rows={4} />
       </div>
     );
@@ -70,7 +115,7 @@ export const AdminApplicationPage: React.FC = () => {
   if (query.isError || !query.data) {
     return (
       <div className="space-y-5">
-        <PageHeader title="Application" flush actions={back} />
+        <PageHeader title="Application" flush breadcrumbs={[...originBreadcrumbs, { label: "Application" }]} actions={back} />
         <ErrorState error={query.error} onRetry={() => query.refetch()} />
       </div>
     );
@@ -78,9 +123,51 @@ export const AdminApplicationPage: React.FC = () => {
 
   const app = query.data;
   const profile = app.user?.applicantProfile;
-  const name = [profile?.firstName, profile?.lastName].filter(Boolean).join(" ") || app.user?.email || "Candidate";
+  const name = resolveUserName(app.user, "") || displayEmail(app.user?.email) || "Candidate";
   const job = app.jobPosting;
   const client = job?.mrf?.client;
+  const owner = job?.mrf?.assignedTa ?? job?.assignedTa ?? null;
+  const ownerName = owner ? resolveUserName(owner, "") || displayEmail(owner.email) || "Assigned recruiter" : "Unassigned";
+  const canRemind = Boolean(owner) && !app.isArchived && !TERMINAL_STATUSES.has(app.status);
+  const shownEmail = displayEmail(app.user?.email);
+  const mobile = profile?.mobileNumber || null;
+  const fitScore = app.candidateFitScore ?? app.aiScore;
+
+  const facts: RecordSummaryFact[] = [
+    { label: "Assigned recruiter", value: ownerName },
+    { label: "Applied", value: formatDate(app.createdAt) },
+    { label: "Last updated", value: formatDate(app.updatedAt) },
+    {
+      label: "Job opening",
+      value: job ? (
+        <>
+          {job.title}
+          {job.location ? <span className="block text-xs font-normal text-slate-600">{job.location}</span> : null}
+        </>
+      ) : "—",
+      href: job ? `/admin/jobs/${job.id}` : undefined,
+    },
+    {
+      label: "Client",
+      value: client?.name ?? "—",
+      href: client ? `/admin/clients/${client.id}` : undefined,
+    },
+    {
+      label: "Request",
+      value: job?.mrf ? job.mrf.title : "Not linked to a request",
+      href: job?.mrf ? `/admin/mrfs/${job.mrf.id}` : undefined,
+    },
+    {
+      label: "Email",
+      value: shownEmail ?? "Not provided",
+      copyValue: shownEmail ?? undefined,
+    },
+    {
+      label: "Mobile",
+      value: mobile ?? "Not provided",
+      copyValue: mobile ?? undefined,
+    },
+  ];
 
   return (
     <div className="space-y-5">
@@ -88,43 +175,46 @@ export const AdminApplicationPage: React.FC = () => {
         title={name}
         flush
         description={`Application #${app.id}. Only the assigned recruiter can change it.`}
-        breadcrumbs={[{ label: "Administration", href: "/admin" }, { label: "Reports", href: "/admin/analytics" }, { label: name }]}
-        actions={back}
+        breadcrumbs={[...originBreadcrumbs, { label: name }]}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            {canRemind && (
+              <Button
+                variant="outline"
+                size="sm"
+                leftIcon={<BellRing className="w-3.5 h-3.5" aria-hidden="true" />}
+                loading={remindMutation.isPending}
+                onClick={() => remindMutation.mutate()}
+              >
+                Remind recruiter
+              </Button>
+            )}
+            {back}
+          </div>
+        }
       />
 
-      <section aria-label="Application summary" className="rounded-md border border-slate-300 bg-white p-3.5">
-        <dl className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <Fact label="Stage">{app.isArchived ? "Archived" : formatAdminPipelineStage(app.status)}</Fact>
-          <Fact label="Applied">{formatDate(app.createdAt)}</Fact>
-          <Fact label="Last updated">{formatDate(app.updatedAt)}</Fact>
-          <Fact label="Job opening">
-            {job?.title ?? "—"}
-            {job?.location ? <span className="block text-xs text-slate-600">{job.location}</span> : null}
-          </Fact>
-          <Fact label="Client">{client?.name ?? "—"}</Fact>
-          <Fact label="Request">
-            {job?.mrf ? (
-              <Link
-                to="/admin/mrfs/$mrfId"
-                params={{ mrfId: String(job.mrf.id) }}
-                className="focus-ring rounded-sm font-medium text-navy underline underline-offset-2 hover:text-navy-hover"
-              >
-                {job.mrf.title}
-              </Link>
-            ) : (
-              "Not linked to a request"
-            )}
-          </Fact>
-          <Fact label="Email">{app.user?.email ?? "—"}</Fact>
-          <Fact label="Mobile">{profile?.mobileNumber ?? "—"}</Fact>
-        </dl>
-        {app.backout && (
-          <p className="mt-3.5 border-t border-slate-200 pt-3 text-sm text-rose-800">
-            Backed out on {formatDate(app.backout.occurredAt)} at the {titleCase(app.backout.stage)} stage. Party: {titleCase(app.backout.party)}.
-            Reason: {titleCase(app.backout.reason)}.
-          </p>
-        )}
-      </section>
+      <RecordSummary
+        title={name}
+        subtitle={job?.title ? `${job.title}${client?.name ? ` · ${client.name}` : ""}` : undefined}
+        chips={
+          <>
+            <StatusBadge status={app.isArchived ? "ARCHIVED" : app.status} />
+            {fitScore != null && <ScoreBadge score={fitScore} size="sm" />}
+          </>
+        }
+        facts={facts}
+      >
+        <div className="space-y-3">
+          <PipelineIndicator currentStatus={app.status} variant="compact" />
+          {app.backout && (
+            <p className="border-t border-slate-200 pt-3 text-sm text-rose-800">
+              Backed out on {formatDate(app.backout.occurredAt)} at the {titleCase(app.backout.stage)} stage. Party: {titleCase(app.backout.party)}.
+              Reason: {titleCase(app.backout.reason)}.
+            </p>
+          )}
+        </div>
+      </RecordSummary>
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2 items-start">
         <Section

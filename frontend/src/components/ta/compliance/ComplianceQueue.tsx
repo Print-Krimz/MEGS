@@ -45,8 +45,11 @@ export interface ComplianceQueueProps {
   /** Rows after filters, across all pages. */
   totalItems: number;
   onPageChange: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
   itemLabel: string;
   isFetching?: boolean;
+  /** Optional action rendered for cleared candidates (zero open requirements). */
+  renderClearedAction?: (app: Application) => React.ReactNode;
 }
 
 /**
@@ -76,8 +79,10 @@ export const ComplianceQueue: React.FC<ComplianceQueueProps> = ({
   pageSize,
   totalItems,
   onPageChange,
+  onPageSizeChange,
   itemLabel,
   isFetching,
+  renderClearedAction: _renderClearedAction,
 }) => (
   <div className="space-y-4">
     <FilterTileRow columns={tiles.length === 3 ? 3 : 4}>
@@ -124,6 +129,7 @@ export const ComplianceQueue: React.FC<ComplianceQueueProps> = ({
           totalPages={Math.max(1, Math.ceil(totalItems / pageSize))}
           totalItems={totalItems}
           pageSize={pageSize}
+          onPageSizeChange={onPageSizeChange}
           onPageChange={onPageChange}
           itemLabel={itemLabel}
         />

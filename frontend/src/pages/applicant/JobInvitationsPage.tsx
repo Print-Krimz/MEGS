@@ -14,15 +14,15 @@ import { notify } from "../../lib/feedback";
 import { INVITATION_POLL_MS, pollInterval } from "../../lib/query-policies";
 import { useLiveStreamConnected } from "../../lib/live-stream-status";
 import { ApplicantJobInvitation } from "../../lib/types/applicant.types";
+import { getInvitationStatusMeta } from "../../components/applicant/RequirementStatusBadge";
 import {
   Mail,
   MapPin,
-  Clock,
   CheckCircle2,
   XCircle,
   MessageSquare,
   AlertCircle,
-  ArrowRight,
+  ExternalLink,
 } from "lucide-react";
 
 export const JobInvitationsPage: React.FC = () => {
@@ -119,68 +119,32 @@ export const JobInvitationsPage: React.FC = () => {
     });
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "ACCEPTED":
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-[#ECFDF5] text-[#047857] border border-[#047857]/20">
-            <CheckCircle2 className="w-3.5 h-3.5 text-[#047857]" />
-            <span>ACCEPTED</span>
-          </span>
-        );
-      case "DECLINED":
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-[#FEF2F2] text-[#DC2626] border border-[#DC2626]/20">
-            <XCircle className="w-3.5 h-3.5 text-[#DC2626]" />
-            <span>DECLINED</span>
-          </span>
-        );
-      case "EXPIRED":
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-[#F7F9FC] text-[#627D98] border border-[#D9E2EC]">
-            <Clock className="w-3.5 h-3.5 text-[#627D98]" />
-            <span>EXPIRED</span>
-          </span>
-        );
-      case "CANCELLED":
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-[#F7F9FC] text-[#627D98] border border-[#D9E2EC]">
-            <span>CANCELLED</span>
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono font-bold bg-[#FFF7ED] text-[#B45309] border border-[#B45309]/20">
-            <Mail className="w-3.5 h-3.5 text-[#B45309]" />
-            <span>ACTION REQUIRED</span>
-          </span>
-        );
-    }
-  };
-
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6">
       <PageHeader
         title="Job Invitations"
         description="Direct invitations from Talent Acquisition based on your verified skills and qualifications"
         breadcrumbs={[
-          { label: "My Applications", href: "/app/my-applications" },
+          { label: "My career", href: "/app" },
+          { label: "My Applications", href: "/app/applications" },
           { label: "Job Invitations" },
         ]}
       />
 
       {feedback && (
         <div
-          className={`p-3 rounded-lg border text-xs font-mono flex items-center justify-between ${
+          className={`p-3 rounded-xl border text-sm flex items-center justify-between gap-2 ${
             feedback.type === "success"
-              ? "bg-[#EAF0F7] border-[#D9E2EC] text-[#0B315D]"
-              : "bg-[#FEF2F2] border-[#DC2626]/30 text-[#DC2626]"
+              ? "bg-slate-50 border-slate-200 text-[#0B315D]"
+              : "bg-[#FEF2F2] border-[#FECACA] text-[#B91C1C]"
           }`}
         >
-          <span>{feedback.message}</span>
+          <span className="min-w-0 [overflow-wrap:anywhere]">{feedback.message}</span>
           <button
+            type="button"
+            aria-label="Dismiss message"
             onClick={() => setFeedback(null)}
-            className="text-[#627D98] hover:text-[#102A43] font-bold ml-4"
+            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-md text-[#486581] hover:bg-white/60 hover:text-[#102A43] font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D]"
           >
             ×
           </button>
@@ -192,17 +156,16 @@ export const JobInvitationsPage: React.FC = () => {
       ) : invitationsQuery.isError ? (
         <ErrorState error={invitationsQuery.error} onRetry={() => invitationsQuery.refetch()} />
       ) : invitations.length === 0 ? (
-        <div className="bg-white rounded-xl border border-[#D9E2EC] p-8 shadow-xs">
+        <div className="bg-white rounded-xl border border-slate-200 p-8">
           <EmptyState
-            icon={<Mail className="w-8 h-8 text-[#627D98]" />}
+            bare
+            icon={<Mail className="w-8 h-8 text-[#486581]" />}
             title="No job invitations right now"
             description="When recruiters match your profile to open positions, invitations will appear here for you to accept or decline."
             action={
-              <Link to="/app/jobs">
-                <Button variant="primary" size="sm" rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
-                  Browse Open Jobs
-                </Button>
-              </Link>
+              <Button asChild variant="primary" size="md">
+                <Link to="/app/jobs">Browse Open Jobs</Link>
+              </Button>
             }
           />
         </div>
@@ -210,88 +173,108 @@ export const JobInvitationsPage: React.FC = () => {
         <div className="space-y-4">
           {invitations.map((inv) => {
             const isPending = inv.status === "PENDING";
+            const statusMeta = getInvitationStatusMeta(inv.status);
 
             return (
               <div
                 key={inv.id}
-                className={`bg-white rounded-xl border p-5 shadow-xs transition-all space-y-4 ${
-                  isPending ? "border-[#0B315D]/40 ring-1 ring-[#0B315D]/20" : "border-[#D9E2EC]"
+                className={`min-w-0 bg-white rounded-xl border p-5 transition-colors space-y-4 [overflow-wrap:anywhere] ${
+                  isPending ? "border-[#0B315D]/50 ring-1 ring-[#0B315D]/15" : "border-slate-200"
                 }`}
               >
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-[#D9E2EC] pb-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-base font-bold text-[#102A43]">{inv.title}</h3>
-                      {getStatusBadge(inv.status)}
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 border-b border-slate-200 pb-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-base font-bold text-[#0B315D]">
+                        <Link
+                          to="/app/jobs/$jobId"
+                          params={{ jobId: String(inv.jobPostingId) }}
+                          className="inline-flex min-h-11 items-center rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 md:min-h-0 applicant-touch:min-h-11 break-words"
+                        >
+                          {inv.title}
+                        </Link>
+                      </h2>
+                      <span className={statusMeta.className}>
+                        <statusMeta.Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                        {statusMeta.label}
+                      </span>
                     </div>
-                    <div className="text-xs text-[#627D98] font-mono flex items-center gap-3 mt-1">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-sm text-[#486581]">
                       {inv.location && (
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5 text-[#627D98]" />
-                          <span>{inv.location}</span>
+                        <span className="inline-flex min-w-0 max-w-full items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-[#486581] shrink-0" aria-hidden="true" />
+                          <span className="truncate">{inv.location}</span>
                         </span>
                       )}
-                      <span>•</span>
-                      <span>Received {formatDate(inv.createdAt)}</span>
+                      <span className="whitespace-nowrap">Received {formatDate(inv.createdAt)}</span>
                       {inv.expiresAt && isPending && (
-                        <>
-                          <span>•</span>
-                          <span className="text-[#B45309] font-semibold">
-                            Expires {formatDate(inv.expiresAt)}
-                          </span>
-                        </>
+                        <span className="text-[#B45309] font-semibold whitespace-nowrap">
+                          Expires {formatDate(inv.expiresAt)}
+                        </span>
                       )}
                     </div>
                   </div>
 
-                  {isPending && (
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleOpenDecline(inv)}
-                        leftIcon={<XCircle className="w-3.5 h-3.5 text-[#DC2626]" />}
-                      >
-                        Decline
-                      </Button>
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={() => handleOpenAccept(inv)}
-                        leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
-                      >
-                        Accept & Apply
-                      </Button>
-                    </div>
-                  )}
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <Link
+                      to="/app/jobs/$jobId"
+                      params={{ jobId: String(inv.jobPostingId) }}
+                      className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-[#0B315D] hover:bg-slate-50 hover:text-[#082747] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0B315D] focus-visible:ring-offset-2 transition-colors md:min-h-9 applicant-touch:min-h-11"
+                    >
+                      <span>View Job</span>
+                      <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+                    </Link>
+                    {isPending && (
+                      <>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="min-h-11 md:min-h-9 applicant-touch:min-h-11"
+                          onClick={() => handleOpenDecline(inv)}
+                          leftIcon={<XCircle className="w-3.5 h-3.5 text-[#DC2626]" />}
+                        >
+                          Decline
+                        </Button>
+                        <Button
+                          variant="primary"
+                          size="sm"
+                          className="min-h-11 md:min-h-9 applicant-touch:min-h-11"
+                          onClick={() => handleOpenAccept(inv)}
+                          leftIcon={<CheckCircle2 className="w-3.5 h-3.5" />}
+                        >
+                          Accept & Apply
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
 
                 {/* Recruiter Message */}
                 {inv.message && (
-                  <div className="p-3 bg-[#EAF0F7] border border-[#D9E2EC] rounded-lg text-xs space-y-1">
+                  <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-lg text-sm space-y-1">
                     <div className="text-[#0B315D] font-semibold flex items-center gap-1.5">
-                      <MessageSquare className="w-3.5 h-3.5 text-[#0B315D]" />
+                      <MessageSquare className="w-3.5 h-3.5 text-[#0B315D]" aria-hidden="true" />
                       <span>Note from Recruiter ({inv.invitedBy || "Talent Acquisition"})</span>
                     </div>
-                    <p className="text-[#102A43] leading-relaxed italic">"{inv.message}"</p>
+                    <p className="text-slate-700 leading-relaxed italic">"{inv.message}"</p>
                   </div>
                 )}
 
                 {/* Job Description & Requirements */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs leading-relaxed">
-                  <div>
-                    <h4 className="font-mono font-bold text-[#102A43] uppercase mb-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm leading-relaxed">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-[#0B315D] mb-1">
                       Role Overview
-                    </h4>
-                    <p className="text-[#627D98] whitespace-pre-line line-clamp-3">
+                    </h3>
+                    <p className="text-[#486581] whitespace-pre-line line-clamp-3">
                       {inv.description}
                     </p>
                   </div>
-                  <div>
-                    <h4 className="font-mono font-bold text-[#102A43] uppercase mb-1">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-[#0B315D] mb-1">
                       Key Qualifications
-                    </h4>
-                    <p className="text-[#627D98] whitespace-pre-line line-clamp-3">
+                    </h3>
+                    <p className="text-[#486581] whitespace-pre-line line-clamp-3">
                       {inv.requirements}
                     </p>
                   </div>
@@ -328,7 +311,7 @@ export const JobInvitationsPage: React.FC = () => {
             rows={3}
           />
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-[#D9E2EC]">
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
             <Button variant="outline" size="sm" onClick={() => setAcceptModalOpen(false)} disabled={respondMutation.isPending}>
               Cancel
             </Button>
@@ -353,7 +336,7 @@ export const JobInvitationsPage: React.FC = () => {
         description={`Decline invitation for ${selectedInvitation?.title}`}
       >
         <div className="space-y-4">
-          <div className="p-3 bg-[#F7F9FC] border border-[#D9E2EC] rounded-lg text-xs text-[#102A43] flex items-start gap-2">
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-[#102A43] flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-[#627D98] shrink-0 mt-0.5" />
             <span>
               Please let us know why you are declining so we can match you with better opportunities in the future.
@@ -381,7 +364,7 @@ export const JobInvitationsPage: React.FC = () => {
             rows={3}
           />
 
-          <div className="flex justify-end gap-2 pt-3 border-t border-[#D9E2EC]">
+          <div className="flex justify-end gap-2 pt-3 border-t border-slate-200">
             <Button variant="outline" size="sm" onClick={() => setDeclineModalOpen(false)} disabled={respondMutation.isPending}>
               Cancel
             </Button>

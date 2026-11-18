@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { keepPreviousData, useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import {
   LoadingState,
   ErrorState,
@@ -13,29 +13,23 @@ import {
   BulkResultDialog,
   SelectBox,
 } from "../../components/common";
-import { Button, Dialog, Input, Select, Textarea } from "../../components/ui";
+import { Button, Dialog } from "../../components/ui";
 import { TA_COPY } from "../../lib/ta-copy";
-import { employeesApi, type RedeploymentJobSuggestion, type RedeploymentStage } from "../../lib/api/employees.api";
+import { employeesApi, type RedeploymentStage } from "../../lib/api/employees.api";
 import { taApi } from "../../lib/api/ta.api";
-import { useMatchThreshold } from "../../components/common/ScoreBadge";
-import { cn, formatDate } from "../../lib/utils";
-import { notify } from "../../lib/feedback";
+import { cn } from "../../lib/utils";
 import { REFERENCE_QUERY_STALE_TIME_MS, SERVER_SEARCH_DEBOUNCE_MS, normalizeServerSearch } from "../../lib/query-policies";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
 import { useBulkInvite } from "../../hooks/useBulkInvite";
 import { useRowSelection } from "../../hooks/useRowSelection";
 import { BulkInviteDialog } from "../../components/ta/BulkInviteDialog";
-import { RadioRow } from "../../components/ta/AssistedResponseDialog";
 import { NoAccountChip } from "../../components/ta/walk-in/NoAccountChip";
 import { PoolSelectAll } from "../../components/ta/PoolSelectAll";
 import { PersonCell, StatusWithAge } from "../../components/ta/workforce/WorkforceRow";
 import { RedeploymentDetail, StageChip } from "../../components/ta/workforce/RedeploymentDetail";
+import { SmartPlacementDialog } from "../../components/ta/workforce/SmartPlacementDialog";
 import {
   REDEPLOYMENT_STAGES as STAGES,
-  daysSince,
-  matchTagClass,
-  suggestionReason,
-  suggestionTag,
   waitingAge,
   type RedeploymentRow,
 } from "../../components/ta/workforce/redeployment-helpers";
@@ -66,25 +60,11 @@ const useWideLayout = (): boolean => {
 };
 
 export const RedeploymentQueuePage: React.FC = () => {
-  const matchThreshold = useMatchThreshold();
-  const cache = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<RedeploymentStage | null>(null);
   const [assignmentTarget, setAssignmentTarget] = useState<Row | null>(null);
-  // Walk-ins without an account answer through the TA (recorded reply or SMS link).
-  const targetHasPortal = assignmentTarget?.hasPortalAccess ?? true;
-  const [targetJobId, setTargetJobId] = useState("");
-  const [assignmentMessage, setAssignmentMessage] = useState("");
-  // Until the TA edits the text, the message follows the template for the chosen job.
-  const [messageEdited, setMessageEdited] = useState(false);
-  const [jobSearch, setJobSearch] = useState("");
-  // null = automatic: Suggested when the worker has suggestions, otherwise All open jobs.
-  const [jobView, setJobView] = useState<"suggested" | "all" | null>(null);
-  const [clientFilter, setClientFilter] = useState("");
-  // INVITE: portal invitation. ASSIGN: the worker already said yes. TEXT: SMS offer link.
-  const [confirmMode, setConfirmMode] = useState<"INVITE" | "ASSIGN" | "TEXT" | null>(null);
-  const [assignChannel, setAssignChannel] = useState<"ASSISTED_PHONE" | "IN_PERSON">("ASSISTED_PHONE");
+  const [initialJobId, setInitialJobId] = useState<number | undefined>(undefined);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [drillOpen, setDrillOpen] = useState(false);
   const wide = useWideLayout();
@@ -122,11 +102,11 @@ export const RedeploymentQueuePage: React.FC = () => {
     setBulkInviteOpen(false);
   });
 
-  // Open jobs are only needed once a worker is chosen for assignment.
+  // Open jobs for bulk invite are only needed once bulk invite opens.
   const openJobsQuery = useQuery({
     queryKey: ["ta", "redeployment-open-jobs"],
     queryFn: () => taApi.listJobs({ status: "OPEN" }),
-    enabled: Boolean(assignmentTarget) || bulkInviteOpen,
+    enabled: bulkInviteOpen,
     staleTime: REFERENCE_QUERY_STALE_TIME_MS,
   });
 
@@ -135,142 +115,14 @@ export const RedeploymentQueuePage: React.FC = () => {
     if (query.data && !query.isPlaceholderData && page > totalPages) setPage(totalPages);
   }, [query.data, query.isPlaceholderData, page, totalPages]);
 
-  const assignRole = useMutation({
-    mutationFn: async (mode: "INVITE" | "ASSIGN" | "TEXT") => {
-      const invitation = await taApi.sendTalentPoolInvitation({
-        applicantProfileId: assignmentTarget!.applicantProfileId!,
-        targetJobId: Number(targetJobId),
-        message: invitationMessage.trim() || undefined,
-      });
-      // The offer exists from here on; a failed second step leaves it pending for Record reply or Text offer link.
-      try {
-        if (mode === "ASSIGN") {
-          await taApi.recordAssistedResponse(invitation.id, { decision: "ACCEPT", channel: assignChannel });
-        } else if (mode === "TEXT") {
-          const sms = await taApi.sendOfferSmsLink(invitation.id);
-          return { mode, sentTo: sms.sentTo };
-        }
-      } catch (error: any) {
-        return { mode, followUpError: String(error?.message || "Try again from the pending offer.") };
-      }
-      return { mode };
-    },
-    onSuccess: (result: { mode: "INVITE" | "ASSIGN" | "TEXT"; sentTo?: string; followUpError?: string }) => {
-      void cache.invalidateQueries({ queryKey: ["ta", "redeployment-queue"] });
-      void cache.invalidateQueries({ queryKey: ["ta", "redeployment-suggestions"] });
-      void cache.invalidateQueries({ queryKey: ["ta", "talent-pool", "invitations"] });
-      if (result.mode === "ASSIGN") void cache.invalidateQueries({ queryKey: ["ta", "applications"] });
-      const name = assignmentTarget?.name ?? "The worker";
-      const jobTitle = selectedJob?.title ?? "the job";
-      setAssignmentTarget(null);
-      setTargetJobId("");
-      setAssignmentMessage("");
-      setMessageEdited(false);
-      setConfirmMode(null);
-      if (result.followUpError) {
-        notify.error(
-          result.mode === "ASSIGN" ? "Offer saved, but the yes was not recorded" : "Offer saved, but the text was not sent",
-          `${result.followUpError} Use ${result.mode === "ASSIGN" ? "Record reply" : "Text offer link"} on ${name}'s pending offer.`
-        );
-      } else if (result.mode === "ASSIGN") {
-        notify.success("Assigned", `${name} now has an application for ${jobTitle}.`);
-      } else if (result.mode === "TEXT") {
-        notify.success("Offer texted", `Sent to ${result.sentTo}. ${name} can accept or decline from the link.`);
-      } else {
-        notify.success(
-          "Invitation sent",
-          targetHasPortal
-            ? "The worker can review and accept the open role from their portal."
-            : "Record their reply or text them an offer link from the pending invitation."
-        );
-      }
-    },
-    onError: (error: any) => {
-      setConfirmMode(null);
-      notify.error("Could not create the offer", error?.message || error);
-    },
-  });
-
-  if (query.isLoading) return <LoadingState variant="table" rows={5} />;
-  if (query.isError) return <ErrorState error={query.error} onRetry={() => query.refetch()} />;
-
-  const targetSuggestions = assignmentTarget ? suggestionsQuery.data?.items[assignmentTarget.id] : undefined;
-  const suggestedJobIds = new Map<number, RedeploymentJobSuggestion>();
-  if (targetSuggestions) {
-    // Matching jobs lead the picker, in ranked order, labelled with why they fit.
-    targetSuggestions.suggestions.forEach((suggestion) => suggestedJobIds.set(suggestion.jobId, suggestion));
-  }
-  const targetRanks = new Map((targetSuggestions?.suggestions ?? []).map((suggestion, index) => [suggestion.jobId, index]));
-  // Same-client is decided from the worker's own placement history, so every job at a
-  // previous client is flagged, not only the ones that made the suggestion list.
-  const pastClientIds = new Set((assignmentTarget?.pastClients ?? []).map((client) => client.id));
-  const isSameClientJob = (clientId: number | null | undefined) => clientId != null && pastClientIds.has(clientId);
-  const openJobs = openJobsQuery.data || [];
-  const selectedJob = openJobs.find((job) => String(job.id) === targetJobId);
-  const selectedSameClient = selectedJob ? isSameClientJob(selectedJob.mrf?.clientId) : false;
-
-  const jobCards = openJobs
-    .map((job) => {
-      const suggestion = suggestedJobIds.get(job.id);
-      const sameClient = isSameClientJob(job.mrf?.clientId);
-      return {
-        job,
-        suggestion,
-        sameClient,
-        suggested: sameClient || Boolean(suggestion),
-        // Same-client jobs first, then ranked suggestions, then everything else.
-        rank: sameClient ? -1 : suggestion ? targetRanks.get(job.id)! : Number.MAX_SAFE_INTEGER,
-      };
-    })
-    .sort((a, b) => a.rank - b.rank);
-  const jobQuery = jobSearch.trim().toLowerCase();
-  const visibleJobCards = jobQuery
-    ? jobCards.filter(({ job }) =>
-        `${job.title} ${job.mrf?.client?.name ?? ""} ${job.location ?? ""}`.toLowerCase().includes(jobQuery))
-    : jobCards;
-  const clientOptions = [...new Map(
-    openJobs.filter((job) => job.mrf?.clientId != null).map((job) => [String(job.mrf!.clientId), job.mrf?.client?.name || "General Client"])
-  )].sort((a, b) => a[1].localeCompare(b[1]));
-  const clientCards = clientFilter
-    ? visibleJobCards.filter(({ job }) => String(job.mrf?.clientId) === clientFilter)
-    : visibleJobCards;
-  const suggestedCards = clientCards.filter((card) => card.suggested);
-  const otherCards = clientCards.filter((card) => !card.suggested);
-  const totalSuggested = jobCards.filter((card) => card.suggested).length;
-  // Searching always looks through every job, so a suggestion tab can never hide a match.
-  const effectiveView = jobQuery ? "all" : (jobView ?? (totalSuggested > 0 ? "suggested" : "all"));
-
-  // A document is reused at any client when it is a general clearance, otherwise only at a client the worker already served.
-  const selectedClientId = selectedJob?.mrf?.clientId;
-  const reusableDocs = (targetSuggestions?.reusableDocuments ?? []).filter(
-    (doc) => doc.general || (selectedClientId != null && doc.clientIds.includes(selectedClientId))
-  );
-  const waitingDays = daysSince(assignmentTarget?.waitingSince ?? null);
-
-  const firstName = assignmentTarget?.name?.trim().split(/\s+/)[0] || "there";
-  const acceptLine = targetHasPortal
-    ? "Please review the role and accept it in your Applicant account."
-    : "Please let us know if you accept.";
-  const templateMessage = selectedJob
-    ? selectedSameClient
-      ? `Hi ${firstName}, we have an open ${selectedJob.title} role at ${selectedJob.mrf?.client?.name || "your previous client"}, where you worked before. Because you already know the client, your application goes straight to requirements and your valid documents are reused. ${acceptLine}`
-      : `Hi ${firstName}, we have an open ${selectedJob.title} role${selectedJob.mrf?.client?.name ? ` at ${selectedJob.mrf.client.name}` : ""} that fits your experience. If you accept, your application starts with screening. ${acceptLine}`
-    : "";
-  const invitationMessage = messageEdited ? assignmentMessage : templateMessage;
-
   const openAssignment = (row: Row, jobId?: number) => {
     setAssignmentTarget(row);
-    setTargetJobId(jobId ? String(jobId) : "");
-    setAssignmentMessage("");
-    setMessageEdited(false);
-    setJobSearch("");
-    setJobView(null);
-    setClientFilter("");
+    setInitialJobId(jobId);
   };
 
   const closeAssignment = () => {
     setAssignmentTarget(null);
-    setConfirmMode(null);
+    setInitialJobId(undefined);
   };
 
   const counts: Record<RedeploymentStage, number> = query.data?.summary.stages ?? { NEEDS_PLACEMENT: 0, WAITING_FOR_REPLY: 0, IN_PROGRESS: 0 };
@@ -339,14 +191,30 @@ export const RedeploymentQueuePage: React.FC = () => {
     />
   );
 
+  const hasActiveFilters = Boolean(stageFilter || search.trim());
   const emptyState = (
     <EmptyState
       bare
-      title={stageFilter || search ? "No workers match this view" : "No workers waiting for redeployment"}
+      title={hasActiveFilters ? "No workers match this view" : "No workers waiting for redeployment"}
       description={
-        stageFilter || search
+        hasActiveFilters
           ? "Clear the search or the selected group to see everyone in the queue."
           : "Workers who confirm they want another assignment will appear here after their previous placement ends."
+      }
+      action={
+        hasActiveFilters ? (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setSearch("");
+              setStageFilter(null);
+              setPage(1);
+            }}
+          >
+            Reset filters
+          </Button>
+        ) : undefined
       }
     />
   );
@@ -377,6 +245,7 @@ export const RedeploymentQueuePage: React.FC = () => {
         searchLabel="Search redeployment queue"
         searchPlaceholder="Search employee, previous client, or role"
         searchValue={search}
+        hasActiveExternalFilters={stageFilter !== null}
         onSearchChange={(value) => {
           setSearch(value);
           setPage(1);
@@ -392,6 +261,11 @@ export const RedeploymentQueuePage: React.FC = () => {
           Invite to a job
         </Button>
       </BulkActionBar>
+      {query.isLoading ? (
+        <LoadingState variant="table" rows={5} />
+      ) : query.isError ? (
+        <ErrorState subject="the redeployment queue" error={query.error} onRetry={() => query.refetch()} />
+      ) : (
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_26rem]">
         <section
           aria-label="Redeployment queue"
@@ -477,6 +351,7 @@ export const RedeploymentQueuePage: React.FC = () => {
           </aside>
         )}
       </div>
+      )}
       <BulkInviteDialog
         open={bulkInviteOpen}
         onClose={() => setBulkInviteOpen(false)}
@@ -508,307 +383,28 @@ export const RedeploymentQueuePage: React.FC = () => {
       >
         {selectedRow && detailFor(selectedRow)}
       </Dialog>
-      <Dialog
+      <SmartPlacementDialog
         open={Boolean(assignmentTarget)}
         onClose={closeAssignment}
-        title={TA_COPY.workforce.actions.findJob}
-        description={
-          targetHasPortal
-            ? `Choose an open job to invite ${assignmentTarget?.name} to. They accept it from their applicant account.`
-            : `Choose an open job for ${assignmentTarget?.name}. They have no applicant account, so you assign them or text them the offer.`
+        initialJobId={initialJobId}
+        suggestions={assignmentTarget ? suggestionsQuery.data?.items[assignmentTarget.id] : undefined}
+        target={
+          assignmentTarget
+            ? {
+                employeeId: assignmentTarget.id,
+                name: assignmentTarget.name,
+                applicantProfileId: assignmentTarget.applicantProfileId,
+                hasPortalAccess: assignmentTarget.hasPortalAccess,
+                hasMobile: assignmentTarget.hasMobile,
+                maskedMobile: assignmentTarget.maskedMobile,
+                previousClient: assignmentTarget.previousClient,
+                previousRole: assignmentTarget.previousRole,
+                waitingSince: assignmentTarget.waitingSince,
+                pastClients: assignmentTarget.pastClients,
+              }
+            : null
         }
-        size="xl"
-      >
-        <div className="space-y-4">
-          <div className="space-y-1 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
-            <div className="flex flex-wrap items-center gap-2 font-semibold text-slate-900">
-              {assignmentTarget?.name}
-              <NoAccountChip hasPortalAccess={assignmentTarget?.hasPortalAccess} />
-            </div>
-            <div>
-              Last placement:{" "}
-              {assignmentTarget?.previousClient || assignmentTarget?.previousRole
-                ? [assignmentTarget?.previousRole, assignmentTarget?.previousClient].filter(Boolean).join(" at ")
-                : "none on record"}
-            </div>
-            <div>
-              {waitingDays === null ? "Waiting time not recorded" : `Waiting ${waitingDays} day${waitingDays === 1 ? "" : "s"}`}
-              {" · "}
-              {targetSuggestions?.reusableDocuments?.length
-                ? `${targetSuggestions?.reusableDocuments?.length} document${targetSuggestions?.reusableDocuments?.length === 1 ? "" : "s"} still valid`
-                : "no valid documents on file"}
-            </div>
-          </div>
-          {!assignmentTarget?.applicantProfileId && (
-            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
-              This employee does not have an applicant profile linked to their account and cannot be invited directly.
-            </div>
-          )}
-
-          <div className="grid gap-5 lg:grid-cols-2">
-          <div className="space-y-2">
-            <Input
-              label="Open job"
-              placeholder="Search all open jobs by title, client or location"
-              value={jobSearch}
-              onChange={(event) => setJobSearch(event.target.value)}
-            />
-            {!jobQuery && (
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex rounded-md border border-slate-200 p-0.5 text-xs" role="tablist" aria-label="Job list">
-                  {([
-                    { id: "suggested", label: `Suggested (${totalSuggested})` },
-                    { id: "all", label: `All open jobs (${openJobs.length})` },
-                  ] as const).map((tab) => (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={effectiveView === tab.id}
-                      onClick={() => setJobView(tab.id)}
-                      className={`rounded px-2.5 py-1 font-medium focus-ring ${
-                        effectiveView === tab.id ? "bg-navy text-white" : "text-slate-700 hover:bg-navy-soft"
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-                {effectiveView === "all" && clientOptions.length > 1 && (
-                  <Select
-                    aria-label="Filter by client"
-                    value={clientFilter}
-                    onChange={(event) => setClientFilter(event.target.value)}
-                    options={[{ value: "", label: "All clients" }, ...clientOptions.map(([value, label]) => ({ value, label }))]}
-                  />
-                )}
-              </div>
-            )}
-            {openJobsQuery.isLoading ? (
-              <p className="text-xs text-slate-600">Loading open jobs…</p>
-            ) : openJobsQuery.isError ? (
-              <p className="text-xs text-rose-700">Failed to load open jobs. Please try again.</p>
-            ) : effectiveView === "suggested" && suggestedCards.length === 0 ? (
-              <p className="text-xs text-slate-600">
-                No suggested jobs for this worker.{" "}
-                <button type="button" onClick={() => setJobView("all")} className="font-medium text-navy hover:underline">
-                  Browse all open jobs
-                </button>
-              </p>
-            ) : clientCards.length === 0 ? (
-              <p className="text-xs text-slate-600">No open jobs match your search or filter.</p>
-            ) : (
-              <div className="max-h-72 space-y-3 overflow-y-auto rounded-md border border-slate-200 p-2 lg:max-h-[30rem]" role="radiogroup" aria-label="Open jobs">
-                {[
-                  { heading: `Suggested for ${assignmentTarget?.name ?? "this worker"}`, cards: suggestedCards },
-                  { heading: suggestedCards.length ? "Other open jobs" : "", cards: effectiveView === "all" ? otherCards : [] },
-                ].map(({ heading, cards }) =>
-                  cards.length === 0 ? null : (
-                    <div key={heading || "all"} className="space-y-1.5">
-                      {heading && (
-                        <div className="px-1 text-xs font-bold tracking-wide text-slate-600">{heading}</div>
-                      )}
-                      {cards.map(({ job, suggestion, sameClient }) => {
-                        const selected = String(job.id) === targetJobId;
-                        return (
-                          <button
-                            key={job.id}
-                            type="button"
-                            role="radio"
-                            aria-checked={selected}
-                            onClick={() => setTargetJobId(String(job.id))}
-                            className={`block w-full rounded-md border p-2.5 text-left text-xs transition-colors focus-ring ${
-                              selected
-                                ? "border-navy bg-navy-soft"
-                                : sameClient
-                                  ? "border-amber-300 bg-amber-50/60 hover:bg-amber-50"
-                                  : "border-slate-200 bg-white hover:bg-slate-50"
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <span className="font-semibold text-slate-900">{job.title}</span>
-                              {(sameClient || suggestion) && (
-                                <span
-                                  className={`shrink-0 rounded border px-1.5 py-0.5 text-xs font-semibold ${
-                                    sameClient ? "border-amber-300 bg-amber-100 text-amber-900" : suggestion ? matchTagClass(suggestion, matchThreshold) : ""
-                                  }`}
-                                >
-                                  {sameClient ? "Same client" : suggestion ? suggestionTag(suggestion) : ""}
-                                </span>
-                              )}
-                            </div>
-                            <div className="mt-0.5 text-slate-600">
-                              {job.mrf?.client?.name || "General Client"} · {job.location || "On-site"}
-                            </div>
-                            {(sameClient || suggestion) && (
-                              <div className="mt-0.5 text-slate-600">
-                                {sameClient ? "Same client, skips screening" : suggestion ? suggestionReason(suggestion) : ""}
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-4">
-          {!selectedJob && (
-            <p className="rounded-md border border-dashed border-slate-300 p-3 text-xs text-slate-600">
-              Pick a job to see its details and what happens to the worker's documents.
-            </p>
-          )}
-          {selectedJob && (
-            <div role="status" className="space-y-2 rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-700">
-              <div>
-                <span className="font-semibold text-slate-900">{selectedJob.title}</span>
-                {" · "}
-                {[
-                  selectedJob.location,
-                  selectedJob.mrf?.employmentType,
-                  selectedJob.mrf?.workArrangement,
-                  selectedJob.mrf?.salaryRangeMin != null || selectedJob.mrf?.salaryRangeMax != null
-                    ? `₱${(selectedJob.mrf?.salaryRangeMin ?? 0).toLocaleString()}${selectedJob.mrf?.salaryRangeMax != null ? `–${selectedJob.mrf.salaryRangeMax.toLocaleString()}` : "+"}`
-                    : null,
-                  selectedJob._count ? `${selectedJob._count.applications} applicant${selectedJob._count.applications === 1 ? "" : "s"}` : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </div>
-              <div className={selectedSameClient ? "text-amber-900" : ""}>
-                {selectedSameClient ? (
-                  <>
-                    <span className="font-semibold">Same client as before ({selectedJob.mrf?.client?.name}).</span>{" "}
-                    If the worker accepts, screening is skipped and the application goes straight to Requirements.
-                  </>
-                ) : (
-                  <>
-                    <span className="font-semibold">
-                      New client for this worker{selectedJob.mrf?.client?.name ? ` (${selectedJob.mrf.client.name})` : ""}.
-                    </span>{" "}
-                    If the worker accepts, the application starts from screening like any new applicant.
-                  </>
-                )}
-              </div>
-              <div>
-                <span className="font-semibold text-slate-900">Documents reused: </span>
-                {reusableDocs.length === 0
-                  ? "none. The worker will upload every requirement."
-                  : reusableDocs
-                      .map((doc) => (doc.expiresAt ? `${doc.label} (valid to ${formatDate(doc.expiresAt)})` : `${doc.label} (no expiry)`))
-                      .join(", ")}
-              </div>
-            </div>
-          )}
-          <div className="space-y-1">
-            <Textarea
-              label="Invitation message"
-              placeholder="Pick a job and a message is filled in for you."
-              value={invitationMessage}
-              onChange={(event) => {
-                setAssignmentMessage(event.target.value);
-                setMessageEdited(true);
-              }}
-              rows={5}
-              maxLength={1000}
-            />
-            {messageEdited && templateMessage && (
-              <button
-                type="button"
-                onClick={() => setMessageEdited(false)}
-                className="text-xs font-medium text-navy hover:underline"
-              >
-                Reset to template
-              </button>
-            )}
-          </div>
-          <p className="text-xs text-slate-600">
-            {targetHasPortal
-              ? "The worker gets this invitation in their portal and can accept or decline it."
-              : assignmentTarget?.hasMobile
-                ? "Assign now if they already said yes by phone or in person. Otherwise text them the offer."
-                : "Assign now once they say yes by phone or in person. There is no mobile number to text."}
-          </p>
-          </div>
-          </div>
-          <div className="flex flex-wrap items-center justify-end gap-3">
-            {!targetJobId && <span className="text-xs text-slate-600">Pick a job first</span>}
-            <Button variant="outline" onClick={closeAssignment}>
-              Cancel
-            </Button>
-            {targetHasPortal ? (
-              <Button
-                variant="primary"
-                disabled={!targetJobId || !assignmentTarget?.applicantProfileId}
-                onClick={() => setConfirmMode("INVITE")}
-              >
-                {TA_COPY.workforce.actions.sendInvitation}
-              </Button>
-            ) : (
-              <>
-                {assignmentTarget?.hasMobile && (
-                  <Button
-                    variant="outline"
-                    disabled={!targetJobId || !assignmentTarget?.applicantProfileId}
-                    onClick={() => setConfirmMode("TEXT")}
-                  >
-                    Text the offer
-                  </Button>
-                )}
-                <Button
-                  variant="primary"
-                  disabled={!targetJobId || !assignmentTarget?.applicantProfileId}
-                  onClick={() => {
-                    setAssignChannel("ASSISTED_PHONE");
-                    setConfirmMode("ASSIGN");
-                  }}
-                >
-                  Assign now
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </Dialog>
-      <Dialog
-        open={confirmMode !== null && Boolean(selectedJob)}
-        onClose={() => (assignRole.isPending ? undefined : setConfirmMode(null))}
-        title={
-          confirmMode === "ASSIGN"
-            ? `Assign ${assignmentTarget?.name} to this job?`
-            : confirmMode === "TEXT"
-              ? `Text the offer to ${assignmentTarget?.maskedMobile ?? assignmentTarget?.name}?`
-              : "Send this invitation?"
-        }
-        description={
-          confirmMode === "ASSIGN"
-            ? `Only do this if ${assignmentTarget?.name} already said yes. Their application for ${selectedJob?.title ?? "this job"} starts right away.`
-            : confirmMode === "TEXT"
-              ? `${assignmentTarget?.name} gets an SMS with a link to accept or decline ${selectedJob?.title ?? "this job"}. The link works once.`
-              : `${selectedJob?.title ?? "This job"}${selectedJob?.mrf?.client?.name ? ` (${selectedJob.mrf.client.name})` : ""} will be sent to ${assignmentTarget?.name}.`
-        }
-      >
-        {confirmMode === "ASSIGN" && (
-          <fieldset className="mb-4 space-y-2" disabled={assignRole.isPending}>
-            <legend className="text-sm font-medium text-slate-900">How did they say yes?</legend>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <RadioRow name="assign-channel" value="ASSISTED_PHONE" label="Phone call" checked={assignChannel === "ASSISTED_PHONE"} onChange={() => setAssignChannel("ASSISTED_PHONE")} />
-              <RadioRow name="assign-channel" value="IN_PERSON" label="In person" checked={assignChannel === "IN_PERSON"} onChange={() => setAssignChannel("IN_PERSON")} />
-            </div>
-          </fieldset>
-        )}
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" disabled={assignRole.isPending} onClick={() => setConfirmMode(null)}>
-            Back
-          </Button>
-          <Button variant="primary" loading={assignRole.isPending} onClick={() => confirmMode && assignRole.mutate(confirmMode)}>
-            {confirmMode === "ASSIGN" ? "Assign now" : confirmMode === "TEXT" ? "Send text" : TA_COPY.workforce.actions.sendInvitation}
-          </Button>
-        </div>
-      </Dialog>
+      />
     </div>
   );
 };

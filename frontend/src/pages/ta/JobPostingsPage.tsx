@@ -35,6 +35,7 @@ import {
   SERVER_SEARCH_DEBOUNCE_MS,
 } from "../../lib/query-policies";
 import { useRecordBase, recordRootLabel } from "../../hooks/useRecordBase";
+import { resolveUserName } from "../../lib/user-name";
 
 const EMPTY_LIST: any[] = [];
 
@@ -45,6 +46,7 @@ type JobRow = any;
 
 export const JobPostingsPage: React.FC = () => {
   const base = useRecordBase();
+  const isAdmin = base === "/admin";
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const urlSearch = useSearch({ strict: false }) as { mrfId?: number | string };
@@ -336,6 +338,16 @@ export const JobPostingsPage: React.FC = () => {
       header: "Client",
       cell: (job) => job.mrf?.client?.name || "Not linked",
     },
+    ...(isAdmin
+      ? [
+          {
+            key: "recruiter",
+            header: "Recruiter",
+            cell: (job: JobRow) =>
+              job.mrf?.assignedTa ? resolveUserName(job.mrf.assignedTa) : <span className="text-slate-600">Unassigned</span>,
+          },
+        ]
+      : []),
     {
       key: "site",
       header: "Work site",
@@ -534,13 +546,15 @@ export const JobPostingsPage: React.FC = () => {
                   clearServerFieldError("mrfId");
                   handleSelectMRF(val);
                 }}
-                options={mrfs.map((m) => ({
-                  value: String(m.id),
-                  label: `${m.title} (Request #${m.id})`,
-                  subtitle: `Client: ${m.client?.name || "Client"} • ${m.location || "Nationwide"} • ${plural(m.headcount, "position")}`,
-                  badge: formatStatusWord(m.status),
-                  badgeTone: "teal" as const,
-                }))}
+                options={mrfs
+                  .filter((m) => m.status === "OPEN" || m.status === "IN_PROGRESS")
+                  .map((m) => ({
+                    value: String(m.id),
+                    label: `${m.title} (Request #${m.id})`,
+                    subtitle: `Client: ${m.client?.name || "Client"} • ${m.location || "Nationwide"} • ${plural(m.headcount, "position")}`,
+                    badge: formatStatusWord(m.status),
+                    badgeTone: "neutral" as const,
+                  }))}
                 helperText="The opening is posted under this request. Choosing one fills the title, work site, skills, and the job description."
                 required
                 emptyText="No open manpower requests found"
@@ -573,6 +587,18 @@ export const JobPostingsPage: React.FC = () => {
                 error={serverFieldErrors.requirements}
                 emptyText={selectedMrfId ? "This request has no requirements yet." : "Choose a manpower request to show its requirements."}
               />
+              {selectedMrfId && !formRequirements.trim() && (
+                <p className="text-xs text-slate-700">
+                  Add required skills or qualifications before publishing:{" "}
+                  <Link
+                    to={`${base}/mrfs/$mrfId` as never}
+                    params={{ mrfId: String(selectedMrfId) } as never}
+                    className="font-medium text-navy underline underline-offset-2 hover:text-navy-hover focus-ring"
+                  >
+                    Edit Request #{selectedMrfId}
+                  </Link>
+                </p>
+              )}
               <p className="text-xs text-slate-600">Copied from the manpower request. Edit these on the request.</p>
               <Input
                 label="Image web address (optional)"

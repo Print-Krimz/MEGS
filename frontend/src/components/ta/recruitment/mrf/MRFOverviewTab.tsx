@@ -1,8 +1,10 @@
 import React from "react";
+import { Link } from "@tanstack/react-router";
 import { ShieldCheck, Trash2 } from "lucide-react";
 import { Button } from "../../../ui";
 import { humanizeEnum } from "../../../../lib/labels";
 import { formatRequestReason, formatWorkSchedule } from "../../../../lib/mrf-schedule";
+import { useRecordBase } from "../../../../hooks/useRecordBase";
 
 const formatAgeRange = (min?: number | null, max?: number | null): string => {
   if (min != null && max != null) return `${min} - ${max} years old`;
@@ -64,7 +66,9 @@ interface MRFOverviewTabProps {
 }
 
 /** Request details, client contact and required documents. */
-export const MRFOverviewTab: React.FC<MRFOverviewTabProps> = ({ mrf, templates, readOnly, onAddDocument, onRemoveTemplate }) => (
+export const MRFOverviewTab: React.FC<MRFOverviewTabProps> = ({ mrf, templates, readOnly, onAddDocument, onRemoveTemplate }) => {
+  const base = useRecordBase();
+  return (
   <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
     <div className="lg:col-span-2">
       <Panel title="Request details and client criteria">
@@ -101,7 +105,17 @@ export const MRFOverviewTab: React.FC<MRFOverviewTabProps> = ({ mrf, templates, 
     <div className="space-y-5">
       <Panel title="Client information">
         <div className="space-y-2 text-sm">
-          <div className="font-semibold text-slate-900">{mrf.client?.name || "Client"}</div>
+          {mrf.client?.id ? (
+            <Link
+              to={`${base}/clients/$clientId` as never}
+              params={{ clientId: String(mrf.client.id) } as never}
+              className="font-semibold text-navy underline-offset-2 hover:underline focus-ring"
+            >
+              {mrf.client.name || "Client"}
+            </Link>
+          ) : (
+            <div className="font-semibold text-slate-900">{mrf.client?.name || "Client"}</div>
+          )}
           <div className="text-slate-700">Industry: {mrf.client?.industry || "Commercial"}</div>
           <div className="break-all text-slate-700">Contact: {mrf.client?.contactEmail || "Not provided"}</div>
         </div>
@@ -141,7 +155,7 @@ export const MRFOverviewTab: React.FC<MRFOverviewTabProps> = ({ mrf, templates, 
                       onClick={() => onRemoveTemplate({ id: tpl.id, label: tpl.documentLabel })}
                       aria-label={`Remove ${tpl.documentLabel}`}
                       title="Remove template"
-                      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded text-slate-500 hover:bg-rose-50 hover:text-rose-700 focus-visible:text-rose-700 focus-ring md:min-h-8 md:min-w-8"
+                      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded text-slate-600 hover:bg-rose-50 hover:text-rose-700 focus-visible:text-rose-700 focus-ring md:min-h-8 md:min-w-8"
                     >
                       <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
@@ -154,4 +168,5 @@ export const MRFOverviewTab: React.FC<MRFOverviewTabProps> = ({ mrf, templates, 
       </Panel>
     </div>
   </div>
-);
+  );
+};

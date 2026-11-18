@@ -207,8 +207,8 @@ export const KpiRow: React.FC<KpiRowProps> = ({ children, definitions }) => {
     (sum, group) => sum + (React.isValidElement<{ children?: React.ReactNode }>(group) ? React.Children.count(group.props.children) : 1),
     0,
   );
-  // Groups sit side by side only from xl; below that each group gets the full width so values never clip.
-  const gridCols = totalTiles === 5 ? "xl:grid-cols-5" : "xl:grid-cols-4";
+  // Groups sit side by side cleanly across md/lg/xl breakpoints without clipping.
+  const gridCols = totalTiles === 5 ? "sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5" : "sm:grid-cols-2 xl:grid-cols-4";
   return (
     <div>
       <div className={`grid gap-3.5 ${gridCols} md:gap-4`}>{children}</div>

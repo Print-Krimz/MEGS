@@ -22,14 +22,15 @@ export const LandingHeader: React.FC = () => {
 
   const dashboardPath = user ? getHomePath(user) : "/app";
 
+  // Ordered top-to-bottom to match LandingPage section flow so scroll-spy stays accurate.
   // "Why MEGS" only appears once a section with that id is on the page, so the link is never dead.
   const navLinks = useMemo(
     () => [
+      { label: "Jobs", href: "#jobs" },
+      { label: "Industries", href: "#industries" },
       { label: "About", href: "#about" },
       { label: "Services", href: "#services" },
       ...(hasWhySection ? [{ label: "Why MEGS", href: "#why-megs" }] : []),
-      { label: "Industries", href: "#industries" },
-      { label: "Jobs", href: "#jobs" },
       { label: "Branches", href: "#branches" },
       { label: "Contact", href: "#contact" },
     ],
@@ -77,13 +78,16 @@ export const LandingHeader: React.FC = () => {
     const update = () => {
       frame = 0;
       if (isManualScrollRef.current || window.scrollY < 120) return;
-      const line = window.innerHeight * 0.3;
+      const line = Math.max(120, window.innerHeight * 0.3);
       let current = "";
       for (const id of sectionIds) {
         const el = document.getElementById(id);
         if (el && el.getBoundingClientRect().top <= line) current = `#${id}`;
       }
-      if (current) setActiveNav(current);
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 24) {
+        current = `#${sectionIds[sectionIds.length - 1]}`;
+      }
+      setActiveNav(current);
     };
     const onScroll = () => {
       if (!frame) frame = window.requestAnimationFrame(update);
@@ -120,19 +124,22 @@ export const LandingHeader: React.FC = () => {
         >
           <Link
             to="/"
-            className={`flex origin-left items-center gap-3 rounded-md py-1 transition-transform duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none ${
+            className={`flex min-h-11 origin-left items-center gap-3 rounded-md py-1 transition-transform duration-300 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none ${
               scrolled ? "scale-[0.9]" : ""
             }`}
             aria-label="MEGS Home"
           >
-            <img
-              src="/images/canva-ref/megs-logo-352.webp"
-              alt="MEGS Inc. logo"
-              width={480}
-              height={348}
-              decoding="async"
-              className="h-10 w-auto shrink-0 sm:h-12"
-            />
+            <picture className="shrink-0">
+              <source srcSet="/images/canva-ref/megs-logo-352.webp" type="image/webp" />
+              <img
+                src="/images/canva-ref/megs-logo-480.jpg"
+                alt="MEGS Inc. logo"
+                width={480}
+                height={348}
+                decoding="async"
+                className="h-10 w-auto shrink-0 sm:h-11"
+              />
+            </picture>
             <span className="flex flex-col leading-none">
               <span className="whitespace-nowrap font-display text-xl text-primary sm:text-2xl">MEGS Inc.</span>
               <span className="mt-1 hidden whitespace-nowrap text-xs font-medium text-muted-foreground md:block min-[1140px]:hidden min-[1360px]:block">

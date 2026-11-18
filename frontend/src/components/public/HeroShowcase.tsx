@@ -1,10 +1,8 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
-import { applicantJobsApi } from "../../lib/api/applicant-jobs.api";
-import { useAuth } from "../../hooks/useAuth";
-import { Role } from "../../lib/types/enums";
+import { applicantJobsApi, type JobPosting } from "../../lib/api/applicant-jobs.api";
+import { formatEmploymentType, formatSalaryRange } from "../../lib/utils";
 import { EASE_OUT, m, useReducedMotion, useScroll, useTransform } from "./motion";
 import { megsPhoto } from "./megsPhotos";
 
@@ -105,9 +103,9 @@ const JOB_ROWS = 3;
 /** Newest postings from the first page the jobs section also loads (same key, same request). */
 const useOpenJobs = () => {
   const query = useQuery({
-    queryKey: ["public-open-jobs", { search: "", location: "", page: 1, pageSize: 4 }],
+    queryKey: ["public-open-jobs", { search: "", location: "", page: 1, pageSize: 6 }],
     queryFn: ({ signal }) =>
-      applicantJobsApi.getJobsPage({ search: undefined, location: undefined, page: 1, limit: 4 }, { signal }),
+      applicantJobsApi.getJobsPage({ search: undefined, location: undefined, page: 1, limit: 6 }, { signal }),
   });
   const latest = React.useMemo(
     () =>
@@ -130,37 +128,36 @@ const cityOf = (location?: string | null) => {
   return (hasStreet ? places[places.length - 1] : places[0]) ?? "";
 };
 
-const ROW_HEIGHT = "h-12";
+const ROW_HEIGHT = "min-h-12";
 
-const ROW_LINK =
-  "group/row -mx-2 flex h-full items-center justify-between gap-3 rounded-md px-2 text-white transition-colors duration-200 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 motion-reduce:transition-none";
+const ROW_BUTTON =
+  "group/row -mx-2 flex min-h-12 w-[calc(100%+1rem)] cursor-pointer items-center justify-between gap-3 rounded-md px-2 py-2.5 text-left text-white transition-colors duration-200 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 motion-reduce:transition-none";
 
 const VIEW_ALL_BUTTON =
   "group inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-secondary transition-[background-color,transform] duration-200 hover:bg-white/90 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-megs-navy-900 motion-reduce:transition-none motion-reduce:active:scale-100";
 
-const HiringCard: React.FC<{ onFindJobs: () => void }> = ({ onFindJobs }) => {
-  const navigate = useNavigate();
-  const { isAuthenticated, user } = useAuth();
+const HiringCard: React.FC<{ onFindJobs: () => void; onSelectJob: (job: JobPosting) => void }> = ({
+  onFindJobs,
+  onSelectJob,
+}) => {
   const { isLoading, isError, total, latest } = useOpenJobs();
   const ready = !isLoading && !isError && total > 0 && latest.length > 0;
 
-  // Mirrors the "View all jobs" button in the jobs section: applicants go straight in, everyone else signs in first.
-  const handleViewAll = () => {
-    if (isAuthenticated && user?.role === Role.APPLICANT) {
-      navigate({ to: "/app/jobs" });
-    } else {
-      navigate({ to: "/login", search: { redirect: "/app/jobs" } });
-    }
-  };
-
   const viewAll = (
-    <button type="button" onClick={handleViewAll} className={VIEW_ALL_BUTTON}>
-      View all jobs
+    <a
+      href="#jobs"
+      onClick={(e) => {
+        e.preventDefault();
+        onFindJobs();
+      }}
+      className={VIEW_ALL_BUTTON}
+    >
+      View all open roles
       <ArrowRight
         className="size-4 transition-transform duration-200 group-hover:translate-x-1 group-focus-visible:translate-x-1 motion-reduce:transition-none"
         aria-hidden="true"
       />
-    </button>
+    </a>
   );
 
   // No list to show (request failed or nothing published): keep the card calm and point to the full job board.
@@ -218,26 +215,39 @@ const HiringCard: React.FC<{ onFindJobs: () => void }> = ({ onFindJobs }) => {
             ))
           : latest.map((job) => {
               const city = cityOf(job.location || job.mrf?.location);
+              const employmentType = job.mrf?.employmentType
+                ? formatEmploymentType(job.mrf.employmentType)
+                : null;
+              const hasSalary = Boolean(
+                (job.mrf?.salaryRangeMin ?? 0) > 0 || (job.mrf?.salaryRangeMax ?? 0) > 0
+              );
+              const salary = hasSalary
+                ? formatSalaryRange(job.mrf?.salaryRangeMin, job.mrf?.salaryRangeMax)
+                : null;
+
               return (
                 <li key={job.id} className={ROW_HEIGHT}>
-                  <a
-                    href="#jobs"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      onFindJobs();
-                    }}
-                    className={ROW_LINK}
+                  <button
+                    type="button"
+                    onClick={() => onSelectJob(job)}
+                    className={ROW_BUTTON}
                   >
-                    {/* Title and city share one line; the city is muted so the title still leads. */}
-                    <span className="line-clamp-2 text-sm font-semibold leading-snug">
-                      {city ? `${job.title}, ` : job.title}
-                      {city ? <span className="font-normal text-white/70">{city}</span> : null}
+                    <span className="min-w-0 flex-1 space-y-1">
+                      <span className="block line-clamp-1 text-sm font-semibold leading-snug">
+                        {city ? `${job.title}, ` : job.title}
+                        {city ? <span className="font-normal text-white/75">{city}</span> : null}
+                      </span>
+                      {(employmentType || salary) && (
+                        <span className="block text-xs tabular-nums text-white/75">
+                          {[employmentType, salary].filter(Boolean).join(" · ")}
+                        </span>
+                      )}
                     </span>
                     <ArrowRight
-                      className="size-4 shrink-0 text-white/50 transition-[transform,color] duration-200 group-hover/row:translate-x-0.5 group-hover/row:text-white group-focus-visible/row:text-white motion-reduce:transition-none"
+                      className="size-4 shrink-0 text-white/60 transition-[transform,color] duration-200 group-hover/row:translate-x-0.5 group-hover/row:text-white group-focus-visible/row:translate-x-0.5 group-focus-visible/row:text-white motion-reduce:transition-none"
                       aria-hidden="true"
                     />
-                  </a>
+                  </button>
                 </li>
               );
             })}
@@ -248,6 +258,7 @@ const HiringCard: React.FC<{ onFindJobs: () => void }> = ({ onFindJobs }) => {
 
 export interface HeroShowcaseProps {
   onFindJobs: () => void;
+  onSelectJob: (job: JobPosting) => void;
 }
 
 /**
@@ -255,7 +266,7 @@ export interface HeroShowcaseProps {
  * Photos reveal one after another (0.1s apart), then the card rises. On desktop each layer drifts a
  * few pixels on scroll. Under reduced motion everything renders in its final state with no parallax.
  */
-export const HeroShowcase: React.FC<HeroShowcaseProps> = ({ onFindJobs }) => {
+export const HeroShowcase: React.FC<HeroShowcaseProps> = ({ onFindJobs, onSelectJob }) => {
   const reduceMotion = !!useReducedMotion();
   const desktop = useIsDesktop();
   const parallax = desktop && !reduceMotion;
@@ -326,7 +337,7 @@ export const HeroShowcase: React.FC<HeroShowcaseProps> = ({ onFindJobs }) => {
           >
             <span aria-hidden="true" className="absolute inset-x-0 top-0 z-10 h-1 bg-primary" />
             <div className="relative pt-1">
-              <HiringCard onFindJobs={onFindJobs} />
+              <HiringCard onFindJobs={onFindJobs} onSelectJob={onSelectJob} />
             </div>
           </section>
         </m.div>

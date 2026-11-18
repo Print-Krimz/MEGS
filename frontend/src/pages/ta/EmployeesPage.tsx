@@ -87,9 +87,16 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
   const clients = useQuery(taClientsQuery()).data ?? [];
   const allEmployees = employeesQuery.data || [];
   const totalPages = Math.max(1, Math.ceil(allEmployees.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  React.useEffect(() => {
+    if (employeesQuery.data && !employeesQuery.isPlaceholderData && page > totalPages) setPage(totalPages);
+  }, [employeesQuery.data, employeesQuery.isPlaceholderData, page, totalPages]);
   const paginatedEmployees = allEmployees.slice(
-    (page - 1) * pageSize,
-    page * pageSize
+    (safePage - 1) * pageSize,
+    safePage * pageSize
+  );
+  const hasActiveFilters = Boolean(
+    search.trim() || filterValues.status || filterValues.department || filterValues.clientId,
   );
 
   const handleSearchChange = (val: string) => {
@@ -139,7 +146,6 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
       hideBelow: "lg",
       cell: (emp) => <span className="font-mono text-xs tabular-nums text-slate-700">{emp.employeeNumber}</span>,
     },
-    { key: "action", header: "Action", align: "right", className: "whitespace-nowrap", cell: (emp) => recordAction(emp) },
   ];
 
   return (
@@ -191,7 +197,7 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
       {employeesQuery.isLoading ? (
         <LoadingState variant="table" rows={6} />
       ) : employeesQuery.isError ? (
-        <ErrorState error={employeesQuery.error} onRetry={() => employeesQuery.refetch()} />
+        <ErrorState subject="employees" error={employeesQuery.error} onRetry={() => employeesQuery.refetch()} />
       ) : (
         <DataTable
           caption="Employee records"
@@ -205,11 +211,17 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
             <EmptyState
               bare
               title="No employee records found"
-              description="Employee records will appear here after candidates are hired through the recruitment process."
+              description={
+                hasActiveFilters
+                  ? "No employee records match your current search or filters."
+                  : "Employee records will appear here after candidates are hired through the recruitment process."
+              }
               action={
-                <Button variant="outline" size="sm" onClick={handleReset}>
-                  Reset filters
-                </Button>
+                hasActiveFilters ? (
+                  <Button variant="outline" size="sm" onClick={handleReset}>
+                    Reset filters
+                  </Button>
+                ) : undefined
               }
             />
           }
@@ -226,7 +238,7 @@ export const EmployeesPage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader =
           footer={
             <Pagination
               variant="inset"
-              currentPage={page}
+              currentPage={safePage}
               totalPages={totalPages}
               totalItems={allEmployees.length}
               pageSize={pageSize}

@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, FileCheck2 } from "lucide-react";
 import { taApi } from "../../lib/api/ta.api";
-import { PageHeader, LoadingState, ErrorState, EmptyState, type DataTableColumn } from "../../components/common";
+import { PageHeader, LoadingState, ErrorState, EmptyState, FilterTile, FilterTileRow, SearchFilters, type DataTableColumn } from "../../components/common";
 import type { FilterConfig } from "../../components/common/SearchFilters";
 import { Button } from "../../components/ui";
 import {
@@ -282,6 +282,39 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
     return (
       <div className="space-y-6">
         {header}
+        <FilterTileRow columns={4}>
+          {tiles.map((tile) => (
+            <FilterTile
+              key={tile.id}
+              label={tile.label}
+              value={tile.value}
+              hint={tile.hint}
+              tone={tile.tone}
+              selected={urgencyFilter === tile.id}
+              onClick={() => {
+                setUrgencyFilter(tile.id as UrgencyFilter);
+                setPage(1);
+              }}
+            />
+          ))}
+        </FilterTileRow>
+        <SearchFilters
+          searchLabel="Search workers"
+          searchPlaceholder="Search worker, job title, or client"
+          searchValue={search}
+          onSearchChange={(value) => {
+            setSearch(value);
+            setPage(1);
+          }}
+          filters={filters}
+          filterValues={{ clientId: clientFilter, urgency: urgencyFilter === "ALL" ? "" : urgencyFilter }}
+          onFilterChange={(key, value) => {
+            if (key === "clientId") setClientFilter(value);
+            else if (key === "urgency") setUrgencyFilter((value as UrgencyFilter) || "ALL");
+            setPage(1);
+          }}
+          onReset={handleReset}
+        />
         <LoadingState variant="table" rows={5} />
       </div>
     );
@@ -312,7 +345,7 @@ export const PostDeploymentCompliancePage: React.FC<PostDeploymentCompliancePage
           tiles={tiles}
           selectedTile={urgencyFilter === "HEALTHY" ? "" : urgencyFilter}
           onTileChange={(id) => {
-            setUrgencyFilter(id as UrgencyFilter);
+            setUrgencyFilter((id || "ALL") as UrgencyFilter);
             setPage(1);
           }}
           searchLabel="Search workers"

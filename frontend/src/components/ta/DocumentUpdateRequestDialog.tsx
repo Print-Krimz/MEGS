@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button, Dialog, Input, Textarea } from "../ui";
+import { Button, Dialog, Textarea } from "../ui";
+import { DateField } from "../common/DateField";
 import { taApi } from "../../lib/api/ta.api";
 import { addManilaCalendarDays, getManilaToday } from "../../lib/field-limits";
 import { notify } from "../../lib/feedback";
@@ -20,8 +21,8 @@ export const DocumentUpdateRequestDialog: React.FC<{ target: { id: number; label
     <div className="space-y-4">
       <QuickNoteChips presets={DOC_UPDATE_REASON_PRESETS} currentValue={reason} onSelect={setReason} />
       <Textarea label="What needs updating?" value={reason} onChange={(event) => setReason(event.target.value)} rows={3} required placeholder="Explain the expiry, missing information, or correction needed." />
-      <Input label="Submission deadline" type="date" value={deadline} min={getManilaToday()} onChange={(event) => setDeadline(event.target.value)} required />
-      <div className="flex justify-end gap-2"><Button variant="outline" onClick={onClose}>Cancel</Button><Button variant="primary" disabled={!reason.trim() || !deadline || deadline < getManilaToday()} loading={mutation.isPending} onClick={() => mutation.mutate()}>Send request</Button></div>
+      <DateField label="Submission deadline" value={deadline} min={getManilaToday()} onChange={(event) => setDeadline(event.target.value)} required />
+      <div className="flex justify-end gap-2 border-t border-slate-100 pt-3"><Button variant="outline" size="sm" onClick={onClose}>Cancel</Button><Button variant="primary" size="sm" disabled={!reason.trim() || !deadline || deadline < getManilaToday()} loading={mutation.isPending} onClick={() => mutation.mutate()}>Send request</Button></div>
     </div>
   </Dialog>;
 };

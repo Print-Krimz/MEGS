@@ -43,6 +43,8 @@ export interface SearchFiltersProps {
   collapsed?: boolean;
   /** Active-filter count for the Filters button when the page tracks more than the filter selects (sort, toggles). */
   activeCount?: number;
+  /** Shows the Reset filters button when external controls (e.g. FilterTile, date range) are active. */
+  hasActiveExternalFilters?: boolean;
 }
 
 export const SearchFilters: React.FC<SearchFiltersProps> = ({
@@ -60,6 +62,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
   trailing,
   collapsed = false,
   activeCount,
+  hasActiveExternalFilters = false,
 }) => {
   const stacked = layout === "stacked";
   const idPrefix = useId();
@@ -109,7 +112,7 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
                     type="button"
                     onClick={() => onSearchChange("")}
                     aria-label={`Clear ${searchLabel.toLowerCase()}`}
-                    className="p-2 text-slate-500 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy"
+                    className="inline-flex min-h-11 min-w-11 md:min-h-9 md:min-w-9 items-center justify-center rounded-md text-slate-500 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-navy"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -180,14 +183,14 @@ export const SearchFilters: React.FC<SearchFiltersProps> = ({
         {stacked && showExtras && trailing}
 
         {/* Clear Filters CTA */}
-        {hasActiveFilters && onReset && (
+        {(hasActiveFilters || Boolean(hasActiveExternalFilters)) && onReset && (
           <button
             type="button"
             onClick={onReset}
             className="min-h-11 text-sm text-rose-700 hover:text-rose-900 flex items-center gap-1 font-medium select-none px-2 py-1 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-700 focus-visible:ring-offset-1 rounded"
           >
             <X className="w-3.5 h-3.5" />
-            <span>Reset Filters</span>
+            <span>Reset filters</span>
           </button>
         )}
       </div>

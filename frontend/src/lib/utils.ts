@@ -1,4 +1,4 @@
-import { ApplicationStatus, DeploymentStatus, EmploymentStatus } from "./types/enums";
+import { ApplicationStatus, DeploymentStatus, EmploymentStatus, Role } from "./types/enums";
 import { STAFF_STAGE_LABELS, TA_COPY } from "./ta-copy";
 import { getManilaToday, toManilaDateInput } from "./field-limits";
 
@@ -406,10 +406,14 @@ export function formatNotificationTitle(title?: string | null, role?: string): s
 /** Keeps legacy notification links inside the recipient's permitted workspace. */
 export function resolveNotificationLink(link?: string | null, role?: string): string | undefined {
   if (!link) return undefined;
-  if (role === "ADMINISTRATOR" && link.startsWith("/ta/")) {
-    if (link.startsWith("/ta/mrfs/")) return link.replace(/^\/ta\/mrfs\//, "/admin/mrfs/");
-    if (link.startsWith("/ta/applications/")) return link.replace(/^\/ta\/applications\//, "/admin/applications/");
-    // Other TA pages have no Admin view; opening them would land on Forbidden, so the notice just marks read.
+  if (role === Role.ADMINISTRATOR) {
+    if (/^\/ta\/(mrfs|jobs|clients)(?:$|[/?])/.test(link) || /^\/ta\/applications\/.+/.test(link)) {
+      return link.replace(/^\/ta\//, "/admin/");
+    }
+    if (/^\/admin(?:$|[/?])/.test(link)) {
+      return link;
+    }
+    // Other TA or applicant pages have no Admin view; opening them would land on Forbidden, so the notice just marks read.
     return undefined;
   }
   return link;
@@ -533,39 +537,46 @@ export function formatSalaryRange(
   return fallback;
 }
 
+const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {
+  REGULAR: "Regular",
+  PROBATIONARY: "Probationary",
+  CONTRACTUAL: "Contractual",
+  SEASONAL: "Seasonal",
+  PROJECT: "Project",
+  PROJECT_BASED: "Project-based",
+  FULL_TIME: "Full-time",
+  PART_TIME: "Part-time",
+  CONTRACT: "Contract",
+};
+
+const WORK_ARRANGEMENT_LABELS: Record<string, string> = {
+  FIELD: "Field",
+  ONSITE: "On-site",
+  ON_SITE: "On-site",
+  REMOTE: "Remote",
+  HYBRID: "Hybrid",
+};
+
+function toSentenceCase(value: string): string {
+  const cleaned = value.trim().replace(/_/g, " ").replace(/\s+/g, " ");
+  if (!cleaned) return "";
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1).toLowerCase();
+}
+
 /**
  * Format employment type enum into human-readable text
  */
 export function formatEmploymentType(type?: string | null): string {
-  if (!type) return "Full-time";
-  switch (type.toUpperCase()) {
-    case "FULL_TIME":
-      return "Full-time";
-    case "PART_TIME":
-      return "Part-time";
-    case "CONTRACT":
-      return "Contract";
-    case "PROJECT_BASED":
-      return "Project-based";
-    default:
-      return type.replace(/_/g, " ");
-  }
+  if (!type || !type.trim()) return "Full-time";
+  const key = type.trim().toUpperCase().replace(/[\s-]+/g, "_");
+  return EMPLOYMENT_TYPE_LABELS[key] ?? toSentenceCase(type);
 }
 
 /**
  * Format work arrangement into human-readable text
  */
 export function formatWorkArrangement(arrangement?: string | null): string {
-  if (!arrangement) return "On-site";
-  switch (arrangement.toUpperCase()) {
-    case "ONSITE":
-    case "ON_SITE":
-      return "On-site";
-    case "REMOTE":
-      return "Remote";
-    case "HYBRID":
-      return "Hybrid";
-    default:
-      return arrangement.replace(/_/g, " ");
-  }
+  if (!arrangement || !arrangement.trim()) return "On-site";
+  const key = arrangement.trim().toUpperCase().replace(/[\s-]+/g, "_");
+  return WORK_ARRANGEMENT_LABELS[key] ?? toSentenceCase(arrangement);
 }

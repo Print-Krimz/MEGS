@@ -16,7 +16,7 @@ export const ProfileHealthMeter: React.FC<ProfileHealthMeterProps> = ({
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#D9E2EC]">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
         <div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-[#102A43]">
@@ -56,9 +56,9 @@ export const ProfileHealthMeter: React.FC<ProfileHealthMeterProps> = ({
 
       {/* Progress Bar */}
       <div className="pt-3 space-y-2">
-        <div className="w-full bg-[#EAF0F7]/60 h-2 border border-[#D9E2EC] overflow-hidden rounded-full">
+        <div className="w-full bg-slate-100 h-1.5 overflow-hidden rounded-full">
           <div
-            className="h-full bg-[#0B315D] transition-all duration-300"
+            className="h-full bg-[#0B315D] rounded-full transition-all duration-300"
             style={{ width: `${health.score}%` }}
             role="progressbar"
             aria-valuenow={health.score}
@@ -76,8 +76,10 @@ export const ProfileHealthMeter: React.FC<ProfileHealthMeterProps> = ({
             )}
             <span>{health.nextActionTip}</span>
           </div>
-          <span className="text-[#486581] hidden md:inline">
-            {health.score >= 100 ? "100% Complete" : `${100 - health.score}% to 100%`}
+          <span className="text-slate-500 tabular-nums hidden md:inline">
+            {health.score >= 100 || health.missingItems.length === 0
+              ? "Complete"
+              : `${health.missingItems.length} ${health.missingItems.length === 1 ? "item" : "items"} remaining`}
           </span>
         </div>
       </div>

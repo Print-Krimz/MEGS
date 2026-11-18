@@ -22,17 +22,20 @@ export const ExportMenu: React.FC<ExportMenuProps> = ({ onExport, fileNamePrefix
   const panelId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Escape and a click outside close the panel; Escape puts focus back on the toggle.
+  // Escape, Tab and a click outside close the panel; Escape puts focus back on the toggle.
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpen(false);
         toggleRef.current?.focus();
+      } else if (event.key === "Tab") {
+        setOpen(false);
       }
     };
     const onPointerDown = (event: MouseEvent) => {
@@ -45,6 +48,22 @@ export const ExportMenu: React.FC<ExportMenuProps> = ({ onExport, fileNamePrefix
       document.removeEventListener("mousedown", onPointerDown);
     };
   }, [open]);
+
+  const handleMenuKeyDown = (index: number, e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      itemRefs.current[(index + 1) % OPTIONS.length]?.focus();
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      itemRefs.current[(index - 1 + OPTIONS.length) % OPTIONS.length]?.focus();
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      itemRefs.current[0]?.focus();
+    } else if (e.key === "End") {
+      e.preventDefault();
+      itemRefs.current[OPTIONS.length - 1]?.focus();
+    }
+  };
 
   const run = async (report: ReportKind, format: ReportFormat) => {
     if (busy) return;
@@ -92,12 +111,16 @@ export const ExportMenu: React.FC<ExportMenuProps> = ({ onExport, fileNamePrefix
       {open && (
         <div id={panelId} className="absolute right-0 z-20 mt-1 w-64 rounded-md border border-slate-300 bg-white py-1 shadow-md">
           <p className="px-3 py-1.5 text-xs text-slate-600">Uses the dates and filters above.</p>
-          {OPTIONS.map((o) => (
+          {OPTIONS.map((o, idx) => (
             <button
               key={`${o.report}-${o.format}`}
+              ref={(el) => {
+                itemRefs.current[idx] = el;
+              }}
               type="button"
               disabled={busy}
               onClick={() => run(o.report, o.format)}
+              onKeyDown={(e) => handleMenuKeyDown(idx, e)}
               className="block min-h-11 w-full px-3 py-2 text-left text-sm text-slate-800 hover:bg-slate-100 focus-visible:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus disabled:opacity-60 md:min-h-0"
             >
               {o.label}

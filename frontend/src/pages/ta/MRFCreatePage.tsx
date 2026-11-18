@@ -3,7 +3,7 @@ import { Loader2 } from "lucide-react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { taApi, type MRFFileField, type MRFFileReading } from "../../lib/api/ta.api";
-import { PageHeader, ConfirmDialog, DateField } from "../../components/common";
+import { PageHeader, ConfirmDialog, DateField, SelectBox } from "../../components/common";
 import { MRFCreateSummary, MRFStepList, type MRFStep } from "../../components/ta/recruitment/MRFCreateSummary";
 import { MRFFileReviewDialog, type MRFFileReviewRow } from "../../components/ta/MRFFileReviewDialog";
 import { cn } from "../../lib/utils";
@@ -973,20 +973,21 @@ export const MRFCreatePage: React.FC = () => {
               {fileNote("location")}
             </div>
 
-            <div className="flex items-start gap-3">
-              <input
-                id="mrf-requires-client-review"
-                type="checkbox"
+            <div className="flex items-start gap-2">
+              <SelectBox
                 checked={requiresClientReview}
-                onChange={(e) => setRequiresClientReview(e.target.checked)}
-                className="mt-0.5 h-5 w-5 rounded border-slate-400 text-navy focus-ring"
+                onChange={() => setRequiresClientReview((prev) => !prev)}
+                label="Requires client review"
               />
-              <label htmlFor="mrf-requires-client-review" className="min-w-0 text-sm text-slate-900">
+              <div
+                onClick={() => setRequiresClientReview((prev) => !prev)}
+                className="min-w-0 cursor-pointer pt-1 text-sm text-slate-900"
+              >
                 <span className="font-medium">Requires client review</span>
                 <span className="block text-xs text-slate-600">
                   Turn this off when the client does not review candidates, such as MEGS itself. Candidates then go from screening straight to the final interview.
                 </span>
-              </label>
+              </div>
             </div>
           </section>
 
@@ -1377,15 +1378,19 @@ export const MRFCreatePage: React.FC = () => {
             </fieldset>
 
             {jobAction !== "NONE" && (
-              <label className="flex min-h-11 md:min-h-8 cursor-pointer items-center gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800">
-                <input
-                  type="checkbox"
+              <div className="flex min-h-11 md:min-h-8 items-center gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-800">
+                <SelectBox
                   checked={isEvergreen}
-                  onChange={(e) => setIsEvergreen(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900"
+                  onChange={() => setIsEvergreen((prev) => !prev)}
+                  label="Keep job opening open for ongoing hiring (evergreen)"
                 />
-                <span>Keep job opening open for ongoing hiring (evergreen)</span>
-              </label>
+                <span
+                  className="cursor-pointer select-none"
+                  onClick={() => setIsEvergreen((prev) => !prev)}
+                >
+                  Keep job opening open for ongoing hiring (evergreen)
+                </span>
+              </div>
             )}
 
             <div className="border-t border-slate-200 pt-3">
@@ -1410,15 +1415,19 @@ export const MRFCreatePage: React.FC = () => {
                     {MANDATORY_REQUIREMENT_LABEL} is always required and added automatically.
                   </p>
 
-                  <label className="flex min-h-11 md:min-h-8 cursor-pointer items-center gap-2 text-xs text-slate-800">
-                    <input
-                      type="checkbox"
+                  <div className="flex min-h-11 md:min-h-8 items-center gap-2 text-xs text-slate-800">
+                    <SelectBox
                       checked={inheritClientTemplates}
-                      onChange={(e) => setInheritClientTemplates(e.target.checked)}
-                      className="focus-ring accent-navy h-4 w-4 rounded border-slate-300"
+                      onChange={() => setInheritClientTemplates((prev) => !prev)}
+                      label="Include client default document templates"
                     />
-                    <span>Include client default document templates</span>
-                  </label>
+                    <span
+                      className="cursor-pointer select-none"
+                      onClick={() => setInheritClientTemplates((prev) => !prev)}
+                    >
+                      Include client default document templates
+                    </span>
+                  </div>
 
                   <div className="space-y-3">
                     {REQUIREMENT_GROUPS.map((group) => (
@@ -1426,18 +1435,22 @@ export const MRFCreatePage: React.FC = () => {
                         <h3 className="text-xs font-semibold text-slate-800">{group.title}</h3>
                         <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                           {group.items.map((item) => (
-                            <label
+                            <div
                               key={item.label}
-                              className="flex min-h-11 md:min-h-8 cursor-pointer items-center gap-2 rounded border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800 hover:border-slate-300"
+                              className="flex min-h-11 md:min-h-8 items-center gap-2 rounded border border-slate-200 px-2.5 py-1 text-xs text-slate-800 hover:border-slate-300"
                             >
-                              <input
-                                type="checkbox"
+                              <SelectBox
                                 checked={selectedComplianceDocs.includes(item.label)}
                                 onChange={() => toggleComplianceDoc(item.label)}
-                                className="focus-ring accent-navy h-4 w-4 rounded border-slate-300"
+                                label={item.label}
                               />
-                              <span>{item.label}</span>
-                            </label>
+                              <span
+                                className="cursor-pointer select-none"
+                                onClick={() => toggleComplianceDoc(item.label)}
+                              >
+                                {item.label}
+                              </span>
+                            </div>
                           ))}
                         </div>
                       </div>

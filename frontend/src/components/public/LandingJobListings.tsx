@@ -1,17 +1,26 @@
 import React from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { applicantJobsApi } from "../../lib/api/applicant-jobs.api";
-import { useAuth } from "../../hooks/useAuth";
-import { Role } from "../../lib/types/enums";
-import { formatDate, formatEmploymentType, formatSalaryRange } from "../../lib/utils";
-import { Briefcase, MapPin, ArrowRight, AlertCircle, RefreshCw, Search } from "lucide-react";
-import { useDebouncedValue } from "../../hooks/useDebouncedValue";
-import { normalizeServerSearch, SERVER_SEARCH_DEBOUNCE_MS } from "../../lib/query-policies";
+import { Link } from "@tanstack/react-router";
+import {
+  AlertCircle,
+  ArrowRight,
+  Briefcase,
+  ChevronLeft,
+  ChevronRight,
+  MapPin,
+  RefreshCw,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/shadcn/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/shadcn/alert";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/shadcn/input-group";
+import { applicantJobsApi, type JobPosting } from "../../lib/api/applicant-jobs.api";
+import { useAuth } from "../../hooks/useAuth";
+import { useDebouncedValue } from "../../hooks/useDebouncedValue";
+import { normalizeServerSearch, SERVER_SEARCH_DEBOUNCE_MS } from "../../lib/query-policies";
 import { cn } from "../../lib/shadcn-utils";
+import { Role } from "../../lib/types/enums";
+import { formatDate, formatEmploymentType, formatSalaryRange } from "../../lib/utils";
+import { getJobEmployerName, stripMarkdownPreview } from "./PublicJobDetailDialog";
 import { SectionHeader } from "./SectionHeader";
 import { Reveal, m, staggerItem, staggerParent } from "./motion";
 
@@ -21,8 +30,6 @@ const HOW_IT_WORKS_STEPS = [
   { number: "3", title: "Interview and start", description: "Our recruiters call you for screening and deployment." },
 ];
 
-const POPULAR_SEARCHES = ["Production Worker", "Forklift Operator", "Warehouse Crew", "Delivery Driver"];
-
 /** Known types read as "Full-time"; anything else is sentence-cased from its enum value. */
 const employmentTypeLabel = (value: string) => {
   const known = formatEmploymentType(value);
@@ -31,154 +38,194 @@ const employmentTypeLabel = (value: string) => {
   return text.charAt(0).toUpperCase() + text.slice(1);
 };
 
-/** Shared by the real cards and their loading skeletons so the grid does not shift on load. */
-const CARD_MIN_HEIGHT = "min-h-[21rem] xl:min-h-[19rem]";
+/** Builds compact page numbers with ellipsis when there are many pages. */
+function buildPageSequence(currentPage: number, totalPages: number): Array<number | "ellipsis"> {
+  if (totalPages <= 7) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
+  }
+  const pages = new Set<number>([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
+  const sorted = Array.from(pages)
+    .filter((p) => p >= 1 && p <= totalPages)
+    .sort((a, b) => a - b);
+
+  const sequence: Array<number | "ellipsis"> = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) {
+      sequence.push("ellipsis");
+    }
+    sequence.push(sorted[i]);
+  }
+  return sequence;
+}
+
+const ActiveFilterChip: React.FC<{
+  label: string;
+  value: string;
+  removeLabel: string;
+  onRemove: () => void;
+}> = ({ label, value, removeLabel, onRemove }) => (
+  <span className="inline-flex items-center gap-1 rounded-md border border-border bg-page pl-2.5 pr-0.5 text-sm font-medium text-secondary">
+    <span>
+      {label}: {value}
+    </span>
+    <button
+      type="button"
+      onClick={onRemove}
+      aria-label={removeLabel}
+      className="inline-flex min-h-11 min-w-11 cursor-pointer items-center justify-center rounded hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-8 md:min-w-8"
+    >
+      <X className="size-3.5" aria-hidden="true" />
+    </button>
+  </span>
+);
 
 export interface LandingJobListingsProps {
   searchQuery: string;
   locationQuery: string;
-  onSearchChange: (value: string) => void;
-  onLocationChange: (value: string) => void;
+  selectedCategory: string;
+  selectedEmployer: string;
+  page: number;
+  onPageChange: (page: number) => void;
   onClearSearch: () => void;
-  /** Rendered between the search form and the results, e.g. the hiring-companies row. */
+  onClearKeyword: () => void;
+  onClearLocation: () => void;
+  onClearCategory: () => void;
+  onSelectJob: (job: JobPosting) => void;
+  /** Rendered in the filter header area, e.g. the hiring-companies row. */
   children?: React.ReactNode;
 }
 
 export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
   searchQuery,
   locationQuery,
-  onSearchChange,
-  onLocationChange,
+  selectedCategory,
+  selectedEmployer,
+  page,
+  onPageChange,
   onClearSearch,
+  onClearKeyword,
+  onClearLocation,
+  onClearCategory,
+  onSelectJob,
   children,
 }) => {
-  const navigate = useNavigate();
   const { isAuthenticated, user } = useAuth();
   const search = normalizeServerSearch(useDebouncedValue(searchQuery, SERVER_SEARCH_DEBOUNCE_MS));
   const location = normalizeServerSearch(useDebouncedValue(locationQuery, SERVER_SEARCH_DEBOUNCE_MS));
-  const pageSize = 4;
+  const pageSize = 6;
 
   const jobsQuery = useQuery({
-    queryKey: ["public-open-jobs", { search, location, page: 1, pageSize }],
-    queryFn: ({ signal }) => applicantJobsApi.getJobsPage({
-      search: search || undefined,
-      location: location || undefined,
-      page: 1,
-      limit: pageSize,
-    }, { signal }),
+    queryKey: ["public-open-jobs", { search, location, page, pageSize }],
+    queryFn: ({ signal }) =>
+      applicantJobsApi.getJobsPage(
+        {
+          search: search || undefined,
+          location: location || undefined,
+          page,
+          limit: pageSize,
+        },
+        { signal }
+      ),
     placeholderData: keepPreviousData,
   });
 
   const jobs = jobsQuery.data?.items ?? [];
   const totalJobs = jobsQuery.data?.total ?? 0;
-  const hasActiveFilter = Boolean(searchQuery || locationQuery);
+  const totalPages = Math.max(1, jobsQuery.data?.totalPages ?? Math.ceil(totalJobs / pageSize));
   const visibleJobs = jobs.slice(0, pageSize);
-  const remainingCount = Math.max(0, totalJobs - visibleJobs.length);
 
+  const trimmedKeyword = searchQuery.trim();
+  const trimmedLocation = locationQuery.trim();
+  const trimmedCategory = selectedCategory.trim();
+  const trimmedEmployer = selectedEmployer.trim();
+  const hasActiveFilter = Boolean(trimmedKeyword || trimmedLocation || trimmedCategory || trimmedEmployer);
+
+  const startItem = totalJobs === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endItem = Math.min((page - 1) * pageSize + visibleJobs.length, totalJobs);
   const isApplicant = isAuthenticated && user?.role === Role.APPLICANT;
 
-  const handleViewAllJobs = () => {
-    const params = new URLSearchParams();
-    if (searchQuery.trim()) params.set("q", searchQuery.trim());
-    if (locationQuery.trim()) params.set("location", locationQuery.trim());
-    const qs = params.toString();
-
-    if (isApplicant) {
-      navigate({
-        to: "/app/jobs",
-        search: Object.fromEntries(params) as any,
-      });
-    } else {
-      navigate({
-        to: "/login",
-        search: { redirect: qs ? `/app/jobs?${qs}` : "/app/jobs" },
-      });
-    }
+  const handlePageSelect = (nextPage: number) => {
+    if (nextPage < 1 || nextPage > totalPages || nextPage === page) return;
+    onPageChange(nextPage);
+    document.getElementById("jobs-results")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   };
 
   return (
-    <section id="jobs" className="scroll-mt-20 border-t border-border bg-page py-16 sm:py-24">
+    <section id="jobs" aria-labelledby="jobs-heading" className="scroll-mt-20 border-b border-border bg-page py-14 sm:py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <Reveal>
           <SectionHeader
             id="jobs-heading"
-            title="Featured jobs"
-            intro="Current openings at MEGS client companies. Apply online with a free account."
+            title="Open positions"
+            intro="Current openings at MEGS client companies. Select any role to view details or apply with a free account."
           />
         </Reveal>
 
-        <form
-          role="search"
-          aria-label="Job Search"
-          onSubmit={(e) => {
-            e.preventDefault();
-            document.getElementById("jobs-results")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
-          }}
-          className="mt-8 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
-        >
-          <InputGroup>
-            <InputGroupAddon>
-              <Search aria-hidden="true" />
-            </InputGroupAddon>
-            <InputGroupInput
-              type="text"
-              id="jobs-keyword"
-              aria-label="Job title or keyword"
-              placeholder="Job title or skill"
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-            />
-          </InputGroup>
-          <InputGroup>
-            <InputGroupAddon>
-              <MapPin aria-hidden="true" />
-            </InputGroupAddon>
-            <InputGroupInput
-              type="text"
-              id="jobs-location"
-              aria-label="Location"
-              placeholder="City or area"
-              value={locationQuery}
-              onChange={(e) => onLocationChange(e.target.value)}
-            />
-          </InputGroup>
-          <Button
-            type="submit"
-            size="lg"
-            className="transition-[background-color,transform] duration-150 active:scale-[0.98] motion-reduce:active:scale-100 sm:px-8"
+        {children && <div className="mt-6">{children}</div>}
+
+        {hasActiveFilter && (
+          <div
+            aria-label="Active job filters"
+            className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-background px-4 py-3"
           >
-            <Search data-icon="inline-start" aria-hidden="true" />
-            Search jobs
-          </Button>
-        </form>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium text-muted-foreground">Active filters:</span>
+              {trimmedEmployer ? (
+                <ActiveFilterChip
+                  label="Employer"
+                  value={trimmedEmployer}
+                  removeLabel="Remove employer filter"
+                  onRemove={onClearKeyword}
+                />
+              ) : (
+                trimmedKeyword && (
+                  <ActiveFilterChip
+                    label="Keyword"
+                    value={trimmedKeyword}
+                    removeLabel="Remove keyword filter"
+                    onRemove={onClearKeyword}
+                  />
+                )
+              )}
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <span className="mr-1 text-sm text-muted-foreground">Popular:</span>
-          {POPULAR_SEARCHES.map((tag) => (
-            <button
-              key={tag}
+              {trimmedCategory && (
+                <ActiveFilterChip
+                  label="Industry"
+                  value={trimmedCategory}
+                  removeLabel="Remove industry filter"
+                  onRemove={onClearCategory}
+                />
+              )}
+
+              {trimmedLocation && (
+                <ActiveFilterChip
+                  label="Location"
+                  value={trimmedLocation}
+                  removeLabel="Remove location filter"
+                  onRemove={onClearLocation}
+                />
+              )}
+            </div>
+
+            <Button
               type="button"
-              aria-pressed={searchQuery === tag}
-              onClick={() => onSearchChange(searchQuery === tag ? "" : tag)}
-              className="min-h-11 cursor-pointer rounded-full border border-border bg-background px-4 text-sm font-medium text-secondary transition-[color,background-color,border-color,transform] duration-150 hover:border-secondary active:scale-95 aria-pressed:border-secondary aria-pressed:bg-secondary aria-pressed:text-secondary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none motion-reduce:active:scale-100 md:pointer-fine:min-h-10"
+              variant="ghost"
+              size="sm"
+              onClick={onClearSearch}
+              className="min-h-11 text-accent md:min-h-9"
             >
-              {tag}
-            </button>
-          ))}
-        </div>
-
-        {children}
+              Clear filter
+            </Button>
+          </div>
+        )}
 
         <div id="jobs-results" className="scroll-mt-24">
           {jobsQuery.isLoading && (
             <ul className="mt-8 grid gap-4 md:grid-cols-2 md:gap-5" aria-hidden="true">
-              {[1, 2, 3, 4].map((idx) => (
+              {[1, 2, 3, 4, 5, 6].map((idx) => (
                 <li
                   key={idx}
-                  className={cn(
-                    "flex animate-pulse flex-col rounded-lg border border-border bg-background p-5 motion-reduce:animate-none sm:p-6",
-                    CARD_MIN_HEIGHT
-                  )}
+                  className="flex h-full animate-pulse flex-col rounded-xl border border-border bg-background p-5 motion-reduce:animate-none sm:p-6"
                 >
                   <div className="h-6 w-2/3 rounded-md bg-muted" />
                   <div className="mt-3 h-4 w-1/2 rounded-md bg-muted" />
@@ -200,7 +247,7 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
               <AlertTitle>Unable to load job listings</AlertTitle>
               <AlertDescription>
                 <p>The job list did not load. Check your connection and try again.</p>
-                <Button type="button" variant="outline" size="sm" className="mt-2" onClick={() => jobsQuery.refetch()}>
+                <Button type="button" variant="outline" size="sm" className="mt-2 min-h-11 md:min-h-10" onClick={() => jobsQuery.refetch()}>
                   <RefreshCw data-icon="inline-start" aria-hidden="true" />
                   <span>Retry</span>
                 </Button>
@@ -214,11 +261,11 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
               <h3 className="mt-4 text-base font-semibold text-secondary">No matching jobs</h3>
               <p className="mt-1 text-sm text-muted-foreground">
                 {hasActiveFilter
-                  ? `No open roles match "${searchQuery || locationQuery}". Check the spelling or try a broader term.`
+                  ? `No open roles match "${trimmedKeyword || trimmedLocation || trimmedCategory}". Check the spelling or try a broader term.`
                   : "No roles are open right now. Check back soon."}
               </p>
               {hasActiveFilter && (
-                <Button type="button" variant="secondary" className="mt-5" onClick={onClearSearch}>
+                <Button type="button" variant="secondary" className="mt-5 min-h-11" onClick={onClearSearch}>
                   Reset search filter
                 </Button>
               )}
@@ -229,33 +276,32 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
             <div className="mt-6">
               <div className="flex min-h-10 flex-wrap items-center justify-between gap-x-4 gap-y-1">
                 <p className="text-sm text-muted-foreground" role="status">
-                  {`Showing ${visibleJobs.length} of ${totalJobs} ${hasActiveFilter ? "matching" : "open"} ${totalJobs === 1 ? "role" : "roles"}`}
+                  {totalPages > 1
+                    ? `Showing ${startItem}–${endItem} of ${totalJobs} ${hasActiveFilter ? "matching" : "open"} roles`
+                    : `Showing ${visibleJobs.length} of ${totalJobs} ${hasActiveFilter ? "matching" : "open"} ${totalJobs === 1 ? "role" : "roles"}`}
                 </p>
-                {hasActiveFilter && (
-                  <Button type="button" variant="ghost" size="sm" onClick={onClearSearch} className="text-accent">
-                    Clear filter
-                  </Button>
-                )}
               </div>
 
-              {/* Keyed by the result set so a new search re-enters as a fresh staggered list. */}
+              {/* Keyed by the result set so a new search or page re-enters cleanly. */}
               <m.ul
-                key={visibleJobs.map((job) => job.id).join("-")}
+                key={`${page}-${visibleJobs.map((job) => job.id).join("-")}`}
                 aria-busy={jobsQuery.isFetching}
-                {...staggerParent(0.07)}
+                {...staggerParent(0.06)}
                 className={cn(
                   "mt-3 grid gap-4 transition-opacity duration-200 md:grid-cols-2 md:gap-5",
                   jobsQuery.isFetching && "opacity-60"
                 )}
               >
                 {visibleJobs.map((job) => {
-                  const clientName = job.mrf?.client?.name;
+                  const employerName = getJobEmployerName(job);
                   const industry = job.mrf?.client?.industry;
                   const employmentType = job.mrf?.employmentType;
-                  const location = job.location || job.mrf?.location;
+                  const locationText = job.location || job.mrf?.location;
                   const salaryMin = job.mrf?.salaryRangeMin;
                   const salaryMax = job.mrf?.salaryRangeMax;
                   const hasSalary = Boolean(salaryMin || salaryMax);
+                  const preview = stripMarkdownPreview(job.description);
+
                   const applyContent = (
                     <>
                       <span>Apply</span>
@@ -269,32 +315,33 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
                   return (
                     <m.li key={job.id} {...staggerItem} className="flex">
                       <article
-                        className={cn(
-                          "flex w-full flex-col rounded-lg border border-border bg-background p-5 sm:p-6",
-                          CARD_MIN_HEIGHT,
-                          "has-[:focus-visible]:border-accent has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
-                        )}
+                        className="relative flex h-full w-full flex-col rounded-xl border border-border bg-background p-5 transition-colors hover:border-secondary/40 sm:p-6 has-[:focus-visible]:border-accent has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
                       >
-                        <h3 className="line-clamp-2 text-xl font-bold leading-snug tracking-tight text-secondary decoration-accent decoration-2 underline-offset-4">
-                          {job.title}
+                        <h3 className="text-xl font-bold leading-snug tracking-tight text-secondary">
+                          <button
+                            type="button"
+                            onClick={() => onSelectJob(job)}
+                            className="line-clamp-2 cursor-pointer text-left transition-colors hover:text-primary after:absolute after:inset-0 after:rounded-xl focus-visible:underline focus-visible:outline-none"
+                          >
+                            {job.title}
+                          </button>
                         </h3>
 
-                        {clientName && (
-                          <p className="mt-2 line-clamp-1 text-sm">
-                            <span className="font-semibold text-foreground">{clientName}</span>
-                            {industry && <span className="text-muted-foreground"> / {industry}</span>}
-                          </p>
-                        )}
-                        {location && (
+                        <p className="mt-2 line-clamp-1 text-sm">
+                          <span className="font-semibold text-foreground">{employerName}</span>
+                          {industry && <span className="text-muted-foreground"> · {industry}</span>}
+                        </p>
+
+                        {locationText && (
                           <p className="mt-1 flex items-start gap-1.5 text-sm text-muted-foreground">
                             <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                            <span className="line-clamp-1">{location}</span>
+                            <span className="line-clamp-1">{locationText}</span>
                           </p>
                         )}
 
-                        {job.description && (
+                        {preview && (
                           <p className="mt-4 line-clamp-2 text-sm leading-relaxed text-muted-foreground">
-                            {job.description}
+                            {preview}
                           </p>
                         )}
 
@@ -311,23 +358,46 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
                               </span>
                             )}
                           </div>
-                          <div className="mt-3 flex items-center justify-between gap-4">
-                            <span className="text-sm text-muted-foreground">Posted {formatDate(job.createdAt)}</span>
-                            <Button
-                              asChild
-                              variant="outline"
-                              className="group/apply transition-[background-color,border-color,color,transform] duration-200 active:scale-[0.97] hover:border-primary hover:bg-primary hover:text-primary-foreground motion-reduce:active:scale-100"
-                            >
-                              {isApplicant ? (
-                                <Link to="/app/jobs/$jobId" params={{ jobId: String(job.id) }} aria-label={`Apply for ${job.title}`}>
-                                  {applyContent}
-                                </Link>
-                              ) : (
-                                <Link to="/login" search={{ redirect: `/app/jobs/${job.id}` }} aria-label={`Apply for ${job.title}`}>
-                                  {applyContent}
-                                </Link>
-                              )}
-                            </Button>
+
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                            <span className="text-sm text-muted-foreground">
+                              Posted {formatDate(job.createdAt)}
+                            </span>
+                            <div className="relative z-10 flex items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                onClick={() => onSelectJob(job)}
+                                aria-label={`View details for ${job.title}`}
+                                className="min-h-11 px-3 text-secondary hover:bg-muted"
+                              >
+                                View details
+                              </Button>
+                              <Button
+                                asChild
+                                variant="outline"
+                                className="group/apply min-h-11 transition-[background-color,border-color,color,transform] duration-200 hover:border-primary hover:bg-primary hover:text-primary-foreground active:scale-[0.97] motion-reduce:active:scale-100"
+                              >
+                                {isApplicant ? (
+                                  <Link
+                                    to="/app/jobs/$jobId"
+                                    params={{ jobId: String(job.id) }}
+                                    search={{ apply: "1" }}
+                                    aria-label={`Apply for ${job.title}`}
+                                  >
+                                    {applyContent}
+                                  </Link>
+                                ) : (
+                                  <Link
+                                    to="/login"
+                                    search={{ redirect: `/app/jobs/${job.id}?apply=1` }}
+                                    aria-label={`Apply for ${job.title}`}
+                                  >
+                                    {applyContent}
+                                  </Link>
+                                )}
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </article>
@@ -336,21 +406,66 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
                 })}
               </m.ul>
 
-              {remainingCount > 0 && (
-                <div className="mt-6 flex justify-center sm:justify-end">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={handleViewAllJobs}
-                    className="group transition-[background-color,transform] duration-150 active:scale-[0.98] motion-reduce:active:scale-100"
-                  >
-                    <span>View all {totalJobs} jobs</span>
-                    <ArrowRight
-                      aria-hidden="true"
-                      className="transition-transform duration-200 group-hover:translate-x-1 motion-reduce:transition-none"
-                    />
-                  </Button>
-                </div>
+              {totalPages > 1 && (
+                <nav
+                  aria-label="Job listings pagination"
+                  className="mt-8 flex flex-col items-center justify-between gap-4 border-t border-border pt-6 sm:flex-row"
+                >
+                  <p className="text-sm text-muted-foreground tabular-nums">
+                    Page <span className="font-semibold text-secondary">{page}</span> of{" "}
+                    <span className="font-semibold text-secondary">{totalPages}</span>
+                  </p>
+
+                  <div className="flex flex-wrap items-center justify-center gap-1.5">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={page <= 1}
+                      onClick={() => handlePageSelect(page - 1)}
+                      aria-label="Previous page"
+                      className="min-h-11 min-w-11 px-3"
+                    >
+                      <ChevronLeft className="size-4" aria-hidden="true" />
+                      <span className="hidden sm:inline">Previous</span>
+                    </Button>
+
+                    {buildPageSequence(page, totalPages).map((entry, idx) =>
+                      entry === "ellipsis" ? (
+                        <span
+                          key={`ellipsis-${idx}`}
+                          aria-hidden="true"
+                          className="inline-flex min-h-11 min-w-8 items-center justify-center text-sm text-muted-foreground"
+                        >
+                          …
+                        </span>
+                      ) : (
+                        <Button
+                          key={entry}
+                          type="button"
+                          variant={entry === page ? "secondary" : "outline"}
+                          onClick={() => handlePageSelect(entry)}
+                          aria-label={`Page ${entry}`}
+                          aria-current={entry === page ? "page" : undefined}
+                          className="min-h-11 min-w-11 px-3 tabular-nums"
+                        >
+                          {entry}
+                        </Button>
+                      )
+                    )}
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={page >= totalPages}
+                      onClick={() => handlePageSelect(page + 1)}
+                      aria-label="Next page"
+                      className="min-h-11 min-w-11 px-3"
+                    >
+                      <span className="hidden sm:inline">Next</span>
+                      <ChevronRight className="size-4" aria-hidden="true" />
+                    </Button>
+                  </div>
+                </nav>
               )}
             </div>
           )}
@@ -363,12 +478,13 @@ export const LandingJobListings: React.FC<LandingJobListingsProps> = ({
           className="mt-12 grid scroll-mt-20 grid-cols-1 gap-4 border-t border-border pt-8 md:grid-cols-3 md:gap-8"
         >
           {HOW_IT_WORKS_STEPS.map((step) => (
-            <m.li key={step.number} {...staggerItem} className="flex items-start gap-3">
-              <span
-                className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-bold tabular-nums text-secondary-foreground"
-                aria-hidden="true"
-              >
-                {step.number}
+            <m.li
+              key={step.number}
+              {...staggerItem}
+              className="flex flex-col gap-1 border-t border-border/70 pt-3 md:border-t-0 md:pt-0"
+            >
+              <span className="text-xs font-semibold uppercase tracking-wider text-primary tabular-nums">
+                Step {step.number}
               </span>
               <p className="text-sm leading-relaxed text-muted-foreground">
                 <span className="font-semibold text-secondary">{step.title}.</span> {step.description}

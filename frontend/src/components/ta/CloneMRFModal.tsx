@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, Button, Input, Badge } from "../ui";
-import { LoadingState, EmptyState, StatusBadge } from "../common";
+import { LoadingState, EmptyState, StatusBadge, SelectBox } from "../common";
 import { formatDate } from "../../lib/utils";
 import {
   Search,
@@ -116,17 +116,17 @@ export const CloneMRFModal: React.FC<CloneMRFModalProps> = ({
 
           {currentClientId ? (
             <div className="flex items-center gap-2 pt-0.5">
-              <label className="flex items-center gap-2 text-xs font-medium text-slate-700 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={preserveClient}
-                  onChange={(e) => setPreserveClient(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 text-[#0B315D] focus:ring-[#0B315D] cursor-pointer"
-                />
-                <span>
-                  Keep currently selected client ({currentClientName || `Client #${currentClientId}`})
-                </span>
-              </label>
+              <SelectBox
+                checked={preserveClient}
+                onChange={() => setPreserveClient((prev) => !prev)}
+                label={`Keep currently selected client (${currentClientName || `Client #${currentClientId}`})`}
+              />
+              <span
+                className="text-xs font-medium text-slate-700 cursor-pointer select-none"
+                onClick={() => setPreserveClient((prev) => !prev)}
+              >
+                Keep currently selected client ({currentClientName || `Client #${currentClientId}`})
+              </span>
             </div>
           ) : null}
         </div>
@@ -169,7 +169,7 @@ export const CloneMRFModal: React.FC<CloneMRFModalProps> = ({
             {filteredMrfs.map((mrf) => (
               <div
                 key={mrf.id}
-                className="bg-white border border-slate-200 rounded-lg p-4 space-y-3 hover:border-teal-600 transition-colors shadow-xs"
+                className="bg-white border border-slate-200 rounded-lg p-4 space-y-3 hover:border-navy transition-colors shadow-xs"
                 data-testid={`mrf-card-${mrf.id}`}
               >
                 {/* Card Header: Title & Badges */}
@@ -251,7 +251,7 @@ export const CloneMRFModal: React.FC<CloneMRFModalProps> = ({
 
         {/* Modal Footer */}
         <div className="pt-3 border-t border-slate-200 flex items-center justify-between">
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-slate-600">
             {!mrfsQuery.isLoading && !mrfsQuery.isError
               ? `${filteredMrfs.length} ${filteredMrfs.length === 1 ? "request" : "requests"} found`
               : ""}

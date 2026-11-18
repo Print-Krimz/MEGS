@@ -1,6 +1,6 @@
 import { RecordBreadcrumb } from "../../components/ta/recruitment/RecordBreadcrumb";
 import React, { useState } from "react";
-import { useParams } from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { employeesApi } from "../../lib/api/employees.api";
 import {
@@ -22,6 +22,7 @@ import { plural } from "../../lib/plural";
 import { DocumentUpdateRequestDialog } from "../../components/ta/DocumentUpdateRequestDialog";
 import { RequirementReviewDialog, type RequirementReviewValues } from "../../components/ta/RequirementReviewDialog";
 import { TA_COPY } from "../../lib/ta-copy";
+import { toManilaDateInput } from "../../lib/field-limits";
 import { notify } from "../../lib/feedback";
 import { initialsOf } from "../../components/ta/workforce/initials";
 import { IdentityTab } from "../../components/ta/workforce/employee/IdentityTab";
@@ -30,9 +31,9 @@ import { DeploymentsTab } from "../../components/ta/workforce/employee/Deploymen
 import { ClearanceTab } from "../../components/ta/workforce/employee/ClearanceTab";
 import { EditEmployeeDialog } from "../../components/ta/workforce/employee/EditEmployeeDialog";
 import { NoAccountChip } from "../../components/ta/walk-in/NoAccountChip";
+import { SmartPlacementDialog } from "../../components/ta/workforce/SmartPlacementDialog";
 import {
   ChangeStatusDialog,
-  PlacementDialog,
   RecordValidityDialog,
   type ValidityStatus,
 } from "../../components/ta/workforce/employee/EmployeeActionDialogs";
@@ -44,25 +45,29 @@ const VALID_TABS: TabKey[] = ["identity", "history", "deployments", "compliance"
 
 export const EmployeeDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const searchParams = useSearch({ strict: false }) as { tab?: string };
   const { employeeId } = useParams({ strict: false }) as { employeeId: string };
 
   const [activeTab, setActiveTab] = useState<TabKey>(() => {
-    if (typeof window !== "undefined") {
-      const paramTab = new URLSearchParams(window.location.search).get("tab") as TabKey;
-      if (paramTab && VALID_TABS.includes(paramTab)) {
-        // Skills now live on the identity tab; old ?tab=qualifications links still land there.
-        return paramTab === "qualifications" ? "identity" : paramTab;
-      }
+    const paramTab = searchParams?.tab as TabKey | undefined;
+    if (paramTab && VALID_TABS.includes(paramTab)) {
+      // Skills now live on the identity tab; old ?tab=qualifications links still land there.
+      return paramTab === "qualifications" ? "identity" : paramTab;
     }
     return "identity";
   });
 
   const handleTabChange = (tab: TabKey) => {
     setActiveTab(tab);
-    if (typeof window !== "undefined") {
-      const url = new URL(window.location.href);
-      url.searchParams.set("tab", tab);
-      window.history.replaceState({}, "", url.toString());
+    try {
+      navigate({
+        search: ((prev: Record<string, unknown>) => ({ ...prev, tab })) as never,
+        replace: true,
+        resetScroll: false,
+      });
+    } catch {
+      // safe fallback
     }
   };
 
@@ -150,8 +155,8 @@ export const EmployeeDetailPage: React.FC = () => {
     setValidityTarget({ id: req.id, label: req.documentLabel });
     setValidityInitial({
       validityStatus: req.expiresAt ? "HAS_EXPIRY" : req.validityStatus === "NO_EXPIRY" ? "NO_EXPIRY" : "UNKNOWN",
-      issuedAt: req.issuedAt?.slice(0, 10) || "",
-      expiresAt: req.expiresAt?.slice(0, 10) || "",
+      issuedAt: toManilaDateInput(req.issuedAt),
+      expiresAt: toManilaDateInput(req.expiresAt),
     });
   };
 
@@ -271,12 +276,22 @@ export const EmployeeDetailPage: React.FC = () => {
         title={previewDocument?.title}
         onClose={() => setPreviewDocument(null)}
       />
-      <PlacementDialog
+      <SmartPlacementDialog
         open={placementDialogOpen}
         onClose={() => setPlacementDialogOpen(false)}
-        employeeName={empName}
-        applicantProfileId={applicantProfileIdForPlacement}
-        hasPortalAccess={data.candidate?.hasPortalAccess ?? true}
+        target={{
+          employeeId: emp.id,
+          name: empName,
+          applicantProfileId: applicantProfileIdForPlacement,
+          hasPortalAccess: data.candidate?.hasPortalAccess ?? true,
+          hasMobile: Boolean(cand.mobileNumber),
+          maskedMobile: cand.mobileNumber ?? null,
+          previousClient: deployments[0]?.client?.name ?? null,
+          previousRole: emp.position ?? null,
+          pastClients: deployments
+            .map((d) => d.client)
+            .filter((c): c is NonNullable<typeof c> => Boolean(c?.id)),
+        }}
       />
       <EditEmployeeDialog
         open={editModalOpen}

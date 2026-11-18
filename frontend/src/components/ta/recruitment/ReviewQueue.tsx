@@ -19,10 +19,12 @@ import { MatchBreakdown, type ScoreExplanation } from "../application/MatchBreak
 import { ScheduleInterviewDialog } from "../application/ScheduleInterviewDialog";
 import { CloseApplicationDialog } from "../CloseApplicationDialog";
 import { InterviewOutcomeDialog } from "../InterviewOutcomeDialog";
+import { ClientDecisionDialog, SendToClientDialog } from "../application/ClientReviewDialogs";
 import { ResumeDrawerButton } from "../application/ResumePanel";
 import { SourceChip } from "../walk-in/SourceChip";
 import { summarizeInterview } from "../application/summary";
 import { CandidateSnapshot, HiringProgress, OtherApplications } from "./ReviewPanelDetails";
+import { REFERENCE_QUERY_STALE_TIME_MS } from "../../../lib/query-policies";
 
 const initialsOf = (name: string) =>
   name
@@ -117,7 +119,16 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ row, listSearch, onDone }) =>
   const [schedule, setSchedule] = useState<ScheduleKind | null>(null);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [outcomeOpen, setOutcomeOpen] = useState(false);
+  const [sendToClientOpen, setSendToClientOpen] = useState(false);
+  const [clientDecisionOpen, setClientDecisionOpen] = useState(false);
   const [resumeOpen, setResumeOpen] = useState(false);
+
+  const clientsQuery = useQuery({
+    queryKey: ["ta", "clients"],
+    queryFn: ({ signal }) => taApi.listClients({ signal }),
+    enabled: sendToClientOpen,
+    staleTime: REFERENCE_QUERY_STALE_TIME_MS,
+  });
 
   if (query.isPending) {
     return (
@@ -153,12 +164,46 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ row, listSearch, onDone }) =>
       : null;
   // Actions the panel can finish itself; anything else opens the record.
   // Recording needs the pending interview; without it the record page is the safe place to act.
-  const inlineAction: { run: () => void } | null = scheduleType
+  const inlineAction: { run: () => void; pending?: boolean } | null = scheduleType
     ? { run: () => setSchedule(scheduleType) }
     : outcomeInterview
     ? { run: () => setOutcomeOpen(true) }
+    : primary?.id === "send-to-client"
+    ? { run: () => setSendToClientOpen(true) }
+    : primary?.id === "record-client-decision" && flags.latestEndorsement
+    ? { run: () => setClientDecisionOpen(true) }
+    : primary?.id === "move-to-requirements"
+    ? {
+        run: () =>
+          m.updateStatus.mutate(
+            { status: ApplicationStatus.COMPLIANCE, reason: "Final interview passed." },
+            { onSuccess: onDone }
+          ),
+        pending: m.updateStatus.isPending,
+      }
+    : primary?.id === "move-to-contract-signing"
+    ? {
+        run: () =>
+          m.updateStatus.mutate(
+            { status: ApplicationStatus.CONTRACT_SIGNING, reason: "All mandatory pre-employment requirements approved." },
+            { onSuccess: onDone }
+          ),
+        pending: m.updateStatus.isPending,
+      }
     : null;
   const canReject = flags.canReject && app.status !== ApplicationStatus.DEPLOYED;
+  const linkedClient = app.jobPosting?.mrf?.client;
+  const linkedClientId = app.jobPosting?.mrf?.clientId ?? linkedClient?.id ?? 0;
+  const linkedClientName = linkedClient?.name ?? "Client";
+  const isFinalOutcome = primary?.id === "record-final-outcome";
+  const canAutoAdvanceOutcome = isFinalOutcome
+    ? app.status === ApplicationStatus.FINAL_INTERVIEW
+    : app.status === ApplicationStatus.INITIAL_SCREENING;
+  const autoAdvanceLabel = isFinalOutcome
+    ? "Move to requirements after saving"
+    : flags.requiresClientReview
+    ? "Send to client after saving"
+    : "Move to final interview after saving";
 
   const scores = app.candidateScores?.[0];
   const fitScore = scores?.finalFitScore ?? app.candidateFitScore ?? app.aiScore;
@@ -218,7 +263,7 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ row, listSearch, onDone }) =>
       <div className="flex flex-wrap gap-2">
         {inlineAction ? (
           <>
-            <Button size="sm" className="min-h-11 md:min-h-9" onClick={inlineAction.run}>
+            <Button size="sm" className="min-h-11 md:min-h-9" loading={inlineAction.pending} onClick={inlineAction.run}>
               {primary?.label}
             </Button>
             {recordLink("outline")}
@@ -286,25 +331,116 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({ row, listSearch, onDone }) =>
         onClose={() => setOutcomeOpen(false)}
         candidateName={candidateName}
         jobTitle={app.jobPosting?.title}
-        isFinalInterview={primary?.id === "record-final-outcome"}
+        isFinalInterview={isFinalOutcome}
         scheduledAt={outcomeInterview?.scheduledAt}
-        isSubmitting={m.updateInterviewStatus.isPending}
-        onSubmit={({ result, notes }) =>
+        canAutoAdvance={canAutoAdvanceOutcome}
+        autoAdvanceLabel={autoAdvanceLabel}
+        isSubmitting={m.updateInterviewStatus.isPending || m.updateStatus.isPending}
+        onSubmit={({ result, notes }, options) =>
           m.updateInterviewStatus.mutate(
             {
               interviewId: outcomeInterview?.id,
-              type: primary?.id === "record-final-outcome" ? InterviewType.FINAL_INTERVIEW : InterviewType.INITIAL_SCREENING,
+              type: isFinalOutcome ? InterviewType.FINAL_INTERVIEW : InterviewType.INITIAL_SCREENING,
               result,
               notes,
             },
             {
               onSuccess: () => {
+                if (result === "PASS" && options?.autoAdvance) {
+                  if (isFinalOutcome && app.status === ApplicationStatus.FINAL_INTERVIEW) {
+                    m.updateStatus.mutate(
+                      { status: ApplicationStatus.COMPLIANCE, reason: "Final interview passed." },
+                      {
+                        onSuccess: () => {
+                          setOutcomeOpen(false);
+                          onDone();
+                        },
+                      }
+                    );
+                    return;
+                  }
+                  if (!isFinalOutcome && app.status === ApplicationStatus.INITIAL_SCREENING) {
+                    if (flags.requiresClientReview) {
+                      setOutcomeOpen(false);
+                      setSendToClientOpen(true);
+                      return;
+                    }
+                    m.updateStatus.mutate(
+                      { status: ApplicationStatus.FINAL_INTERVIEW, reason: "Initial screening passed (client review not required)." },
+                      {
+                        onSuccess: () => {
+                          setOutcomeOpen(false);
+                          onDone();
+                        },
+                      }
+                    );
+                    return;
+                  }
+                }
                 setOutcomeOpen(false);
                 onDone();
               },
             }
           )
         }
+      />
+      <SendToClientDialog
+        open={sendToClientOpen}
+        onClose={() => setSendToClientOpen(false)}
+        mode="send"
+        candidateName={candidateName}
+        linkedClientId={linkedClientId}
+        linkedClientName={linkedClientName}
+        jobTitle={app.jobPosting?.title}
+        requestTitle={app.jobPosting?.mrf?.title}
+        clients={clientsQuery.data ?? []}
+        initialClientId={linkedClientId || null}
+        isSubmitting={m.endorse.isPending}
+        onSubmit={(values) =>
+          m.endorse.mutate(values, {
+            onSuccess: () => {
+              setSendToClientOpen(false);
+              onDone();
+            },
+          })
+        }
+      />
+      <ClientDecisionDialog
+        open={clientDecisionOpen}
+        onClose={() => setClientDecisionOpen(false)}
+        clientName={flags.latestEndorsement?.client?.name || linkedClientName}
+        jobTitle={app.jobPosting?.title}
+        requestTitle={app.jobPosting?.mrf?.title}
+        priorNote={
+          flags.latestEndorsement?.notes
+            ? {
+                notes: flags.latestEndorsement.notes,
+                date: flags.latestEndorsement.createdAt ? formatDate(flags.latestEndorsement.createdAt) : "",
+              }
+            : null
+        }
+        initialOutcome={
+          flags.latestEndorsement?.outcome === "APPROVED" ||
+          flags.latestEndorsement?.outcome === "ENDORSED"
+            ? "APPROVED"
+            : flags.latestEndorsement?.outcome === "DECLINED"
+            ? "DECLINED"
+            : ""
+        }
+        initialNotes=""
+        isSubmitting={m.updateEndorsement.isPending}
+        onSubmit={(values) => {
+          if (!flags.latestEndorsement) return;
+          m.updateEndorsement.mutate(
+            { endorsementId: flags.latestEndorsement.id, ...values },
+            {
+              onSuccess: () => {
+                setClientDecisionOpen(false);
+                onDone();
+              },
+            }
+          );
+        }}
       />
       <CloseApplicationDialog
         open={rejectOpen}

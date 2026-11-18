@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import React from "react";
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 
 vi.mock("../../../lib/config", () => ({ useGlobalConfig: () => ({ data: { matchThreshold: 70 } }) }));
 
@@ -23,6 +23,15 @@ describe("ScoreBadge colour bands (threshold 70)", () => {
   it("is red further below", () => {
     expect(tone(44)).toContain("rose");
     expect(tone(25)).toContain("rose");
+  });
+
+  it("renders N/A safely for NaN, Infinity, and non-numeric strings", () => {
+    const { rerender } = render(<ScoreBadge score={Number.NaN} />);
+    expect(screen.getByText("N/A")).toBeDefined();
+    rerender(<ScoreBadge score="not-a-score" />);
+    expect(screen.getByText("N/A")).toBeDefined();
+    rerender(<ScoreBadge score={Number.POSITIVE_INFINITY} />);
+    expect(screen.getByText("N/A")).toBeDefined();
   });
 });
 

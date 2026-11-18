@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ShieldCheck } from "lucide-react";
 import { taApi } from "../../lib/api/ta.api";
-import { PageHeader, LoadingState, ErrorState, EmptyState, type DataTableColumn, type DataTableSort } from "../../components/common";
+import { PageHeader, LoadingState, ErrorState, EmptyState, ConfirmDialog, type DataTableColumn, type DataTableSort } from "../../components/common";
 import type { FilterConfig } from "../../components/common/SearchFilters";
 import { Button } from "../../components/ui";
 import {
@@ -59,9 +60,11 @@ const candidateNameOf = (app: Application): string => {
   return profile ? `${profile.firstName} ${profile.lastName}` : displayEmail(app.user?.email) || "Candidate";
 };
 
-/** How long the application has been in the queue, counted from its submitted date. */
+/** How long the application has been in the queue, counted from stage activity. */
+const stageTimestamp = (app: Application) => app.updatedAt ?? app.createdAt;
+
 const waitingLabel = (app: Application): string => {
-  const days = calculateDaysOnSite(app.createdAt);
+  const days = calculateDaysOnSite(stageTimestamp(app));
   if (days === null) return "";
   return days === 0 ? "Waiting since today" : `Waiting ${plural(days, "day")}`;
 };
@@ -90,16 +93,57 @@ const progressOf = (app: Application): { text: string; className: string; tone: 
   return { text: "No requirements", className: "text-slate-600", tone: "neutral" };
 };
 
+const readStatusParam = (raw: unknown): StatusFilter => {
+  if (raw === "SUBMITTED" || raw === "WAITING_REVIEW") return "WAITING_REVIEW";
+  if (raw === "WAITING_CANDIDATE" || raw === "APPROVED" || raw === "TO_FOLLOW") return raw;
+  return "ALL";
+};
+
+const readSortParam = (raw: unknown): DataTableSort => {
+  if (raw === "candidate_asc") return { key: "candidate", direction: "asc" };
+  if (raw === "candidate_desc") return { key: "candidate", direction: "desc" };
+  if (raw === "submitted_desc") return { key: "submitted", direction: "desc" };
+  return { key: "submitted", direction: "asc" };
+};
+
+const encodeSortParam = (s: DataTableSort): string | undefined => {
+  if (s.key === "candidate") return s.direction === "asc" ? "candidate_asc" : "candidate_desc";
+  if (s.key === "submitted" && s.direction === "desc") return "submitted_desc";
+  return undefined;
+};
+
 export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader = false }) => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const searchParams = useSearch({ strict: false }) as Record<string, unknown>;
 
-  const [search, setSearch] = useState("");
-  const [jobTitleFilter, setJobTitleFilter] = useState("");
-  const [clientFilter, setClientFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+  const syncUrl = (patch: Record<string, unknown>) => {
+    void navigate({
+      to: "/ta/requirements",
+      search: ((prev: Record<string, unknown>) => ({ ...prev, ...patch })) as never,
+      replace: true,
+    });
+  };
+
+  const [search, setSearch] = useState(() => (typeof searchParams.q === "string" ? searchParams.q : ""));
+  const [jobTitleFilter, setJobTitleFilter] = useState(() =>
+    typeof searchParams.jobTitle === "string" ? searchParams.jobTitle : ""
+  );
+  const [clientFilter, setClientFilter] = useState(() =>
+    typeof searchParams.clientId === "string" ? searchParams.clientId : ""
+  );
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => readStatusParam(searchParams.status));
   // Oldest waiting first: the review queue starts with whoever has waited longest.
-  const [sort, setSort] = useState<DataTableSort>({ key: "submitted", direction: "asc" });
-  const [queuePage, setQueuePage] = useState(1);
+  const [sort, setSort] = useState<DataTableSort>(() => readSortParam(searchParams.sort));
+  const [queuePage, setQueuePage] = useState(() => {
+    const parsed = Number(searchParams.page);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+  });
+  const [pageSize, setPageSize] = useState(() => {
+    const parsed = Number(searchParams.pageSize);
+    return parsed === 10 || parsed === 25 || parsed === 50 ? parsed : PAGE_SIZE;
+  });
+  const [confirmAdvanceApp, setConfirmAdvanceApp] = useState<Application | null>(null);
 
   const review = useComplianceReviewSession("pre");
 
@@ -188,12 +232,12 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
       const comparison =
         sort.key === "candidate"
           ? candidateNameOf(a).localeCompare(candidateNameOf(b))
-          : (new Date(a.createdAt).getTime() || 0) - (new Date(b.createdAt).getTime() || 0);
+          : (new Date(stageTimestamp(a)).getTime() || 0) - (new Date(stageTimestamp(b)).getTime() || 0);
       return comparison * direction;
     });
   }, [filteredApps, sort]);
 
-  const pagedApps = sortedApps.slice((queuePage - 1) * PAGE_SIZE, queuePage * PAGE_SIZE);
+  const pagedApps = sortedApps.slice((queuePage - 1) * pageSize, queuePage * pageSize);
 
   const handleReset = () => {
     setSearch("");
@@ -201,10 +245,47 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
     setClientFilter("");
     setStatusFilter("ALL");
     setQueuePage(1);
+    syncUrl({ q: undefined, jobTitle: undefined, clientId: undefined, status: undefined, page: undefined });
   };
 
+  const advanceMutation = useMutation({
+    mutationFn: (appId: number) =>
+      taApi.updateApplicationStatus(String(appId), {
+        status: ApplicationStatus.CONTRACT_SIGNING,
+        reason: "All mandatory pre-employment requirements approved.",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ta"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
+      queryClient.invalidateQueries({ queryKey: ["ta", "analytics", "compliance"] });
+      setConfirmAdvanceApp(null);
+      notify.success("Stage updated", "Candidate moved to Contract signing.");
+    },
+    onError: (err: unknown) => {
+      notify.error("Unable to move candidate", err);
+    },
+  });
+
   const reviewMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: RequirementReviewValues }) => taApi.reviewComplianceRequirement(id, data),
+    mutationFn: async ({
+      id,
+      data,
+      applicationId,
+      advanceToContractSigning,
+    }: {
+      id: number;
+      data: RequirementReviewValues;
+      applicationId?: number;
+      advanceToContractSigning?: boolean;
+    }) => {
+      await taApi.reviewComplianceRequirement(id, data);
+      if (advanceToContractSigning && applicationId != null) {
+        await taApi.updateApplicationStatus(String(applicationId), {
+          status: ApplicationStatus.CONTRACT_SIGNING,
+          reason: "All mandatory pre-employment requirements approved.",
+        });
+      }
+    },
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["ta"] });
       queryClient.invalidateQueries({ queryKey: ["ta", "applications"] });
@@ -219,18 +300,35 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
           ? "The requirement was tagged to follow up."
           : "The requirement was rejected and needs correction."
       );
+      if (vars.advanceToContractSigning) {
+        review.close();
+        notify.success("Stage updated", "Candidate moved to Contract signing.");
+      }
     },
     onError: (err: unknown) => {
       notify.error("Review failed", err);
     },
   });
 
+  const clearedButton = (app: Application, className?: string) => (
+    <Button
+      variant="primary"
+      size="sm"
+      className={className}
+      onClick={() => setConfirmAdvanceApp(app)}
+    >
+      Move to contract signing
+    </Button>
+  );
+
   const reviewButton = (app: Application, className?: string) =>
     openRequirementsOf(app).length > 0 ? (
       <Button variant="outline" size="sm" className={className} onClick={() => review.open(app)}>
         Review documents
       </Button>
-    ) : null;
+    ) : (
+      clearedButton(app, className)
+    );
 
   const tiles: ComplianceTile[] = [
     { id: "ALL", label: "In requirements", value: metrics.total, hint: `${plural(metrics.totalDocs, "document")} tracked` },
@@ -251,8 +349,8 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
   ];
 
   const filters: FilterConfig[] = [
-    { key: "clientId", label: "Client", placeholder: "All clients", options: clientOptions },
-    { key: "jobTitle", label: "Job opening", placeholder: "All job openings", options: jobTitleOptions },
+    { key: "clientId", label: "Client", placeholder: "All clients", searchable: true, options: clientOptions },
+    { key: "jobTitle", label: "Job opening", placeholder: "All job openings", searchable: true, options: jobTitleOptions },
     {
       key: "requirementStatus",
       label: "Requirement status",
@@ -286,7 +384,7 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
       header: "Waiting",
       sortable: true,
       hideBelow: "lg",
-      cell: (app) => <span className="text-xs text-slate-700">Since {formatDate(app.createdAt)}</span>,
+      cell: (app) => <span className="text-xs text-slate-700">Since {formatDate(stageTimestamp(app))}</span>,
     },
     { key: "actions", header: "Action", align: "right", className: "whitespace-nowrap", cell: (app) => reviewButton(app) },
   ];
@@ -344,8 +442,10 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
           tiles={tiles}
           selectedTile={statusFilter === "TO_FOLLOW" ? "" : statusFilter}
           onTileChange={(id) => {
-            setStatusFilter(id as StatusFilter);
+            const nextStatus = id as StatusFilter;
+            setStatusFilter(nextStatus);
             setQueuePage(1);
+            syncUrl({ status: nextStatus === "ALL" ? undefined : nextStatus, page: undefined });
           }}
           searchLabel="Search candidates"
           searchPlaceholder="Search candidate, email, or job opening"
@@ -353,23 +453,34 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
           onSearchChange={(value) => {
             setSearch(value);
             setQueuePage(1);
+            syncUrl({ q: value.trim() || undefined, page: undefined });
           }}
           filters={filters}
           filterValues={{ clientId: clientFilter, jobTitle: jobTitleFilter, requirementStatus: statusFilter !== "ALL" ? statusFilter : "" }}
           onFilterChange={(key, value) => {
-            if (key === "clientId") setClientFilter(value);
-            else if (key === "jobTitle") setJobTitleFilter(value);
-            else if (key === "requirementStatus") setStatusFilter((value as StatusFilter) || "ALL");
+            if (key === "clientId") {
+              setClientFilter(value);
+              syncUrl({ clientId: value || undefined, page: undefined });
+            } else if (key === "jobTitle") {
+              setJobTitleFilter(value);
+              syncUrl({ jobTitle: value || undefined, page: undefined });
+            } else if (key === "requirementStatus") {
+              const nextStatus = (value as StatusFilter) || "ALL";
+              setStatusFilter(nextStatus);
+              syncUrl({ status: nextStatus === "ALL" ? undefined : nextStatus, page: undefined });
+            }
             setQueuePage(1);
           }}
           onReset={handleReset}
           columns={columns}
           rows={pagedApps}
           renderCard={renderCard}
+          renderClearedAction={(app) => clearedButton(app)}
           sort={sort}
           onSortChange={(next) => {
             setSort(next);
             setQueuePage(1);
+            syncUrl({ sort: encodeSortParam(next), page: undefined });
           }}
           isFetching={applicationsQuery.isFetching}
           empty={
@@ -385,9 +496,17 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
             />
           }
           page={queuePage}
-          pageSize={PAGE_SIZE}
+          pageSize={pageSize}
           totalItems={sortedApps.length}
-          onPageChange={setQueuePage}
+          onPageChange={(nextPage) => {
+            setQueuePage(nextPage);
+            syncUrl({ page: nextPage > 1 ? nextPage : undefined });
+          }}
+          onPageSizeChange={(nextSize) => {
+            setPageSize(nextSize);
+            setQueuePage(1);
+            syncUrl({ pageSize: nextSize, page: undefined });
+          }}
           itemLabel="candidates"
         />
       )}
@@ -396,8 +515,30 @@ export const CompliancePage: React.FC<{ hideHeader?: boolean }> = ({ hideHeader 
         session={review}
         mode="pre"
         personName={candidateNameOf}
+        canAutoAdvanceToContractSigning
         isSubmitting={reviewMutation.isPending}
-        onSubmit={(values, requirement) => reviewMutation.mutate({ id: requirement.id, data: values })}
+        onSubmit={(values, requirement, options) =>
+          reviewMutation.mutate({
+            id: requirement.id,
+            data: values,
+            applicationId: review.application?.id,
+            advanceToContractSigning: options?.advanceToContractSigning,
+          })
+        }
+      />
+
+      <ConfirmDialog
+        open={Boolean(confirmAdvanceApp)}
+        onClose={() => setConfirmAdvanceApp(null)}
+        onConfirm={() => confirmAdvanceApp && advanceMutation.mutate(confirmAdvanceApp.id)}
+        title="Move to contract signing?"
+        description={
+          confirmAdvanceApp
+            ? `${candidateNameOf(confirmAdvanceApp)} has all mandatory pre-employment requirements cleared. Move them to Contract signing?`
+            : ""
+        }
+        confirmLabel="Move to contract signing"
+        loading={advanceMutation.isPending}
       />
     </div>
   );

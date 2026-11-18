@@ -3,6 +3,7 @@ import { Button, Dialog, Select, Textarea } from "../ui";
 import { formatDateTime } from "../../lib/utils";
 import { TA_COPY } from "../../lib/ta-copy";
 import { INTERVIEW_NOTE_PRESETS } from "../../lib/ta-note-presets";
+import { useDirtyGuard } from "../../hooks/useDirtyGuard";
 import { QuickNoteChips } from "./QuickNoteChips";
 
 export type InterviewOutcomeResult = "PASS" | "FAIL" | "NO_SHOW";
@@ -56,6 +57,11 @@ export const InterviewOutcomeDialog: React.FC<InterviewOutcomeDialogProps> = ({
   const [notes, setNotes] = useState(defaultNotes);
   const [showNotesError, setShowNotesError] = useState(false);
   const [autoAdvance, setAutoAdvance] = useState(true);
+  const guard = useDirtyGuard({ isDirty: open && notes.trim() !== defaultNotes.trim() });
+  const requestClose = async () => {
+    if (isSubmitting) return;
+    if (await guard.confirmDiscard()) onClose();
+  };
 
   // Start clean every time the dialog opens, so a reopened dialog never keeps the last outcome.
   useEffect(() => {
@@ -117,7 +123,8 @@ export const InterviewOutcomeDialog: React.FC<InterviewOutcomeDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} title={TA_COPY.interviews.recordOutcome}>
+    <>
+    <Dialog open={open} onClose={requestClose} title={TA_COPY.interviews.recordOutcome}>
       <div className="space-y-4">
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm">
           <dt className="text-slate-600">Candidate</dt>
@@ -186,7 +193,7 @@ export const InterviewOutcomeDialog: React.FC<InterviewOutcomeDialogProps> = ({
         )}
 
         <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
-          <Button variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>
+          <Button variant="outline" size="sm" onClick={requestClose} disabled={isSubmitting}>
             Cancel
           </Button>
           <Button variant="primary" size="sm" loading={isSubmitting} disabled={!result || !notes.trim()} onClick={handleSave}>
@@ -195,5 +202,7 @@ export const InterviewOutcomeDialog: React.FC<InterviewOutcomeDialogProps> = ({
         </div>
       </div>
     </Dialog>
+    {guard.discardDialog}
+    </>
   );
 };

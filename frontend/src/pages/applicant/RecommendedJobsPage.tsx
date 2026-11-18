@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Sparkles } from "lucide-react";
+import { Compass } from "lucide-react";
 import { applicantJobsApi } from "../../lib/api/applicant-jobs.api";
 import { PageHeader, LoadingState, ErrorState, EmptyState } from "../../components/common";
 import { Button } from "../../components/ui";
@@ -54,7 +54,7 @@ export const RecommendedJobsPage: React.FC = () => {
       />
 
       {coldStart && items.length > 0 && (
-        <div className="rounded-lg border border-navy-line bg-navy-soft p-4" role="status">
+        <div className="rounded-xl border border-navy-line bg-navy-soft p-4" role="status">
           <p className="text-sm text-slate-700">
             These are the newest openings. <Link to="/app/profile" className="font-medium text-navy underline underline-offset-4">Add your skills or upload a resume</Link> to see jobs that match you.
           </p>
@@ -66,33 +66,37 @@ export const RecommendedJobsPage: React.FC = () => {
       ) : query.isError || waitingForNetwork ? (
         <ErrorState subject="recommended jobs" error={query.error} onRetry={() => query.refetch()} />
       ) : items.length === 0 ? (
-        <div className="rounded-lg border border-slate-300 bg-white p-8">
+        <div className="rounded-xl border border-slate-200 bg-white p-8">
+          <h2 className="sr-only">Recommended positions</h2>
           <EmptyState
             bare
-            icon={<Sparkles className="size-5 text-navy" aria-hidden="true" />}
+            icon={<Compass className="size-5 text-navy" aria-hidden="true" />}
             title="No matches right now"
             description="We will show new jobs here as they open. Keeping your skills and work preferences up to date gives better matches."
             action={
-              <Link to="/app/jobs">
-                <Button variant="primary" size="md">Browse all openings</Button>
-              </Link>
+              <Button asChild variant="primary" size="md">
+                <Link to="/app/jobs">Browse all openings</Link>
+              </Button>
             }
           />
         </div>
       ) : (
-        <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2">
-          {items.map((job) => (
-            <JobCard
-              key={job.id}
-              job={job}
-              reasons={job.reasons}
-              saved={savedJobIds.has(job.id)}
-              saveDisabled={atSaveLimit}
-              onToggleSave={toggleBookmark}
-              onDismiss={(jobId) => !dismissMutation.isPending && dismissMutation.mutate(jobId)}
-            />
-          ))}
-        </div>
+        <>
+          <h2 className="sr-only">Recommended positions</h2>
+          <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2">
+            {items.map((job) => (
+              <JobCard
+                key={job.id}
+                job={job}
+                reasons={job.reasons}
+                saved={savedJobIds.has(job.id)}
+                saveDisabled={atSaveLimit}
+                onToggleSave={toggleBookmark}
+                onDismiss={(jobId) => !dismissMutation.isPending && dismissMutation.mutate(jobId)}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
