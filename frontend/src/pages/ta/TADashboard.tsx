@@ -240,8 +240,8 @@ export const TADashboard: React.FC = () => {
         </OverviewMetricTile>
       </div>
 
-      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,13fr)_minmax(0,7fr)]">
-        <section aria-label="Needs your action" className="overflow-hidden rounded-md border border-slate-300 bg-white">
+      <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-[minmax(0,13fr)_minmax(0,7fr)]">
+        <section aria-label="Needs your action" className="flex flex-col overflow-hidden rounded-md border border-slate-300 bg-white">
           <OverviewPanelHeader
             title="Needs your action"
             action={
@@ -391,7 +391,7 @@ export const TADashboard: React.FC = () => {
           )}
         </section>
 
-        <section aria-label="Hiring pipeline" className="overflow-hidden rounded-md border border-slate-300 bg-white">
+        <section aria-label="Hiring pipeline" className="flex flex-col overflow-hidden rounded-md border border-slate-300 bg-white">
           <OverviewPanelHeader
             title="Hiring pipeline"
             action={
@@ -445,14 +445,14 @@ export const TADashboard: React.FC = () => {
               ];
 
               return (
-                <ul className="divide-y divide-slate-200">
+                <ul className="flex flex-1 flex-col divide-y divide-slate-200">
                   {rows.map((row) => (
-                    <li key={row.key}>
+                    <li key={row.key} className="flex flex-1">
                       <Link
                         to={row.to}
                         search={row.search as never}
                         aria-label={row.ariaLabel}
-                        className="focus-ring-inset flex min-h-11 items-center gap-3 px-3.5 py-2 transition-colors hover:bg-slate-50 md:min-h-10"
+                        className="focus-ring-inset flex min-h-11 flex-1 items-center gap-3 px-3.5 py-2 transition-colors hover:bg-slate-50 md:min-h-10"
                       >
                         <span className="flex min-w-0 flex-1 items-center gap-2 text-sm">
                           <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: row.color }} />
