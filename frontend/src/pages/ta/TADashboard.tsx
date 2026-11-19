@@ -193,7 +193,7 @@ export const TADashboard: React.FC = () => {
     <div className="space-y-5">
       <PageHeader
         title={TA_COPY.pageTitles.overview}
-        meta={asOf ? <span className="text-xs text-slate-500 tabular-nums">{asOf}</span> : undefined}
+        meta={asOf ? <span className="text-xs text-slate-600 tabular-nums">{asOf}</span> : undefined}
         flush
         actions={
           <Button asChild variant="primary" size="sm">
@@ -452,7 +452,7 @@ export const TADashboard: React.FC = () => {
                         to={row.to}
                         search={row.search as never}
                         aria-label={row.ariaLabel}
-                        className="focus-ring-inset flex min-h-10 items-center gap-3 px-3.5 py-2 transition-colors hover:bg-slate-50"
+                        className="focus-ring-inset flex min-h-11 items-center gap-3 px-3.5 py-2 transition-colors hover:bg-slate-50 md:min-h-10"
                       >
                         <span className="flex min-w-0 flex-1 items-center gap-2 text-sm">
                           <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ backgroundColor: row.color }} />
@@ -471,7 +471,7 @@ export const TADashboard: React.FC = () => {
                           <span
                             className={cn(
                               "w-7 text-right text-sm tabular-nums",
-                              row.count > 0 ? "font-semibold text-slate-950" : "font-medium text-slate-500",
+                              row.count > 0 ? "font-semibold text-slate-950" : "font-medium text-slate-600",
                             )}
                           >
                             {row.count}

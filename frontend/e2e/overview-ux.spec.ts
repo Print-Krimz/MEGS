@@ -108,12 +108,7 @@ function buildEmptyAnalyticsExtras() {
   };
 }
 
-interface SetupTAOptions {
-  emptyWorklist?: boolean;
-  failPipelineUntil?: () => boolean;
-}
-
-async function setupTAOverview(page: Page, opts: SetupTAOptions = {}): Promise<string[]> {
+async function trackUnmockedApi(page: Page): Promise<string[]> {
   const unmocked: string[] = [];
   await page.route(
     (url) => url.pathname.startsWith("/api/"),
@@ -126,6 +121,24 @@ async function setupTAOverview(page: Page, opts: SetupTAOptions = {}): Promise<s
       });
     },
   );
+  return unmocked;
+}
+
+async function expectNoHorizontalOverflow(page: Page): Promise<void> {
+  const overflow = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    innerWidth: window.innerWidth,
+  }));
+  expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth);
+}
+
+interface SetupTAOptions {
+  emptyWorklist?: boolean;
+  failPipelineUntil?: () => boolean;
+}
+
+async function setupTAOverview(page: Page, opts: SetupTAOptions = {}): Promise<string[]> {
+  const unmocked = await trackUnmockedApi(page);
 
   await mockShell(page, taUser);
 
@@ -421,18 +434,7 @@ interface SetupAdminOptions {
 }
 
 async function setupAdminOverview(page: Page, opts: SetupAdminOptions = {}): Promise<string[]> {
-  const unmocked: string[] = [];
-  await page.route(
-    (url) => url.pathname.startsWith("/api/"),
-    (route) => {
-      unmocked.push(`${route.request().method()} ${new URL(route.request().url()).pathname}`);
-      return route.fulfill({
-        status: 404,
-        contentType: "application/json",
-        body: JSON.stringify({ success: false, message: "Not mocked", data: null }),
-      });
-    },
-  );
+  const unmocked = await trackUnmockedApi(page);
 
   await mockShell(page, adminUser);
 
@@ -770,18 +772,11 @@ test.describe("TA Overview UX, Accessibility, & Layout", () => {
     // 5. All 7 Hiring pipeline stages visible above 768px fold
     const pipelineLinks = pipelineRegion.locator("ul li a");
     await expect(pipelineLinks).toHaveCount(7);
-    const stageBounds: Array<{ label: string; y: number; height: number; bottom: number }> = [];
     for (let i = 0; i < 7; i++) {
       const link = pipelineLinks.nth(i);
       const box = await link.boundingBox();
       const text = (await link.innerText()).replace(/\s+/g, " ").trim();
       expect(box).not.toBeNull();
-      stageBounds.push({
-        label: text,
-        y: Math.round(box!.y),
-        height: Math.round(box!.height),
-        bottom: Math.round(box!.y + box!.height),
-      });
       expect(
         box!.y + box!.height,
         `Pipeline stage "${text}" bottom (${box!.y + box!.height}) should be <= 768px`,
@@ -805,32 +800,14 @@ test.describe("TA Overview UX, Accessibility, & Layout", () => {
     expect(h3Boxes[1].x).toBeLessThan(h3Boxes[2].x);
 
     // 7. Zero horizontal overflow
-    const overflow = await page.evaluate(() => ({
-      scrollWidth: document.documentElement.scrollWidth,
-      innerWidth: window.innerWidth,
-    }));
-    expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth);
+    await expectNoHorizontalOverflow(page);
 
-    // 8. Capture screenshot & log measurements before axe assertion
-    console.log(
-      "[TA_DESKTOP_MEASUREMENTS]",
-      JSON.stringify({ overflow, stageBounds, h3Ys: h3Boxes.map((b) => b.y) }),
-    );
+    // 8. Capture screenshot before axe assertion
     expect(unmocked).toEqual([]);
     await saveShot(page, testInfo, "ta-overview-desktop.png");
 
     // 9. Axe WCAG 2.0/2.1 A+AA scan
     const axeResults = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
-    console.log(
-      "[TA_AXE_VIOLATIONS]",
-      JSON.stringify(
-        axeResults.violations.map((v) => ({
-          id: v.id,
-          impact: v.impact,
-          nodes: v.nodes.map((n) => ({ target: n.target, failureSummary: n.failureSummary })),
-        })),
-      ),
-    );
     expect(axeResults.violations).toEqual([]);
   });
 
@@ -879,7 +856,7 @@ test.describe("TA Overview UX, Accessibility, & Layout", () => {
     expect(unmocked).toEqual([]);
   });
 
-  test("Mobile 390x844: zero horizontal overflow and >= 44px touch targets for filter buttons and queue links", async ({
+  test("Mobile 390x844: zero horizontal overflow and >= 44px touch targets for filter buttons, queue links, and pipeline rows", async ({
     page,
   }, testInfo) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -890,11 +867,7 @@ test.describe("TA Overview UX, Accessibility, & Layout", () => {
     await expect(needsActionRegion).toBeVisible();
     await expect(page.getByRole("region", { name: "Coming up" })).toBeVisible();
 
-    const overflow = await page.evaluate(() => ({
-      scrollWidth: document.documentElement.scrollWidth,
-      innerWidth: window.innerWidth,
-    }));
-    expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth);
+    await expectNoHorizontalOverflow(page);
 
     // Filter buttons >= 44px
     const filterButtons = needsActionRegion
@@ -920,7 +893,16 @@ test.describe("TA Overview UX, Accessibility, & Layout", () => {
       expect(box!.height).toBeGreaterThanOrEqual(44);
     }
 
-    console.log("[TA_MOBILE_MEASUREMENTS]", JSON.stringify({ overflow }));
+    // Hiring pipeline rows >= 44px
+    const pipelineLinks = page.getByRole("region", { name: "Hiring pipeline" }).locator("ul li a");
+    const pipelineCount = await pipelineLinks.count();
+    expect(pipelineCount).toBe(7);
+    for (let i = 0; i < pipelineCount; i++) {
+      const box = await pipelineLinks.nth(i).boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+    }
+
     expect(unmocked).toEqual([]);
 
     await saveShot(page, testInfo, "ta-overview-mobile.png");
@@ -943,16 +925,11 @@ test.describe("Admin Overview UX, Accessibility, & Layout", () => {
     await expect(statusSection).toBeVisible();
     await expect(statusSection.getByText(/need attention/)).toBeVisible();
 
-    const overflow = await page.evaluate(() => ({
-      scrollWidth: document.documentElement.scrollWidth,
-      innerWidth: window.innerWidth,
-    }));
-    expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth);
+    await expectNoHorizontalOverflow(page);
 
     const axeResults = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa"]).analyze();
     expect(axeResults.violations).toEqual([]);
 
-    console.log("[ADMIN_DESKTOP_MEASUREMENTS]", JSON.stringify({ overflow }));
     expect(unmocked).toEqual([]);
 
     await saveShot(page, testInfo, "admin-overview-desktop.png");
@@ -970,11 +947,7 @@ test.describe("Admin Overview UX, Accessibility, & Layout", () => {
     await expect(statusSection.getByText("All checks normal")).toBeVisible();
     await expect(statusSection.getByText(/need attention/)).toHaveCount(0);
 
-    const overflow = await page.evaluate(() => ({
-      scrollWidth: document.documentElement.scrollWidth,
-      innerWidth: window.innerWidth,
-    }));
-    expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth);
+    await expectNoHorizontalOverflow(page);
     expect(unmocked).toEqual([]);
 
     await saveShot(page, testInfo, "admin-overview-healthy-desktop.png");
@@ -991,13 +964,8 @@ test.describe("Admin Overview UX, Accessibility, & Layout", () => {
     await expect(page.getByRole("link", { name: "View reports" })).toHaveCount(1);
     await expect(page.getByText(/need attention/)).toBeVisible();
 
-    const overflow = await page.evaluate(() => ({
-      scrollWidth: document.documentElement.scrollWidth,
-      innerWidth: window.innerWidth,
-    }));
-    expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.innerWidth);
+    await expectNoHorizontalOverflow(page);
 
-    console.log("[ADMIN_MOBILE_MEASUREMENTS]", JSON.stringify({ overflow }));
     expect(unmocked).toEqual([]);
 
     await saveShot(page, testInfo, "admin-overview-mobile.png");

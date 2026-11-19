@@ -108,14 +108,20 @@ const SystemStatusStrip: React.FC<SystemStatusStripProps> = ({
   const backupsError = backupsQuery.isError && !backupsQuery.isFetching;
 
   const checks: SystemCheckLink[] = [
-    ...(userSummaryQuery.data ? buildUserSummaryChecks(userSummaryQuery.data) : []),
-    ...(backupsQuery.data ? [buildBackupCheck(backupsQuery.data)] : []),
+    ...(userSummaryQuery.data && !userLoading && !userError
+      ? buildUserSummaryChecks(userSummaryQuery.data)
+      : []),
+    ...(backupsQuery.data && !backupsLoading && !backupsError
+      ? [buildBackupCheck(backupsQuery.data)]
+      : []),
   ].sort((a, b) => TONE_ORDER[a.tone] - TONE_ORDER[b.tone]);
 
   const alertCount = checks.filter((item) => item.tone !== "neutral").length;
   const allLoaded =
     userSummaryQuery.data !== undefined &&
     backupsQuery.data !== undefined &&
+    !userLoading &&
+    !backupsLoading &&
     !userError &&
     !backupsError;
 
@@ -163,7 +169,7 @@ const SystemStatusStrip: React.FC<SystemStatusStripProps> = ({
             className="flex flex-wrap items-center gap-2 motion-safe:animate-pulse"
           >
             {Array.from({ length: 4 }).map((_, index) => (
-              <span key={index} className="h-7 w-32 rounded bg-slate-200" />
+              <span key={index} className="inline-block h-7 w-32 rounded bg-slate-200" />
             ))}
             <span className="sr-only">Loading account and job checks</span>
           </span>
