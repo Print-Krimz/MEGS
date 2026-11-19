@@ -6,7 +6,7 @@ import { taApi } from "../../../lib/api/ta.api";
 import { employeesApi } from "../../../lib/api/employees.api";
 import { addManilaCalendarDays, getManilaToday, toManilaDateInput } from "../../../lib/field-limits";
 import { formatDate } from "../../../lib/utils";
-import { EmptyState } from "../../common";
+import { EmptyState, OverviewPanelHeader } from "../../common";
 import { Button } from "../../ui";
 import type { Deployment } from "../../../lib/types/employee.types";
 
@@ -66,7 +66,7 @@ const SectionBlock: React.FC<{ section: Section }> = ({ section }) => {
         {section.label}
         <span className="tabular-nums text-slate-600">{section.items.length}</span>
       </h3>
-      <ul className="divide-y divide-slate-200 border-b border-slate-200">
+      <ul className="divide-y divide-slate-200">
         {shown.map((item) => (
           <li key={item.key}>
             <Link
@@ -180,12 +180,16 @@ export const ComingUp: React.FC<{ deploymentsQuery: UseQueryResult<Deployment[]>
   });
 
   const visible = sections.filter((s) => s.items.length > 0);
+  const gridClass =
+    visible.length === 1
+      ? "grid grid-cols-1"
+      : visible.length === 2
+        ? "grid grid-cols-1 divide-y divide-slate-200 md:grid-cols-2 md:divide-x md:divide-y-0"
+        : "grid grid-cols-1 divide-y divide-slate-200 lg:grid-cols-3 lg:divide-x lg:divide-y-0";
 
   return (
     <section aria-label="Coming up" className="overflow-hidden rounded-md border border-slate-300 bg-white">
-      <div className="flex min-h-12 items-center border-b border-slate-300 bg-slate-100 px-3.5 py-1.5">
-        <h2 className="text-sm font-semibold text-slate-950">Coming up</h2>
-      </div>
+      <OverviewPanelHeader title="Coming up" />
       {loading ? (
         <div role="status" aria-label="Loading section" className="divide-y divide-slate-200 motion-safe:animate-pulse">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -206,7 +210,7 @@ export const ComingUp: React.FC<{ deploymentsQuery: UseQueryResult<Deployment[]>
             </div>
           )}
           {visible.length > 0 && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 lg:[&>*:nth-child(odd)]:border-r lg:[&>*:nth-child(odd)]:border-slate-200">
+            <div className={gridClass}>
               {visible.map((section) => <SectionBlock key={section.key} section={section} />)}
             </div>
           )}

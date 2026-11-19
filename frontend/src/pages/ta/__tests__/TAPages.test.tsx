@@ -428,7 +428,7 @@ describe("Talent Acquisition Interface Suite", () => {
     // Dashboard needs only the summary: one-row page, no full interview list.
     expect(taApi.listInterviewCompliancePage).toHaveBeenCalledWith({ page: 1, pageSize: 1 }, expect.anything());
     expect(taApi.checkInterviewCompliance).not.toHaveBeenCalled();
-    // The worklist leads with what needs action: overdue interviews, placements, then pending tasks.
+    // The worklist leads with quick queue shortcuts and deduplicated pending tasks.
     expect(await screen.findByText("Needs your action")).toBeDefined();
     expect(await screen.findByText("1 interview overdue")).toBeDefined();
     expect(await screen.findByText("1 interview due within 48 hours")).toBeDefined();
@@ -440,6 +440,17 @@ describe("Talent Acquisition Interface Suite", () => {
     expect(screen.getByText("To do")).toBeDefined();
     expect(screen.queryByText("Waiting")).toBeNull();
     expect(screen.getByText("Contract signing")).toBeDefined();
+
+    // Urgency filter tabs filter the individual task rows without hiding quick queues.
+    fireEvent.click(screen.getByRole("button", { name: /^Overdue/i }));
+    expect(screen.getByRole("button", { name: /^Overdue/i }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByText("Schedule Screening")).toBeNull();
+    expect(screen.getByText("No items in this view.")).toBeDefined();
+    expect(screen.getByText("1 interview overdue")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: /^To do/i }));
+    expect(screen.getByRole("button", { name: /^To do/i }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("Schedule Screening")).toBeDefined();
 
     const mrfButton = await screen.findByRole("link", { name: /New manpower request/i });
     expect(mrfButton).toBeDefined();
