@@ -4,12 +4,12 @@ The production API server and asynchronous worker engine for the MEGS Recruitmen
 
 ---
 
-## 🏛 Architecture & Directory Structure
+## Architecture & Directory Structure
 
 ```text
 backend/
 ├── prisma/
-│   ├── schema/           # Multi-file partitioned schemas (10 domain files)
+│   ├── schema/           # Multi-file partitioned schemas (11 domain files)
 │   │   ├── migrations/   # Sequential SQL migrations
 │   │   ├── main.prisma   # Datasource & generator config
 │   │   ├── user.prisma   # Auth & user accounts
@@ -35,7 +35,7 @@ backend/
 
 ---
 
-## 🚀 Tech Stack
+## Tech Stack
 
 | Domain | Technology | Purpose |
 | :--- | :--- | :--- |
@@ -51,7 +51,7 @@ backend/
 
 ---
 
-## 🛠 Getting Started
+## Getting Started
 
 ### 1. Install Dependencies
 

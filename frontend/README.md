@@ -1,76 +1,83 @@
-﻿# MEGS Frontend — Recruitment Management System
+# MEGS Frontend
 
-The modern, responsive Single Page Application (SPA) for the MEGS Recruitment Management System, built with **React 19**, **Vite**, **Tailwind CSS v4**, and the **TanStack suite**.
+The web app for the MEGS Recruitment Management System. It has separate areas for applicants, Talent Acquisition (TA) staff and Admins, plus the public job site. Built with React 19, Vite, Tailwind CSS v4 and TanStack Query, Router and Table.
 
----
+## Directory structure
 
-## 🏛 Architecture & Directory Structure
-
-`	ext
+```text
 frontend/
 ├── src/
-│   ├── components/       # Reusable UI primitives, data tables, modals, badges
-│   ├── layouts/          # Role-based layouts (AdminLayout, TALayout, ApplicantLayout, AuthLayout)
-│   ├── pages/            # Role & public views
-│   │   ├── admin/        # System administration, user management, audit logs
-│   │   ├── ta/           # Talent Acquisition, MRF requisitions, candidate scoring, interviews
-│   │   ├── applicant/    # Profile, applications, compliance uploads, job discovery
-│   │   └── auth/         # Login, registration, password recovery
-│   ├── lib/
-│   │   └── api/          # Axios/Fetch clients, DTOs, and TanStack Query hooks
-│   ├── routes.tsx        # Client router configuration & role guards
-│   ├── main.tsx          # Application entry point & QueryClientProvider setup
-│   └── index.css         # Tailwind CSS v4 design tokens and utilities
-├── vite.config.ts        # Vite configuration (Port 5173)
-└── package.json          # Dependencies & npm scripts
-`
+│   ├── components/       Shared UI components, data tables, dialogs
+│   ├── layouts/          Layouts for Admin, TA, Applicant and sign-in pages
+│   ├── pages/
+│   │   ├── admin/        Users, audit logs, settings, reports
+│   │   ├── ta/           Job postings, manpower requests, candidates, interviews
+│   │   ├── applicant/    Profile, applications, documents, job search
+│   │   └── auth/         Sign-in, registration, password recovery
+│   ├── lib/api/          API clients, types and TanStack Query hooks
+│   ├── routes.tsx        Router configuration and role guards
+│   ├── main.tsx          Entry point
+│   └── index.css         Tailwind CSS v4 theme tokens
+├── e2e/                  Playwright end-to-end tests
+├── vite.config.ts        Vite configuration
+└── package.json
+```
 
----
+## Tech stack
 
-## 🚀 Tech Stack
+| Area | Technology |
+| :--- | :--- |
+| Framework | React 19 |
+| Build tool | Vite 8 |
+| Styling | Tailwind CSS v4 |
+| Icons | Lucide React |
+| Server state | TanStack Query v5 |
+| Tables | TanStack Table v8 |
+| Validation | Zod |
 
-| Domain | Technology | Purpose |
-| :--- | :--- | :--- |
-| **Framework** | React 19 | High-performance component composition |
-| **Build Tool** | Vite 6 | Rapid HMR and optimized production bundles |
-| **Styling** | Tailwind CSS v4 | CSS-first tokens, container queries, industrial utilitarian UI |
-| **Icons** | Lucide React | Clean, consistent SVG icon set |
-| **Server State** | TanStack Query v5 | Data fetching, background caching, and optimistic mutations |
-| **Data Grids** | TanStack Table v8 | Headless candidate grids, server-side sorting, and filtering |
-| **Validation** | Zod | Strict form schemas and runtime API contracts |
+## Getting started
 
----
+Install dependencies:
 
-## 🛠 Getting Started
-
-### 1. Install Dependencies
-`ash
+```bash
 npm install
-`
+```
 
-### 2. Environment Configuration
-Create a .env file in the rontend/ directory (or configure via root .env):
-`env
-VITE_API_BASE_URL=http://localhost:3000/api
-`
+Create the environment file:
 
-### 3. Development Server
-Start the Vite local development server (runs on http://localhost:5173):
-`ash
+```bash
+cp .env.example .env
+```
+
+| Variable | Purpose |
+| :--- | :--- |
+| `VITE_API_URL` | Backend API address, for example `http://localhost:3000/api` |
+| `VITE_TURNSTILE_SITE_KEY` | Public Cloudflare Turnstile site key |
+| `VITE_DISABLE_CAPTCHA` | Set to `true` to skip the CAPTCHA widget in local development |
+| `VITE_ENABLE_QUERY_DEVTOOLS` | Set to `true` to show the React Query devtools |
+
+Start the dev server on http://localhost:5173:
+
+```bash
 npm run dev
-`
+```
 
-### 4. Build for Production
-`ash
+Build and preview the production bundle:
+
+```bash
 npm run build
 npm run preview
-`
+```
 
----
+Run tests:
 
-## 🎨 UI/UX & Design Principles
+```bash
+npm test
+npm run test:e2e
+```
 
-The MEGS interface follows an **Industrial Utilitarian** design philosophy:
-- **High Information Density:** Clean, scannable data tables with clear typography and minimal nested cards.
-- **Accessible & Restrained:** High contrast ratios, no gratuitous animations, and zero AI-slop (no unnecessary gradients, purple glows, or floating decorative badges).
-- **Comprehensive State Coverage:** Every view provides dedicated Loading, Empty, Error, and Success states.
+## Design principles
+
+- Dense, easy-to-scan tables and forms. Few nested cards.
+- High contrast, little animation and no decorative effects.
+- Every screen handles loading, empty, error and success states.

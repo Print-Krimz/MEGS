@@ -1,276 +1,143 @@
-# MEGS — Recruitment Management System (RMS)
+# MEGS Recruitment Management System
 
-An intelligent, full-stack Recruitment Management, Applicant Tracking, and Talent Acquisition platform built with the PERN stack (PostgreSQL / Supabase, Express 5, React 19, Node.js), Prisma 7.8, Google Gemini AI, Nodemailer Gmail SMTP, and pgvector semantic talent pooling.
+MEGS is a hiring system for MEGS Inc., a Philippine manpower agency. It handles the full path from a job opening to a deployed worker: job posts, applications, resume screening, interviews, contract signing and placement tracking.
 
-## 🏛 System Architecture
+Applicants apply online or at the office. Talent Acquisition (TA) staff screen candidates and run the hiring process. An Admin, who leads the TA team, manages users, settings and reports.
+
+Live site: https://megsinc.com
+
+## Who uses it
+
+| Role | How they get an account | What they do |
+| :--- | :--- | :--- |
+| Applicant | Self-registers | Applies to jobs, uploads documents, tracks application status, manages their profile |
+| Talent Acquisition (TA) | Created from the seed or by an Admin invitation | Manages job postings and manpower requests, screens candidates, schedules interviews, records client decisions, tracks deployments |
+| Admin | Created from the seed | Manages staff accounts, system settings, audit logs, scoring settings and team-wide reports |
+
+## Main features
+
+- Resume parsing: Google Gemini reads uploaded resumes and fills in the applicant profile.
+- Candidate scoring: each application gets a score against the job requirements. Staff can review and re-run scoring.
+- Talent pool: pgvector similarity search finds past applicants who fit a new opening.
+- Job and manpower request management: TA staff create requests from clients and publish job posts.
+- Interview scheduling, contract signing and deployment tracking.
+- Intake from several sources: online applications, walk-ins and imports from other job sites.
+- Notifications by email (Brevo) and SMS.
+- Reports with Excel and PDF export.
+- Staff accounts require multi-factor authentication. Every protected API route is checked on the server.
+
+## Tech stack
+
+| Area | Technology |
+| :--- | :--- |
+| Backend | Node.js 22, TypeScript, Express 5 |
+| Database | PostgreSQL on Supabase, Prisma ORM 7.8 (multi-file schema), pgvector |
+| Authentication and file storage | Supabase Auth and Supabase Storage |
+| AI | Google Gemini (`gemini-2.5-flash` for parsing, `gemini-embedding-001` for embeddings) |
+| Email | Brevo API |
+| Frontend | React 19, Vite 8, TypeScript, Tailwind CSS v4 |
+| Data and routing | TanStack Query, Router and Table |
+| Validation | Zod |
+| Hosting | Heroku (API), Vercel (web app), Cloudflare (DNS) |
+
+## Repository layout
 
 ```text
 MEGS/
-├── backend/                  # Express 5 + TypeScript + Prisma 7.8 API Server
+├── backend/                  Express API and background workers
 │   ├── prisma/
-│   │   ├── schema/           # Multi-schema domain models (13 domain schemas)
-│   │   │   └── migrations/   # Sequential SQL migrations
-│   │   └── seed.ts           # Authoritative Admin/TA bootstrap & scoring seed
+│   │   ├── schema/           Prisma models split across 11 files, plus SQL migrations
+│   │   └── seed.ts           Creates the first Admin and TA accounts
 │   ├── src/
-│   │   ├── controllers/      # Admin, TA, Applicant, Employee, Document controllers
-│   │   ├── routes/           # RESTful API route definitions
-│   │   ├── services/         # Business logic, scoring engine, AI resume parsing
-│   │   ├── utils/            # Supabase, Prisma, Gemini, Mailer utilities
-│   │   └── workers/          # Async background queue workers (Resume, Email)
-│   └── server.ts             # Express server entry point (Port 3000)
-│
-├── frontend/                 # React 19 + Vite + Tailwind CSS v4 Single Page App
-│   ├── src/
-│   │   ├── components/       # Reusable UI primitives, dialogs, modals, badges
-│   │   ├── layouts/          # Role-based layouts (Admin, TA, Applicant, Auth)
-│   │   ├── pages/            # Domain views (Admin, TA, Applicant, Auth, Public)
-│   │   ├── lib/api/          # Axios/Fetch API clients & TanStack Query hooks
-│   │   └── routes.tsx        # Client-side router configuration
-│   └── vite.config.ts        # Vite build & development server config (Port 5173)
+│   │   ├── controllers/      Request handlers
+│   │   ├── middleware/       Authentication, role checks, rate limits
+│   │   ├── routes/           API route definitions
+│   │   ├── services/         Business logic, scoring, resume parsing, reports
+│   │   ├── utils/            Prisma, Supabase, Gemini and mail clients
+│   │   └── workers/          Queues for resume parsing and email
+│   └── server.ts             Server entry point (port 3000)
+├── frontend/                 React single-page app
+│   └── src/
+│       ├── components/       Shared UI components
+│       ├── layouts/          Layouts for Admin, TA, Applicant and sign-in pages
+│       ├── pages/            Screens for each role and the public site
+│       └── lib/api/          API clients and TanStack Query hooks
+├── docs/                     Project documentation
+└── .github/workflows/        Backend checks and deployment
 ```
 
----
+## Getting started
 
-## 🚀 Tech Stack
+You need Node.js 22, npm, a Supabase project with the `pgvector` extension enabled, a Google Gemini API key and a Brevo API key.
 
-| Domain | Technology |
-| :--- | :--- |
-| **Backend Runtime** | Node.js (ES Modules), TypeScript, Express 5.2 |
-| **Database & ORM** | PostgreSQL (Supabase), Prisma ORM 7.8 (Multi-Schema partitioned) |
-| **Authentication & Storage** | Supabase Auth (Server-side service role) & Supabase Storage Vault |
-| **Email Service** | Nodemailer with Gmail SMTP / Google App Passwords |
-| **AI Assessment & Search** | Google Gemini (`gemini-2.5-flash`), Google Gemini Embeddings (`gemini-embedding-001`), pgvector |
-| **Frontend Framework** | React 19, Vite 8, TypeScript |
-| **UI & Styling** | Tailwind CSS v4, Lucide Icons |
-| **State & Navigation** | TanStack Query v5, TanStack Router, TanStack Table |
-| **Validation** | Zod v4 (strict contract validation) |
-
----
-
-## 🔐 Development Security Hardening
-
-> **Review status:** These changes are on the `security/surgical-auth-hardening` development branch and Draft Pull Request #2. They have not been merged into `main` or deployed to production.
-
-This branch addresses five confirmed authentication and secret-handling vulnerabilities while preserving legitimate applicant, staff, onboarding, recovery, and notification behavior.
-
-### 1. Strict JWT Verification
-
-**Problem:** The previous custom token verification did not consistently prove every token was authentic and issued for this application. Incomplete signature, algorithm, issuer, audience, or time validation could allow forged or incorrectly configured tokens to reach protected endpoints.
-
-**Fix:** Authentication now uses the provider-supported verification flow and explicitly validates the signature, permitted algorithm, issuer, audience, expiration, applicable time claims, subject, and authentication assurance level. The existing database identity lookup and active-account validation still run after the token is verified.
-
-**Result:** Unsigned, tampered, expired, wrong-issuer, wrong-audience, and unsupported-algorithm tokens are rejected. Valid provider tokens continue through the normal login and account checks.
-
-### 2. Backend Staff MFA Enforcement
-
-**Problem:** Administrator and TA authorization could depend too heavily on frontend behavior. A staff session without cryptographically verified AAL2 could attempt to call protected backend operations directly.
-
-**Fix:** The backend now requires a verified AAL2 session for ordinary administrator and TA operations. Only the exact authenticated routes needed for MFA enrollment, challenge, recovery, and logout bypass that requirement, and those routes cannot grant normal staff access.
-
-**Result:** Staff cannot enter protected operations until MFA is verified. Applicants keep their intended access, and staff can still complete MFA setup or account recovery.
-
-### 3. Consistent Account-State and Password-Change Enforcement
-
-**Problem:** Disabled-account and forced-password-change restrictions were applied inconsistently. URL substring exceptions could also match unintended route variations.
-
-**Fix:** Shared authorization policy now applies account-state and password-change rules in one place. Exceptions use explicit route and HTTP method combinations for onboarding, verification, password change, recovery, and logout.
-
-**Result:** Restricted accounts cannot use ordinary application operations or bypass controls with modified URLs. Legitimate onboarding, recovery, password-change, and logout flows remain available.
-
-### 4. Safe Secrets, Backup Encryption, and Staff Seeding
-
-**Problem:** Production secret fallbacks and default seed credentials could create predictable secrets or silently reset existing staff passwords. Backup encryption also lacked an explicit key-version strategy for future key changes.
-
-**Fix:** Production now requires explicit OTP, encryption, and staff seed credentials. Seeds no longer silently overwrite existing staff passwords or clear required-password-change state. New backup data records a key version, while the existing encryption format remains recoverable through an explicitly configured legacy key.
-
-**Result:** Production cannot quietly start with insecure fallback secrets, seed runs cannot unexpectedly take over staff accounts, and existing backups remain recoverable during a controlled key transition. This branch does not run seeds, rotate keys, re-encrypt stored backups, or add a database migration.
-
-### 5. Authentication-Token Leakage Prevention
-
-**Problem:** Invitation, recovery, and OTP values could be written to logs. Missing production email configuration could report success without delivering mail, and query-string JWT authentication could expose reusable credentials through URLs and infrastructure logs.
-
-**Fix:** Authentication values are redacted from mail and application logs. Production email fails clearly when SMTP is not configured. Debug invitation links and general query-string JWT authentication were removed, and notification authentication uses the compatible authenticated client flow with token-expiration handling.
-
-**Result:** Usable authentication tokens no longer appear in normal logs or URLs, mail delivery failures are visible, and authenticated notifications continue without query-string credentials.
-
-### Earlier Verification Results (original five patches)
-
-- **34 security regression and compatibility tests passed across 7 test files.**
-- Coverage includes forged and malformed JWTs, staff MFA, applicant access, account states, forced password changes, route-bypass attempts, login compatibility, recovery, mail redaction, OTP handling, and backup-key compatibility.
-- Frontend lint completed successfully with existing warnings.
-- That earlier check was blocked by a stale generated Prisma client and a missing local Leaflet installation. Those local dependency problems have now been repaired; see the compiled report for current verification.
-
-### Required Before Deployment
-
-Configure the documented JWT issuer and audience settings, OTP secret, versioned backup encryption key, and production SMTP settings. If legacy encrypted backups exist, retain the explicit legacy recovery key until an approved migration is completed.
-
----
-
-## 📋 Prerequisites
-
-- **Node.js**: `v20.x` or higher
-- **npm**: `v10.x` or higher
-- **PostgreSQL / Supabase Project** (with `pgvector` enabled)
-- **Google Gemini API Key** (from [Google AI Studio](https://aistudio.google.com/app/apikey))
-- **Gmail Account with App Password** (for transactional emails & password resets)
-
----
-
-## ⚙️ Installation & Environment Setup
-
-### 1. Clone Repository
 ```bash
 git clone https://github.com/Print-Krimz/MEGS.git
 cd MEGS
 ```
 
-### 2. Backend Setup
+### Backend
+
 ```bash
 cd backend
 npm install
 cp .env.example .env
 ```
 
-Configure `backend/.env` with your project credentials:
-```env
-# Database Configuration (PostgreSQL / Supabase)
-DATABASE_URL="postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true"
-DIRECT_URL="postgresql://postgres.[PROJECT_REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:5432/postgres"
-
-# Server Port
-PORT=3000
-
-# Supabase Auth & Storage API
-SUPABASE_URL="https://[YOUR_PROJECT_REF].supabase.co"
-SUPABASE_PUBLISHABLE_KEY="your-supabase-publishable-key"
-SUPABASE_SECRET_KEY="your-supabase-service-role-secret-key"
-SUPABASE_JWT_ALGORITHMS="HS256,RS256,ES256"
-SUPABASE_JWT_AUDIENCE="authenticated"
-OTP_SECRET="replace-with-a-random-otp-hmac-secret"
-BACKUP_ENCRYPTION_SECRET="replace-with-a-random-backup-encryption-secret"
-BACKUP_ENCRYPTION_KEY_ID="v1"
-
-# Google Gemini AI API Key & Model
-GEMINI_API_KEY="your-google-gemini-api-key"
-GEMINI_MODEL="gemini-2.5-flash"
-GEMINI_EMBEDDING_MODEL="gemini-embedding-001"
-
-# Email Configuration (Brevo API)
-BREVO_API_KEY="your-brevo-api-key"
-EMAIL_FROM="\"MEGS Inc.\" <noreply@megsinc.com>"
-
-# Optional Feature Flags
-DYNAMIC_CANDIDATE_SCORING_ENABLED="true"
-KNN_TALENT_POOLING_ENABLED="true"
-CANDIDATE_SCORE_REVALIDATION_ENABLED="true"
-```
-
----
-
-## 📧 Email Service (Brevo) Setup
-
-MEGS sends transactional email through the **Brevo HTTPS API** from `noreply@megsinc.com`, including:
-- ✉️ **Administrator & TA Invitation Links** (Account setup emails)
-- 🔑 **Password Reset Requests** (Secure tokenized reset links)
-- 📢 **Applicant Status Changes & Screening Results**
-- 📅 **Interview Scheduling & Deployment Alerts**
-
-### Brevo setup:
-1. In Brevo, authenticate the `megsinc.com` domain (brevo-code TXT, two `brevo*._domainkey` CNAMEs and a DMARC TXT in Cloudflare DNS) and add `noreply@megsinc.com` as a sender.
-2. Under **Security → Authorised IPs**, turn IP blocking off. Heroku dynos have rotating IPs, and Brevo rejects API calls from unlisted IPs.
-3. Create an API key and set it as `BREVO_API_KEY` (backend `.env` and Heroku config vars). Set `EMAIL_FROM` to `"MEGS Inc." <noreply@megsinc.com>`.
-
-### Legacy Gmail fallback (used only when `BREVO_API_KEY` is empty)
-
-#### How to Generate a Google App Password:
-1. Go to your **[Google Account Security Settings](https://myaccount.google.com/security)**.
-2. Under "How you sign in to Google", ensure **2-Step Verification** is turned **ON**.
-3. Go to **[App Passwords](https://myaccount.google.com/apppasswords)** (or search "App Passwords" in your account).
-4. Enter an app name (e.g., `MEGS Recruitment`) and click **Create**.
-5. Google will generate a **16-character passcode** (e.g., `abcd efgh ijkl mnop`).
-6. Copy this passcode into `GMAIL_APP_PASSWORD` in `backend/.env` (spaces are automatically stripped by the server).
-7. Set `GMAIL_USER` and `EMAIL_FROM` with your full Gmail address.
-
-> **Development fallback:** Outside production, missing SMTP credentials use a redacted console preview. Production email delivery fails clearly when SMTP is not configured; tokens and OTP values are never written to this preview.
-
----
-
-## 🗄 Database Migrations & Authoritative Bootstrap Seed
+Fill in `backend/.env`. [`backend/.env.example`](backend/.env.example) lists every variable with a placeholder. The main groups are database URLs, Supabase keys, JWT settings, `OTP_SECRET`, backup encryption keys, Gemini, and Brevo.
 
 ```bash
-# Push database migrations
-npx prisma migrate dev
-
-# Generate Prisma Client
-npx prisma generate
-
-# Run authoritative bootstrap seed (Admin, TA, Scoring Config v1, Storage Buckets)
+npm run db:generate
+npm run db:migrate
 npm run seed
-```
-
----
-
-## 🔐 Seeded Accounts & Roles
-
-Admin and Talent Acquisition (TA) roles do not allow public self-registration. `npm run seed` requires explicit `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `TA_EMAIL`, and `TA_PASSWORD` values. `npm run seed:admin` requires the two administrator values. The seed does not change passwords or activation state for existing accounts, and newly created staff must change their bootstrap password.
-
-| Role | Provisioning | Access / Capabilities |
-| :--- | :--- | :--- |
-| **System Administrator** | Explicit seed credentials | System configuration, user management, audit logs, AI scoring tuning, revalidation queue |
-| **Talent Acquisition (TA)** | Explicit seed credentials | Job postings, MRF management, candidate screening, endorsements, compliance, deployments, talent pool |
-| **Applicant** | Self-registered | Job application, document upload, status tracking, candidate profile management |
-
-For existing unversioned backups, set `BACKUP_ENCRYPTION_LEGACY_SECRETS` temporarily to the exact former encryption secret before restore. New backups include `BACKUP_ENCRYPTION_KEY_ID`; older versioned keys can be supplied through `BACKUP_ENCRYPTION_LEGACY_KEYS`. Never commit these values.
-
----
-
-## 💻 Frontend Setup & Development
-
-```bash
-cd ../frontend
-npm install
-```
-
----
-
-## 🛠 Running the Application
-
-### Development Servers
-
-Open two terminals or run concurrently:
-
-**Backend Server (Port 3000):**
-```bash
-cd backend
 npm run dev
 ```
 
-**Frontend Client (Port 5173):**
+The API runs on http://localhost:3000.
+
+`npm run seed` needs `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `TA_EMAIL` and `TA_PASSWORD` in the environment. `npm run seed:admin` needs only the two Admin values. The seed never changes the password of an existing account, and new staff must change their password at first sign-in.
+
+### Frontend
+
 ```bash
 cd frontend
+npm install
+cp .env.example .env
 npm run dev
 ```
 
-Visit `http://localhost:5173` in your browser.
+The app runs on http://localhost:5173. [`frontend/.env.example`](frontend/.env.example) sets the API address (`VITE_API_URL`) and the Cloudflare Turnstile key.
 
----
+### Email
 
-## 📦 Available Scripts
+Production email goes through the Brevo API from `noreply@megsinc.com`. Set `BREVO_API_KEY` and `EMAIL_FROM`. Brevo must authenticate the sending domain, and its IP allow-list must be off because Heroku IP addresses change. Outside production, if no email provider is configured, the server prints a redacted preview to the console.
 
-### Backend (`backend/`)
-- `npm run dev`: Start backend development server with hot-reloading (`tsx watch`).
-- `npm run build`: Compile TypeScript into `dist/`.
-- `npm run start`: Run production server from `dist/server.js`.
-- `npm test`: Run backend unit and integration tests (`vitest`).
-- `npm run seed`: Run authoritative bootstrap seed (Admin, TA, Scoring Config v1, Storage Buckets).
-- `npm run seed:accounts`: Sync or reset Admin and TA credentials in Supabase Auth & PostgreSQL.
-- `npm run db:migrate`: Run Prisma database migrations.
-- `npm run db:generate`: Regenerate Prisma Client.
-- `npm run db:clean`: Wipe mock records and reset database to clean Admin/TA baseline.
-- `npm run db:studio`: Open Prisma Studio database viewer.
+## Scripts
 
-### Frontend (`frontend/`)
-- `npm run dev`: Start Vite development server at `http://localhost:5173`.
-- `npm run build`: Type-check and compile production bundle with Vite.
-- `npm run test`: Run frontend unit and component tests (`vitest`).
-- `npm run preview`: Preview production build locally.
+Backend (`backend/`):
+
+- `npm run dev`: start the API with hot reload.
+- `npm run build`: compile TypeScript into `dist/`.
+- `npm start`: run the compiled server.
+- `npm test`: run the Vitest suites. Some suites use a real database, so run them against a test database.
+- `npm run seed`, `npm run seed:admin`: create the first staff accounts.
+- `npm run db:migrate`, `npm run db:generate`, `npm run db:studio`: Prisma migrations, client generation and database viewer.
+
+Frontend (`frontend/`):
+
+- `npm run dev`: start Vite.
+- `npm run build`: type-check and build the production bundle.
+- `npm test`: run unit and component tests.
+- `npm run test:e2e`: run Playwright end-to-end tests.
+- `npm run preview`: serve the production build locally.
+
+## Testing and deployment
+
+When a push to `main` changes `backend/`, GitHub Actions installs the backend, generates the Prisma client, type-checks and runs the tests with no real database or secrets. If they pass, the workflow deploys the API to Heroku. See [`.github/workflows/deploy-backend.yml`](.github/workflows/deploy-backend.yml).
+
+## Security
+
+Report vulnerabilities as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+Released under the [MIT License](LICENSE).
