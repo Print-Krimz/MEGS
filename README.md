@@ -1,5 +1,7 @@
 # MEGS Recruitment Management System
 
+[![Backend CI](https://github.com/Print-Krimz/MEGS/actions/workflows/deploy-backend.yml/badge.svg)](https://github.com/Print-Krimz/MEGS/actions/workflows/deploy-backend.yml)
+
 MEGS is a hiring system for MEGS Inc., a Philippine manpower agency. It handles the full path from a job opening to a deployed worker: job posts, applications, resume screening, interviews, contract signing and placement tracking.
 
 Applicants apply online or at the office. Talent Acquisition (TA) staff screen candidates and run the hiring process. An Admin, who leads the TA team, manages users, settings and reports.
@@ -25,6 +27,28 @@ Live site: https://megsinc.com
 - Notifications by email (Brevo) and SMS.
 - Reports with Excel and PDF export.
 - Staff accounts require multi-factor authentication. Every protected API route is checked on the server.
+
+## Demo walkthrough
+
+Open https://megsinc.com. Applicant sign-up is public. Staff accounts are created by invitation, so the Talent Acquisition and Admin steps below need a staff account, or a local setup with the seed (see Getting started).
+
+Applicant:
+
+1. Register at `/register` and sign in.
+2. Open **Jobs** (`/app/jobs`), pick a job and apply. Upload a resume; it is parsed and the profile is filled in.
+3. Follow the application under **Applications** (`/app/applications`). Interview invitations appear under **Invitations**.
+
+Talent Acquisition (TA):
+
+1. Sign in at `/login` and complete multi-factor authentication.
+2. Create a manpower request under **MRFs** (`/ta/mrfs`) and publish a job from it (`/ta/jobs`).
+3. Open **Applications** (`/ta/applications`) and review a candidate's score, resume and documents.
+4. Move the candidate through the stages: schedule an interview, record the client's decision, send the contract and deploy.
+
+Admin:
+
+1. Sign in with the Admin account.
+2. Invite staff, review the audit log and view team-wide reports. Reports export to Excel and PDF.
 
 ## Tech stack
 
