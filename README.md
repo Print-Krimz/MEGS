@@ -28,6 +28,62 @@ Live site: https://megsinc.com
 - Reports with Excel and PDF export.
 - Staff accounts require multi-factor authentication. Every protected API route is checked on the server.
 
+## How it works
+
+```mermaid
+flowchart LR
+    A[Applicant] --> W
+    T[TA staff] --> W
+    M[Admin] --> W
+    W["Web app<br/>React, Vercel"] --> API["API<br/>Express, Heroku"]
+    API --> DB[("Postgres + pgvector<br/>Supabase, Prisma")]
+    API --> AU[Supabase Auth]
+    API --> ST[Supabase Storage]
+    API --> AI[Google Gemini]
+    API --> EM[Brevo email]
+    API --> SMS[SMS provider]
+    API --> WK["Background workers<br/>resume parsing, email,<br/>SMS outbox, scheduled jobs"]
+    WK --> DB
+    WK --> AI
+```
+
+Browsers talk only to the web app, and the web app talks only to the API. The API checks the user's role on every request, then reads and writes the database and file storage.
+
+What happens when an applicant uploads a resume:
+
+1. The file is saved in Supabase Storage and the application is marked `PARSING`.
+2. A background worker sends the resume to Gemini, which returns the profile fields and an embedding.
+3. The system scores the application against the job requirements and stores the result.
+4. TA staff see the score and the resume, and can re-run scoring. If parsing or scoring fails, the application is marked `NEEDS_ATTENTION` for manual review.
+
+## Hiring pipeline
+
+```mermaid
+flowchart LR
+    S[Submitted] --> P[Parsing] --> R[Review] --> MT[Matched]
+    MT --> IS[Initial screening] --> CE[Client endorsement] --> FI[Final interview]
+    IS -.skip allowed.-> FI
+    FI --> CO[Compliance] --> CS[Contract signing] --> D[Deployed]
+    P --> NA[Needs attention]
+    R --> TP[Talent pool]
+    IS --> X["Rejected or Backed out<br/>(from any active stage)"]
+```
+
+| Stage | Enum value | What happens |
+| :--- | :--- | :--- |
+| Submitted, Parsing | `SUBMITTED`, `PARSING` | The applicant applies; the resume is read and scored. |
+| Review, Matched | `REVIEW`, `MATCHED` | TA staff check the score and decide whether the candidate fits. |
+| Talent pool | `TALENT_POOL` | Not a fit for this job. Kept for future openings. |
+| Initial screening | `INITIAL_SCREENING` | First interview. |
+| Client endorsement | `CLIENT_ENDORSEMENT` | The client reviews the candidate. TA records the decision. This stage can be skipped. |
+| Final interview | `FINAL_INTERVIEW` | Last interview. |
+| Compliance | `COMPLIANCE` | Pre-employment documents are verified. |
+| Contract signing | `CONTRACT_SIGNING` | The paper contract is signed and the scan is uploaded. |
+| Deployed | `DEPLOYED` | The worker is placed with the client. |
+| Rejected, Backed out | `REJECTED`, `BACKOUT` | The process ended. Rejected means TA turned the candidate down. Backed out means the candidate withdrew. |
+
+The allowed moves between stages are defined in [`backend/src/services/ta/pipeline-rules.ts`](backend/src/services/ta/pipeline-rules.ts).
+
 ## Demo walkthrough
 
 Open https://megsinc.com. Applicant sign-up is public. Staff accounts are created by invitation, so the Talent Acquisition and Admin steps below need a staff account, or a local setup with the seed (see Getting started).
@@ -86,7 +142,7 @@ MEGS/
 │       ├── layouts/          Layouts for Admin, TA, Applicant and sign-in pages
 │       ├── pages/            Screens for each role and the public site
 │       └── lib/api/          API clients and TanStack Query hooks
-├── docs/                     Project documentation
+├── docs/                     Project documentation (kept locally, not published)
 └── .github/workflows/        Backend checks and deployment
 ```
 
