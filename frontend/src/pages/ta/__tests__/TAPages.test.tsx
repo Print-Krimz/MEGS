@@ -817,11 +817,11 @@ describe("Talent Acquisition Interface Suite", () => {
     const order = ["Needs action", "Headline numbers", "Candidates by stage", "Starts and backouts", "Action items", "Overdue candidates", "Client requests"].map((n) => names.indexOf(n));
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
-    expect(screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent).slice(0, 2)).toEqual(["Right now", "In these dates"]);
-    expect(screen.getByText("2 new · 1 redeployed")).toBeDefined();
+    expect(screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent).slice(0, 2)).toEqual(["Right now", "Last 7 days"]);
+    expect(screen.getByText("2 new · 1 returning")).toBeDefined();
     expect(screen.getByText("+2")).toBeDefined();
     expect(screen.getAllByText("vs previous 7 days").length).toBe(2);
-    expect(screen.getAllByText("Backout rate").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Backed out").length).toBeGreaterThan(0);
     expect(screen.getByText("Due soon")).toBeDefined();
     expect(screen.getByText("Why candidates backed out")).toBeDefined();
     expect(await screen.findByText("Export")).toBeDefined();
@@ -834,7 +834,7 @@ describe("Talent Acquisition Interface Suite", () => {
     expect(chip).toBeDefined();
     const tile = within(screen.getByRole("region", { name: "Right now" })).getByRole("link", { name: /Overdue candidates/ });
     expect(tile.textContent).toContain("3");
-    expect(tile.textContent).toContain("1 estimated from application date");
+    expect(tile.textContent).toContain("Waiting past their stage limit");
   });
 
   it("drops the stage chart, closed applications, pending work and the Now / In period chips", async () => {

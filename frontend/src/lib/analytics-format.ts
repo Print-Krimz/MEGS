@@ -1,3 +1,5 @@
+import { formatDate } from "./utils";
+
 /** What a hidden rate says instead when nothing was recorded yet. */
 export const sampleNote = (_n?: number): string => "No data yet";
 
@@ -14,4 +16,10 @@ export function daysAgoText(iso: string | null | undefined, now: Date = new Date
   if (Number.isNaN(then)) return "";
   const days = Math.max(0, Math.floor((now.getTime() - then) / 86_400_000));
   return days === 0 ? "today" : days === 1 ? "1 day ago" : `${days} days ago`;
+}
+
+/** Heading for the date-based tiles: "Last 7 days", or "Nov 1, 2026 to Nov 27, 2026" for a custom range. */
+export function rangeHeading(range: string, dateRange: { startDate: string; endDate: string; days: number }): string {
+  if (range === "custom") return `${formatDate(dateRange.startDate)} to ${formatDate(dateRange.endDate)}`;
+  return `Last ${dateRange.days} days`;
 }

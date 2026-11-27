@@ -326,7 +326,7 @@ export const AnalyticsFilterBar: React.FC<AnalyticsFilterBarProps> = ({
 
         {/* Full width, so it sits on its own line under the date controls */}
         <p id={dateNoteId} className="col-span-2 w-full text-xs text-slate-600 leading-relaxed">
-          Dates apply to “In these dates”, the starts and backouts chart and Why candidates backed out. “Right now” figures are live.
+          Dates apply to the date-based tiles, the starts and backouts chart and Why candidates backed out. “Right now” figures are live.
         </p>
       </div>
 

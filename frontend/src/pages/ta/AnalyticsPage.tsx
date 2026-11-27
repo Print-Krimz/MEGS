@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { taApi } from "../../lib/api/ta.api";
-import { formatSampled } from "../../lib/analytics-format";
+import { formatSampled, rangeHeading } from "../../lib/analytics-format";
 import { PageHeader, LoadingState, ErrorState } from "../../components/common";
 import {
   AnalyticsFilterBar,
@@ -30,10 +30,10 @@ import { TA_COPY } from "../../lib/ta-copy";
 const plural = (count: number, word: string) => (count === 1 ? word : `${word}s`);
 
 const KPI_DEFINITIONS = [
-  { label: "Overdue candidates", definition: "Candidates past the days allowed for their stage, including ones estimated from application date." },
-  { label: "Open requests", definition: "Requests still needing workers." },
-  { label: "Starts", definition: "Workers who started work, compared with the previous dates of the same length." },
-  { label: "Backout rate", definition: "Workers who backed out after client review, out of those plus starts, compared with the previous dates of the same length." },
+  { label: "Overdue candidates", definition: "Candidates past the days allowed for their stage, including ones with no stage date, which are counted from the application date." },
+  { label: "Open requests", definition: "Requests still needing workers. The line under it shows how many workers are still needed and how many are placed." },
+  { label: "Workers started", definition: "Workers who started work, compared with the previous dates of the same length." },
+  { label: "Backed out", definition: "Workers who backed out after client review, out of those plus starts, compared with the previous dates of the same length." },
 ];
 
 type WorkspaceKey = "waiting" | "requests" | "actions";
@@ -234,25 +234,25 @@ export const AnalyticsPage: React.FC = () => {
                   <AnalyticsKpi
                     label="Overdue candidates"
                     value={kpis.overdueTotal}
-                    detail={`${kpis.overdueEstimated} estimated from application date`}
+                    detail="Waiting past their stage limit"
                     href="#operations"
                     onClick={() => showWaiting({ urgency: "ALL" })}
                   />
                   {/* No link: the request list also holds filled requests, so its count would not match this tile. */}
-                  <AnalyticsKpi label="Open requests" value={kpis.requisitions.open} detail={`${kpis.filledSeats} of ${kpis.requestedSeats} seats filled`} />
+                  <AnalyticsKpi label="Open requests" value={kpis.requisitions.open} detail={`${Math.max(kpis.requestedSeats - kpis.filledSeats, 0)} workers still needed · ${kpis.filledSeats} placed`} />
                 </KpiGroup>
-                <KpiGroup label="In these dates">
+                <KpiGroup label={rangeHeading(filters.range, data.dateRange)}>
                   {/* No link: /ta/deployments does not accept dates or request filters. */}
                   <AnalyticsKpi
-                    label="Starts"
+                    label="Workers started"
                     value={kpis.placementsStarted}
-                    detail={`${kpis.newStarts} new · ${kpis.redeployStarts} redeployed`}
+                    detail={`${kpis.newStarts} new · ${kpis.redeployStarts} returning`}
                     delta={{ current: kpis.placementsStarted, previous: data.previousPeriod.placementsStarted, better: "up", periodLabel: previousLabel }}
                   />
                   <AnalyticsKpi
-                    label="Backout rate"
-                    value={formatSampled(kpis.backoutRate, kpis.backoutRateBase, "%")}
-                    detail={`${kpis.backoutsAfterClientReview} of ${kpis.backoutRateBase} backed out after client review`}
+                    label="Backed out"
+                    value={kpis.backoutRateBase === 0 ? "None yet" : formatSampled(kpis.backoutRate, kpis.backoutRateBase, "%")}
+                    detail={kpis.backoutRateBase === 0 ? undefined : `${kpis.backoutsAfterClientReview} of ${kpis.backoutRateBase} left after the client approved them`}
                     delta={{ current: kpis.backoutRate, previous: data.previousPeriod.backoutRate, unit: "%", better: "down", periodLabel: previousLabel }}
                     href="#backout-reasons"
                   />

@@ -169,7 +169,7 @@ export const AnalyticsKpi: React.FC<AnalyticsKpiProps> = ({ label, value, detail
 
 interface KpiGroupProps {
   /** The time base for every tile in the group, stated once. */
-  label: "Right now" | "In these dates";
+  label: string;
   children: React.ReactNode;
 }
 

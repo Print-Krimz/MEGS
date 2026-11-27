@@ -105,7 +105,7 @@ describe("AdminAnalyticsPage", () => {
     const order = ["Needs action", "Headline numbers", "Candidates by stage", "Starts and backouts", "Overdue candidates", "Client requests", "Recruiters"].map(at);
     expect(order.every((i) => i >= 0)).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
-    expect(screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual(["Right now", "In these dates"]);
+    expect(screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual(["Right now", "Last 7 days"]);
     expect(screen.queryByText(/Team workload/)).toBeNull();
     expect(screen.queryByText("Late requests")).toBeNull();
   });
@@ -198,7 +198,7 @@ describe("AdminAnalyticsPage", () => {
   it("groups the tiles by time base and has no Now or In period tags", async () => {
     renderPage();
     expect(await screen.findByText("Right now")).toBeDefined();
-    expect(screen.getByText("In these dates")).toBeDefined();
+    expect(screen.getByRole("heading", { level: 3, name: "Last 7 days" })).toBeDefined();
     expect(screen.getAllByText("How these are counted")).toHaveLength(1);
     expect(screen.getAllByRole("link", { name: /Seats filled/ }).length).toBeGreaterThan(0);
     expect(screen.queryByText("In period")).toBeNull();
@@ -353,7 +353,7 @@ describe("AdminAnalyticsPage", () => {
     renderPage();
     await screen.findByText("Candidates by stage");
 
-    const inTheseDates = screen.getByRole("region", { name: "In these dates" });
+    const inTheseDates = screen.getByRole("region", { name: "Last 7 days" });
     expect(within(inTheseDates).getByText("Starts")).toBeDefined();
     expect(within(inTheseDates).getByText("5")).toBeDefined();
     expect(within(inTheseDates).getByText("3 new · 2 redeployed")).toBeDefined();

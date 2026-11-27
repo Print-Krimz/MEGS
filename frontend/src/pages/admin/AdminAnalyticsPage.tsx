@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { formatSampled } from "../../lib/analytics-format";
+import { formatSampled, rangeHeading } from "../../lib/analytics-format";
 import { adminApi } from "../../lib/api/admin.api";
 import { notify } from "../../lib/feedback";
 import { PageHeader, LoadingState, ErrorState } from "../../components/common";
@@ -327,7 +327,7 @@ export const AdminAnalyticsPage: React.FC = () => {
                   href="#client-review"
                 />
               </KpiGroup>
-              <KpiGroup label="In these dates">
+              <KpiGroup label={rangeHeading(filters.range, data.dateRange)}>
                 <AnalyticsKpi
                   label="Starts"
                   value={kpis.placementsStarted}
